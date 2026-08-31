@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -38,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -58,6 +60,9 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.megaproxy.app.data.ConfigStore
+import dev.megaproxy.app.data.ConfigExportFormat
+import dev.megaproxy.app.data.ConfigTransfer
+import dev.megaproxy.app.data.PortableConfiguration
 import dev.megaproxy.app.data.ProxyListParser
 import dev.megaproxy.app.model.ProfileColors
 import dev.megaproxy.app.model.ProxyProfile
@@ -86,6 +91,13 @@ private fun SettingsScreen(activity: Activity) {
     var importError by remember { mutableStateOf<String?>(null) }
     var skippedNonHttps by remember { mutableStateOf(0) }
     var showImportFilterNotice by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    var showPasswordExportWarning by remember { mutableStateOf(false) }
+    var exportFormat by remember { mutableStateOf(ConfigExportFormat.JSON) }
+    var includePasswords by remember { mutableStateOf(false) }
+    var pendingExportContent by remember { mutableStateOf("") }
+    var transferMessage by remember { mutableStateOf<String?>(null) }
+    var pendingUnsafeImport by remember { mutableStateOf<PortableConfiguration?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     fun refresh() { profiles = store.sortedProfiles() }
@@ -101,6 +113,30 @@ private fun SettingsScreen(activity: Activity) {
         })
         importedProfileIds = emptyList()
     }
+    fun writeExport(uri: Uri?) {
+        if (uri == null) return
+        runCatching {
+            activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { it.write(pendingExportContent) }
+                ?: error("Could not open the export file")
+        }.onSuccess { transferMessage = "Configuration exported successfully." }
+            .onFailure { importError = it.message ?: "Could not export the configuration" }
+    }
+    fun applyJsonImport(configuration: PortableConfiguration) {
+        val added = store.importConfiguration(configuration)
+        sort = store.profileSort()
+        ascending = store.isProfileSortAscending()
+        refresh()
+        val missingPasswords = added.count { it.config.password.isEmpty() }
+        transferMessage = buildString {
+            append("Imported ${added.size} profile(s) from JSON.")
+            if (configuration.skippedProfiles > 0) append(" Skipped ${configuration.skippedProfiles} invalid profile(s).")
+            if (missingPasswords > 0) append(" $missingPasswords profile(s) require a password.")
+            if (ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning) {
+                append(" Reconnect the VPN to apply the imported Always-on profile selection.")
+            }
+        }
+        importedProfileIds = emptyList()
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refresh() }
@@ -108,20 +144,41 @@ private fun SettingsScreen(activity: Activity) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
+    val exportTxtDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain"), ::writeExport)
+    val exportJsonDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json"), ::writeExport)
+    fun launchExport() {
+        pendingExportContent = when (exportFormat) {
+            ConfigExportFormat.PROXY_LIST -> ConfigTransfer.exportProxyList(store.profiles(), includePasswords)
+            ConfigExportFormat.JSON -> ConfigTransfer.exportJson(store, includePasswords)
+        }
+        if (exportFormat == ConfigExportFormat.PROXY_LIST) exportTxtDocument.launch("ProxyList.txt")
+        else exportJsonDocument.launch("MegaProxy-config.json")
+    }
     val importDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
                 val text = activity.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
                     ?: error("Could not read the selected file")
-                ProxyListParser.parse(text).getOrThrow()
-            }.onSuccess { imported ->
-                val added = store.importProfiles(imported.proxies)
-                refresh()
-                importedProfileIds = added.map { it.id }
-                skippedNonHttps = imported.skippedNonHttps
-                showImportFilterNotice = imported.skippedNonHttps > 0
+                val isJson = activity.contentResolver.getType(uri) == "application/json" ||
+                    uri.lastPathSegment.orEmpty().substringAfterLast('.', "").equals("json", true) ||
+                    text.trimStart().startsWith('{')
+                if (isJson) {
+                    val configuration = ConfigTransfer.importJson(text)
+                    if (configuration.profiles.any { it.config.allowInvalidProxyCertificate }) {
+                        pendingUnsafeImport = configuration
+                    } else {
+                        applyJsonImport(configuration)
+                    }
+                } else {
+                    val imported = ProxyListParser.parse(text).getOrThrow()
+                    val added = store.importProfiles(imported.proxies)
+                    refresh()
+                    importedProfileIds = added.map { it.id }
+                    skippedNonHttps = imported.skippedNonHttps
+                    showImportFilterNotice = imported.skippedNonHttps > 0
+                }
                 importError = null
-            }.onFailure { importError = it.message ?: "Could not import the proxy list" }
+            }.onFailure { importError = it.message ?: "Could not import the configuration" }
         }
     }
 
@@ -135,9 +192,10 @@ private fun SettingsScreen(activity: Activity) {
                 }
             },
             actions = {
-                TextButton(onClick = { importDocument.launch(arrayOf("text/plain", "text/*")) }) {
+                TextButton(onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
                     Text("Import")
                 }
+                TextButton(onClick = { showExportDialog = true }) { Text("Export") }
             },
         )
         },
@@ -263,6 +321,69 @@ private fun SettingsScreen(activity: Activity) {
             text = { Text("Choose whether routing settings should be shared by all imported profiles or configured one profile at a time.") },
             confirmButton = { TextButton(onClick = { openImportedRouting(false) }) { Text("Same for all") } },
             dismissButton = { TextButton(onClick = { openImportedRouting(true) }) { Text("One by one") } },
+        )
+    }
+    if (showExportDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportDialog = false },
+            title = { Text("Export configuration") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Format")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(exportFormat == ConfigExportFormat.JSON, { exportFormat = ConfigExportFormat.JSON })
+                        Text("JSON · all MegaProxy settings")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(exportFormat == ConfigExportFormat.PROXY_LIST, { exportFormat = ConfigExportFormat.PROXY_LIST })
+                        Text("ProxyList.txt · compatible proxy fields only")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(includePasswords, { includePasswords = it })
+                        Text("Include passwords")
+                    }
+                    if (!includePasswords) {
+                        Text("Passwords will be left empty and must be entered after import.", style = MaterialTheme.typography.bodySmall)
+                    }
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                showExportDialog = false
+                if (includePasswords) showPasswordExportWarning = true else launchExport()
+            }) { Text("Export") } },
+            dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text("Cancel") } },
+        )
+    }
+    if (showPasswordExportWarning) {
+        AlertDialog(
+            onDismissRequest = { showPasswordExportWarning = false },
+            title = { Text("Export passwords in plain text?") },
+            text = { Text("Anyone with access to the exported file will be able to read the proxy credentials. Store and transfer it securely.") },
+            confirmButton = { TextButton(onClick = {
+                showPasswordExportWarning = false
+                launchExport()
+            }) { Text("Export anyway") } },
+            dismissButton = { TextButton(onClick = { showPasswordExportWarning = false }) { Text("Cancel") } },
+        )
+    }
+    transferMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { transferMessage = null },
+            title = { Text("Configuration transfer") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { transferMessage = null }) { Text("OK") } },
+        )
+    }
+    pendingUnsafeImport?.let { configuration ->
+        AlertDialog(
+            onDismissRequest = { pendingUnsafeImport = null },
+            title = { Text("Import insecure certificate settings?") },
+            text = { Text("One or more profiles accept an invalid or self-signed proxy certificate. This permits server impersonation and should only be used for proxies you control.") },
+            confirmButton = { TextButton(onClick = {
+                pendingUnsafeImport = null
+                applyJsonImport(configuration)
+            }) { Text("Import anyway") } },
+            dismissButton = { TextButton(onClick = { pendingUnsafeImport = null }) { Text("Cancel") } },
         )
     }
 }

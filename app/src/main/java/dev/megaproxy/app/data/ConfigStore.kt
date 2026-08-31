@@ -139,6 +139,25 @@ class ConfigStore(context: Context) {
     }
 
     @Synchronized
+    fun importConfiguration(configuration: PortableConfiguration): List<ProxyProfile> {
+        val existing = profiles()
+        val idMap = mutableMapOf<String, String>()
+        val added = configuration.profiles.map { source ->
+            val newId = UUID.randomUUID().toString()
+            idMap[source.id] = newId
+            source.copy(id = newId)
+        }
+        writeProfiles(existing + added)
+        val editor = prefs.edit()
+            .putString(PROFILE_SORT, configuration.sort.name)
+            .putBoolean(PROFILE_SORT_ASCENDING, configuration.sortAscending)
+        configuration.activeProfileId?.let(idMap::get)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
+        configuration.alwaysOnProfileId?.let(idMap::get)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
+        editor.apply()
+        return added
+    }
+
+    @Synchronized
     fun saveProfile(profile: ProxyProfile) {
         val current = profiles()
         val updated = current.map { if (it.id == profile.id) profile else it }

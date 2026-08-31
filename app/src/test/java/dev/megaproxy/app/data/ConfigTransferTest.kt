@@ -1,0 +1,68 @@
+package dev.megaproxy.app.data
+
+import dev.megaproxy.app.model.ProxyConfig
+import dev.megaproxy.app.model.ProxyProfile
+import dev.megaproxy.app.model.TlsProfile
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+class ConfigTransferTest {
+    @Test
+    fun `proxy list omits passwords by default`() {
+        val profile = ProxyProfile(
+            id = "one", name = "Amsterdam", colorIndex = 0, countryCode = "nl",
+            config = ProxyConfig(host = "proxy.example", username = "user+name", password = "secret"),
+        )
+        val exported = ConfigTransfer.exportProxyList(listOf(profile), includePasswords = false)
+        assertTrue(exported.contains("https://user%2Bname:@proxy.example"))
+        assertFalse(exported.contains("secret"))
+        val imported = ProxyListParser.parse(exported).getOrThrow().proxies.single()
+        assertEquals("", imported.config.password)
+        assertEquals("NL", imported.countryCode)
+        assertEquals("Amsterdam", imported.name)
+    }
+
+    @Test
+    fun `proxy list includes password when requested`() {
+        val profile = ProxyProfile(
+            id = "one", colorIndex = 0,
+            config = ProxyConfig(host = "proxy.example", username = "user", password = "s e:c@r"),
+        )
+        val exported = ConfigTransfer.exportProxyList(listOf(profile), includePasswords = true)
+        assertEquals("s e:c@r", ProxyListParser.parse(exported).getOrThrow().proxies.single().config.password)
+    }
+
+    @Test
+    fun `json import preserves unavailable applications and tolerates future values`() {
+        val imported = ConfigTransfer.importJson(
+            """
+            {
+              "schema":"dev.megaproxy.config",
+              "version":1,
+              "activeProfileId":"source",
+              "alwaysOnProfileId":"source",
+              "profileSort":"FUTURE_SORT",
+              "profiles":[{
+                "id":"source",
+                "name":"Portable",
+                "color":999,
+                "countryCode":"de",
+                "proxy":{"host":"proxy.example","port":70000,"username":"u"},
+                "tls":{"fingerprint":"FUTURE_BROWSER","customJa3":"future"},
+                "dns":{"provider":"FUTURE_DNS","customDohUrl":"https://dns.example/query"},
+                "routing":{"selectedPackages":["com.example.not.installed","invalid package"],"routeAllApps":false},
+                "futureField":true
+              }]
+            }
+            """.trimIndent(),
+        )
+        val profile = imported.profiles.single()
+        assertEquals(443, profile.config.port)
+        assertEquals(TlsProfile.CHROME_ANDROID, profile.config.profile)
+        assertEquals(setOf("com.example.not.installed"), profile.config.selectedPackages)
+        assertEquals("", profile.config.password)
+        assertEquals("source", imported.activeProfileId)
+    }
+}
