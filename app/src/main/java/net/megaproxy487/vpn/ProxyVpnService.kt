@@ -48,6 +48,8 @@ class ProxyVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
+        val store = ConfigStore(this)
+        PersistentDiagnosticLog.initialize(this, store.diagnosticLogLimitMb())
         createChannel()
         monitorHandler.post(monitor)
     }
@@ -137,9 +139,9 @@ class ProxyVpnService : VpnService() {
         val storedConfig = suppliedConfig ?: storedProfile.config
         val diagnostics = if (testOnly) TestDiagnosticLog::add else DiagnosticLog::add
         diagnostics(
-            if (testOnly) "Starting temporary VPN for connection test"
-            else if (storedConfig.routeAllApps) "Starting global VPN with profile ${storedProfile.displayName}"
-            else "Starting VPN with profile ${storedProfile.displayName} for ${storedConfig.selectedPackages.size} selected application(s)"
+            if (testOnly) "event=vpn_start mode=test"
+            else if (storedConfig.routeAllApps) "event=vpn_start mode=global"
+            else "event=vpn_start mode=split selected_app_count=${storedConfig.selectedPackages.size}"
         )
         val validationError = if (testOnly) storedConfig.connectionValidationError() else storedConfig.validationError()
         validationError?.let {

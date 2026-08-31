@@ -73,7 +73,7 @@ class NativeProxyCore(
             .invoke(null, host, protector, reporter) as String
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
-        diagnostics("Proxy bootstrap DNS failed for $host: $message")
+        diagnostics("event=bootstrap_dns result=failed detail=$message")
         status("Proxy DNS failed: $message")
     }.getOrNull()
 
@@ -113,7 +113,7 @@ class NativeProxyCore(
         status("Test passed: exit IP $it")
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
-        diagnostics("Connection test failed: $message")
+        diagnostics("event=connection_test result=failed detail=$message")
         status("Test failed: $message")
     }.getOrNull()
 

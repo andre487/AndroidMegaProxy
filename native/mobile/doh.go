@@ -70,7 +70,7 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 			return 0, err
 		}
 		if isAAAA {
-			report(c.dialer.reporter, "DoH AAAA query suppressed by IPv4-only mode")
+			report(c.dialer.reporter, "event=doh result=suppressed query_type=aaaa reason=ipv4_only")
 			c.deliver(dnsReply{payload: response, addr: addr})
 			return len(payload), nil
 		}
@@ -99,10 +99,10 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 			}
 		}
 		if err != nil {
-			report(c.dialer.reporter, "DoH query failed via %s: %v", c.url, err)
+			report(c.dialer.reporter, "event=doh result=failed reason=%s", errorClass(err))
 			c.deliver(dnsReply{addr: addr, err: err})
 		} else {
-			report(c.dialer.reporter, "DoH query succeeded via %s", c.url)
+			report(c.dialer.reporter, "event=doh result=success")
 		}
 	}()
 	return len(payload), nil

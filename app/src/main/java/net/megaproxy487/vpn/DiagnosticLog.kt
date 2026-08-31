@@ -14,8 +14,10 @@ object DiagnosticLog {
     val entries = mutableStateListOf<String>()
 
     fun add(message: String) {
+        val safeMessage = PrivacyLogSanitizer.sanitize(message)
+        PersistentDiagnosticLog.write(safeMessage)
         val append = {
-            entries.add("${LocalTime.now().format(timeFormat)}  $message")
+            entries.add("${LocalTime.now().format(timeFormat)}  $safeMessage")
             while (entries.size > MAX_ENTRIES) entries.removeAt(0)
         }
         if (Looper.myLooper() == Looper.getMainLooper()) append() else mainHandler.post(append)
@@ -54,9 +56,13 @@ object TestDiagnosticLog {
         mutableState.value = TestState.RUNNING
     }
 
-    fun add(message: String) = onMain {
-        entries.add("${LocalTime.now().format(timeFormat)}  $message")
-        while (entries.size > MAX_ENTRIES) entries.removeAt(0)
+    fun add(message: String) {
+        val safeMessage = PrivacyLogSanitizer.sanitize(message)
+        PersistentDiagnosticLog.write("scope=connection_test $safeMessage")
+        onMain {
+            entries.add("${LocalTime.now().format(timeFormat)}  $safeMessage")
+            while (entries.size > MAX_ENTRIES) entries.removeAt(0)
+        }
     }
 
     fun succeed(ip: String) = onMain {

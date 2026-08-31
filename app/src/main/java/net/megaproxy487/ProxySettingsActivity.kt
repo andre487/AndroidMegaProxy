@@ -66,6 +66,7 @@ import net.megaproxy487.data.PortableConfiguration
 import net.megaproxy487.data.ProxyListParser
 import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProxyProfile
+import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.model.ProfileSort
 import net.megaproxy487.vpn.ProxyVpnService
 
@@ -123,6 +124,7 @@ private fun SettingsScreen(activity: Activity) {
     }
     fun applyJsonImport(configuration: PortableConfiguration) {
         val added = store.importConfiguration(configuration)
+        PersistentDiagnosticLog.setLimitMb(store.diagnosticLogLimitMb())
         sort = store.profileSort()
         ascending = store.isProfileSortAscending()
         refresh()
@@ -243,6 +245,12 @@ private fun SettingsScreen(activity: Activity) {
                         data = Uri.parse("package:${activity.packageName}")
                     })
                 }, modifier = Modifier.fillMaxWidth()) { Text("Battery settings") }
+            }
+            item {
+                OutlinedButton(
+                    onClick = { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Diagnostic log") }
             }
             item { HorizontalDivider(Modifier.padding(vertical = 6.dp)) }
             item { Text("Profiles", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp)) }

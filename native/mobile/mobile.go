@@ -57,7 +57,7 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 		return err
 	}
 	state.device, state.stack, state.running = dev, netstack, true
-	report(reporter, "Native TCP/IP stack started; proxy=%s via %s profile=%s DoH=%s", c.displayAddress(), c.address(), c.Profile, c.DoHURL)
+	report(reporter, "event=native_stack result=started fingerprint=%s ipv6=%t bypass_local=%t", c.Profile, c.AllowIPv6, c.BypassLocalNetworks)
 	return nil
 }
 

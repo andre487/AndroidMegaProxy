@@ -65,11 +65,14 @@ import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.model.ProfileColors
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        val store = ConfigStore(this)
+        PersistentDiagnosticLog.initialize(this, store.diagnosticLogLimitMb())
         BatteryOptimizationReminder.maybeRequest(this)
         setContent { MaterialTheme { MainScreen(this) } }
     }

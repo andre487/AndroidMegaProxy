@@ -21,6 +21,7 @@ data class PortableConfiguration(
     val alwaysOnProfileId: String?,
     val sort: ProfileSort,
     val sortAscending: Boolean,
+    val diagnosticLogLimitMb: Int = 3,
     val skippedProfiles: Int = 0,
 )
 
@@ -51,6 +52,7 @@ object ConfigTransfer {
         put("alwaysOnProfileId", store.alwaysOnProfileId())
         put("profileSort", store.profileSort().name)
         put("profileSortAscending", store.isProfileSortAscending())
+        put("diagnosticLogLimitMb", store.diagnosticLogLimitMb())
         put("profiles", JSONArray().apply {
             store.profiles().forEach { profile -> put(encodeProfile(profile, includePasswords)) }
         })
@@ -73,6 +75,7 @@ object ConfigTransfer {
             alwaysOnProfileId = root.optString("alwaysOnProfileId").ifBlank { null },
             sort = enumValue(root.optString("profileSort"), ProfileSort.NAME),
             sortAscending = root.optBoolean("profileSortAscending", true),
+            diagnosticLogLimitMb = root.optInt("diagnosticLogLimitMb", 3).coerceIn(1, 100),
             skippedProfiles = decoded.count(Result<ProxyProfile>::isFailure),
         )
     }

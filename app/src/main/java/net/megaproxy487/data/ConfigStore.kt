@@ -151,6 +151,7 @@ class ConfigStore(context: Context) {
         val editor = prefs.edit()
             .putString(PROFILE_SORT, configuration.sort.name)
             .putBoolean(PROFILE_SORT_ASCENDING, configuration.sortAscending)
+            .putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
         configuration.activeProfileId?.let(idMap::get)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
         configuration.alwaysOnProfileId?.let(idMap::get)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
         editor.apply()
@@ -187,6 +188,12 @@ class ConfigStore(context: Context) {
 
     fun setConnectionDesired(desired: Boolean) {
         prefs.edit().putBoolean("connection_desired", desired).apply()
+    }
+
+    fun diagnosticLogLimitMb(): Int = prefs.getInt(DIAGNOSTIC_LOG_LIMIT_MB, 3).coerceIn(1, 100)
+
+    fun setDiagnosticLogLimitMb(value: Int) {
+        prefs.edit().putInt(DIAGNOSTIC_LOG_LIMIT_MB, value.coerceIn(1, 100)).apply()
     }
 
     private fun ensureMigrated() {
@@ -335,5 +342,6 @@ class ConfigStore(context: Context) {
         const val CURRENT_FLAG_COLOR_VERSION = 1
         const val PROFILE_SORT = "profile_sort"
         const val PROFILE_SORT_ASCENDING = "profile_sort_ascending"
+        const val DIAGNOSTIC_LOG_LIMIT_MB = "diagnostic_log_limit_mb"
     }
 }

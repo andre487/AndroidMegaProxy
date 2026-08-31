@@ -6,6 +6,7 @@ import (
 	stdtls "crypto/tls"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -21,11 +22,11 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
-	report(reporter, "Connection test started")
+	report(reporter, "event=connection_test result=started")
 	if _, err := testHTTPSGet(ctx, dialer, "example.com", "/", false); err != nil {
 		return "", fmt.Errorf("example.com check: %w", err)
 	}
-	report(reporter, "example.com HTTPS check succeeded")
+	report(reporter, "event=connection_test stage=https_check result=success")
 
 	ip, err := testHTTPSGet(ctx, dialer, "ifconfig.me", "/ip", true)
 	if err != nil {
@@ -35,8 +36,19 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	if ip == "" || len(ip) > 128 {
 		return "", fmt.Errorf("public IP check returned an invalid response")
 	}
-	report(reporter, "Connection test succeeded; proxy exit IP=%s", ip)
+	report(reporter, "event=connection_test stage=exit_ip result=success family=%s", ipFamily(ip))
 	return ip, nil
+}
+
+func ipFamily(value string) string {
+	ip := net.ParseIP(strings.TrimSpace(value))
+	if ip == nil {
+		return "unknown"
+	}
+	if ip.To4() != nil {
+		return "ipv4"
+	}
+	return "ipv6"
 }
 
 func testHTTPSGet(ctx context.Context, dialer *httpsConnectDialer, host, path string, readBody bool) (string, error) {
@@ -50,7 +62,7 @@ func testHTTPSGet(ctx context.Context, dialer *httpsConnectDialer, host, path st
 	if err := connection.HandshakeContext(ctx); err != nil {
 		return "", fmt.Errorf("destination TLS handshake: %w", err)
 	}
-	report(dialer.reporter, "%s: destination TLS certificate verified", host)
+	report(dialer.reporter, "event=connection_test stage=destination_tls result=success certificate=verified")
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+host+path, nil)
 	if err != nil {

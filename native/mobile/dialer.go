@@ -33,37 +33,41 @@ func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metada
 }
 
 func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (net.Conn, error) {
+	connectionID := nextDiagnosticConnectionID()
+	totalStarted := time.Now()
 	if !d.config.AllowIPv6 {
 		host, _, err := net.SplitHostPort(target)
 		if err == nil {
 			if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
 				err = errors.New("IPv6 destination blocked by IPv4-only mode")
-				report(d.reporter, "CONNECT %s failed: %v", target, err)
+				report(d.reporter, "event=connection conn=%d stage=policy result=blocked reason=ipv6_disabled", connectionID)
 				return nil, err
 			}
 		}
 	}
 	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
-		report(d.reporter, "DIRECT %s: bypassing proxy for local network", target)
+		report(d.reporter, "event=connection conn=%d mode=direct stage=tcp_connect result=started", connectionID)
+		directStarted := time.Now()
 		connection, err := d.protectedDialer().DialContext(ctx, "tcp", target)
 		if err != nil {
 			err = fmt.Errorf("dial local network directly: %w", err)
-			report(d.reporter, "DIRECT %s failed: %v", target, err)
+			report(d.reporter, "event=connection conn=%d mode=direct stage=tcp_connect result=failed reason=%s elapsed_ms=%d", connectionID, errorClass(err), time.Since(directStarted).Milliseconds())
 			return nil, err
 		}
-		return &diagnosticConn{Conn: connection, target: target, reporter: d.reporter}, nil
+		report(d.reporter, "event=connection conn=%d mode=direct stage=tcp_connect result=success elapsed_ms=%d", connectionID, time.Since(directStarted).Milliseconds())
+		return &diagnosticConn{Conn: connection, connectionID: connectionID, reporter: d.reporter}, nil
 	}
-	report(d.reporter, "CONNECT %s: opening TCP connection to proxy %s via %s", target, d.config.displayAddress(), d.config.address())
+	report(d.reporter, "event=connection conn=%d mode=proxy stage=tcp_connect result=started fingerprint=%s", connectionID, d.config.Profile)
 	dialStarted := time.Now()
 	raw, err := d.protectedDialer().DialContext(ctx, "tcp", d.config.address())
 	if err != nil {
 		recordConnectionOutcome(false)
 		err = fmt.Errorf("dial HTTPS proxy: %w", err)
-		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		report(d.reporter, "event=connection conn=%d mode=proxy stage=tcp_connect result=failed reason=%s elapsed_ms=%d", connectionID, errorClass(err), time.Since(dialStarted).Milliseconds())
 		return nil, err
 	}
 	recordProxyLatency(time.Since(dialStarted))
-	report(d.reporter, "CONNECT %s: proxy TCP connected", target)
+	report(d.reporter, "event=connection conn=%d mode=proxy stage=tcp_connect result=success elapsed_ms=%d", connectionID, time.Since(dialStarted).Milliseconds())
 	closeOnError := true
 	defer func() {
 		if closeOnError {
@@ -74,7 +78,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	hello, err := d.config.helloID()
 	if err != nil {
 		recordConnectionOutcome(false)
-		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		report(d.reporter, "event=connection conn=%d mode=proxy stage=fingerprint result=failed reason=invalid_configuration", connectionID)
 		return nil, err
 	}
 	uconn := tls.UClient(raw, &tls.Config{
@@ -85,24 +89,26 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	if hello == tls.HelloCustom {
 		if err := applyJA3(uconn, d.config.CustomJA3, d.config.Host); err != nil {
 			recordConnectionOutcome(false)
-			report(d.reporter, "CONNECT %s failed: %v", target, err)
+			report(d.reporter, "event=connection conn=%d mode=proxy stage=fingerprint result=failed reason=invalid_ja3", connectionID)
 			return nil, err
 		}
 	}
+	tlsStarted := time.Now()
 	if err := uconn.HandshakeContext(ctx); err != nil {
 		recordConnectionOutcome(false)
+		reason := errorClass(err)
+		report(d.reporter, "event=connection conn=%d mode=proxy stage=tls_handshake result=failed reason=%s elapsed_ms=%d dpi_hint=%s fingerprint=%s", connectionID, reason, time.Since(tlsStarted).Milliseconds(), tlsInterferenceHint(reason), d.config.Profile)
 		err = fmt.Errorf("TLS handshake with proxy: %w", err)
-		report(d.reporter, "CONNECT %s failed: %v", target, err)
 		return nil, err
 	}
 	tlsState := uconn.ConnectionState()
-	report(d.reporter, "CONNECT %s: proxy TLS established version=0x%04x cipher=0x%04x ALPN=%q certificates=%d", target, tlsState.Version, tlsState.CipherSuite, tlsState.NegotiatedProtocol, len(tlsState.PeerCertificates))
+	report(d.reporter, "event=connection conn=%d mode=proxy stage=tls_handshake result=success elapsed_ms=%d version=0x%04x cipher=0x%04x alpn=%q certificates=%d", connectionID, time.Since(tlsStarted).Milliseconds(), tlsState.Version, tlsState.CipherSuite, tlsState.NegotiatedProtocol, len(tlsState.PeerCertificates))
 
 	auth := base64.StdEncoding.EncodeToString([]byte(d.config.Username + ":" + d.config.Password))
 	if _, err := fmt.Fprintf(uconn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\nProxy-Connection: Keep-Alive\r\n\r\n", target, target, auth); err != nil {
 		recordConnectionOutcome(false)
 		err = fmt.Errorf("write CONNECT: %w", err)
-		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_write result=failed reason=%s", connectionID, errorClass(err))
 		return nil, err
 	}
 	reader := bufio.NewReader(uconn)
@@ -110,24 +116,25 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	if err != nil {
 		recordConnectionOutcome(false)
 		err = fmt.Errorf("read CONNECT response: %w", err)
-		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		reason := errorClass(err)
+		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_response result=failed reason=%s dpi_hint=%s", connectionID, reason, tlsInterferenceHint(reason))
 		return nil, err
 	}
 	if response.StatusCode != http.StatusOK {
 		recordConnectionOutcome(false)
 		_ = response.Body.Close()
 		err = fmt.Errorf("proxy CONNECT returned %s", response.Status)
-		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_response result=rejected status=%d status_class=%dxx", connectionID, response.StatusCode, response.StatusCode/100)
 		return nil, err
 	}
 	recordConnectionOutcome(true)
-	report(d.reporter, "CONNECT %s: tunnel established", target)
+	report(d.reporter, "event=connection conn=%d mode=proxy stage=tunnel result=established total_ms=%d", connectionID, time.Since(totalStarted).Milliseconds())
 	closeOnError = false
 	var connection net.Conn = uconn
 	if reader.Buffered() > 0 {
 		connection = &bufferedConn{Conn: uconn, reader: reader}
 	}
-	return &diagnosticConn{Conn: connection, target: target, reporter: d.reporter}, nil
+	return &diagnosticConn{Conn: connection, connectionID: connectionID, reporter: d.reporter}, nil
 }
 
 func (d *httpsConnectDialer) protectedDialer() *net.Dialer {
@@ -176,14 +183,16 @@ func (c *bufferedConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
 
 type diagnosticConn struct {
 	net.Conn
-	target   string
-	reporter Reporter
-	once     sync.Once
+	connectionID uint64
+	reporter     Reporter
+	once         sync.Once
 }
 
 func (c *diagnosticConn) reportError(operation string, err error) {
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
-		c.once.Do(func() { report(c.reporter, "CONNECT %s: tunnel %s ended: %v", c.target, operation, err) })
+		c.once.Do(func() {
+			report(c.reporter, "event=connection conn=%d stage=tunnel_io result=failed operation=%s reason=%s", c.connectionID, operation, errorClass(err))
+		})
 	}
 }
 

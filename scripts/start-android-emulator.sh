@@ -74,6 +74,7 @@ else
         -feature -WiFiPacketStream
         -feature -Uwb
         -feature -Nfc
+        -netsim-args "--no-test-beacons --no-cli-ui --no-web-ui"
     )
     nohup emulator "${emulator_options[@]}" </dev/null >"$emulator_log" 2>&1 &
 fi

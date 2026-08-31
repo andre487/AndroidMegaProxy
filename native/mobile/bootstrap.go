@@ -52,7 +52,7 @@ func ResolveProxy(host string, protector Protector, reporter Reporter) (string, 
 	}
 	request.Header.Set("Accept", "application/dns-message")
 	request.Header.Set("Content-Type", "application/dns-message")
-	report(reporter, "Proxy bootstrap DNS: protected DoH request for %s via %s", host, bootstrapDoHIP)
+	report(reporter, "event=bootstrap_dns stage=request result=started transport=protected_doh")
 	response, err := client.Do(request)
 	if err != nil {
 		return "", fmt.Errorf("bootstrap DoH request: %w", err)
@@ -69,7 +69,7 @@ func ResolveProxy(host string, protector Protector, reporter Reporter) (string, 
 	if err != nil {
 		return "", err
 	}
-	report(reporter, "Proxy bootstrap DNS: %s -> %s", host, ip)
+	report(reporter, "event=bootstrap_dns stage=response result=success family=ipv4")
 	return ip, nil
 }
 
