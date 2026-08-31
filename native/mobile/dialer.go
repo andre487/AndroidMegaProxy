@@ -54,12 +54,15 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		return &diagnosticConn{Conn: connection, target: target, reporter: d.reporter}, nil
 	}
 	report(d.reporter, "CONNECT %s: opening TCP connection to proxy %s via %s", target, d.config.displayAddress(), d.config.address())
+	dialStarted := time.Now()
 	raw, err := d.protectedDialer().DialContext(ctx, "tcp", d.config.address())
 	if err != nil {
+		recordConnectionOutcome(false)
 		err = fmt.Errorf("dial HTTPS proxy: %w", err)
 		report(d.reporter, "CONNECT %s failed: %v", target, err)
 		return nil, err
 	}
+	recordProxyLatency(time.Since(dialStarted))
 	report(d.reporter, "CONNECT %s: proxy TCP connected", target)
 	closeOnError := true
 	defer func() {
@@ -70,6 +73,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 
 	hello, err := d.config.helloID()
 	if err != nil {
+		recordConnectionOutcome(false)
 		report(d.reporter, "CONNECT %s failed: %v", target, err)
 		return nil, err
 	}
@@ -80,11 +84,13 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	}, hello)
 	if hello == tls.HelloCustom {
 		if err := applyJA3(uconn, d.config.CustomJA3, d.config.Host); err != nil {
+			recordConnectionOutcome(false)
 			report(d.reporter, "CONNECT %s failed: %v", target, err)
 			return nil, err
 		}
 	}
 	if err := uconn.HandshakeContext(ctx); err != nil {
+		recordConnectionOutcome(false)
 		err = fmt.Errorf("TLS handshake with proxy: %w", err)
 		report(d.reporter, "CONNECT %s failed: %v", target, err)
 		return nil, err
@@ -94,6 +100,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 
 	auth := base64.StdEncoding.EncodeToString([]byte(d.config.Username + ":" + d.config.Password))
 	if _, err := fmt.Fprintf(uconn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\nProxy-Connection: Keep-Alive\r\n\r\n", target, target, auth); err != nil {
+		recordConnectionOutcome(false)
 		err = fmt.Errorf("write CONNECT: %w", err)
 		report(d.reporter, "CONNECT %s failed: %v", target, err)
 		return nil, err
@@ -101,16 +108,19 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	reader := bufio.NewReader(uconn)
 	response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
 	if err != nil {
+		recordConnectionOutcome(false)
 		err = fmt.Errorf("read CONNECT response: %w", err)
 		report(d.reporter, "CONNECT %s failed: %v", target, err)
 		return nil, err
 	}
 	if response.StatusCode != http.StatusOK {
+		recordConnectionOutcome(false)
 		_ = response.Body.Close()
 		err = fmt.Errorf("proxy CONNECT returned %s", response.Status)
 		report(d.reporter, "CONNECT %s failed: %v", target, err)
 		return nil, err
 	}
+	recordConnectionOutcome(true)
 	report(d.reporter, "CONNECT %s: tunnel established", target)
 	closeOnError = false
 	var connection net.Conn = uconn
@@ -179,12 +189,18 @@ func (c *diagnosticConn) reportError(operation string, err error) {
 
 func (c *diagnosticConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
+	if n > 0 {
+		telemetry.downloadBytes.Add(uint64(n))
+	}
 	c.reportError("read", err)
 	return n, err
 }
 
 func (c *diagnosticConn) Write(p []byte) (int, error) {
 	n, err := c.Conn.Write(p)
+	if n > 0 {
+		telemetry.uploadBytes.Add(uint64(n))
+	}
 	c.reportError("write", err)
 	return n, err
 }

@@ -26,10 +26,11 @@ object VpnRuntimeState {
     }
 
     fun updateSystem(alwaysOn: Boolean, lockdown: Boolean, connectionProfileId: String) {
-        mainHandler.post {
+        val update = {
             mutableAlwaysOn.value = alwaysOn
             mutableLockdown.value = lockdown
             mutableConnectionProfileId.value = connectionProfileId
         }
+        if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
     }
 }

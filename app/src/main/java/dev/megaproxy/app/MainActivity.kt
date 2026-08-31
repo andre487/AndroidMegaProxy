@@ -11,6 +11,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -38,11 +39,13 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -53,6 +56,10 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
+import dev.megaproxy.app.vpn.ConnectionStatsReader
+import dev.megaproxy.app.vpn.NativeConnectionStats
+import kotlinx.coroutines.delay
 import dev.megaproxy.app.data.ConfigStore
 import dev.megaproxy.app.vpn.ProxyVpnService
 import dev.megaproxy.app.vpn.VpnConnectionState
@@ -69,6 +76,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        ProxyVpnService.refreshStatus(this)
         val status = readAlwaysOnVpnStatus(this)
         val store = ConfigStore(this)
         val profileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id
@@ -80,8 +88,8 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun MainScreen(activity: Activity) {
     val connection by VpnRuntimeState.connection
-    val alwaysOn by VpnRuntimeState.alwaysOn
-    val lockdown by VpnRuntimeState.lockdown
+    val runtimeAlwaysOn by VpnRuntimeState.alwaysOn
+    val runtimeLockdown by VpnRuntimeState.lockdown
     val runtimeProfileId by VpnRuntimeState.connectionProfileId
     val store = remember { ConfigStore(activity) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -89,10 +97,15 @@ private fun MainScreen(activity: Activity) {
     var profiles by remember { mutableStateOf(store.sortedProfiles()) }
     var activeProfileId by remember { mutableStateOf(store.activeProfileId()) }
     var connectionProfileId by remember { mutableStateOf(store.connectionProfile().id) }
+    var connectionStats by remember { mutableStateOf<DisplayedConnectionStats?>(null) }
+    var systemVpnStatus by remember { mutableStateOf(readAlwaysOnVpnStatus(activity)) }
+    val alwaysOn = runtimeAlwaysOn || systemVpnStatus.enabled
+    val lockdown = runtimeLockdown || systemVpnStatus.lockdown
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                systemVpnStatus = readAlwaysOnVpnStatus(activity)
                 profiles = store.sortedProfiles()
                 activeProfileId = store.activeProfileId()
                 connectionProfileId = if (readAlwaysOnVpnStatus(activity).enabled) {
@@ -105,14 +118,51 @@ private fun MainScreen(activity: Activity) {
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+    LaunchedEffect(alwaysOn) {
+        if (alwaysOn) profileMenuExpanded = false
+    }
+    LaunchedEffect(lifecycleOwner, connection) {
+        if (connection != VpnConnectionState.CONNECTED) {
+            connectionStats = null
+            return@LaunchedEffect
+        }
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var previous: NativeConnectionStats? = null
+            var smoothedDownload = 0.0
+            var smoothedUpload = 0.0
+            while (true) {
+                val snapshot = ConnectionStatsReader.snapshot()
+                if (snapshot != null) {
+                    previous?.let { old ->
+                        val download = (snapshot.downloadBytes - old.downloadBytes).coerceAtLeast(0).toDouble()
+                        val upload = (snapshot.uploadBytes - old.uploadBytes).coerceAtLeast(0).toDouble()
+                        val alpha = 0.35
+                        smoothedDownload = if (smoothedDownload == 0.0) download else alpha * download + (1 - alpha) * smoothedDownload
+                        smoothedUpload = if (smoothedUpload == 0.0) upload else alpha * upload + (1 - alpha) * smoothedUpload
+                    }
+                    previous = snapshot
+                    connectionStats = DisplayedConnectionStats(snapshot, smoothedDownload, smoothedUpload)
+                }
+                delay(1_000)
+            }
+        }
+    }
     val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (it.resultCode == Activity.RESULT_OK) ProxyVpnService.start(activity)
-        else error = "VPN permission is required"
+        if (it.resultCode == Activity.RESULT_OK) {
+            if (!isAlwaysOnVpnActive(activity)) ProxyVpnService.start(activity) else error = null
+        } else {
+            error = "VPN permission is required"
+        }
     }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
     val connect = {
-        error = store.activeProfile().config.validationError()
-        if (error == null) {
+        if (isAlwaysOnVpnActive(activity)) {
+            systemVpnStatus = readAlwaysOnVpnStatus(activity)
+            error = null
+        } else {
+            error = store.activeProfile().config.validationError()
+        }
+        if (error == null && !isAlwaysOnVpnActive(activity)) {
             if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
             val intent = VpnService.prepare(activity)
             if (intent == null) ProxyVpnService.start(activity) else vpnPermission.launch(intent)
@@ -157,20 +207,27 @@ private fun MainScreen(activity: Activity) {
                 }
             }
             Spacer(Modifier.height(24.dp))
+            connectionStats?.let { stats ->
+                ConnectionStatsCard(stats)
+                Spacer(Modifier.height(12.dp))
+            }
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
             val activeProfile = profiles.firstOrNull { it.id == displayedProfileId } ?: profiles.first()
             val profileColor = Color(ProfileColors.argb[Math.floorMod(activeProfile.colorIndex, ProfileColors.argb.size)])
             val onProfileColor = if (profileColor.luminance() > 0.45f) Color.Black else Color.White
-            Card(
-                Modifier.fillMaxWidth().clickable(enabled = !alwaysOn) { profileMenuExpanded = true },
-                colors = CardDefaults.cardColors(
-                    containerColor = profileColor,
-                    contentColor = onProfileColor,
-                    disabledContainerColor = profileColor,
-                    disabledContentColor = onProfileColor,
-                ),
-            ) {
-                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+            Box(Modifier.fillMaxWidth()) {
+                Card(
+                    Modifier.fillMaxWidth().clickable(enabled = !alwaysOn) {
+                        if (!isAlwaysOnVpnActive(activity)) profileMenuExpanded = true
+                    },
+                    colors = CardDefaults.cardColors(
+                        containerColor = profileColor,
+                        contentColor = onProfileColor,
+                        disabledContainerColor = profileColor,
+                        disabledContentColor = onProfileColor,
+                    ),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text("Profile", style = MaterialTheme.typography.labelMedium)
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
@@ -188,24 +245,43 @@ private fun MainScreen(activity: Activity) {
                         }
                         Text(activeProfile.displayName, style = MaterialTheme.typography.titleMedium)
                     }
-                    DropdownMenu(profileMenuExpanded, { profileMenuExpanded = false }) {
-                        profiles.forEach { profile ->
-                            DropdownMenuItem(
-                                text = { Text(profile.displayNameWithFlag) },
-                                onClick = {
-                                    store.setActiveProfile(profile.id)
-                                    activeProfileId = profile.id
-                                    profileMenuExpanded = false
-                                },
-                            )
+                        DropdownMenu(profileMenuExpanded, { profileMenuExpanded = false }) {
+                            profiles.forEach { profile ->
+                                DropdownMenuItem(
+                                    text = { Text(profile.displayNameWithFlag) },
+                                    onClick = {
+                                        if (!isAlwaysOnVpnActive(activity)) {
+                                            store.setActiveProfile(profile.id)
+                                            activeProfileId = profile.id
+                                        }
+                                        profileMenuExpanded = false
+                                    },
+                                )
+                            }
                         }
+                    }
+                }
+                if (alwaysOn) {
+                    Box(
+                        Modifier.matchParentSize()
+                            .background(Color.Gray.copy(alpha = 0.62f), RoundedCornerShape(12.dp))
+                            .clickable(onClick = {}),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(
+                            "Profile locked by Always-on VPN",
+                            color = Color.White,
+                            style = MaterialTheme.typography.labelLarge,
+                        )
                     }
                 }
             }
             Spacer(Modifier.height(12.dp))
             Button(
                 onClick = {
-                    if (connected) {
+                    if (isAlwaysOnVpnActive(activity)) {
+                        systemVpnStatus = readAlwaysOnVpnStatus(activity)
+                    } else if (connected) {
                         ProxyVpnService.stop(activity)
                     } else {
                         connect()
@@ -235,4 +311,59 @@ private fun MainScreen(activity: Activity) {
             }
         }
     }
+}
+
+private fun isAlwaysOnVpnActive(activity: Activity): Boolean =
+    ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled
+
+private data class DisplayedConnectionStats(
+    val native: NativeConnectionStats,
+    val downloadBytesPerSecond: Double,
+    val uploadBytesPerSecond: Double,
+)
+
+@Composable
+private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
+    Card(Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+        ) {
+            StatValue("Download", "↓ ${formatRate(stats.downloadBytesPerSecond)}")
+            StatValue("Upload", "↑ ${formatRate(stats.uploadBytesPerSecond)}")
+            val latency = stats.native.proxyLatencyMillis
+            val ageMillis = System.currentTimeMillis() - stats.native.proxyLatencyAtMillis
+            StatValue(
+                "Proxy latency",
+                if (latency <= 0) "—" else "${latency.toInt()} ms${formatAge(ageMillis)}",
+            )
+        }
+        Text(
+            if (stats.native.connectionSamples == 0) "Connection errors: no samples"
+            else "Connection errors: ${"%.1f".format(stats.native.connectionErrorRate * 100)}% · ${stats.native.connectionSamples} samples",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+        )
+    }
+}
+
+@Composable
+private fun StatValue(label: String, value: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleSmall)
+        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+    }
+}
+
+private fun formatRate(bytesPerSecond: Double): String = when {
+    bytesPerSecond >= 1_000_000 -> "%.1f MB/s".format(bytesPerSecond / 1_000_000)
+    bytesPerSecond >= 1_000 -> "%.1f KB/s".format(bytesPerSecond / 1_000)
+    else -> "${bytesPerSecond.toInt()} B/s"
+}
+
+private fun formatAge(ageMillis: Long): String = when {
+    ageMillis < 30_000 -> ""
+    ageMillis < 120_000 -> " · ${ageMillis / 1_000}s ago"
+    else -> " · ${ageMillis / 60_000}m ago"
 }

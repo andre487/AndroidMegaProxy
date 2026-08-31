@@ -54,7 +54,9 @@ class ProxyVpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            isAlwaysOnMode = isAlwaysOn
+            val systemAlwaysOnStart = intent?.action == SERVICE_INTERFACE
+            val preserveKnownStatus = intent?.action == ACTION_REFRESH_STATUS && isAlwaysOnMode
+            isAlwaysOnMode = isAlwaysOn || systemAlwaysOnStart || preserveKnownStatus
             isLockdownMode = isLockdownEnabled
         }
         val store = ConfigStore(this)
@@ -66,6 +68,9 @@ class ProxyVpnService : VpnService() {
             store.setConnectionProfile(store.activeProfileId())
         }
         VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, store.connectionProfile().id)
+        if (intent?.action == ACTION_REFRESH_STATUS) {
+            return if (tunnel != null) START_STICKY else START_NOT_STICKY
+        }
         if (intent?.action == ACTION_STOP) {
             stopTunnel()
             stopSelf()
@@ -265,6 +270,7 @@ class ProxyVpnService : VpnService() {
         private const val ACTION_STOP = "dev.megaproxy.STOP"
         private const val ACTION_TEST = "dev.megaproxy.TEST"
         private const val ACTION_START_MANUAL = "dev.megaproxy.START_MANUAL"
+        private const val ACTION_REFRESH_STATUS = "dev.megaproxy.REFRESH_STATUS"
         private const val MONITOR_INTERVAL_MS = 10_000L
         private val testRunning = AtomicBoolean(false)
         private val startRunning = AtomicBoolean(false)
@@ -289,5 +295,10 @@ class ProxyVpnService : VpnService() {
         fun test(context: Context) = ContextCompat.startForegroundService(
             context, Intent(context, ProxyVpnService::class.java).setAction(ACTION_TEST),
         )
+        fun refreshStatus(context: Context) {
+            if (isRunning) {
+                context.startService(Intent(context, ProxyVpnService::class.java).setAction(ACTION_REFRESH_STATUS))
+            }
+        }
     }
 }

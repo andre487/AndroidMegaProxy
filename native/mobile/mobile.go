@@ -43,6 +43,7 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 		return errors.New("proxy core is already running")
 	}
 	defer state.Unlock()
+	resetStats()
 	dev, err := fdbased.Open(strconv.Itoa(tunFD), 1500, 0)
 	if err != nil {
 		_ = syscall.Close(tunFD)

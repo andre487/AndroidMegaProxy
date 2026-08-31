@@ -13,6 +13,30 @@ interface ProxyCore {
     fun stop()
 }
 
+data class NativeConnectionStats(
+    val downloadBytes: Long,
+    val uploadBytes: Long,
+    val proxyLatencyMillis: Double,
+    val proxyLatencyAtMillis: Long,
+    val connectionErrorRate: Double,
+    val connectionSamples: Int,
+)
+
+object ConnectionStatsReader {
+    fun snapshot(): NativeConnectionStats? = runCatching {
+        val raw = Class.forName("mobile.Mobile").getMethod("getStats").invoke(null) as String
+        val json = JSONObject(raw)
+        NativeConnectionStats(
+            downloadBytes = json.getLong("downloadBytes"),
+            uploadBytes = json.getLong("uploadBytes"),
+            proxyLatencyMillis = json.getDouble("proxyLatencyMillis"),
+            proxyLatencyAtMillis = json.getLong("proxyLatencyAtMillis"),
+            connectionErrorRate = json.getDouble("connectionErrorRate"),
+            connectionSamples = json.getInt("connectionSamples"),
+        )
+    }.getOrNull()
+}
+
 /** JNI boundary for the Go/uTLS userspace TCP/IP stack. */
 class NativeProxyCore(
     private val vpnService: VpnService,
