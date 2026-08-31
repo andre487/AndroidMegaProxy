@@ -1,0 +1,164 @@
+package mobile
+
+import (
+	"bufio"
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"io"
+	"net"
+	"net/http"
+	"sync"
+	"syscall"
+	"time"
+
+	tls "github.com/refraction-networking/utls"
+	M "github.com/xjasonlyu/tun2socks/v2/metadata"
+)
+
+var errUDPBlocked = errors.New("UDP is intentionally blocked")
+
+// Protector is implemented by Android and calls VpnService.protect(fd).
+type Protector interface{ Protect(fd int) bool }
+
+type httpsConnectDialer struct {
+	config    config
+	protector Protector
+	reporter  Reporter
+}
+
+func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
+	return d.connectTarget(ctx, metadata.DestinationAddress())
+}
+
+func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (net.Conn, error) {
+	if !d.config.AllowIPv6 {
+		host, _, err := net.SplitHostPort(target)
+		if err == nil {
+			if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
+				err = errors.New("IPv6 destination blocked by IPv4-only mode")
+				report(d.reporter, "CONNECT %s failed: %v", target, err)
+				return nil, err
+			}
+		}
+	}
+	report(d.reporter, "CONNECT %s: opening TCP connection to proxy %s via %s", target, d.config.displayAddress(), d.config.address())
+	upstream := net.Dialer{
+		Timeout:   15 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control: func(_, _ string, raw syscall.RawConn) error {
+			var protectErr error
+			if err := raw.Control(func(fd uintptr) {
+				if !d.protector.Protect(int(fd)) {
+					protectErr = errors.New("VpnService.protect rejected upstream socket")
+				}
+			}); err != nil {
+				return err
+			}
+			return protectErr
+		},
+	}
+	raw, err := upstream.DialContext(ctx, "tcp", d.config.address())
+	if err != nil {
+		err = fmt.Errorf("dial HTTPS proxy: %w", err)
+		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		return nil, err
+	}
+	report(d.reporter, "CONNECT %s: proxy TCP connected", target)
+	closeOnError := true
+	defer func() {
+		if closeOnError {
+			_ = raw.Close()
+		}
+	}()
+
+	hello, err := d.config.helloID()
+	if err != nil {
+		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		return nil, err
+	}
+	uconn := tls.UClient(raw, &tls.Config{
+		ServerName: d.config.Host,
+		MinVersion: tls.VersionTLS12,
+	}, hello)
+	if hello == tls.HelloCustom {
+		if err := applyJA3(uconn, d.config.CustomJA3, d.config.Host); err != nil {
+			report(d.reporter, "CONNECT %s failed: %v", target, err)
+			return nil, err
+		}
+	}
+	if err := uconn.HandshakeContext(ctx); err != nil {
+		err = fmt.Errorf("TLS handshake with proxy: %w", err)
+		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		return nil, err
+	}
+	tlsState := uconn.ConnectionState()
+	report(d.reporter, "CONNECT %s: proxy TLS established version=0x%04x cipher=0x%04x ALPN=%q certificates=%d", target, tlsState.Version, tlsState.CipherSuite, tlsState.NegotiatedProtocol, len(tlsState.PeerCertificates))
+
+	auth := base64.StdEncoding.EncodeToString([]byte(d.config.Username + ":" + d.config.Password))
+	if _, err := fmt.Fprintf(uconn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\nProxy-Connection: Keep-Alive\r\n\r\n", target, target, auth); err != nil {
+		err = fmt.Errorf("write CONNECT: %w", err)
+		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		return nil, err
+	}
+	reader := bufio.NewReader(uconn)
+	response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
+	if err != nil {
+		err = fmt.Errorf("read CONNECT response: %w", err)
+		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		return nil, err
+	}
+	if response.StatusCode != http.StatusOK {
+		_ = response.Body.Close()
+		err = fmt.Errorf("proxy CONNECT returned %s", response.Status)
+		report(d.reporter, "CONNECT %s failed: %v", target, err)
+		return nil, err
+	}
+	report(d.reporter, "CONNECT %s: tunnel established", target)
+	closeOnError = false
+	var connection net.Conn = uconn
+	if reader.Buffered() > 0 {
+		connection = &bufferedConn{Conn: uconn, reader: reader}
+	}
+	return &diagnosticConn{Conn: connection, target: target, reporter: d.reporter}, nil
+}
+
+func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
+	if metadata.DstPort != 53 {
+		return nil, errUDPBlocked
+	}
+	return newDoHPacketConn(d, d.config.DoHURL), nil
+}
+
+type bufferedConn struct {
+	net.Conn
+	reader *bufio.Reader
+}
+
+func (c *bufferedConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
+
+type diagnosticConn struct {
+	net.Conn
+	target   string
+	reporter Reporter
+	once     sync.Once
+}
+
+func (c *diagnosticConn) reportError(operation string, err error) {
+	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
+		c.once.Do(func() { report(c.reporter, "CONNECT %s: tunnel %s ended: %v", c.target, operation, err) })
+	}
+}
+
+func (c *diagnosticConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	c.reportError("read", err)
+	return n, err
+}
+
+func (c *diagnosticConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	c.reportError("write", err)
+	return n, err
+}

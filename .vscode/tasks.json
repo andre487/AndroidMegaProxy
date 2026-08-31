@@ -1,0 +1,148 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Android: Create emulator",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; ./scripts/create-android-emulator.sh",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: List emulators",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; emulator -list-avds",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Start emulator",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; emulator @MegaProxy_API_35 -gpu auto",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Android: Run on emulator",
+      "type": "shell",
+      "command": "./scripts/run-without-debugging.sh",
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Android: Build native AAR",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; mkdir -p ../app/libs; gomobile bind -target=android -androidapi 26 -o ../app/libs/megaproxy.aar ./mobile",
+      "options": {
+        "cwd": "${workspaceFolder}/native"
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: Go core",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; go test ./...",
+      "options": {
+        "cwd": "${workspaceFolder}/native"
+      },
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: Android unit tests",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; ./gradlew testDebugUnitTest",
+      "group": "test",
+      "problemMatcher": []
+    },
+    {
+      "label": "Test: All",
+      "dependsOn": [
+        "Test: Go core",
+        "Test: Android unit tests"
+      ],
+      "dependsOrder": "parallel",
+      "group": {
+        "kind": "test",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Build debug APK",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; ./gradlew assembleDebug",
+      "dependsOn": ["Android: Build native AAR"],
+      "dependsOrder": "sequence",
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Install debug APK",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; adb wait-for-device; adb install -r app/build/outputs/apk/debug/app-debug.apk",
+      "dependsOn": ["Android: Build debug APK"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Launch app",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; adb shell am start -n dev.megaproxy.app/.MainActivity",
+      "dependsOn": ["Android: Install debug APK"],
+      "dependsOrder": "sequence",
+      "problemMatcher": []
+    },
+    {
+      "label": "Android: Logcat (app)",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; ./scripts/android-logcat.sh",
+      "isBackground": true,
+      "problemMatcher": [],
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Android: Prepare JDWP",
+      "type": "shell",
+      "command": "MEGAPROXY_JDWP_KEEP_ALIVE=1 ./scripts/debug-android-app.sh",
+      "isBackground": true,
+      "problemMatcher": [
+        {
+          "owner": "megaproxy-jdwp",
+          "pattern": {
+            "regexp": "^(?!)$"
+          },
+          "background": {
+            "activeOnStart": true,
+            "beginsPattern": "^Starting MegaProxy JDWP setup$",
+            "endsPattern": "^JDWP ready:"
+          }
+        }
+      ],
+      "presentation": {
+        "reveal": "always",
+        "focus": true,
+        "panel": "dedicated",
+        "clear": true,
+        "showReuseMessage": false
+      }
+    },
+    {
+      "label": "Android: Clear JDWP",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; adb -e shell am clear-debug-app; adb -e forward --remove tcp:8700 || true",
+      "problemMatcher": []
+    }
+  ]
+}
