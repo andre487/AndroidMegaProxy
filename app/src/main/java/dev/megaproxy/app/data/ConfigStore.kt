@@ -48,6 +48,12 @@ class ConfigStore(context: Context) {
             .apply()
     }
 
+    fun isConnectionDesired(): Boolean = prefs.getBoolean("connection_desired", false)
+
+    fun setConnectionDesired(desired: Boolean) {
+        prefs.edit().putBoolean("connection_desired", desired).apply()
+    }
+
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
         (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }

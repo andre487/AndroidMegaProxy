@@ -12,13 +12,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,7 +51,16 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
             .map { AppItem(it.activityInfo.packageName, it.loadLabel(activity.packageManager).toString()) }
             .distinctBy { it.packageName }.sortedBy { it.label.lowercase() }
     }
-    Scaffold(topBar = { TopAppBar(title = { Text("Split tunneling") }) }) { padding ->
+    Scaffold(topBar = {
+        TopAppBar(
+            title = { Text("Split tunneling") },
+            navigationIcon = {
+                IconButton(onClick = { activity.finish() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+        )
+    }) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(6.dp),
@@ -62,17 +74,21 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
-                Checkbox(config.allowIpv6, { config = config.copy(allowIpv6 = it) })
+                Checkbox(config.allowIpv6, {
+                    config = config.copy(allowIpv6 = it)
+                    store.save(config)
+                })
             }
             apps.forEach { app ->
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(app.label, Modifier.weight(1f).padding(top = 12.dp))
                     Checkbox(app.packageName in config.selectedPackages, { checked ->
                         config = config.copy(selectedPackages = if (checked) config.selectedPackages + app.packageName else config.selectedPackages - app.packageName)
+                        store.save(config)
                     })
                 }
             }
-            Button(onClick = { store.save(config); activity.finish() }, modifier = Modifier.fillMaxWidth()) { Text("Save") }
+            Text("Changes are saved automatically.", style = MaterialTheme.typography.bodySmall)
         }
     }
 }

@@ -14,7 +14,10 @@ interface ProxyCore {
 }
 
 /** JNI boundary for the Go/uTLS userspace TCP/IP stack. */
-class NativeProxyCore(private val vpnService: VpnService) : ProxyCore {
+class NativeProxyCore(
+    private val vpnService: VpnService,
+    private val diagnostics: (String) -> Unit = DiagnosticLog::add,
+) : ProxyCore {
     private fun protectSocket(fd: Long): Boolean = vpnService.protect(fd.toInt())
 
     private fun configJson(config: ProxyConfig) = JSONObject()
@@ -39,12 +42,12 @@ class NativeProxyCore(private val vpnService: VpnService) : ProxyCore {
         val protectorType = Class.forName("mobile.Protector")
         val reporterType = Class.forName("mobile.Reporter")
         val protector = callback(protectorType, "protect") { protectSocket(it!![0] as Long) }
-        val reporter = callback(reporterType, "report") { DiagnosticLog.add(it!![0] as String); null }
+        val reporter = callback(reporterType, "report") { diagnostics(it!![0] as String); null }
         mobile.getMethod("resolveProxy", String::class.java, protectorType, reporterType)
             .invoke(null, host, protector, reporter) as String
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
-        DiagnosticLog.add("Proxy bootstrap DNS failed for $host: $message")
+        diagnostics("Proxy bootstrap DNS failed for $host: $message")
         status("Proxy DNS failed: $message")
     }.getOrNull()
 
@@ -55,7 +58,7 @@ class NativeProxyCore(private val vpnService: VpnService) : ProxyCore {
             val protectorType = Class.forName("mobile.Protector")
             val reporterType = Class.forName("mobile.Reporter")
             val protector = callback(protectorType, "protect") { protectSocket(it!![0] as Long) }
-            val reporter = callback(reporterType, "report") { DiagnosticLog.add(it!![0] as String); null }
+            val reporter = callback(reporterType, "report") { diagnostics(it!![0] as String); null }
             detachedFd = ParcelFileDescriptor.fromFd(tunFd).detachFd()
             val startMethod = mobile.getMethod(
                 "start", Long::class.javaPrimitiveType, String::class.java, protectorType, reporterType,
@@ -77,14 +80,14 @@ class NativeProxyCore(private val vpnService: VpnService) : ProxyCore {
         val protectorType = Class.forName("mobile.Protector")
         val reporterType = Class.forName("mobile.Reporter")
         val protector = callback(protectorType, "protect") { protectSocket(it!![0] as Long) }
-        val reporter = callback(reporterType, "report") { DiagnosticLog.add(it!![0] as String); null }
+        val reporter = callback(reporterType, "report") { diagnostics(it!![0] as String); null }
         mobile.getMethod("testConnection", String::class.java, protectorType, reporterType)
             .invoke(null, configJson(config), protector, reporter) as String
     }.onSuccess {
         status("Test passed: exit IP $it")
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
-        DiagnosticLog.add("Connection test failed: $message")
+        diagnostics("Connection test failed: $message")
         status("Test failed: $message")
     }.getOrNull()
 

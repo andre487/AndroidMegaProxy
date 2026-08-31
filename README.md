@@ -29,9 +29,15 @@ in Go with uTLS and the gVisor network stack.
 
 The main screen provides a connection test that uses the configured HTTPS proxy and TLS profile,
 verifies an end-to-end HTTPS request to `example.com`, and obtains the proxy exit IP from
-`ifconfig.me`. Sanitized per-stage diagnostics are available in the app; credentials and traffic
-content are never logged. Proxy/JA3 settings and split-tunneling application selection are kept
-on separate screens.
+`ifconfig.me`. The test runs in a dedicated screen with an isolated per-run diagnostic log;
+credentials and traffic content are never logged. The compact main screen contains connection
+status and Connect/Disconnect, Test and Settings actions. Proxy, JA3, DoH, split tunneling,
+Always-on VPN and battery controls are available from Settings.
+
+The foreground VPN service persists whether a normal connection is desired. While desired, it
+monitors tunnel state, retries failed startup and republishes its ongoing notification every ten
+seconds. Android Always-on remains the authority that restarts the service after reboot or process
+termination; an explicit system force-stop cannot be overridden by an application.
 
 Every physical upstream socket must be passed to `VpnService.protect()` before `connect()` to
 prevent recursive routing into the TUN interface.
@@ -86,6 +92,11 @@ The script installs the emulator and system image when needed. It is idempotent 
 the mouse as multi-touch input, including for an existing AVD. Override the name with
 `MEGAPROXY_AVD_NAME` if necessary. Restart a running emulator after changing its AVD
 configuration.
+
+The startup script always uses a cold boot because stale Quick Boot snapshots can leave the guest
+visible but permanently offline in ADB. It attempts to reconnect an existing offline emulator and,
+if that fails, terminates only that AVD process before restarting it. ADB and Android boot waits
+have finite timeouts.
 
 Start it from the terminal:
 

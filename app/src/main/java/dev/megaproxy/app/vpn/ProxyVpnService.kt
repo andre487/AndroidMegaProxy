@@ -8,6 +8,8 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.ParcelFileDescriptor
+import android.os.Handler
+import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import dev.megaproxy.app.MainActivity
@@ -19,10 +21,35 @@ class ProxyVpnService : VpnService() {
     private var tunnel: ParcelFileDescriptor? = null
     private var core: ProxyCore? = null
     private var activeConfig: dev.megaproxy.app.model.ProxyConfig? = null
+    private var tunnelTestOnly = false
+    private val monitorHandler = Handler(Looper.getMainLooper())
+    private val monitor = object : Runnable {
+        override fun run() {
+            val desired = ConfigStore(this@ProxyVpnService).isConnectionDesired()
+            if (desired) {
+                getSystemService(NotificationManager::class.java).notify(
+                    NOTIFICATION_ID,
+                    notification(if (isRunning) "Connected" else "Reconnecting…"),
+                )
+                if (tunnel == null && !testRunning.get() && startRunning.compareAndSet(false, true)) {
+                    VpnRuntimeState.update(VpnConnectionState.CONNECTING)
+                    thread(name = "megaproxy-vpn-recovery") {
+                        try {
+                            startTunnel(testOnly = false)
+                        } finally {
+                            startRunning.set(false)
+                        }
+                    }
+                }
+            }
+            monitorHandler.postDelayed(this, MONITOR_INTERVAL_MS)
+        }
+    }
 
     override fun onCreate() {
         super.onCreate()
         createChannel()
+        monitorHandler.post(monitor)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -30,6 +57,7 @@ class ProxyVpnService : VpnService() {
             isAlwaysOnMode = isAlwaysOn
             isLockdownMode = isLockdownEnabled
         }
+        if (isAlwaysOnMode) ConfigStore(this).setConnectionDesired(true)
         if (intent?.action == ACTION_STOP) {
             stopTunnel()
             stopSelf()
@@ -37,11 +65,13 @@ class ProxyVpnService : VpnService() {
         }
         if (intent?.action == ACTION_TEST) {
             startForeground(NOTIFICATION_ID, notification("Testing connection…"))
+            TestDiagnosticLog.begin()
             thread(name = "megaproxy-connection-test") { testConnection() }
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, notification("Connecting…"))
         if (tunnel == null && startRunning.compareAndSet(false, true)) {
+            VpnRuntimeState.update(VpnConnectionState.CONNECTING)
             thread(name = "megaproxy-vpn-start") {
                 try {
                     startTunnel(testOnly = false)
@@ -55,32 +85,33 @@ class ProxyVpnService : VpnService() {
 
     private fun testConnection() {
         if (!testRunning.compareAndSet(false, true)) {
-            DiagnosticLog.add("Connection test is already running")
+            TestDiagnosticLog.add("Connection test is already running")
             return
         }
         val storedConfig = ConfigStore(this).load()
         storedConfig.connectionValidationError()?.let {
-            DiagnosticLog.add("Connection test cannot start: $it")
+            TestDiagnosticLog.fail("Connection test cannot start: $it")
             testRunning.set(false)
             if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
             return
         }
         val temporaryVpn = tunnel == null
         if (temporaryVpn && !startTunnel(testOnly = true, suppliedConfig = storedConfig)) {
-            DiagnosticLog.add("Connection test failed: temporary VPN could not be started")
+            TestDiagnosticLog.fail("Connection test failed: temporary VPN could not be started")
             testRunning.set(false)
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return
         }
         val config = activeConfig ?: run {
-            DiagnosticLog.add("Connection test failed: active VPN configuration is unavailable")
+            TestDiagnosticLog.fail("Connection test failed: active VPN configuration is unavailable")
             testRunning.set(false)
             return
         }
-        NativeProxyCore(this).test(config) { message ->
+        val exitIp = NativeProxyCore(this, TestDiagnosticLog::add).test(config) { message ->
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
         }
+        if (exitIp != null) TestDiagnosticLog.succeed(exitIp) else TestDiagnosticLog.fail()
         testRunning.set(false)
         if (temporaryVpn) {
             stopTunnel()
@@ -90,9 +121,14 @@ class ProxyVpnService : VpnService() {
 
     private fun startTunnel(testOnly: Boolean, suppliedConfig: dev.megaproxy.app.model.ProxyConfig? = null): Boolean {
         val storedConfig = suppliedConfig ?: ConfigStore(this).load()
-        DiagnosticLog.add(if (testOnly) "Starting temporary VPN for connection test" else "Starting VPN for ${storedConfig.selectedPackages.size} selected application(s)")
+        val diagnostics = if (testOnly) TestDiagnosticLog::add else DiagnosticLog::add
+        diagnostics(if (testOnly) "Starting temporary VPN for connection test" else "Starting VPN for ${storedConfig.selectedPackages.size} selected application(s)")
         val validationError = if (testOnly) storedConfig.connectionValidationError() else storedConfig.validationError()
         validationError?.let {
+            if (testOnly) TestDiagnosticLog.fail(it) else {
+                ConfigStore(this).setConnectionDesired(false)
+                VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
+            }
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
             return false
@@ -110,16 +146,19 @@ class ProxyVpnService : VpnService() {
         allowedPackages.forEach { packageName ->
             runCatching { builder.addAllowedApplication(packageName) }
         }
-        tunnel = builder.establish() ?: run { stopSelf(); return false }
-        DiagnosticLog.add("TUN established with IPv4, IPv6 and intercepted DNS")
-        val proxyCore = NativeProxyCore(this)
+        tunnel = builder.establish() ?: run {
+            handleStartFailure(testOnly, "VPN interface could not be established")
+            return false
+        }
+        tunnelTestOnly = testOnly
+        diagnostics("TUN established with IPv4, IPv6 and intercepted DNS")
+        val proxyCore = NativeProxyCore(this, diagnostics)
         val proxyIp = proxyCore.resolveProxy(storedConfig.host) { message ->
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
         } ?: run {
             tunnel?.close()
             tunnel = null
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            handleStartFailure(testOnly, "Proxy bootstrap DNS failed")
             return false
         }
         val config = storedConfig.copy(resolvedProxyIp = proxyIp)
@@ -132,34 +171,59 @@ class ProxyVpnService : VpnService() {
                 tunnel = null
                 core = null
                 isRunning = false
-                stopForeground(STOP_FOREGROUND_DETACH)
-                stopSelf()
+                handleStartFailure(testOnly, "Native proxy core failed to start")
                 return false
             }
         }
         isRunning = true
+        VpnRuntimeState.update(VpnConnectionState.CONNECTED)
         activeConfig = config
         return true
     }
 
+    private fun handleStartFailure(testOnly: Boolean, message: String) {
+        if (testOnly) {
+            TestDiagnosticLog.fail(message)
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            stopSelf()
+        } else {
+            DiagnosticLog.add("$message; retrying")
+            VpnRuntimeState.update(VpnConnectionState.CONNECTING)
+            getSystemService(NotificationManager::class.java).notify(
+                NOTIFICATION_ID,
+                notification("Connection failed; retrying…"),
+            )
+        }
+    }
+
     private fun stopTunnel() {
-        if (tunnel != null) DiagnosticLog.add("Stopping VPN")
+        if (tunnel != null) {
+            if (tunnelTestOnly) TestDiagnosticLog.add("Stopping temporary VPN")
+            else DiagnosticLog.add("Stopping VPN")
+        }
         isRunning = false
+        VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
         core?.stop()
         core = null
         tunnel?.close()
         tunnel = null
+        tunnelTestOnly = false
         activeConfig = null
         stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     override fun onRevoke() {
+        ConfigStore(this).setConnectionDesired(false)
         isAlwaysOnMode = false
         isLockdownMode = false
         stopTunnel()
         stopSelf()
     }
-    override fun onDestroy() { stopTunnel(); super.onDestroy() }
+    override fun onDestroy() {
+        monitorHandler.removeCallbacks(monitor)
+        stopTunnel()
+        super.onDestroy()
+    }
 
     private fun createChannel() {
         val channel = NotificationChannel(CHANNEL_ID, "VPN", NotificationManager.IMPORTANCE_LOW).apply {
@@ -183,6 +247,7 @@ class ProxyVpnService : VpnService() {
         private const val NOTIFICATION_ID = 101
         private const val ACTION_STOP = "dev.megaproxy.STOP"
         private const val ACTION_TEST = "dev.megaproxy.TEST"
+        private const val MONITOR_INTERVAL_MS = 10_000L
         private val testRunning = AtomicBoolean(false)
         private val startRunning = AtomicBoolean(false)
         @Volatile var isRunning: Boolean = false
@@ -192,8 +257,14 @@ class ProxyVpnService : VpnService() {
         @Volatile var isLockdownMode: Boolean = false
             private set
 
-        fun start(context: Context) = ContextCompat.startForegroundService(context, Intent(context, ProxyVpnService::class.java))
-        fun stop(context: Context) = context.startService(Intent(context, ProxyVpnService::class.java).setAction(ACTION_STOP))
+        fun start(context: Context) {
+            ConfigStore(context).setConnectionDesired(true)
+            ContextCompat.startForegroundService(context, Intent(context, ProxyVpnService::class.java))
+        }
+        fun stop(context: Context) {
+            ConfigStore(context).setConnectionDesired(false)
+            context.startService(Intent(context, ProxyVpnService::class.java).setAction(ACTION_STOP))
+        }
         fun test(context: Context) = ContextCompat.startForegroundService(
             context, Intent(context, ProxyVpnService::class.java).setAction(ACTION_TEST),
         )
