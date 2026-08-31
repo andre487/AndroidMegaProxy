@@ -9,10 +9,11 @@ class PrivacyLogSanitizerTest {
     fun removesNetworkIdentifiersCredentialsAndPackageNames() {
         val sanitized = PrivacyLogSanitizer.sanitize(
             "username=alice password=secret url=https://proxy.example.com/path " +
-                "ipv4=192.0.2.10:443 ipv6=[2001:db8::1]:443 package=com.example.privateapp",
+                "ipv4=192.0.2.10:443 ipv6=[2001:db8::1]:443 package=com.example.privateapp " +
+                "email=user@example.com mac=00:11:22:33:44:55 path=/data/user/0/private/file",
         )
 
-        listOf("alice", "secret", "proxy.example.com", "192.0.2.10", "2001:db8", "com.example.privateapp")
+        listOf("alice", "secret", "proxy.example.com", "192.0.2.10", "2001:db8", "com.example.privateapp", "user@example.com", "00:11:22:33:44:55", "/data/user")
             .forEach { assertFalse(sanitized.contains(it)) }
         assertTrue(sanitized.contains("username=[redacted]"))
         assertTrue(sanitized.contains("password=[redacted]"))

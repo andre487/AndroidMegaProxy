@@ -25,6 +25,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +37,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -43,6 +45,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.background
@@ -60,19 +63,19 @@ import androidx.lifecycle.repeatOnLifecycle
 import net.megaproxy487.vpn.ConnectionStatsReader
 import net.megaproxy487.vpn.NativeConnectionStats
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
-import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.model.ProfileColors
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val store = ConfigStore(this)
-        PersistentDiagnosticLog.initialize(this, store.diagnosticLogLimitMb())
         BatteryOptimizationReminder.maybeRequest(this)
         setContent { MaterialTheme { MainScreen(this) } }
     }
@@ -102,9 +105,11 @@ private fun MainScreen(activity: Activity) {
     var connectionProfileId by remember { mutableStateOf(store.connectionProfile().id) }
     var connectionStats by remember { mutableStateOf<DisplayedConnectionStats?>(null) }
     var systemVpnStatus by remember { mutableStateOf(readAlwaysOnVpnStatus(activity)) }
+    var showCrashReport by remember { mutableStateOf(CrashHandler.hasPendingReport()) }
     val alwaysOn = runtimeAlwaysOn || systemVpnStatus.enabled
     val lockdown = runtimeLockdown || systemVpnStatus.lockdown
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
@@ -301,6 +306,21 @@ private fun MainScreen(activity: Activity) {
                 onClick = { activity.startActivity(Intent(activity, ProxySettingsActivity::class.java)) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text("Settings") }
+            FilledTonalButton(
+                onClick = {
+                    scope.launch {
+                        runCatching {
+                            val intent = withContext(Dispatchers.IO) {
+                                FeedbackEmail.createIntent(activity, connection, alwaysOn, lockdown)
+                            }
+                            activity.startActivity(intent)
+                        }.onFailure {
+                            error = "No email client is available: ${it.message ?: "unknown error"}"
+                        }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) { Text("Feedback") }
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
             }
@@ -313,6 +333,42 @@ private fun MainScreen(activity: Activity) {
                 )
             }
         }
+    }
+
+    if (showCrashReport) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("MegaProxy stopped unexpectedly") },
+            text = { Text("A privacy-filtered crash report was saved. You can send it to help diagnose the problem.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch {
+                        runCatching {
+                            val intent = withContext(Dispatchers.IO) {
+                                FeedbackEmail.createIntent(
+                                    activity,
+                                    connection,
+                                    alwaysOn,
+                                    lockdown,
+                                    crashReport = true,
+                                )
+                            }
+                            activity.startActivity(intent)
+                            CrashHandler.markReportHandled()
+                            showCrashReport = false
+                        }.onFailure {
+                            error = "Could not open an email client: ${it.message ?: "unknown error"}"
+                        }
+                    }
+                }) { Text("Report") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    CrashHandler.markReportHandled()
+                    showCrashReport = false
+                }) { Text("Close") }
+            },
+        )
     }
 }
 

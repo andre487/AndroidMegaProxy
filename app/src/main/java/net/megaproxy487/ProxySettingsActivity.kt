@@ -99,6 +99,7 @@ private fun SettingsScreen(activity: Activity) {
     var pendingExportContent by remember { mutableStateOf("") }
     var transferMessage by remember { mutableStateOf<String?>(null) }
     var pendingUnsafeImport by remember { mutableStateOf<PortableConfiguration?>(null) }
+    var showCrashConfirmation by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     fun refresh() { profiles = store.sortedProfiles() }
@@ -252,6 +253,12 @@ private fun SettingsScreen(activity: Activity) {
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text("Diagnostic log") }
             }
+            item {
+                OutlinedButton(
+                    onClick = { showCrashConfirmation = true },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Crash") }
+            }
             item { HorizontalDivider(Modifier.padding(vertical = 6.dp)) }
             item { Text("Profiles", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp)) }
             item {
@@ -312,6 +319,20 @@ private fun SettingsScreen(activity: Activity) {
             title = { Text("Reconnect required") },
             text = { Text("The new Always-on profile will be used only after the VPN reconnects.") },
             confirmButton = { TextButton(onClick = { showReconnectWarning = false }) { Text("OK") } },
+        )
+    }
+    if (showCrashConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showCrashConfirmation = false },
+            title = { Text("Crash MegaProxy?") },
+            text = { Text("The app will close immediately. Reopen it to test the crash report dialog.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showCrashConfirmation = false
+                    throw IllegalStateException("Intentional crash requested from Settings")
+                }) { Text("Crash") }
+            },
+            dismissButton = { TextButton(onClick = { showCrashConfirmation = false }) { Text("Cancel") } },
         )
     }
     if (showImportFilterNotice) {

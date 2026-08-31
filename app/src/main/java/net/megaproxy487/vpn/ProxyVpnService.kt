@@ -48,8 +48,6 @@ class ProxyVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        val store = ConfigStore(this)
-        PersistentDiagnosticLog.initialize(this, store.diagnosticLogLimitMb())
         createChannel()
         monitorHandler.post(monitor)
     }
