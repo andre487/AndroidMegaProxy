@@ -1,4 +1,4 @@
-package dev.megaproxy.app
+package net.megaproxy487
 
 import android.app.Activity
 import android.content.Intent
@@ -40,11 +40,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import dev.megaproxy.app.data.ConfigStore
-import dev.megaproxy.app.model.DnsProvider
-import dev.megaproxy.app.model.ProfileColorMatcher
-import dev.megaproxy.app.model.ProxyConfig
-import dev.megaproxy.app.model.TlsProfile
+import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.model.DnsProvider
+import net.megaproxy487.model.ProfileColorMatcher
+import net.megaproxy487.model.ProxyConfig
+import net.megaproxy487.model.TlsProfile
 import java.util.Locale
 
 class ProfileEditorActivity : ComponentActivity() {
@@ -119,7 +119,7 @@ private fun ProfileEditorScreen(activity: Activity) {
                         countryExpanded = false
                     })
                     countries.forEach { (code, name) ->
-                        val flag = dev.megaproxy.app.model.ProxyProfile("", colorIndex = 0, countryCode = code).flagEmoji
+                        val flag = net.megaproxy487.model.ProxyProfile("", colorIndex = 0, countryCode = code).flagEmoji
                         DropdownMenuItem(text = { Text("$flag $name") }, onClick = {
                             profile = profile.copy(
                                 countryCode = code,

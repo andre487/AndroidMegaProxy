@@ -1,4 +1,4 @@
-package dev.megaproxy.app.vpn
+package net.megaproxy487.vpn
 
 import android.app.NotificationChannel
 import android.app.NotificationManager
@@ -12,15 +12,15 @@ import android.os.Handler
 import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
-import dev.megaproxy.app.MainActivity
-import dev.megaproxy.app.data.ConfigStore
+import net.megaproxy487.MainActivity
+import net.megaproxy487.data.ConfigStore
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 class ProxyVpnService : VpnService() {
     private var tunnel: ParcelFileDescriptor? = null
     private var core: ProxyCore? = null
-    private var activeConfig: dev.megaproxy.app.model.ProxyConfig? = null
+    private var activeConfig: net.megaproxy487.model.ProxyConfig? = null
     private var tunnelTestOnly = false
     private val monitorHandler = Handler(Looper.getMainLooper())
     private val monitor = object : Runnable {
@@ -132,7 +132,7 @@ class ProxyVpnService : VpnService() {
         }
     }
 
-    private fun startTunnel(testOnly: Boolean, suppliedConfig: dev.megaproxy.app.model.ProxyConfig? = null): Boolean {
+    private fun startTunnel(testOnly: Boolean, suppliedConfig: net.megaproxy487.model.ProxyConfig? = null): Boolean {
         val storedProfile = ConfigStore(this).connectionProfile()
         val storedConfig = suppliedConfig ?: storedProfile.config
         val diagnostics = if (testOnly) TestDiagnosticLog::add else DiagnosticLog::add
@@ -267,10 +267,10 @@ class ProxyVpnService : VpnService() {
     companion object {
         private const val CHANNEL_ID = "vpn"
         private const val NOTIFICATION_ID = 101
-        private const val ACTION_STOP = "dev.megaproxy.STOP"
-        private const val ACTION_TEST = "dev.megaproxy.TEST"
-        private const val ACTION_START_MANUAL = "dev.megaproxy.START_MANUAL"
-        private const val ACTION_REFRESH_STATUS = "dev.megaproxy.REFRESH_STATUS"
+        private const val ACTION_STOP = "net.megaproxy487.STOP"
+        private const val ACTION_TEST = "net.megaproxy487.TEST"
+        private const val ACTION_START_MANUAL = "net.megaproxy487.START_MANUAL"
+        private const val ACTION_REFRESH_STATUS = "net.megaproxy487.REFRESH_STATUS"
         private const val MONITOR_INTERVAL_MS = 10_000L
         private val testRunning = AtomicBoolean(false)
         private val startRunning = AtomicBoolean(false)

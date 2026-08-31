@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-package_name="dev.megaproxy.app"
+package_name="net.megaproxy487"
 adb -e wait-for-device
 
 app_pid="$(adb -e shell pidof -s "$package_name" 2>/dev/null | tr -d '\r' || true)"

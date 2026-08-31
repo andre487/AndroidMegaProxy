@@ -5,11 +5,11 @@ plugins {
 }
 
 android {
-    namespace = "dev.megaproxy.app"
+    namespace = "net.megaproxy487"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "dev.megaproxy.app"
+        applicationId = "net.megaproxy487"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

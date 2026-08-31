@@ -1,4 +1,4 @@
-package dev.megaproxy.app
+package net.megaproxy487
 
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

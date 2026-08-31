@@ -1,6 +1,6 @@
-package dev.megaproxy.app.data
+package net.megaproxy487.data
 
-import dev.megaproxy.app.model.ProxyConfig
+import net.megaproxy487.model.ProxyConfig
 import java.net.URI
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets

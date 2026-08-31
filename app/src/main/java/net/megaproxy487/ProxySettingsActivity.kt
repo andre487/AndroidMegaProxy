@@ -1,4 +1,4 @@
-package dev.megaproxy.app
+package net.megaproxy487
 
 import android.app.Activity
 import android.content.Intent
@@ -59,15 +59,15 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import dev.megaproxy.app.data.ConfigStore
-import dev.megaproxy.app.data.ConfigExportFormat
-import dev.megaproxy.app.data.ConfigTransfer
-import dev.megaproxy.app.data.PortableConfiguration
-import dev.megaproxy.app.data.ProxyListParser
-import dev.megaproxy.app.model.ProfileColors
-import dev.megaproxy.app.model.ProxyProfile
-import dev.megaproxy.app.model.ProfileSort
-import dev.megaproxy.app.vpn.ProxyVpnService
+import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigExportFormat
+import net.megaproxy487.data.ConfigTransfer
+import net.megaproxy487.data.PortableConfiguration
+import net.megaproxy487.data.ProxyListParser
+import net.megaproxy487.model.ProfileColors
+import net.megaproxy487.model.ProxyProfile
+import net.megaproxy487.model.ProfileSort
+import net.megaproxy487.vpn.ProxyVpnService
 
 class ProxySettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

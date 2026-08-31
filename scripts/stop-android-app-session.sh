@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-package_name="dev.megaproxy.app"
+package_name="net.megaproxy487"
 debug_port="8700"
 jdwp_pid_file="${TMPDIR:-/tmp}/megaproxy-jdwp-session.pid"
 

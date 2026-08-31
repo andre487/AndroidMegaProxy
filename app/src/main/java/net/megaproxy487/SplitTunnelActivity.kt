@@ -1,4 +1,4 @@
-package dev.megaproxy.app
+package net.megaproxy487
 
 import android.content.Intent
 import android.os.Bundle
@@ -32,7 +32,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.megaproxy.app.data.ConfigStore
+import net.megaproxy487.data.ConfigStore
 
 class SplitTunnelActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -67,7 +67,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
     var config by remember { mutableStateOf(currentProfile.config) }
     var appSearch by remember { mutableStateOf("") }
 
-    fun updateConfig(updated: dev.megaproxy.app.model.ProxyConfig) {
+    fun updateConfig(updated: net.megaproxy487.model.ProxyConfig) {
         config = updated
         val profilesToUpdate = if (configureIndividually) listOf(currentProfile) else targetProfiles
         profilesToUpdate.forEach { store.saveProfile(it.copy(config = updated)) }

@@ -1,8 +1,8 @@
-package dev.megaproxy.app.data
+package net.megaproxy487.data
 
-import dev.megaproxy.app.model.ProxyConfig
-import dev.megaproxy.app.model.ProxyProfile
-import dev.megaproxy.app.model.TlsProfile
+import net.megaproxy487.model.ProxyConfig
+import net.megaproxy487.model.ProxyProfile
+import net.megaproxy487.model.TlsProfile
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue

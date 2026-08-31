@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-package_name="dev.megaproxy.app"
+package_name="net.megaproxy487"
 component_name="$package_name/.MainActivity"
 debug_port="8700"
 jdwp_pid_file="${TMPDIR:-/tmp}/megaproxy-jdwp-session.pid"
@@ -73,7 +73,7 @@ if [[ "$(adb -e get-state)" != "device" ]]; then
     exit 1
 fi
 
-echo "JDWP ready: dev.megaproxy.app pid=$app_pid port=$debug_port"
+echo "JDWP ready: net.megaproxy487 pid=$app_pid port=$debug_port"
 echo "Forward: $forward_entry"
 
 if [[ "${MEGAPROXY_JDWP_KEEP_ALIVE:-0}" == "1" ]]; then

@@ -1,4 +1,4 @@
-package dev.megaproxy.app
+package net.megaproxy487
 
 import android.Manifest
 import android.app.Activity
@@ -57,15 +57,15 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
-import dev.megaproxy.app.vpn.ConnectionStatsReader
-import dev.megaproxy.app.vpn.NativeConnectionStats
+import net.megaproxy487.vpn.ConnectionStatsReader
+import net.megaproxy487.vpn.NativeConnectionStats
 import kotlinx.coroutines.delay
-import dev.megaproxy.app.data.ConfigStore
-import dev.megaproxy.app.vpn.ProxyVpnService
-import dev.megaproxy.app.vpn.VpnConnectionState
-import dev.megaproxy.app.vpn.VpnRuntimeState
-import dev.megaproxy.app.vpn.readAlwaysOnVpnStatus
-import dev.megaproxy.app.model.ProfileColors
+import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.vpn.VpnConnectionState
+import net.megaproxy487.vpn.VpnRuntimeState
+import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.model.ProfileColors
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

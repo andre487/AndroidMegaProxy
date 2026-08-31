@@ -121,7 +121,7 @@ Build, test and install the Android application:
 ./gradlew testDebugUnitTest assembleDebug
 adb wait-for-device
 adb install -r app/build/outputs/apk/debug/app-debug.apk
-adb shell am start -n dev.megaproxy.app/.MainActivity
+adb shell am start -n net.megaproxy487/.MainActivity
 ```
 
 ### VS Code workflow

@@ -96,7 +96,7 @@
     {
       "label": "Android: Launch app",
       "type": "shell",
-      "command": "source \"$HOME/.zshrc.extra\"; adb shell am start -n dev.megaproxy.app/.MainActivity",
+      "command": "source \"$HOME/.zshrc.extra\"; adb shell am start -n net.megaproxy487/.MainActivity",
       "dependsOn": ["Android: Install debug APK"],
       "dependsOrder": "sequence",
       "problemMatcher": []

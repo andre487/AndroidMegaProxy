@@ -1,10 +1,10 @@
-package dev.megaproxy.app.data
+package net.megaproxy487.data
 
-import dev.megaproxy.app.model.DnsProvider
-import dev.megaproxy.app.model.ProfileSort
-import dev.megaproxy.app.model.ProxyConfig
-import dev.megaproxy.app.model.ProxyProfile
-import dev.megaproxy.app.model.TlsProfile
+import net.megaproxy487.model.DnsProvider
+import net.megaproxy487.model.ProfileSort
+import net.megaproxy487.model.ProxyConfig
+import net.megaproxy487.model.ProxyProfile
+import net.megaproxy487.model.TlsProfile
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder

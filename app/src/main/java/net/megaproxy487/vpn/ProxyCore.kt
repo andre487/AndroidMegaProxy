@@ -1,8 +1,8 @@
-package dev.megaproxy.app.vpn
+package net.megaproxy487.vpn
 
 import android.net.VpnService
 import android.os.ParcelFileDescriptor
-import dev.megaproxy.app.model.ProxyConfig
+import net.megaproxy487.model.ProxyConfig
 import org.json.JSONObject
 import java.lang.reflect.Proxy
 

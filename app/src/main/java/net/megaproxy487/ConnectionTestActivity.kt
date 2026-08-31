@@ -1,4 +1,4 @@
-package dev.megaproxy.app
+package net.megaproxy487
 
 import android.app.Activity
 import android.content.ClipData
@@ -36,10 +36,10 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import dev.megaproxy.app.data.ConfigStore
-import dev.megaproxy.app.vpn.ProxyVpnService
-import dev.megaproxy.app.vpn.TestDiagnosticLog
-import dev.megaproxy.app.vpn.TestState
+import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.vpn.TestDiagnosticLog
+import net.megaproxy487.vpn.TestState
 
 class ConnectionTestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {

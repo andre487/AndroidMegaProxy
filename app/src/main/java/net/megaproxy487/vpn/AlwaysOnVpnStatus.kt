@@ -1,4 +1,4 @@
-package dev.megaproxy.app.vpn
+package net.megaproxy487.vpn
 
 import android.content.Context
 import android.provider.Settings

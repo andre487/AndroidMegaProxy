@@ -26,4 +26,4 @@ mkdir -p "$project_dir/app/libs"
 )
 
 adb -e install -r "$project_dir/app/build/outputs/apk/debug/app-debug.apk"
-adb -e shell am start -n dev.megaproxy.app/.MainActivity
+adb -e shell am start -n net.megaproxy487/.MainActivity

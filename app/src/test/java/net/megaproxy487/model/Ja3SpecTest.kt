@@ -1,4 +1,4 @@
-package dev.megaproxy.app.model
+package net.megaproxy487.model
 
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull

@@ -1,4 +1,4 @@
-package dev.megaproxy.app.model
+package net.megaproxy487.model
 
 data class ProxyConfig(
     val host: String = "",
