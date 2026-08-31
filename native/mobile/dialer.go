@@ -43,23 +43,18 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 			}
 		}
 	}
-	report(d.reporter, "CONNECT %s: opening TCP connection to proxy %s via %s", target, d.config.displayAddress(), d.config.address())
-	upstream := net.Dialer{
-		Timeout:   15 * time.Second,
-		KeepAlive: 30 * time.Second,
-		Control: func(_, _ string, raw syscall.RawConn) error {
-			var protectErr error
-			if err := raw.Control(func(fd uintptr) {
-				if !d.protector.Protect(int(fd)) {
-					protectErr = errors.New("VpnService.protect rejected upstream socket")
-				}
-			}); err != nil {
-				return err
-			}
-			return protectErr
-		},
+	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
+		report(d.reporter, "DIRECT %s: bypassing proxy for local network", target)
+		connection, err := d.protectedDialer().DialContext(ctx, "tcp", target)
+		if err != nil {
+			err = fmt.Errorf("dial local network directly: %w", err)
+			report(d.reporter, "DIRECT %s failed: %v", target, err)
+			return nil, err
+		}
+		return &diagnosticConn{Conn: connection, target: target, reporter: d.reporter}, nil
 	}
-	raw, err := upstream.DialContext(ctx, "tcp", d.config.address())
+	report(d.reporter, "CONNECT %s: opening TCP connection to proxy %s via %s", target, d.config.displayAddress(), d.config.address())
+	raw, err := d.protectedDialer().DialContext(ctx, "tcp", d.config.address())
 	if err != nil {
 		err = fmt.Errorf("dial HTTPS proxy: %w", err)
 		report(d.reporter, "CONNECT %s failed: %v", target, err)
@@ -79,8 +74,9 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		return nil, err
 	}
 	uconn := tls.UClient(raw, &tls.Config{
-		ServerName: d.config.Host,
-		MinVersion: tls.VersionTLS12,
+		ServerName:         d.config.Host,
+		MinVersion:         tls.VersionTLS12,
+		InsecureSkipVerify: d.config.AllowInvalidProxyCertificate,
 	}, hello)
 	if hello == tls.HelloCustom {
 		if err := applyJA3(uconn, d.config.CustomJA3, d.config.Host); err != nil {
@@ -122,6 +118,36 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		connection = &bufferedConn{Conn: uconn, reader: reader}
 	}
 	return &diagnosticConn{Conn: connection, target: target, reporter: d.reporter}, nil
+}
+
+func (d *httpsConnectDialer) protectedDialer() *net.Dialer {
+	return &net.Dialer{
+		Timeout:   15 * time.Second,
+		KeepAlive: 30 * time.Second,
+		Control: func(_, _ string, raw syscall.RawConn) error {
+			var protectErr error
+			if err := raw.Control(func(fd uintptr) {
+				if !d.protector.Protect(int(fd)) {
+					protectErr = errors.New("VpnService.protect rejected upstream socket")
+				}
+			}); err != nil {
+				return err
+			}
+			return protectErr
+		},
+	}
+}
+
+func isLocalNetworkTarget(target string) bool {
+	host, _, err := net.SplitHostPort(target)
+	if err != nil {
+		return false
+	}
+	ip := net.ParseIP(host)
+	if ip == nil {
+		return false
+	}
+	return ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast()
 }
 
 func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {

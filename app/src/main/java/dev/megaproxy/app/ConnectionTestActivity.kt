@@ -12,6 +12,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -109,12 +110,14 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
                 "The test uses a temporary VPN when the main connection is inactive. Credentials and traffic content are not logged.",
                 style = MaterialTheme.typography.bodySmall,
             )
-            SelectionContainer {
-                Text(
-                    TestDiagnosticLog.entries.joinToString("\n").ifEmpty { "No test events yet." },
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                )
+            Box(Modifier.fillMaxWidth().weight(1f)) {
+                SelectionContainer {
+                    Text(
+                        TestDiagnosticLog.entries.joinToString("\n").ifEmpty { "No test events yet." },
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                    )
+                }
             }
         }
     }

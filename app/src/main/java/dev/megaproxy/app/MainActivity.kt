@@ -6,31 +6,35 @@ import android.content.Intent
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -38,9 +42,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -49,6 +57,8 @@ import dev.megaproxy.app.data.ConfigStore
 import dev.megaproxy.app.vpn.ProxyVpnService
 import dev.megaproxy.app.vpn.VpnConnectionState
 import dev.megaproxy.app.vpn.VpnRuntimeState
+import dev.megaproxy.app.vpn.readAlwaysOnVpnStatus
+import dev.megaproxy.app.model.ProfileColors
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -56,23 +66,40 @@ class MainActivity : ComponentActivity() {
         BatteryOptimizationReminder.maybeRequest(this)
         setContent { MaterialTheme { MainScreen(this) } }
     }
+
+    override fun onResume() {
+        super.onResume()
+        val status = readAlwaysOnVpnStatus(this)
+        val store = ConfigStore(this)
+        val profileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id
+        VpnRuntimeState.updateSystem(status.enabled, status.lockdown, profileId)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun MainScreen(activity: Activity) {
     val connection by VpnRuntimeState.connection
+    val alwaysOn by VpnRuntimeState.alwaysOn
+    val lockdown by VpnRuntimeState.lockdown
+    val runtimeProfileId by VpnRuntimeState.connectionProfileId
     val store = remember { ConfigStore(activity) }
     var error by remember { mutableStateOf<String?>(null) }
-    var alwaysOn by remember { mutableStateOf(ProxyVpnService.isAlwaysOnMode) }
-    var lockdown by remember { mutableStateOf(ProxyVpnService.isLockdownMode) }
-    var showAlwaysOnDisconnectDialog by remember { mutableStateOf(false) }
+    var profileMenuExpanded by remember { mutableStateOf(false) }
+    var profiles by remember { mutableStateOf(store.sortedProfiles()) }
+    var activeProfileId by remember { mutableStateOf(store.activeProfileId()) }
+    var connectionProfileId by remember { mutableStateOf(store.connectionProfile().id) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                alwaysOn = ProxyVpnService.isAlwaysOnMode
-                lockdown = ProxyVpnService.isLockdownMode
+                profiles = store.sortedProfiles()
+                activeProfileId = store.activeProfileId()
+                connectionProfileId = if (readAlwaysOnVpnStatus(activity).enabled) {
+                    store.alwaysOnProfileId()
+                } else {
+                    store.connectionProfile().id
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -83,10 +110,18 @@ private fun MainScreen(activity: Activity) {
         else error = "VPN permission is required"
     }
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val connect = {
+        error = store.activeProfile().config.validationError()
+        if (error == null) {
+            if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            val intent = VpnService.prepare(activity)
+            if (intent == null) ProxyVpnService.start(activity) else vpnPermission.launch(intent)
+        }
+    }
 
     Scaffold(topBar = { TopAppBar(title = { Text("MegaProxy") }) }) { padding ->
         Column(
-            Modifier.fillMaxSize().padding(padding).padding(20.dp),
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center,
         ) {
@@ -122,21 +157,61 @@ private fun MainScreen(activity: Activity) {
                 }
             }
             Spacer(Modifier.height(24.dp))
+            val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
+            val activeProfile = profiles.firstOrNull { it.id == displayedProfileId } ?: profiles.first()
+            val profileColor = Color(ProfileColors.argb[Math.floorMod(activeProfile.colorIndex, ProfileColors.argb.size)])
+            val onProfileColor = if (profileColor.luminance() > 0.45f) Color.Black else Color.White
+            Card(
+                Modifier.fillMaxWidth().clickable(enabled = !alwaysOn) { profileMenuExpanded = true },
+                colors = CardDefaults.cardColors(
+                    containerColor = profileColor,
+                    contentColor = onProfileColor,
+                    disabledContainerColor = profileColor,
+                    disabledContentColor = onProfileColor,
+                ),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(14.dp)) {
+                    Text("Profile", style = MaterialTheme.typography.labelMedium)
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        if (activeProfile.flagEmoji.isNotEmpty()) {
+                            Surface(
+                                color = Color.White,
+                                contentColor = Color.Black,
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.45f)),
+                            ) {
+                                Text(activeProfile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
+                            }
+                        }
+                        Text(activeProfile.displayName, style = MaterialTheme.typography.titleMedium)
+                    }
+                    DropdownMenu(profileMenuExpanded, { profileMenuExpanded = false }) {
+                        profiles.forEach { profile ->
+                            DropdownMenuItem(
+                                text = { Text(profile.displayNameWithFlag) },
+                                onClick = {
+                                    store.setActiveProfile(profile.id)
+                                    activeProfileId = profile.id
+                                    profileMenuExpanded = false
+                                },
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(12.dp))
             Button(
                 onClick = {
                     if (connected) {
-                        if (alwaysOn) showAlwaysOnDisconnectDialog = true
-                        else ProxyVpnService.stop(activity)
+                        ProxyVpnService.stop(activity)
                     } else {
-                        error = store.load().validationError()
-                        if (error == null) {
-                            if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-                            val intent = VpnService.prepare(activity)
-                            if (intent == null) ProxyVpnService.start(activity) else vpnPermission.launch(intent)
-                        }
+                        connect()
                     }
                 },
-                enabled = connection != VpnConnectionState.CONNECTING,
+                enabled = connection != VpnConnectionState.CONNECTING && !alwaysOn,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (connected) "Disconnect" else "Connect") }
             FilledTonalButton(
@@ -150,20 +225,14 @@ private fun MainScreen(activity: Activity) {
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
             }
+            if (alwaysOn) {
+                Text(
+                    "Always-on VPN is used. Connection controls are managed by Android.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 12.dp),
+                )
+            }
         }
-    }
-    if (showAlwaysOnDisconnectDialog) {
-        AlertDialog(
-            onDismissRequest = { showAlwaysOnDisconnectDialog = false },
-            title = { Text("Always-on VPN is enabled") },
-            text = { Text("Android will restart MegaProxy if it is stopped. Disable Always-on VPN in system settings to disconnect it.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showAlwaysOnDisconnectDialog = false
-                    activity.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
-                }) { Text("Open VPN settings") }
-            },
-            dismissButton = { TextButton(onClick = { showAlwaysOnDisconnectDialog = false }) { Text("Cancel") } },
-        )
     }
 }

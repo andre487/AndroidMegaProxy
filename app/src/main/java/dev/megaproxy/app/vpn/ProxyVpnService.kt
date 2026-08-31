@@ -57,7 +57,15 @@ class ProxyVpnService : VpnService() {
             isAlwaysOnMode = isAlwaysOn
             isLockdownMode = isLockdownEnabled
         }
-        if (isAlwaysOnMode) ConfigStore(this).setConnectionDesired(true)
+        val store = ConfigStore(this)
+        if (isAlwaysOnMode && intent?.action != ACTION_START_MANUAL) {
+            store.setConnectionDesired(true)
+            store.setConnectionProfile(store.alwaysOnProfileId())
+        }
+        if (intent?.action == ACTION_START_MANUAL) {
+            store.setConnectionProfile(store.activeProfileId())
+        }
+        VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, store.connectionProfile().id)
         if (intent?.action == ACTION_STOP) {
             stopTunnel()
             stopSelf()
@@ -88,7 +96,7 @@ class ProxyVpnService : VpnService() {
             TestDiagnosticLog.add("Connection test is already running")
             return
         }
-        val storedConfig = ConfigStore(this).load()
+        val storedConfig = ConfigStore(this).activeProfile().config
         storedConfig.connectionValidationError()?.let {
             TestDiagnosticLog.fail("Connection test cannot start: $it")
             testRunning.set(false)
@@ -120,9 +128,14 @@ class ProxyVpnService : VpnService() {
     }
 
     private fun startTunnel(testOnly: Boolean, suppliedConfig: dev.megaproxy.app.model.ProxyConfig? = null): Boolean {
-        val storedConfig = suppliedConfig ?: ConfigStore(this).load()
+        val storedProfile = ConfigStore(this).connectionProfile()
+        val storedConfig = suppliedConfig ?: storedProfile.config
         val diagnostics = if (testOnly) TestDiagnosticLog::add else DiagnosticLog::add
-        diagnostics(if (testOnly) "Starting temporary VPN for connection test" else "Starting VPN for ${storedConfig.selectedPackages.size} selected application(s)")
+        diagnostics(
+            if (testOnly) "Starting temporary VPN for connection test"
+            else if (storedConfig.routeAllApps) "Starting global VPN with profile ${storedProfile.displayName}"
+            else "Starting VPN with profile ${storedProfile.displayName} for ${storedConfig.selectedPackages.size} selected application(s)"
+        )
         val validationError = if (testOnly) storedConfig.connectionValidationError() else storedConfig.validationError()
         validationError?.let {
             if (testOnly) TestDiagnosticLog.fail(it) else {
@@ -142,7 +155,11 @@ class ProxyVpnService : VpnService() {
             .addRoute("::", 0)
             .addDnsServer("10.77.0.2")
             .setBlocking(true)
-        val allowedPackages = if (testOnly) setOf(packageName) else storedConfig.selectedPackages
+        val allowedPackages = when {
+            testOnly -> setOf(packageName)
+            storedConfig.routeAllApps -> emptySet()
+            else -> storedConfig.selectedPackages
+        }
         allowedPackages.forEach { packageName ->
             runCatching { builder.addAllowedApplication(packageName) }
         }
@@ -247,6 +264,7 @@ class ProxyVpnService : VpnService() {
         private const val NOTIFICATION_ID = 101
         private const val ACTION_STOP = "dev.megaproxy.STOP"
         private const val ACTION_TEST = "dev.megaproxy.TEST"
+        private const val ACTION_START_MANUAL = "dev.megaproxy.START_MANUAL"
         private const val MONITOR_INTERVAL_MS = 10_000L
         private val testRunning = AtomicBoolean(false)
         private val startRunning = AtomicBoolean(false)
@@ -259,7 +277,10 @@ class ProxyVpnService : VpnService() {
 
         fun start(context: Context) {
             ConfigStore(context).setConnectionDesired(true)
-            ContextCompat.startForegroundService(context, Intent(context, ProxyVpnService::class.java))
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, ProxyVpnService::class.java).setAction(ACTION_START_MANUAL),
+            )
         }
         fun stop(context: Context) {
             ConfigStore(context).setConnectionDesired(false)

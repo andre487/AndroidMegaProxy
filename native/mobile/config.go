@@ -12,15 +12,17 @@ import (
 )
 
 type config struct {
-	Host      string `json:"host"`
-	DialHost  string `json:"dialHost"`
-	Port      int    `json:"port"`
-	Username  string `json:"username"`
-	Password  string `json:"password"`
-	Profile   string `json:"profile"`
-	CustomJA3 string `json:"customJa3"`
-	DoHURL    string `json:"dohUrl"`
-	AllowIPv6 bool   `json:"allowIpv6"`
+	Host                         string `json:"host"`
+	DialHost                     string `json:"dialHost"`
+	Port                         int    `json:"port"`
+	Username                     string `json:"username"`
+	Password                     string `json:"password"`
+	AllowInvalidProxyCertificate bool   `json:"allowInvalidProxyCertificate"`
+	Profile                      string `json:"profile"`
+	CustomJA3                    string `json:"customJa3"`
+	DoHURL                       string `json:"dohUrl"`
+	AllowIPv6                    bool   `json:"allowIpv6"`
+	BypassLocalNetworks          bool   `json:"bypassLocalNetworks"`
 }
 
 func parseConfig(raw string) (config, error) {

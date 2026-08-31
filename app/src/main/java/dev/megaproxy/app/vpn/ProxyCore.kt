@@ -26,10 +26,12 @@ class NativeProxyCore(
         .put("port", config.port)
         .put("username", config.username)
         .put("password", config.password)
+        .put("allowInvalidProxyCertificate", config.allowInvalidProxyCertificate)
         .put("profile", config.profile.name)
         .put("customJa3", config.customJa3.trim())
         .put("dohUrl", if (config.dnsProvider.url.isNotEmpty()) config.dnsProvider.url else config.customDohUrl.trim())
         .put("allowIpv6", config.allowIpv6)
+        .put("bypassLocalNetworks", config.bypassLocalNetworks)
         .toString()
 
     private fun callback(type: Class<*>, methodName: String, callback: (Array<out Any?>?) -> Any?) =
