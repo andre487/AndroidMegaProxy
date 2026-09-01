@@ -3,6 +3,7 @@ package net.megaproxy487
 import android.Manifest
 import android.app.Activity
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -10,6 +11,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +21,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -71,6 +75,9 @@ import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.vpn.hasOtherProvider
+import net.megaproxy487.vpn.openAndroidVpnSettings
+import net.megaproxy487.vpn.OTHER_ALWAYS_ON_VPN_MESSAGE
 import net.megaproxy487.model.ProfileColors
 
 class MainActivity : ComponentActivity() {
@@ -105,7 +112,9 @@ private fun MainScreen(activity: Activity) {
     var connectionProfileId by remember { mutableStateOf(store.connectionProfile().id) }
     var connectionStats by remember { mutableStateOf<DisplayedConnectionStats?>(null) }
     var systemVpnStatus by remember { mutableStateOf(readAlwaysOnVpnStatus(activity)) }
+    var vpnPermissionRequestedAt by remember { mutableStateOf(0L) }
     var showCrashReport by remember { mutableStateOf(CrashHandler.hasPendingReport()) }
+    var showAlwaysOnConflict by remember { mutableStateOf(false) }
     val alwaysOn = runtimeAlwaysOn || systemVpnStatus.enabled
     val lockdown = runtimeLockdown || systemVpnStatus.lockdown
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -156,13 +165,37 @@ private fun MainScreen(activity: Activity) {
         }
     }
     val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (it.resultCode == Activity.RESULT_OK) {
+        if (VpnService.prepare(activity) == null) {
             if (!isAlwaysOnVpnActive(activity)) ProxyVpnService.start(activity) else error = null
         } else {
-            error = "VPN permission is required"
+            val status = readAlwaysOnVpnStatus(activity)
+            val dismissedImmediately = System.currentTimeMillis() - vpnPermissionRequestedAt < 1_000
+            if (status.hasOtherProvider || dismissedImmediately) {
+                error = null
+                showAlwaysOnConflict = true
+            } else {
+                error = "VPN access was not granted in the Android confirmation dialog"
+            }
         }
     }
-    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { }
+    val requestVpnAccess = {
+        val status = readAlwaysOnVpnStatus(activity)
+        if (status.hasOtherProvider) {
+            error = null
+            showAlwaysOnConflict = true
+        } else {
+            val intent = VpnService.prepare(activity)
+            if (intent == null) {
+                ProxyVpnService.start(activity)
+            } else {
+                vpnPermissionRequestedAt = System.currentTimeMillis()
+                vpnPermission.launch(intent)
+            }
+        }
+    }
+    val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        requestVpnAccess()
+    }
     val connect = {
         if (isAlwaysOnVpnActive(activity)) {
             systemVpnStatus = readAlwaysOnVpnStatus(activity)
@@ -171,13 +204,22 @@ private fun MainScreen(activity: Activity) {
             error = store.activeProfile().config.validationError()
         }
         if (error == null && !isAlwaysOnVpnActive(activity)) {
-            if (Build.VERSION.SDK_INT >= 33) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            val intent = VpnService.prepare(activity)
-            if (intent == null) ProxyVpnService.start(activity) else vpnPermission.launch(intent)
+            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
+                    activity,
+                    Manifest.permission.POST_NOTIFICATIONS,
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            } else {
+                requestVpnAccess()
+            }
         }
     }
 
-    Scaffold(topBar = { TopAppBar(title = { Text("MegaProxy") }) }) { padding ->
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("MegaProxy") }) },
+        contentWindowInsets = WindowInsets.safeDrawing,
+    ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -367,6 +409,23 @@ private fun MainScreen(activity: Activity) {
                     CrashHandler.markReportHandled()
                     showCrashReport = false
                 }) { Text("Close") }
+            },
+        )
+    }
+
+    if (showAlwaysOnConflict) {
+        AlertDialog(
+            onDismissRequest = { showAlwaysOnConflict = false },
+            title = { Text("Always-on VPN is already in use") },
+            text = { Text(OTHER_ALWAYS_ON_VPN_MESSAGE) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAlwaysOnConflict = false
+                    openAndroidVpnSettings(activity)
+                }) { Text("Change settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAlwaysOnConflict = false }) { Text("Cancel") }
             },
         )
     }

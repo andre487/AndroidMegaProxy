@@ -17,12 +17,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -30,16 +33,24 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.TestDiagnosticLog
 import net.megaproxy487.vpn.TestState
+import net.megaproxy487.vpn.OTHER_ALWAYS_ON_VPN_MESSAGE
+import net.megaproxy487.vpn.hasOtherProvider
+import net.megaproxy487.vpn.openAndroidVpnSettings
+import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 
 class ConnectionTestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -55,9 +66,20 @@ class ConnectionTestActivity : ComponentActivity() {
 private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
     val state by TestDiagnosticLog.state
     val exitIp by TestDiagnosticLog.exitIp
+    var vpnPermissionRequestedAt by remember { mutableStateOf(0L) }
+    var showAlwaysOnConflict by remember { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (it.resultCode == Activity.RESULT_OK) ProxyVpnService.test(activity)
-        else TestDiagnosticLog.fail("VPN permission is required for the connection test")
+        if (VpnService.prepare(activity) == null) ProxyVpnService.test(activity)
+        else {
+            val status = readAlwaysOnVpnStatus(activity)
+            val dismissedImmediately = System.currentTimeMillis() - vpnPermissionRequestedAt < 1_000
+            if (status.hasOtherProvider || dismissedImmediately) {
+                TestDiagnosticLog.fail(OTHER_ALWAYS_ON_VPN_MESSAGE)
+                showAlwaysOnConflict = true
+            } else {
+                TestDiagnosticLog.fail("VPN access was not granted in the Android confirmation dialog")
+            }
+        }
     }
     val runTest = {
         val error = ConfigStore(activity).load().connectionValidationError()
@@ -65,22 +87,36 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
             TestDiagnosticLog.fail(error)
         } else {
             TestDiagnosticLog.begin()
-            val intent = VpnService.prepare(activity)
-            if (intent == null) ProxyVpnService.test(activity) else permission.launch(intent)
+            val status = readAlwaysOnVpnStatus(activity)
+            if (status.hasOtherProvider) {
+                TestDiagnosticLog.fail(OTHER_ALWAYS_ON_VPN_MESSAGE)
+                showAlwaysOnConflict = true
+            } else {
+                val intent = VpnService.prepare(activity)
+                if (intent == null) {
+                    ProxyVpnService.test(activity)
+                } else {
+                    vpnPermissionRequestedAt = System.currentTimeMillis()
+                    permission.launch(intent)
+                }
+            }
         }
     }
     LaunchedEffect(autoStart) { if (autoStart) runTest() }
 
-    Scaffold(topBar = {
-        TopAppBar(
-            title = { Text("Connection test") },
-            navigationIcon = {
-                IconButton(onClick = { activity.finish() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
-                }
-            },
-        )
-    }) { padding ->
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Connection test") },
+                navigationIcon = {
+                    IconButton(onClick = { activity.finish() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+        contentWindowInsets = WindowInsets.safeDrawing,
+    ) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -120,5 +156,22 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
                 }
             }
         }
+    }
+
+    if (showAlwaysOnConflict) {
+        AlertDialog(
+            onDismissRequest = { showAlwaysOnConflict = false },
+            title = { Text("Always-on VPN is already in use") },
+            text = { Text(OTHER_ALWAYS_ON_VPN_MESSAGE) },
+            confirmButton = {
+                TextButton(onClick = {
+                    showAlwaysOnConflict = false
+                    openAndroidVpnSettings(activity)
+                }) { Text("Change settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAlwaysOnConflict = false }) { Text("Cancel") }
+            },
+        )
     }
 }

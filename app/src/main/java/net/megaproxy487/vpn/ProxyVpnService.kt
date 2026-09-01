@@ -76,6 +76,23 @@ class ProxyVpnService : VpnService() {
             stopSelf()
             return START_NOT_STICKY
         }
+        if (intent?.action == ACTION_RECONNECT) {
+            DiagnosticLog.add("event=vpn_reconnect reason=routing_settings_changed")
+            startForeground(NOTIFICATION_ID, notification("Reconnecting…"))
+            stopTunnel(removeForeground = false)
+            ConfigStore(this).setConnectionDesired(true)
+            if (startRunning.compareAndSet(false, true)) {
+                VpnRuntimeState.update(VpnConnectionState.CONNECTING)
+                thread(name = "megaproxy-vpn-reconnect") {
+                    try {
+                        startTunnel(testOnly = false)
+                    } finally {
+                        startRunning.set(false)
+                    }
+                }
+            }
+            return START_STICKY
+        }
         if (intent?.action == ACTION_TEST) {
             startForeground(NOTIFICATION_ID, notification("Testing connection…"))
             TestDiagnosticLog.begin()
@@ -218,7 +235,7 @@ class ProxyVpnService : VpnService() {
         }
     }
 
-    private fun stopTunnel() {
+    private fun stopTunnel(removeForeground: Boolean = true) {
         if (tunnel != null) {
             if (tunnelTestOnly) TestDiagnosticLog.add("Stopping temporary VPN")
             else DiagnosticLog.add("Stopping VPN")
@@ -231,7 +248,7 @@ class ProxyVpnService : VpnService() {
         tunnel = null
         tunnelTestOnly = false
         activeConfig = null
-        stopForeground(STOP_FOREGROUND_REMOVE)
+        if (removeForeground) stopForeground(STOP_FOREGROUND_REMOVE)
     }
 
     override fun onRevoke() {
@@ -269,6 +286,7 @@ class ProxyVpnService : VpnService() {
         private const val NOTIFICATION_ID = 101
         private const val ACTION_STOP = "net.megaproxy487.STOP"
         private const val ACTION_TEST = "net.megaproxy487.TEST"
+        private const val ACTION_RECONNECT = "net.megaproxy487.RECONNECT"
         private const val ACTION_START_MANUAL = "net.megaproxy487.START_MANUAL"
         private const val ACTION_REFRESH_STATUS = "net.megaproxy487.REFRESH_STATUS"
         private const val MONITOR_INTERVAL_MS = 10_000L
@@ -291,6 +309,13 @@ class ProxyVpnService : VpnService() {
         fun stop(context: Context) {
             ConfigStore(context).setConnectionDesired(false)
             context.startService(Intent(context, ProxyVpnService::class.java).setAction(ACTION_STOP))
+        }
+        fun reconnect(context: Context) {
+            ConfigStore(context).setConnectionDesired(true)
+            ContextCompat.startForegroundService(
+                context,
+                Intent(context, ProxyVpnService::class.java).setAction(ACTION_RECONNECT),
+            )
         }
         fun test(context: Context) = ContextCompat.startForegroundService(
             context, Intent(context, ProxyVpnService::class.java).setAction(ACTION_TEST),

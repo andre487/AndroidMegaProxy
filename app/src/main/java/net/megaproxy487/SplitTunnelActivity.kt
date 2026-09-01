@@ -10,15 +10,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,6 +38,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 
 class SplitTunnelActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -66,12 +73,25 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
     var currentProfile by remember { mutableStateOf(targetProfiles.first()) }
     var config by remember { mutableStateOf(currentProfile.config) }
     var appSearch by remember { mutableStateOf("") }
+    var showReconnectPrompt by remember { mutableStateOf(false) }
+    var showAlwaysOnDeferredNotice by remember { mutableStateOf(false) }
+    var deferChangesUntilNextConnection by remember { mutableStateOf(false) }
 
     fun updateConfig(updated: net.megaproxy487.model.ProxyConfig) {
         config = updated
         val profilesToUpdate = if (configureIndividually) listOf(currentProfile) else targetProfiles
         profilesToUpdate.forEach { store.saveProfile(it.copy(config = updated)) }
         currentProfile = currentProfile.copy(config = updated)
+        val affectsConnectedProfile = profilesToUpdate.any { it.id == store.connectionProfile().id }
+        if (ProxyVpnService.isRunning && affectsConnectedProfile && !deferChangesUntilNextConnection) {
+            val alwaysOn = ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled
+            if (alwaysOn) {
+                deferChangesUntilNextConnection = true
+                showAlwaysOnDeferredNotice = true
+            } else {
+                showReconnectPrompt = true
+            }
+        }
     }
     val apps = remember {
         val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
@@ -96,31 +116,36 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
             activity.finish()
         }
     }
-    Scaffold(topBar = {
-        TopAppBar(
-            title = {
-                Text(
-                    if (importedIds.isEmpty()) "Routing"
-                    else if (configureIndividually) "Routing: ${currentProfile.displayName}"
-                    else "Routing for ${targetProfiles.size} profiles"
-                )
-            },
-            navigationIcon = {
-                IconButton(onClick = { activity.finish() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        if (importedIds.isEmpty()) "Routing"
+                        else if (configureIndividually) "Routing: ${currentProfile.displayName}"
+                        else "Routing for ${targetProfiles.size} profiles"
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = { activity.finish() }) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    }
+                },
+            )
+        },
+        bottomBar = {
+            if (importedIds.isNotEmpty()) {
+                Button(
+                    onClick = ::finishCurrentProfile,
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding()
+                        .padding(horizontal = 16.dp, vertical = 10.dp),
+                ) {
+                    Text(if (configureIndividually && currentIndex < targetProfiles.lastIndex) "Next profile" else "Done")
                 }
-            },
-        )
-    }, bottomBar = {
-        if (importedIds.isNotEmpty()) {
-            Button(
-                onClick = ::finishCurrentProfile,
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp),
-            ) {
-                Text(if (configureIndividually && currentIndex < targetProfiles.lastIndex) "Next profile" else "Done")
             }
-        }
-    }) { padding ->
+        },
+        contentWindowInsets = WindowInsets.safeDrawing,
+    ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
@@ -192,5 +217,41 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
             }
             item { Text("Changes are saved automatically.", style = MaterialTheme.typography.bodySmall) }
         }
+    }
+
+    if (showReconnectPrompt) {
+        AlertDialog(
+            onDismissRequest = {
+                showReconnectPrompt = false
+                deferChangesUntilNextConnection = true
+            },
+            title = { Text("Apply routing changes?") },
+            text = {
+                Text("The VPN is currently connected. Reconnect now to apply the new split-tunneling settings, or apply them the next time it connects.")
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showReconnectPrompt = false
+                    ProxyVpnService.reconnect(activity)
+                }) { Text("Reconnect now") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showReconnectPrompt = false
+                    deferChangesUntilNextConnection = true
+                }) { Text("Next connection") }
+            },
+        )
+    }
+
+    if (showAlwaysOnDeferredNotice) {
+        AlertDialog(
+            onDismissRequest = { showAlwaysOnDeferredNotice = false },
+            title = { Text("Routing settings saved") },
+            text = { Text("Always-on VPN is managed by Android. The new split-tunneling settings will be applied the next time the VPN connects.") },
+            confirmButton = {
+                TextButton(onClick = { showAlwaysOnDeferredNotice = false }) { Text("OK") }
+            },
+        )
     }
 }
