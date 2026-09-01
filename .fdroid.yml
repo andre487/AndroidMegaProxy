@@ -26,7 +26,7 @@ Builds:
       - go@go1.26.3
     rm:
       - libs/megaproxy-sources.jar
-    binary: https://github.com/andre487/AndroidMegaProxy/releases/download/v%v/mega-proxy-v%v-universal.apk
+    binary: https://github.com/andre487/AndroidMegaProxy/releases/download/v%v/mega-proxy-universal.apk
     build:
       - pushd $$go$$/src
       - ./make.bash

@@ -65,7 +65,7 @@ fi
 mkdir -p "$MEGAPROXY_RELEASE_DIR" "$project_dir/app/libs"
 # Avoid carrying artifacts from an older version into SHA256SUMS or a release.
 find "$MEGAPROXY_RELEASE_DIR" -maxdepth 1 -type f \
-    \( -name 'mega-proxy-v*.apk' -o -name SHA256SUMS \) -delete
+    \( -name 'mega-proxy-v*.apk' -o -name mega-proxy-universal.apk -o -name SHA256SUMS \) -delete
 apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
 if [[ ! -x "$apksigner" ]]; then
     echo "Android apksigner 34.0.0 is unavailable: $apksigner" >&2
@@ -206,7 +206,7 @@ echo "Building and signing universal APK"
     ./gradlew clean
     ./gradlew assembleRelease
 )
-universal_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-v${version_name}-universal.apk"
+universal_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-universal.apk"
 built_apk="$project_dir/app/build/outputs/apk/release/app-release.apk"
 if [[ ! -f "$built_apk" ]]; then
     echo "Gradle did not produce the expected APK: $built_apk" >&2

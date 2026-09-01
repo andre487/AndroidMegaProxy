@@ -107,6 +107,8 @@ MegaProxy requires Android 8.0 (API 26) or newer. Download the latest signed bui
 it supports every architecture listed below and is also the artifact independently rebuilt and
 verified for F-Droid distribution.
 
+**[Download the recommended universal APK](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**
+
 | APK suffix | Intended device |
 | --- | --- |
 | `universal` | Recommended for phones, tablets, and emulators; supports all listed architectures |
@@ -139,10 +141,10 @@ before installation when the distribution channel is not trusted:
 
 ```shell
 # macOS
-shasum -a 256 mega-proxy-v0.0.4-universal.apk
+shasum -a 256 mega-proxy-universal.apk
 
 # Linux
-sha256sum mega-proxy-v0.0.4-universal.apk
+sha256sum mega-proxy-universal.apk
 ```
 
 The printed value must exactly match the corresponding line in `SHA256SUMS`. Substitute the
@@ -154,7 +156,7 @@ Alternatively, download the APK to a computer. With USB debugging enabled and th
 by `adb devices`, install or update MegaProxy with:
 
 ```shell
-adb install -r mega-proxy-v0.0.4-universal.apk
+adb install -r mega-proxy-universal.apk
 ```
 
 Use the APK filename that was actually downloaded. The `-r` option preserves existing application

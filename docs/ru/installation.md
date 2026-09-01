@@ -5,6 +5,8 @@
 MegaProxy поддерживает Android 8.0 (API 26) и новее. Официальные APK публикуются в разделе
 [GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest).
 
+**[Скачать рекомендуемый universal APK](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**
+
 ## Выбор APK
 
 Откройте последний релиз, разверните список **Assets** и скачайте файл с окончанием
@@ -64,7 +66,7 @@ adb devices
 Затем установите или обновите приложение:
 
 ```shell
-adb install -r mega-proxy-v0.0.4-universal.apk
+adb install -r mega-proxy-universal.apk
 ```
 
 Укажите фактическое имя скачанного APK. Параметр `-r` устанавливает новую версию поверх текущей и
