@@ -12,6 +12,7 @@ const connectionSampleWindow = 50
 type connectionStats struct {
 	downloadBytes atomic.Uint64
 	uploadBytes   atomic.Uint64
+	totalOutcomes atomic.Uint64
 
 	mu             sync.Mutex
 	latencyMillis  float64
@@ -31,11 +32,13 @@ type statsSnapshot struct {
 	ProxyLatencyAtMillis int64   `json:"proxyLatencyAtMillis"`
 	ConnectionErrorRate  float64 `json:"connectionErrorRate"`
 	ConnectionSamples    int     `json:"connectionSamples"`
+	TotalOutcomes        uint64  `json:"totalOutcomes"`
 }
 
 func resetStats() {
 	telemetry.downloadBytes.Store(0)
 	telemetry.uploadBytes.Store(0)
+	telemetry.totalOutcomes.Store(0)
 	telemetry.mu.Lock()
 	telemetry.latencyMillis = 0
 	telemetry.latencySamples = 0
@@ -61,6 +64,7 @@ func recordProxyLatency(elapsed time.Duration) {
 }
 
 func recordConnectionOutcome(success bool) {
+	telemetry.totalOutcomes.Add(1)
 	telemetry.mu.Lock()
 	telemetry.outcomes[telemetry.outcomeNext] = success
 	telemetry.outcomeNext = (telemetry.outcomeNext + 1) % connectionSampleWindow
@@ -74,6 +78,7 @@ func snapshotStats() statsSnapshot {
 	result := statsSnapshot{
 		DownloadBytes: telemetry.downloadBytes.Load(),
 		UploadBytes:   telemetry.uploadBytes.Load(),
+		TotalOutcomes: telemetry.totalOutcomes.Load(),
 	}
 	telemetry.mu.Lock()
 	result.ProxyLatencyMillis = telemetry.latencyMillis

@@ -12,36 +12,37 @@ import (
 )
 
 type config struct {
-	Type                         string `json:"type"`
-	Host                         string `json:"host"`
-	DialHost                     string `json:"dialHost"`
-	Port                         int    `json:"port"`
-	Username                     string `json:"username"`
-	Password                     string `json:"password"`
-	AllowInvalidProxyCertificate bool   `json:"allowInvalidProxyCertificate"`
-	Profile                      string `json:"profile"`
-	CustomJA3                    string `json:"customJa3"`
-	DoHURL                       string `json:"dohUrl"`
-	AllowIPv6                    bool   `json:"allowIpv6"`
-	BypassLocalNetworks          bool   `json:"bypassLocalNetworks"`
-	PrivateKey                   string `json:"privateKey"`
-	SSHProfile                   string `json:"sshProfile"`
-	TrustedHostKey               string `json:"trustedHostKey"`
-	AcceptAnyHostKey             bool   `json:"acceptAnyHostKey"`
-	JumpHost                     string `json:"jumpHost"`
-	JumpDialHost                 string `json:"jumpDialHost"`
-	JumpPort                     int    `json:"jumpPort"`
-	JumpUsername                 string `json:"jumpUsername"`
-	JumpPassword                 string `json:"jumpPassword"`
-	JumpPrivateKey               string `json:"jumpPrivateKey"`
-	JumpTrustedHostKey           string `json:"jumpTrustedHostKey"`
-	JumpAcceptAnyHostKey         bool   `json:"jumpAcceptAnyHostKey"`
-	SameJumpAuthentication       bool   `json:"sameJumpAuthentication"`
-	SSHAuthMode                  string `json:"sshAuthMode"`
-	SSHKeepaliveSeconds          int    `json:"sshKeepaliveSeconds"`
-	SSHMaxChannels               int    `json:"sshMaxChannels"`
-	SSHRotationMinutes           int    `json:"sshRotationMinutes"`
-	SSHRotationMB                int    `json:"sshRotationMb"`
+	Type                         string   `json:"type"`
+	Host                         string   `json:"host"`
+	DialHost                     string   `json:"dialHost"`
+	Port                         int      `json:"port"`
+	Username                     string   `json:"username"`
+	Password                     string   `json:"password"`
+	AllowInvalidProxyCertificate bool     `json:"allowInvalidProxyCertificate"`
+	Profile                      string   `json:"profile"`
+	CustomJA3                    string   `json:"customJa3"`
+	DoHURL                       string   `json:"dohUrl"`
+	DoHFallbackURLs              []string `json:"dohFallbackUrls"`
+	AllowIPv6                    bool     `json:"allowIpv6"`
+	BypassLocalNetworks          bool     `json:"bypassLocalNetworks"`
+	PrivateKey                   string   `json:"privateKey"`
+	SSHProfile                   string   `json:"sshProfile"`
+	TrustedHostKey               string   `json:"trustedHostKey"`
+	AcceptAnyHostKey             bool     `json:"acceptAnyHostKey"`
+	JumpHost                     string   `json:"jumpHost"`
+	JumpDialHost                 string   `json:"jumpDialHost"`
+	JumpPort                     int      `json:"jumpPort"`
+	JumpUsername                 string   `json:"jumpUsername"`
+	JumpPassword                 string   `json:"jumpPassword"`
+	JumpPrivateKey               string   `json:"jumpPrivateKey"`
+	JumpTrustedHostKey           string   `json:"jumpTrustedHostKey"`
+	JumpAcceptAnyHostKey         bool     `json:"jumpAcceptAnyHostKey"`
+	SameJumpAuthentication       bool     `json:"sameJumpAuthentication"`
+	SSHAuthMode                  string   `json:"sshAuthMode"`
+	SSHKeepaliveSeconds          int      `json:"sshKeepaliveSeconds"`
+	SSHMaxChannels               int      `json:"sshMaxChannels"`
+	SSHRotationMinutes           int      `json:"sshRotationMinutes"`
+	SSHRotationMB                int      `json:"sshRotationMb"`
 }
 
 func parseConfig(raw string) (config, error) {
@@ -88,6 +89,11 @@ func parseConfig(raw string) (config, error) {
 	}
 	if err := validateDoHURL(c.DoHURL); err != nil {
 		return c, err
+	}
+	for _, fallbackURL := range c.DoHFallbackURLs {
+		if err := validateDoHURL(fallbackURL); err != nil {
+			return c, fmt.Errorf("invalid fallback DoH URL: %w", err)
+		}
 	}
 	if c.Type == "HTTPS" {
 		if _, err := c.helloID(); err != nil {

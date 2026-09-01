@@ -4,6 +4,7 @@ import android.net.VpnService
 import android.os.ParcelFileDescriptor
 import net.megaproxy487.model.ProxyConfig
 import org.json.JSONObject
+import org.json.JSONArray
 import java.lang.reflect.Proxy
 
 interface ProxyCore {
@@ -20,6 +21,7 @@ data class NativeConnectionStats(
     val proxyLatencyAtMillis: Long,
     val connectionErrorRate: Double,
     val connectionSamples: Int,
+    val totalOutcomes: Long,
 )
 
 object ConnectionStatsReader {
@@ -33,6 +35,7 @@ object ConnectionStatsReader {
             proxyLatencyAtMillis = json.getLong("proxyLatencyAtMillis"),
             connectionErrorRate = json.getDouble("connectionErrorRate"),
             connectionSamples = json.getInt("connectionSamples"),
+            totalOutcomes = json.getLong("totalOutcomes"),
         )
     }.getOrNull()
 }
@@ -73,6 +76,7 @@ class NativeProxyCore(
         .put("profile", config.profile.name)
         .put("customJa3", config.customJa3.trim())
         .put("dohUrl", if (config.dnsProvider.url.isNotEmpty()) config.dnsProvider.url else config.customDohUrl.trim())
+        .put("dohFallbackUrls", JSONArray(config.dnsProvider.fallbackUrls()))
         .put("allowIpv6", config.allowIpv6)
         .put("bypassLocalNetworks", config.bypassLocalNetworks)
         .toString()

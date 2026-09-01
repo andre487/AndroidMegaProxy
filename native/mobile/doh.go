@@ -40,19 +40,21 @@ type dnsReply struct {
 }
 
 type dohPacketConn struct {
-	config       config
-	reporter     Reporter
-	connect      func(context.Context, string) (net.Conn, error)
-	url          string
-	replies      chan dnsReply
-	inFlight     chan struct{}
-	closed       chan struct{}
-	closeOnce    sync.Once
-	deadlineMu   sync.Mutex
-	readDeadline time.Time
-	client       *http.Client
-	context      context.Context
-	cancel       context.CancelFunc
+	config         config
+	reporter       Reporter
+	connect        func(context.Context, string) (net.Conn, error)
+	endpoints      []string
+	endpointMu     sync.Mutex
+	activeEndpoint int
+	replies        chan dnsReply
+	inFlight       chan struct{}
+	closed         chan struct{}
+	closeOnce      sync.Once
+	deadlineMu     sync.Mutex
+	readDeadline   time.Time
+	client         *http.Client
+	context        context.Context
+	cancel         context.CancelFunc
 }
 
 func newDoHPacketConn(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string) *dohPacketConn {
@@ -80,8 +82,14 @@ func newDoHPacketConnWithClient(c config, reporter Reporter, connect func(contex
 	if limiter == nil {
 		limiter = make(chan struct{}, 8)
 	}
+	endpoints := []string{endpoint}
+	for _, fallback := range c.DoHFallbackURLs {
+		if fallback != endpoint {
+			endpoints = append(endpoints, fallback)
+		}
+	}
 	return &dohPacketConn{
-		config: c, reporter: reporter, connect: connect, url: endpoint, replies: make(chan dnsReply, 16), closed: make(chan struct{}),
+		config: c, reporter: reporter, connect: connect, endpoints: endpoints, replies: make(chan dnsReply, 16), closed: make(chan struct{}),
 		inFlight: limiter, client: client, context: ctx, cancel: cancel,
 	}
 }
@@ -113,35 +121,74 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	}
 	go func() {
 		defer func() { <-c.inFlight }()
-		req, err := http.NewRequestWithContext(c.context, http.MethodPost, c.url, bytes.NewReader(query))
-		if err == nil {
-			req.Header.Set("Accept", "application/dns-message")
-			req.Header.Set("Content-Type", "application/dns-message")
-			var response *http.Response
-			response, err = c.client.Do(req)
+		var lastErr error
+		for _, candidate := range c.endpointOrder() {
+			body, err := c.queryEndpoint(candidate.url, query)
 			if err == nil {
-				defer response.Body.Close()
-				if response.StatusCode != http.StatusOK {
-					err = fmt.Errorf("DoH returned %s", response.Status)
-				} else if !strings.HasPrefix(response.Header.Get("Content-Type"), "application/dns-message") {
-					err = errors.New("DoH returned an unexpected content type")
-				} else {
-					var body []byte
-					body, err = io.ReadAll(io.LimitReader(response.Body, 65536))
-					if err == nil {
-						c.deliver(dnsReply{payload: body, addr: addr})
-					}
-				}
+				c.setActiveEndpoint(candidate.index)
+				c.deliver(dnsReply{payload: body, addr: addr})
+				report(c.reporter, "event=doh result=success provider_index=%d", candidate.index)
+				return
 			}
+			lastErr = err
+			report(c.reporter, "event=doh result=failed provider_index=%d reason=%s", candidate.index, errorClass(err))
 		}
-		if err != nil {
-			report(c.reporter, "event=doh result=failed reason=%s", errorClass(err))
-			c.deliver(dnsReply{addr: addr, err: err})
-		} else {
-			report(c.reporter, "event=doh result=success")
-		}
+		c.deliver(dnsReply{addr: addr, err: fmt.Errorf("all DoH providers failed: %w", lastErr)})
 	}()
 	return len(payload), nil
+}
+
+type indexedDoHEndpoint struct {
+	index int
+	url   string
+}
+
+func (c *dohPacketConn) endpointOrder() []indexedDoHEndpoint {
+	c.endpointMu.Lock()
+	start := c.activeEndpoint
+	c.endpointMu.Unlock()
+	result := make([]indexedDoHEndpoint, 0, len(c.endpoints))
+	for offset := range len(c.endpoints) {
+		index := (start + offset) % len(c.endpoints)
+		result = append(result, indexedDoHEndpoint{index: index, url: c.endpoints[index]})
+	}
+	return result
+}
+
+func (c *dohPacketConn) setActiveEndpoint(index int) {
+	c.endpointMu.Lock()
+	c.activeEndpoint = index
+	c.endpointMu.Unlock()
+}
+
+func (c *dohPacketConn) queryEndpoint(endpoint string, query []byte) ([]byte, error) {
+	requestContext, cancel := context.WithTimeout(c.context, 3*time.Second)
+	defer cancel()
+	req, err := http.NewRequestWithContext(requestContext, http.MethodPost, endpoint, bytes.NewReader(query))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/dns-message")
+	req.Header.Set("Content-Type", "application/dns-message")
+	response, err := c.client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("DoH returned %s", response.Status)
+	}
+	if !strings.HasPrefix(response.Header.Get("Content-Type"), "application/dns-message") {
+		return nil, errors.New("DoH returned an unexpected content type")
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, 65537))
+	if err != nil {
+		return nil, err
+	}
+	if len(body) > 65536 {
+		return nil, errors.New("DoH response exceeds 64 KB")
+	}
+	return body, nil
 }
 
 func emptyAAAAResponse(query []byte) ([]byte, bool, error) {

@@ -118,7 +118,22 @@ enum class DnsProvider(val title: String, val url: String) {
     CLOUDFLARE("Cloudflare", "https://cloudflare-dns.com/dns-query"),
     GOOGLE("Google", "https://dns.google/dns-query"),
     QUAD9("Quad9", "https://dns.quad9.net/dns-query"),
+    YANDEX("Yandex Basic", "https://common.dot.dns.yandex.net/dns-query"),
+    YANDEX_SAFE("Yandex Safe", "https://safe.dot.dns.yandex.net/dns-query"),
+    YANDEX_FAMILY("Yandex Family", "https://family.dot.dns.yandex.net/dns-query"),
     CUSTOM("Custom DoH URL", ""),
+
+    ;
+
+    fun fallbackUrls(): List<String> {
+        // Never bypass an explicitly selected content-filtering policy.
+        if (this == CUSTOM || this == YANDEX_SAFE || this == YANDEX_FAMILY) return emptyList()
+        return entries.asSequence()
+            .filter { it != this && it != CUSTOM && it != YANDEX_SAFE && it != YANDEX_FAMILY }
+            .map(DnsProvider::url)
+            .filter(String::isNotEmpty)
+            .toList()
+    }
 }
 
 enum class TlsProfile(val title: String, val available: Boolean = true) {

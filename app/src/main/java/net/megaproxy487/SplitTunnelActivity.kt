@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +50,8 @@ import net.megaproxy487.model.GlobalConnectionSettings
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 class SplitTunnelActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -86,16 +90,20 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
         }
     }
 
-    val apps = remember {
-        val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
-        activity.packageManager.queryIntentActivities(launcher, 0)
-            .map { AppItem(it.activityInfo.packageName, it.loadLabel(activity.packageManager).toString()) }
-            .distinctBy { it.packageName }
-            .sortedBy { it.label.lowercase() }
+    var apps by remember(activity) { mutableStateOf<List<AppItem>?>(null) }
+    LaunchedEffect(activity) {
+        apps = withContext(Dispatchers.IO) {
+            val launcher = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+            activity.packageManager.queryIntentActivities(launcher, 0)
+                .map { AppItem(it.activityInfo.packageName, it.loadLabel(activity.packageManager).toString()) }
+                .distinctBy { it.packageName }
+                .sortedBy { it.label.lowercase() }
+        }
     }
     val visibleApps = remember(apps, appSearch) {
         val query = appSearch.trim()
-        if (query.isEmpty()) apps else apps.filter {
+        val availableApps = apps.orEmpty()
+        if (query.isEmpty()) availableApps else availableApps.filter {
             it.label.contains(query, ignoreCase = true) || it.packageName.contains(query, ignoreCase = true)
         }
     }
@@ -200,6 +208,11 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
             }
             if (!settings.routeAllApps) {
                 item { Text(stringResource(R.string.applications), style = MaterialTheme.typography.titleMedium) }
+                if (apps == null) item {
+                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
+                        CircularProgressIndicator()
+                    }
+                }
                 item {
                     OutlinedTextField(
                         value = appSearch,

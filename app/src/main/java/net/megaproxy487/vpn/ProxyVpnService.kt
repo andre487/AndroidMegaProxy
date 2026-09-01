@@ -8,6 +8,8 @@ import android.content.Intent
 import android.net.VpnService
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.net.Network
+import android.net.NetworkRequest
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.Handler
@@ -33,16 +35,45 @@ class ProxyVpnService : VpnService() {
     @Volatile private var failoverNotice: String? = null
     @Volatile private var connectionBlockedForAction = false
     @Volatile private var reconnectAfterStart = false
+    @Volatile private var healthWarningActive = false
+    private var lastHealthBytes = 0L
+    private var lastHealthOutcomes = 0L
     private val tunnelStateLock = Any()
     private val startGeneration = AtomicLong(0)
     private val probableFailureCounts = ConcurrentHashMap<String, Int>()
     private val probableFailureTimes = ConcurrentHashMap<String, Long>()
     private val attemptedFailoverProfiles = ConcurrentHashMap.newKeySet<String>()
+    private val underlyingCapabilities = ConcurrentHashMap<Network, NetworkCapabilities>()
+    @Volatile private var underlyingNetwork: Network? = null
+    @Volatile private var networkCallbackRegistered = false
     private val monitorHandler = Handler(Looper.getMainLooper())
+    private val reconnectForNetworkChange = Runnable {
+        if (ConfigStore(this).isConnectionDesired() && tunnel != null && !testRunning.get()) {
+            DiagnosticLog.add("event=network_handover action=reconnect")
+            startService(Intent(this, ProxyVpnService::class.java).setAction(ACTION_RECONNECT)
+                .putExtra(EXTRA_RECONNECT_REASON, "underlying_network_changed"))
+        }
+    }
+    private val networkCallback = object : ConnectivityManager.NetworkCallback() {
+        override fun onAvailable(network: Network) {
+            reconsiderUnderlyingNetworks(network)
+        }
+
+        override fun onCapabilitiesChanged(network: Network, capabilities: NetworkCapabilities) {
+            underlyingCapabilities[network] = capabilities
+            reconsiderUnderlyingNetworks(network)
+        }
+
+        override fun onLost(network: Network) {
+            underlyingCapabilities.remove(network)
+            reconsiderUnderlyingNetworks()
+        }
+    }
     private val monitor = object : Runnable {
         override fun run() {
             val desired = ConfigStore(this@ProxyVpnService).isConnectionDesired()
             if (desired) {
+                updatePassiveHealthState()
                 getSystemService(NotificationManager::class.java).notify(
                     NOTIFICATION_ID,
                     notification(failoverNotice ?: VpnRuntimeState.networkWarning.value ?: if (isRunning) "Connected" else "Reconnecting…"),
@@ -71,6 +102,7 @@ class ProxyVpnService : VpnService() {
         failoverNotice = ConfigStore(this).failoverNotice()
         failoverNotice?.let(VpnRuntimeState::updateNetworkWarning)
         createChannel()
+        registerUnderlyingNetworkCallback()
         monitorHandler.post(monitor)
     }
 
@@ -265,7 +297,9 @@ class ProxyVpnService : VpnService() {
         }
         val builder = Builder()
             .setSession("MegaProxy")
-            .setMtu(1500)
+            // Leave headroom for cellular, hotspot and nested-tunnel encapsulation.
+            // 1400 avoids common PMTU black holes while remaining efficient for TCP.
+            .setMtu(VPN_MTU)
             .addAddress("10.77.0.1", 30)
             .addAddress("fd77::1", 126)
             .addRoute("0.0.0.0", 0)
@@ -294,9 +328,12 @@ class ProxyVpnService : VpnService() {
         }
         diagnostics("TUN established with IPv4, IPv6 and intercepted DNS")
         val proxyCore = NativeProxyCore(this, diagnostics)
+        val addressCache = BootstrapAddressCache(this)
         val proxyIp = proxyCore.resolveProxy(storedConfig.host) { message ->
             failureDetail = message
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
+        }?.also { addressCache.put(storedConfig.host, it) } ?: addressCache.get(storedConfig.host)?.also {
+            diagnostics("event=bootstrap_dns result=cached_fallback age_limit_days=7")
         } ?: run {
             establishedTunnel.close()
             if (!isStartCurrent(generation)) return false
@@ -307,6 +344,8 @@ class ProxyVpnService : VpnService() {
             proxyCore.resolveProxy(storedConfig.jumpHost) { message ->
                 failureDetail = message
                 getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
+            }?.also { addressCache.put(storedConfig.jumpHost, it) } ?: addressCache.get(storedConfig.jumpHost)?.also {
+                diagnostics("event=bootstrap_dns result=cached_fallback target=jump age_limit_days=7")
             } ?: run {
                 establishedTunnel.close()
                 if (!isStartCurrent(generation)) return false
@@ -348,6 +387,7 @@ class ProxyVpnService : VpnService() {
             establishedTunnel.close()
             return false
         }
+        underlyingNetwork?.let { setUnderlyingNetworks(arrayOf(it)) }
         probableFailureCounts.remove(promptProfileId)
         probableFailureTimes.remove(promptProfileId)
         if (failoverNotice == null) VpnRuntimeState.updateNetworkWarning(null)
@@ -479,6 +519,83 @@ class ProxyVpnService : VpnService() {
         }
     }
 
+    private fun updatePassiveHealthState() {
+        if (!isRunning) return
+        val stats = ConnectionStatsReader.snapshot() ?: return
+        val bytes = stats.downloadBytes + stats.uploadBytes
+        val trafficProgressed = bytes > lastHealthBytes
+        val newConnectionOutcomes = stats.totalOutcomes > lastHealthOutcomes
+        when {
+            trafficProgressed && healthWarningActive -> {
+                healthWarningActive = false
+                if (failoverNotice == null) VpnRuntimeState.updateNetworkWarning(null)
+                DiagnosticLog.add("event=connection_health state=recovered")
+            }
+            newConnectionOutcomes && stats.connectionSamples >= 3 && stats.connectionErrorRate >= 0.75 && !healthWarningActive -> {
+                healthWarningActive = true
+                val warning = "Connection is degraded: most recent proxy connections failed."
+                VpnRuntimeState.updateNetworkWarning(warning)
+                DiagnosticLog.add("event=connection_health state=degraded error_rate_percent=${(stats.connectionErrorRate * 100).toInt()} samples=${stats.connectionSamples}")
+            }
+        }
+        lastHealthBytes = bytes
+        lastHealthOutcomes = stats.totalOutcomes
+    }
+
+    private fun registerUnderlyingNetworkCallback() {
+        val manager = getSystemService(ConnectivityManager::class.java)
+        val request = NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN)
+            .build()
+        runCatching {
+            manager.registerNetworkCallback(request, networkCallback)
+            networkCallbackRegistered = true
+        }.onFailure {
+            DiagnosticLog.add("event=network_monitor result=failed reason=${it.javaClass.simpleName}")
+        }
+    }
+
+    private fun reconsiderUnderlyingNetworks(preferred: Network? = null) {
+        monitorHandler.post {
+            val validated = underlyingCapabilities.entries
+                .filter { it.value.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) }
+                .maxWithOrNull(
+                    compareBy<Map.Entry<Network, NetworkCapabilities>> { networkPreference(it.value) }
+                        .thenBy { if (it.key == preferred) 1 else 0 }
+                        .thenBy { if (it.key == underlyingNetwork) 1 else 0 },
+                )?.key
+            val captive = underlyingCapabilities.values.any {
+                it.hasCapability(NetworkCapabilities.NET_CAPABILITY_CAPTIVE_PORTAL)
+            }
+            if (validated == null) {
+                if (captive) {
+                    val warning = "Wi-Fi sign-in is required before the VPN can reconnect."
+                    VpnRuntimeState.updateNetworkWarning(warning)
+                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(warning))
+                    DiagnosticLog.add("event=network state=captive_portal")
+                }
+                return@post
+            }
+            val previous = underlyingNetwork
+            if (previous == validated) return@post
+            underlyingNetwork = validated
+            if (tunnel != null) setUnderlyingNetworks(arrayOf(validated))
+            DiagnosticLog.add("event=network underlying=changed connected=${tunnel != null}")
+            if (previous != null && tunnel != null) {
+                monitorHandler.removeCallbacks(reconnectForNetworkChange)
+                monitorHandler.postDelayed(reconnectForNetworkChange, NETWORK_CHANGE_DEBOUNCE_MS)
+            }
+        }
+    }
+
+    private fun networkPreference(capabilities: NetworkCapabilities): Int = when {
+        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) -> 3
+        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) -> 2
+        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) -> 1
+        else -> 0
+    }
+
     private fun stopTunnel(removeForeground: Boolean = true) {
         startGeneration.incrementAndGet()
         val stopped = synchronized(tunnelStateLock) {
@@ -488,6 +605,9 @@ class ProxyVpnService : VpnService() {
             tunnelTestOnly = false
             activeConfig = null
             isRunning = false
+            healthWarningActive = false
+            lastHealthBytes = 0L
+            lastHealthOutcomes = 0L
             result
         }
         if (stopped.first != null) {
@@ -509,6 +629,10 @@ class ProxyVpnService : VpnService() {
     }
     override fun onDestroy() {
         monitorHandler.removeCallbacks(monitor)
+        monitorHandler.removeCallbacks(reconnectForNetworkChange)
+        if (networkCallbackRegistered) {
+            runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(networkCallback) }
+        }
         stopTunnel()
         super.onDestroy()
     }
@@ -571,6 +695,8 @@ class ProxyVpnService : VpnService() {
         private const val EXTRA_RECONNECT_REASON = "reconnect_reason"
         private const val MONITOR_INTERVAL_MS = 10_000L
         private const val FAILURE_WINDOW_MS = 60_000L
+        private const val NETWORK_CHANGE_DEBOUNCE_MS = 1_500L
+        private const val VPN_MTU = 1_400
         private val testRunning = AtomicBoolean(false)
         private val startRunning = AtomicBoolean(false)
         @Volatile var isRunning: Boolean = false

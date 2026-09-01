@@ -14,6 +14,9 @@ func TestConnectionStatsRollingWindow(t *testing.T) {
 	if snapshot.ConnectionSamples != connectionSampleWindow {
 		t.Fatalf("samples = %d, want %d", snapshot.ConnectionSamples, connectionSampleWindow)
 	}
+	if snapshot.TotalOutcomes != connectionSampleWindow+10 {
+		t.Fatalf("total outcomes = %d, want %d", snapshot.TotalOutcomes, connectionSampleWindow+10)
+	}
 	if snapshot.ConnectionErrorRate != 0.5 {
 		t.Fatalf("error rate = %f, want 0.5", snapshot.ConnectionErrorRate)
 	}

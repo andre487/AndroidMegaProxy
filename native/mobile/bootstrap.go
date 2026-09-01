@@ -14,8 +14,22 @@ import (
 	"time"
 )
 
-const bootstrapDoHIP = "1.1.1.1:443"
-const bootstrapDoHURL = "https://cloudflare-dns.com/dns-query"
+type bootstrapResolver struct {
+	name    string
+	address string
+	url     string
+}
+
+// Each resolver is dialled by a documented IP address, while TLS still verifies
+// the provider hostname. Multiple networks block individual public resolvers, so
+// bootstrap must not have a single point of failure.
+var bootstrapResolvers = []bootstrapResolver{
+	{name: "cloudflare", address: "1.1.1.1:443", url: "https://cloudflare-dns.com/dns-query"},
+	{name: "yandex_primary", address: "77.88.8.8:443", url: "https://common.dot.dns.yandex.net/dns-query"},
+	{name: "yandex_secondary", address: "77.88.8.1:443", url: "https://common.dot.dns.yandex.net/dns-query"},
+	{name: "google", address: "8.8.8.8:443", url: "https://dns.google/dns-query"},
+	{name: "quad9", address: "9.9.9.9:443", url: "https://dns.quad9.net/dns-query"},
+}
 
 // ResolveProxy bootstraps the proxy address through protected encrypted DNS.
 func ResolveProxy(host string, protector Protector, reporter Reporter) (string, error) {
@@ -23,8 +37,21 @@ func ResolveProxy(host string, protector Protector, reporter Reporter) (string, 
 	if err != nil {
 		return "", err
 	}
+	var failures []error
+	for _, resolver := range bootstrapResolvers {
+		ip, resolveErr := resolveProxyWithResolver(query, id, resolver, protector, reporter)
+		if resolveErr == nil {
+			return ip, nil
+		}
+		failures = append(failures, fmt.Errorf("%s: %w", resolver.name, resolveErr))
+		report(reporter, "event=bootstrap_dns provider=%s result=failed reason=%s", resolver.name, errorClass(resolveErr))
+	}
+	return "", fmt.Errorf("all bootstrap DoH resolvers failed: %w", errors.Join(failures...))
+}
+
+func resolveProxyWithResolver(query []byte, id uint16, resolver bootstrapResolver, protector Protector, reporter Reporter) (string, error) {
 	dialer := net.Dialer{
-		Timeout: 10 * time.Second,
+		Timeout: 6 * time.Second,
 		Control: func(_, _ string, raw syscall.RawConn) error {
 			var protectErr error
 			if err := raw.Control(func(fd uintptr) {
@@ -39,21 +66,21 @@ func ResolveProxy(host string, protector Protector, reporter Reporter) (string, 
 	}
 	transport := &http.Transport{
 		Proxy:                  nil,
-		TLSHandshakeTimeout:    10 * time.Second,
+		TLSHandshakeTimeout:    6 * time.Second,
 		MaxResponseHeaderBytes: 64 * 1024,
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
-			return dialer.DialContext(ctx, "tcp", bootstrapDoHIP)
+			return dialer.DialContext(ctx, "tcp", resolver.address)
 		},
 	}
 	defer transport.CloseIdleConnections()
-	client := &http.Client{Transport: transport, Timeout: 15 * time.Second}
-	request, err := http.NewRequest(http.MethodPost, bootstrapDoHURL, bytes.NewReader(query))
+	client := &http.Client{Transport: transport, Timeout: 8 * time.Second}
+	request, err := http.NewRequest(http.MethodPost, resolver.url, bytes.NewReader(query))
 	if err != nil {
 		return "", err
 	}
 	request.Header.Set("Accept", "application/dns-message")
 	request.Header.Set("Content-Type", "application/dns-message")
-	report(reporter, "event=bootstrap_dns stage=request result=started transport=protected_doh")
+	report(reporter, "event=bootstrap_dns stage=request result=started transport=protected_doh provider=%s", resolver.name)
 	response, err := client.Do(request)
 	if err != nil {
 		return "", fmt.Errorf("bootstrap DoH request: %w", err)
@@ -70,7 +97,7 @@ func ResolveProxy(host string, protector Protector, reporter Reporter) (string, 
 	if err != nil {
 		return "", err
 	}
-	report(reporter, "event=bootstrap_dns stage=response result=success family=ipv4")
+	report(reporter, "event=bootstrap_dns stage=response result=success family=ipv4 provider=%s", resolver.name)
 	return ip, nil
 }
 

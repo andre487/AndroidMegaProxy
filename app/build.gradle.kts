@@ -46,6 +46,8 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
     packaging { resources.excludes += "/META-INF/{AL2.0,LGPL2.1}" }
+    // Both bundled locales must remain available to the in-app language selector.
+    bundle { language { enableSplit = false } }
 }
 
 kotlin { jvmToolchain(17) }

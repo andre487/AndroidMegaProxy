@@ -1,7 +1,9 @@
 package mobile
 
 import (
+	"context"
 	"encoding/binary"
+	"net"
 	"testing"
 )
 
@@ -35,5 +37,38 @@ func TestEmptyAAAAResponseLeavesAQueryUntouched(t *testing.T) {
 	response, isAAAA, err := emptyAAAAResponse(query)
 	if err != nil || isAAAA || response != nil {
 		t.Fatalf("unexpected A-query result: response=%x isAAAA=%v err=%v", response, isAAAA, err)
+	}
+}
+
+func TestDoHEndpointOrderStartsWithLastSuccessfulProvider(t *testing.T) {
+	c := newDoHPacketConnWithClient(
+		config{DoHFallbackURLs: []string{"https://two.example/dns-query", "https://three.example/dns-query"}},
+		nil,
+		func(context.Context, string) (net.Conn, error) { return nil, nil },
+		"https://one.example/dns-query",
+		nil,
+		nil,
+	)
+	defer c.Close()
+	c.setActiveEndpoint(1)
+
+	order := c.endpointOrder()
+	if len(order) != 3 || order[0].index != 1 || order[1].index != 2 || order[2].index != 0 {
+		t.Fatalf("unexpected endpoint order: %#v", order)
+	}
+}
+
+func TestDoHEndpointsIgnoreDuplicatePrimary(t *testing.T) {
+	c := newDoHPacketConnWithClient(
+		config{DoHFallbackURLs: []string{"https://one.example/dns-query", "https://two.example/dns-query"}},
+		nil,
+		func(context.Context, string) (net.Conn, error) { return nil, nil },
+		"https://one.example/dns-query",
+		nil,
+		nil,
+	)
+	defer c.Close()
+	if len(c.endpoints) != 2 {
+		t.Fatalf("expected two unique endpoints, got %#v", c.endpoints)
 	}
 }
