@@ -1,5 +1,7 @@
 # MegaProxy
 
+[![CI](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml/badge.svg)](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml)
+
 An Android client that selectively tunnels TCP traffic from chosen applications through an
 HTTPS proxy (`TLS -> HTTP CONNECT`) with Basic Auth and a configurable TLS ClientHello.
 
