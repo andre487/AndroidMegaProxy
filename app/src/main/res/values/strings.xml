@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name" translatable="false">MegaProxy</string>
+    <string name="back">Back</string>
+    <string name="settings">Settings</string>
+    <string name="connection">Connection</string>
+    <string name="profiles">Profiles</string>
+    <string name="profiles_description">Proxy servers, credentials, DNS and IPv6</string>
+    <string name="always_on_vpn">Always-on VPN</string>
+    <string name="always_on_description">Startup profile and Android VPN controls</string>
+    <string name="fingerprints">Fingerprints</string>
+    <string name="fingerprints_description">HTTPS JA3 and SSH client behavior</string>
+    <string name="split_tunneling">Split tunneling</string>
+    <string name="split_tunneling_description">Choose global or per-app routing</string>
+    <string name="failover">Failover</string>
+    <string name="failover_description">Fallback profiles when blocking is suspected</string>
+    <string name="diagnostics">Diagnostics</string>
+    <string name="visibility">Visibility</string>
+    <string name="visibility_description">Check what applications can detect</string>
+    <string name="battery_settings">Battery settings</string>
+    <string name="battery_settings_description">Allow reliable background VPN operation</string>
+    <string name="diagnostic_log">Diagnostic log</string>
+    <string name="diagnostic_log_description">Inspect, export or clear privacy-filtered events</string>
+    <string name="appearance_and_language">Appearance and language</string>
+    <string name="language">Language</string>
+    <string name="language_description">Language used by the MegaProxy interface</string>
+    <string name="language_english">English</string>
+    <string name="language_russian">Russian</string>
+    <string name="support">Support</string>
+    <string name="feedback">Feedback</string>
+    <string name="feedback_description">Send feedback and attach the diagnostic log</string>
+    <string name="github_issues">GitHub issues</string>
+    <string name="github_issues_description">Report a bug or follow known issues</string>
+    <string name="connect">Connect</string>
+    <string name="disconnect">Disconnect</string>
+    <string name="connecting">Connecting…</string>
+    <string name="test_connection">Test</string>
+    <string name="configure">Configure</string>
+    <string name="no_browser">No browser is available.</string>
+    <string name="connection_test">Connection test</string>
+    <string name="profile">Profile</string>
+    <string name="profile_editor">Profile settings</string>
+    <string name="routing_mode">Routing mode</string>
+    <string name="applications">Applications</string>
+    <string name="run_again">Run again</string>
+    <string name="copy_log">Copy log</string>
+    <string name="import_action">Import</string>
+    <string name="export_action">Export</string>
+    <string name="changes_saved_automatically">Changes are saved automatically.</string>
+    <string name="cancel">Cancel</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="reconnect_now">Reconnect now</string>
+    <string name="next_connection">Next connection</string>
+    <string name="clear_action">Clear</string>
+    <string name="run_checks_again">Run checks again</string>
+</resources>

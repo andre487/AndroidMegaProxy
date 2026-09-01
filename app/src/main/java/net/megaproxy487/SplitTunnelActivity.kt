@@ -42,13 +42,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.model.GlobalConnectionSettings
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
-class SplitTunnelActivity : ComponentActivity() {
+class SplitTunnelActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -102,7 +103,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Split tunneling") },
+                title = { Text(stringResource(R.string.split_tunneling)) },
                 navigationIcon = {
                     IconButton(onClick = { activity.finish() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -146,7 +147,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            item { Text("Routing mode", style = MaterialTheme.typography.titleMedium) }
+            item { Text(stringResource(R.string.routing_mode), style = MaterialTheme.typography.titleMedium) }
             item {
                 Column(Modifier.selectableGroup()) {
                     Row(
@@ -159,7 +160,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                     ) {
                         RadioButton(!settings.routeAllApps, null)
                         Column(Modifier.weight(1f)) {
-                            Text("Split tunneling")
+                            Text(stringResource(R.string.split_tunneling))
                             Text("Only selected applications use the proxy.", style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -198,7 +199,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                 }
             }
             if (!settings.routeAllApps) {
-                item { Text("Applications", style = MaterialTheme.typography.titleMedium) }
+                item { Text(stringResource(R.string.applications), style = MaterialTheme.typography.titleMedium) }
                 item {
                     OutlinedTextField(
                         value = appSearch,
@@ -230,7 +231,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                     }
                 }
             }
-            item { Text("Changes are saved automatically and apply to every profile.", style = MaterialTheme.typography.bodySmall) }
+            item { Text(stringResource(R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall) }
         }
     }
 }

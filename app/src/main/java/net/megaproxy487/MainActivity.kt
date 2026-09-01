@@ -60,6 +60,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -89,7 +90,7 @@ import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
-class MainActivity : ComponentActivity() {
+class MainActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -384,7 +385,7 @@ private fun MainScreen(activity: Activity) {
                             activity.startActivity(Intent(activity, ProfileEditorActivity::class.java).apply {
                                 putExtra(ProfileEditorActivity.EXTRA_PROFILE_ID, activeProfile.id)
                             })
-                        }) { Text("Configure") }
+                        }) { Text(stringResource(R.string.configure)) }
                     }
                 }
             }
@@ -404,20 +405,20 @@ private fun MainScreen(activity: Activity) {
             ) {
                 Text(
                     when (connection) {
-                        VpnConnectionState.CONNECTED -> "Disconnect"
-                        VpnConnectionState.CONNECTING -> "Connecting…"
-                        VpnConnectionState.DISCONNECTED -> "Connect"
+                        VpnConnectionState.CONNECTED -> stringResource(R.string.disconnect)
+                        VpnConnectionState.CONNECTING -> stringResource(R.string.connecting)
+                        VpnConnectionState.DISCONNECTED -> stringResource(R.string.connect)
                     },
                 )
             }
             FilledTonalButton(
                 onClick = { activity.startActivity(Intent(activity, ConnectionTestActivity::class.java)) },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Test") }
+            ) { Text(stringResource(R.string.test_connection)) }
             FilledTonalButton(
                 onClick = { activity.startActivity(Intent(activity, ProxySettingsActivity::class.java)) },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Settings") }
+            ) { Text(stringResource(R.string.settings)) }
             FilledTonalButton(
                 onClick = {
                     scope.launch {
@@ -432,7 +433,7 @@ private fun MainScreen(activity: Activity) {
                     }
                 },
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text("Feedback") }
+            ) { Text(stringResource(R.string.feedback)) }
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
             }

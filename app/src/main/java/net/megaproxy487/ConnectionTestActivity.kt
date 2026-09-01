@@ -50,6 +50,7 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.TestDiagnosticLog
@@ -61,7 +62,7 @@ import net.megaproxy487.vpn.openAndroidVpnSettings
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
-class ConnectionTestActivity : ComponentActivity() {
+class ConnectionTestActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -120,7 +121,7 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Connection test") },
+                title = { Text(stringResource(R.string.connection_test)) },
                 navigationIcon = {
                     IconButton(onClick = { activity.finish() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -162,11 +163,11 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = runTest, enabled = state != TestState.RUNNING) { Text("Run again") }
+                Button(onClick = runTest, enabled = state != TestState.RUNNING) { Text(stringResource(R.string.run_again)) }
                 Button(onClick = {
                     val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("MegaProxy connection test", TestDiagnosticLog.entries.joinToString("\n")))
-                }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text("Copy log") }
+                }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.copy_log)) }
             }
             Text(
                 "The test uses a temporary VPN when the main connection is inactive. Credentials and traffic content are not logged.",

@@ -70,6 +70,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -88,7 +89,7 @@ import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
-class ProfilesActivity : ComponentActivity() {
+class ProfilesActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -233,7 +234,7 @@ private fun SettingsScreen(activity: Activity) {
     Scaffold(
         topBar = {
         TopAppBar(
-            title = { Text("Profiles") },
+            title = { Text(stringResource(R.string.profiles)) },
             navigationIcon = {
                 IconButton(onClick = { activity.finish() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -241,9 +242,9 @@ private fun SettingsScreen(activity: Activity) {
             },
             actions = {
                 TextButton(onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
-                    Text("Import")
+                    Text(stringResource(R.string.import_action))
                 }
-                TextButton(onClick = { showExportDialog = true }) { Text("Export") }
+                TextButton(onClick = { showExportDialog = true }) { Text(stringResource(R.string.export_action)) }
             },
         )
         },
@@ -332,7 +333,7 @@ private fun SettingsScreen(activity: Activity) {
                 )
                 }
                 importError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
-                item { Text("Changes are saved automatically.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp)) }
+                item { Text(stringResource(R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp)) }
             }
         }
     }

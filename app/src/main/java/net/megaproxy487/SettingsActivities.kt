@@ -52,6 +52,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.Role
@@ -66,10 +68,14 @@ import net.megaproxy487.model.SshProfile
 import net.megaproxy487.model.SshAuthMode
 import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
-class ProxySettingsActivity : ComponentActivity() {
+class ProxySettingsActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -77,7 +83,7 @@ class ProxySettingsActivity : ComponentActivity() {
     }
 }
 
-class AlwaysOnSettingsActivity : ComponentActivity() {
+class AlwaysOnSettingsActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -85,7 +91,7 @@ class AlwaysOnSettingsActivity : ComponentActivity() {
     }
 }
 
-class TlsFingerprintActivity : ComponentActivity() {
+class TlsFingerprintActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -93,7 +99,7 @@ class TlsFingerprintActivity : ComponentActivity() {
     }
 }
 
-class FailoverSettingsActivity : ComponentActivity() {
+class FailoverSettingsActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -109,6 +115,9 @@ private fun SettingsHomeScreen(activity: Activity) {
     var batteryOptimizationDisabled by remember {
         mutableStateOf(powerManager.isIgnoringBatteryOptimizations(activity.packageName))
     }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+    var supportError by remember { mutableStateOf<String?>(null) }
+    val scope = rememberCoroutineScope()
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -120,23 +129,87 @@ private fun SettingsHomeScreen(activity: Activity) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    SettingsScaffold(activity, "Settings") {
-        Text("Connection", style = MaterialTheme.typography.titleMedium)
-        SettingsButton("Profiles", "Proxy servers, credentials, DNS and IPv6") { activity.startActivity(Intent(activity, ProfilesActivity::class.java)) }
-        SettingsButton("Always-on VPN", "Startup profile and Android VPN controls") { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
-        SettingsButton("Fingerprints", "HTTPS JA3 and SSH client behavior") { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
-        SettingsButton("Split tunneling", "Choose global or per-app routing") { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
-        SettingsButton("Failover", "Fallback profiles when blocking is suspected") { activity.startActivity(Intent(activity, FailoverSettingsActivity::class.java)) }
-        Text("Diagnostics", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
-        SettingsButton("Visibility", "Check what applications can detect") { activity.startActivity(Intent(activity, VisibilityActivity::class.java)) }
+    SettingsScaffold(activity, stringResource(R.string.settings)) {
+        Text(stringResource(R.string.connection), style = MaterialTheme.typography.titleMedium)
+        SettingsButton(stringResource(R.string.profiles), stringResource(R.string.profiles_description)) { activity.startActivity(Intent(activity, ProfilesActivity::class.java)) }
+        SettingsButton(stringResource(R.string.always_on_vpn), stringResource(R.string.always_on_description)) { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
+        SettingsButton(stringResource(R.string.fingerprints), stringResource(R.string.fingerprints_description)) { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
+        SettingsButton(stringResource(R.string.split_tunneling), stringResource(R.string.split_tunneling_description)) { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
+        SettingsButton(stringResource(R.string.failover), stringResource(R.string.failover_description)) { activity.startActivity(Intent(activity, FailoverSettingsActivity::class.java)) }
+        Text(stringResource(R.string.diagnostics), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+        SettingsButton(stringResource(R.string.visibility), stringResource(R.string.visibility_description)) { activity.startActivity(Intent(activity, VisibilityActivity::class.java)) }
         if (!batteryOptimizationDisabled) {
-            SettingsButton("Battery settings", "Allow reliable background VPN operation") {
+            SettingsButton(stringResource(R.string.battery_settings), stringResource(R.string.battery_settings_description)) {
                 activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                     data = Uri.parse("package:${activity.packageName}")
                 })
             }
         }
-        SettingsButton("Diagnostic log", "Inspect, export or clear privacy-filtered events") { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) }
+        SettingsButton(stringResource(R.string.diagnostic_log), stringResource(R.string.diagnostic_log_description)) { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) }
+        Text(stringResource(R.string.appearance_and_language), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+        SettingsButton(
+            stringResource(R.string.language),
+            "${stringResource(R.string.language_description)} · ${if (AppLanguageManager.current(activity) == AppLanguage.RUSSIAN) stringResource(R.string.language_russian) else stringResource(R.string.language_english)}",
+        ) { showLanguageDialog = true }
+        Text(stringResource(R.string.support), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+        SettingsButton(stringResource(R.string.feedback), stringResource(R.string.feedback_description)) {
+            scope.launch {
+                runCatching {
+                    val status = readAlwaysOnVpnStatus(activity)
+                    val intent = withContext(Dispatchers.IO) {
+                        FeedbackEmail.createIntent(
+                            activity,
+                            VpnRuntimeState.connection.value,
+                            VpnRuntimeState.alwaysOn.value || status.enabled,
+                            VpnRuntimeState.lockdown.value || status.lockdown,
+                        )
+                    }
+                    activity.startActivity(intent)
+                }.onFailure { supportError = it.message ?: "Could not open an email client" }
+            }
+        }
+        SettingsButton(stringResource(R.string.github_issues), stringResource(R.string.github_issues_description)) {
+            runCatching {
+                activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/andre487/AndroidMegaProxy/issues")))
+            }.onFailure { supportError = activity.getString(R.string.no_browser) }
+        }
+        supportError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+    }
+
+    if (showLanguageDialog) {
+        val selected = AppLanguageManager.current(activity)
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.language)) },
+            text = {
+                Column {
+                    AppLanguage.entries.forEach { language ->
+                        val label = if (language == AppLanguage.RUSSIAN) {
+                            stringResource(R.string.language_russian)
+                        } else {
+                            stringResource(R.string.language_english)
+                        }
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                                value = selected == language,
+                                role = Role.RadioButton,
+                                onValueChange = {
+                                    AppLanguageManager.set(activity, language)
+                                    showLanguageDialog = false
+                                    activity.recreate()
+                                },
+                            ),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            androidx.compose.material3.RadioButton(selected == language, null)
+                            Text(label)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = { TextButton(onClick = { showLanguageDialog = false }) { Text(stringResource(android.R.string.cancel)) } },
+        )
     }
 }
 
@@ -413,7 +486,7 @@ private fun SettingsScaffold(activity: Activity, title: String, content: @Compos
                 title = { Text(title) },
                 navigationIcon = {
                     IconButton(onClick = { activity.finish() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )

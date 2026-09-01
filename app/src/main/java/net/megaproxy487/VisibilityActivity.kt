@@ -42,11 +42,12 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import net.megaproxy487.ui.theme.MegaProxyTheme
 import net.megaproxy487.data.ConfigStore
 import java.net.NetworkInterface
 
-class VisibilityActivity : ComponentActivity() {
+class VisibilityActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -79,7 +80,7 @@ private fun VisibilityScreen(activity: Activity) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Visibility") },
+                title = { Text(stringResource(R.string.visibility)) },
                 navigationIcon = {
                     IconButton(onClick = activity::finish) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -98,7 +99,7 @@ private fun VisibilityScreen(activity: Activity) {
                 style = MaterialTheme.typography.bodyMedium,
             )
             Button(onClick = { report = buildVisibilityReport(activity) }, modifier = Modifier.fillMaxWidth()) {
-                Text("Run checks again")
+                Text(stringResource(R.string.run_checks_again))
             }
             VisibilitySection("Globally observable signals", report.global)
             if (report.splitTunneling) {

@@ -44,6 +44,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -55,7 +56,7 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
-class DiagnosticLogActivity : ComponentActivity() {
+class DiagnosticLogActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
@@ -121,7 +122,7 @@ private fun DiagnosticLogScreen(activity: Activity) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Diagnostic log") },
+                title = { Text(stringResource(R.string.diagnostic_log)) },
                 navigationIcon = {
                     IconButton(onClick = { activity.finish() }) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -155,10 +156,10 @@ private fun DiagnosticLogScreen(activity: Activity) {
             )
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(onClick = { exportDocument.launch("MegaProxy-diagnostic.log") }, modifier = Modifier.weight(1f)) {
-                    Text("Export")
+                    Text(stringResource(R.string.export_action))
                 }
                 OutlinedButton(onClick = { showClearConfirmation = true }, modifier = Modifier.weight(1f)) {
-                    Text("Clear")
+                    Text(stringResource(R.string.clear_action))
                 }
             }
             Text(

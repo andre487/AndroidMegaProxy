@@ -61,7 +61,7 @@ import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
 import java.util.Locale
 
-class ProfileEditorActivity : ComponentActivity() {
+class ProfileEditorActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
