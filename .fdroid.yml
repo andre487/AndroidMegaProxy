@@ -40,6 +40,7 @@ Builds:
       - cp -a .. /home/runner/work/AndroidMegaProxy/AndroidMegaProxy
       - cd /home/runner/work/AndroidMegaProxy/AndroidMegaProxy/app
       - ../scripts/build-fdroid-native.sh
+      - mkdir -p $OLDPWD/libs
       - cp libs/megaproxy.aar $OLDPWD/libs/
 
 AutoUpdateMode: Version
