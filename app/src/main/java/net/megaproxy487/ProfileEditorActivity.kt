@@ -57,6 +57,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.data.readPrivateKeyText
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProfileColorMatcher
@@ -87,6 +88,7 @@ class ProfileEditorActivity : LocalizedActivity() {
 @Composable
 private fun ProfileEditorScreen(activity: Activity) {
     val store = remember { ConfigStore(activity) }
+    val coroutineScope = rememberCoroutineScope()
     val profileId = remember { activity.intent.getStringExtra(ProfileEditorActivity.EXTRA_PROFILE_ID) }
     var profile by remember { mutableStateOf(store.profile(profileId.orEmpty()) ?: store.activeProfile()) }
     var config by remember { mutableStateOf(profile.config) }
@@ -107,7 +109,13 @@ private fun ProfileEditorScreen(activity: Activity) {
         }.sortedBy { it.second.lowercase(Locale.getDefault()) }
     }
 
-    fun saveProfile() = store.saveProfile(profile)
+    val globalSettings = remember { store.globalConnectionSettings() }
+    val editedConnectionProfileId = remember { store.connectionProfile().id }
+    val alwaysOnActive = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
+    fun saveProfile() {
+        val snapshot = profile
+        coroutineScope.launch(ConfigIoDispatcher) { store.saveProfile(snapshot) }
+    }
     fun acceptText(value: String, maxLength: Int, update: (String) -> Unit) {
         if (value.length <= maxLength) update(value)
     }
@@ -115,12 +123,12 @@ private fun ProfileEditorScreen(activity: Activity) {
         config = updated
         profile = profile.copy(config = updated)
         saveProfile()
-        error = store.globalConnectionSettings().applyTo(updated).connectionValidationError()
-        if (ProxyVpnService.isRunning && profile.id == store.connectionProfile().id) {
-            store.markPendingReconnect()
+        error = globalSettings.applyTo(updated).connectionValidationError()
+        if (ProxyVpnService.isRunning && profile.id == editedConnectionProfileId) {
+            coroutineScope.launch(ConfigIoDispatcher) { store.markPendingReconnect() }
         }
-        if (ProxyVpnService.isRunning && !connectionChangeDeferred && profile.id == store.connectionProfile().id) {
-            if (ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled) {
+        if (ProxyVpnService.isRunning && !connectionChangeDeferred && profile.id == editedConnectionProfileId) {
+            if (alwaysOnActive) {
                 connectionChangeDeferred = true
                 showAlwaysOnNotice = true
             } else {
@@ -128,7 +136,6 @@ private fun ProfileEditorScreen(activity: Activity) {
             }
         }
     }
-    val coroutineScope = rememberCoroutineScope()
     fun importPrivateKey(uri: Uri, jump: Boolean) {
         coroutineScope.launch {
             val result = runCatching {

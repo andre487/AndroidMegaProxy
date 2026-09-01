@@ -79,17 +79,20 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.SshHostKeyPromptState
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.VpnTransportProtocol
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.vpn.AlwaysOnVpnStatus
 import net.megaproxy487.vpn.hasOtherProvider
 import net.megaproxy487.vpn.openAndroidVpnSettings
 import net.megaproxy487.vpn.OTHER_ALWAYS_ON_VPN_MESSAGE
 import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
 class MainActivity : LocalizedActivity() {
@@ -152,6 +155,7 @@ private fun MainScreen(activity: Activity) {
     var showCrashReport by remember { mutableStateOf(CrashHandler.hasPendingReport()) }
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
     var pendingReconnect by remember { mutableStateOf(store.hasPendingReconnect()) }
+    var globalSettings by remember { mutableStateOf(store.globalConnectionSettings()) }
     val alwaysOn = runtimeAlwaysOn || systemVpnStatus.enabled
     val lockdown = runtimeLockdown || systemVpnStatus.lockdown
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -159,15 +163,25 @@ private fun MainScreen(activity: Activity) {
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                systemVpnStatus = readAlwaysOnVpnStatus(activity)
-                profiles = store.sortedProfiles()
-                activeProfileId = store.activeProfileId()
-                connectionProfileId = if (readAlwaysOnVpnStatus(activity).enabled) {
-                    store.alwaysOnProfileId()
-                } else {
-                    store.connectionProfile().id
+                scope.launch {
+                    val refreshed = withContext(ConfigIoDispatcher) {
+                        val status = readAlwaysOnVpnStatus(activity)
+                        RefreshedMainConfig(
+                            status = status,
+                            profiles = store.sortedProfiles(),
+                            activeProfileId = store.activeProfileId(),
+                            connectionProfileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id,
+                            pendingReconnect = store.hasPendingReconnect(),
+                            globalSettings = store.globalConnectionSettings(),
+                        )
+                    }
+                    systemVpnStatus = refreshed.status
+                    profiles = refreshed.profiles
+                    activeProfileId = refreshed.activeProfileId
+                    connectionProfileId = refreshed.connectionProfileId
+                    pendingReconnect = refreshed.pendingReconnect
+                    globalSettings = refreshed.globalSettings
                 }
-                pendingReconnect = store.hasPendingReconnect()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -186,7 +200,12 @@ private fun MainScreen(activity: Activity) {
             var smoothedDownload = 0.0
             var smoothedUpload = 0.0
             while (true) {
-                val snapshot = ConnectionStatsReader.snapshot()
+                // JNI reflection and JSON decoding are small but not frame work. Some
+                // vendor devices expose their cost as visible input latency, so sample
+                // away from the main dispatcher.
+                val snapshot = withContext(Dispatchers.Default) {
+                    ConnectionStatsReader.snapshot()
+                }
                 if (snapshot != null) {
                     previous?.let { old ->
                         val download = (snapshot.downloadBytes - old.downloadBytes).coerceAtLeast(0).toDouble()
@@ -239,7 +258,7 @@ private fun MainScreen(activity: Activity) {
             systemVpnStatus = readAlwaysOnVpnStatus(activity)
             error = null
         } else {
-            error = store.globalConnectionSettings().applyTo(store.activeProfile().config).validationError()
+            error = globalSettings.applyTo(store.activeProfile().config).validationError()
         }
         if (error == null && !isAlwaysOnVpnActive(activity)) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
@@ -332,7 +351,7 @@ private fun MainScreen(activity: Activity) {
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
             val activeProfile = profiles.firstOrNull { it.id == displayedProfileId } ?: profiles.first()
             val actualProfile = profiles.firstOrNull { it.id == runtimeProfileId }
-            val activeProfileError = store.globalConnectionSettings().applyTo(activeProfile.config).connectionValidationError()
+            val activeProfileError = globalSettings.applyTo(activeProfile.config).connectionValidationError()
             val profileColor = Color(ProfileColors.argb[Math.floorMod(activeProfile.colorIndex, ProfileColors.argb.size)])
             val onProfileColor = if (profileColor.luminance() > 0.45f) Color.Black else Color.White
             Box(Modifier.fillMaxWidth()) {
@@ -381,14 +400,14 @@ private fun MainScreen(activity: Activity) {
                                     onClick = {
                                         val useAsAlwaysOn = isAlwaysOnVpnActive(activity)
                                         if (useAsAlwaysOn) {
-                                            store.setAlwaysOnProfile(profile.id)
                                             connectionProfileId = profile.id
                                         } else {
-                                            store.setActiveProfile(profile.id)
                                             activeProfileId = profile.id
                                         }
                                         if (useAsAlwaysOn || connection != VpnConnectionState.DISCONNECTED) {
                                             ProxyVpnService.switchProfile(activity, profile.id, useAsAlwaysOn)
+                                        } else {
+                                            scope.launch(ConfigIoDispatcher) { store.setActiveProfile(profile.id) }
                                         }
                                         profileMenuExpanded = false
                                     },
@@ -596,6 +615,15 @@ private data class DisplayedConnectionStats(
     val native: NativeConnectionStats,
     val downloadBytesPerSecond: Double,
     val uploadBytesPerSecond: Double,
+)
+
+private data class RefreshedMainConfig(
+    val status: AlwaysOnVpnStatus,
+    val profiles: List<ProxyProfile>,
+    val activeProfileId: String,
+    val connectionProfileId: String,
+    val pendingReconnect: Boolean,
+    val globalSettings: net.megaproxy487.model.GlobalConnectionSettings,
 )
 
 @Composable

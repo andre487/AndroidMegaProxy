@@ -63,6 +63,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.model.Ja3Spec
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.SshProfile
@@ -224,13 +225,15 @@ private fun SettingsHomeScreen(activity: Activity) {
 @Composable
 private fun FailoverSettingsScreen(activity: Activity) {
     val store = remember { ConfigStore(activity) }
+    val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
     var expanded by remember { mutableStateOf(false) }
     var pendingAll by remember { mutableStateOf(false) }
     val alwaysOn = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
     fun save(mode: FailoverMode = settings.failoverMode, ids: List<String> = settings.failoverProfileIds) {
         settings = settings.copy(failoverMode = mode, failoverProfileIds = ids)
-        store.saveGlobalConnectionSettings(settings)
+        val snapshot = settings
+        scope.launch(ConfigIoDispatcher) { store.saveGlobalConnectionSettings(snapshot) }
     }
     SettingsScaffold(activity, "Failover") {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
@@ -297,6 +300,7 @@ private fun FailoverSettingsScreen(activity: Activity) {
 @Composable
 private fun AlwaysOnSettingsScreen(activity: Activity) {
     val store = remember { ConfigStore(activity) }
+    val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(store.alwaysOnProfile()) }
     val alwaysOnActive = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
@@ -312,7 +316,7 @@ private fun AlwaysOnSettingsScreen(activity: Activity) {
                 store.sortedProfiles().forEach { profile ->
                     DropdownMenuItem(text = { Text(profile.displayNameWithFlag) }, onClick = {
                         selected = profile
-                        store.setAlwaysOnProfile(profile.id)
+                        scope.launch(ConfigIoDispatcher) { store.setAlwaysOnProfile(profile.id) }
                         expanded = false
                         if (alwaysOnActive && ProxyVpnService.isRunning) {
                             ProxyVpnService.switchProfile(activity, profile.id, true)
@@ -335,6 +339,7 @@ private fun AlwaysOnSettingsScreen(activity: Activity) {
 @Composable
 private fun TlsFingerprintScreen(activity: Activity) {
     val store = remember { ConfigStore(activity) }
+    val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
     var expanded by remember { mutableStateOf(false) }
     var sshExpanded by remember { mutableStateOf(false) }
@@ -346,8 +351,11 @@ private fun TlsFingerprintScreen(activity: Activity) {
 
     fun saveSettings(updated: net.megaproxy487.model.GlobalConnectionSettings) {
         settings = updated
-        store.saveGlobalConnectionSettings(settings)
-        if (ProxyVpnService.isRunning) store.markPendingReconnect()
+        val snapshot = settings
+        scope.launch(ConfigIoDispatcher) {
+            store.saveGlobalConnectionSettings(snapshot)
+            if (ProxyVpnService.isRunning) store.markPendingReconnect()
+        }
         if (ProxyVpnService.isRunning && !deferred) {
             if (ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled) {
                 deferred = true; showAlwaysOnNotice = true

@@ -54,10 +54,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -75,6 +77,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.data.ConfigExportFormat
 import net.megaproxy487.data.ConfigTransfer
 import net.megaproxy487.data.FoxyProxyParser
@@ -88,6 +91,9 @@ import net.megaproxy487.model.ProxyType
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.ui.theme.MegaProxyTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ProfilesActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -101,7 +107,8 @@ class ProfilesActivity : LocalizedActivity() {
 @Composable
 private fun SettingsScreen(activity: Activity) {
     val store = remember { ConfigStore(activity) }
-    val profiles = remember { mutableStateListOf<ProxyProfile>().apply { addAll(store.sortedProfiles()) } }
+    val scope = rememberCoroutineScope()
+    val profiles = remember { mutableStateListOf<ProxyProfile>() }
     var deleteProfile by remember { mutableStateOf<ProxyProfile?>(null) }
     var importedProfileCount by remember { mutableStateOf(0) }
     var importError by remember { mutableStateOf<String?>(null) }
@@ -120,15 +127,20 @@ private fun SettingsScreen(activity: Activity) {
     var draggedProfileId by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
-        profiles.clear()
-        profiles.addAll(store.sortedProfiles())
+        scope.launch {
+            val loaded = withContext(ConfigIoDispatcher) { store.sortedProfiles() }
+            profiles.clear()
+            profiles.addAll(loaded)
+        }
     }
+    LaunchedEffect(Unit) { refresh() }
     fun moveProfile(profileId: String, delta: Int): Boolean {
         val sourceIndex = profiles.indexOfFirst { it.id == profileId }
         val targetIndex = sourceIndex + delta
         if (sourceIndex < 0 || targetIndex !in profiles.indices) return false
         profiles.add(targetIndex, profiles.removeAt(sourceIndex))
-        store.reorderProfiles(profiles.map(ProxyProfile::id))
+        val order = profiles.map(ProxyProfile::id)
+        scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
         return true
     }
     fun edit(profile: ProxyProfile) {
@@ -138,27 +150,36 @@ private fun SettingsScreen(activity: Activity) {
     }
     fun writeExport(uri: Uri?) {
         if (uri == null) return
-        runCatching {
-            activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { it.write(pendingExportContent) }
-                ?: error("Could not open the export file")
-        }.onSuccess { transferMessage = "Configuration exported successfully." }
-            .onFailure { importError = it.message ?: "Could not export the configuration" }
+        val content = pendingExportContent
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { it.write(content) }
+                        ?: error("Could not open the export file")
+                }
+            }
+            result.onSuccess { transferMessage = "Configuration exported successfully." }
+                .onFailure { importError = it.message ?: "Could not export the configuration" }
+        }
     }
     fun applyJsonImport(configuration: PortableConfiguration) {
-        val added = store.importConfiguration(configuration)
-        if (ProxyVpnService.isRunning) store.markPendingReconnect()
-        PersistentDiagnosticLog.setLimitMb(store.diagnosticLogLimitMb())
-        refresh()
-        val missingPasswords = added.count { it.config.password.isEmpty() }
-        transferMessage = buildString {
-            append("Imported ${added.size} profile(s) from JSON.")
-            if (configuration.skippedProfiles > 0) append(" Skipped ${configuration.skippedProfiles} invalid profile(s).")
-            if (missingPasswords > 0) append(" $missingPasswords profile(s) require a password.")
-            if (ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning) {
-                append(" Reconnect the VPN to apply the imported Always-on profile selection.")
+        scope.launch {
+            val added = withContext(ConfigIoDispatcher) {
+                store.importConfiguration(configuration).also {
+                    if (ProxyVpnService.isRunning) store.markPendingReconnect()
+                    PersistentDiagnosticLog.setLimitMb(store.diagnosticLogLimitMb())
+                }
             }
+            refresh()
+            val missingPasswords = added.count { it.config.password.isEmpty() }
+            transferMessage = buildString {
+                append("Imported ${added.size} profile(s) from JSON.")
+                if (configuration.skippedProfiles > 0) append(" Skipped ${configuration.skippedProfiles} invalid profile(s).")
+                if (missingPasswords > 0) append(" $missingPasswords profile(s) require a password.")
+                if (ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning) append(" Reconnect the VPN to apply the imported Always-on profile selection.")
+            }
+            importedProfileCount = 0
         }
-        importedProfileCount = 0
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -170,12 +191,16 @@ private fun SettingsScreen(activity: Activity) {
     val exportTxtDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain"), ::writeExport)
     val exportJsonDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json"), ::writeExport)
     fun launchExport() {
-        pendingExportContent = when (exportFormat) {
-            ConfigExportFormat.PROXY_LIST -> ConfigTransfer.exportProxyList(store.profiles(), includePasswords)
-            ConfigExportFormat.JSON -> ConfigTransfer.exportJson(store, includePasswords, includePrivateKeys)
+        scope.launch {
+            pendingExportContent = withContext(ConfigIoDispatcher) {
+                when (exportFormat) {
+                    ConfigExportFormat.PROXY_LIST -> ConfigTransfer.exportProxyList(store.profiles(), includePasswords)
+                    ConfigExportFormat.JSON -> ConfigTransfer.exportJson(store, includePasswords, includePrivateKeys)
+                }
+            }
+            if (exportFormat == ConfigExportFormat.PROXY_LIST) exportTxtDocument.launch("ProxyList.txt")
+            else exportJsonDocument.launch("MegaProxy-config.json")
         }
-        if (exportFormat == ConfigExportFormat.PROXY_LIST) exportTxtDocument.launch("ProxyList.txt")
-        else exportJsonDocument.launch("MegaProxy-config.json")
     }
     val importDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
@@ -251,9 +276,11 @@ private fun SettingsScreen(activity: Activity) {
         },
         floatingActionButton = {
             FloatingActionButton(onClick = {
-                val profile = store.addProfile()
-                refresh()
-                edit(profile)
+                scope.launch {
+                    val profile = withContext(ConfigIoDispatcher) { store.addProfile() }
+                    refresh()
+                    edit(profile)
+                }
             }) {
                 Icon(Icons.Default.Add, contentDescription = "Add profile")
             }
@@ -293,12 +320,14 @@ private fun SettingsScreen(activity: Activity) {
                                 onDragCancel = {
                                     dragOffset = 0f
                                     draggedProfileId = null
-                                    store.reorderProfiles(profiles.map(ProxyProfile::id))
+                                    val order = profiles.map(ProxyProfile::id)
+                                    scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
                                 },
                                 onDragEnd = {
                                     dragOffset = 0f
                                     draggedProfileId = null
-                                    store.reorderProfiles(profiles.map(ProxyProfile::id))
+                                    val order = profiles.map(ProxyProfile::id)
+                                    scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
                                 },
                                 onDrag = { change, amount ->
                                     change.consume()
@@ -329,7 +358,12 @@ private fun SettingsScreen(activity: Activity) {
                             }
                         },
                     onConfigure = { edit(profile) },
-                    onClone = { store.cloneProfile(profile.id); refresh() },
+                    onClone = {
+                        scope.launch {
+                            withContext(ConfigIoDispatcher) { store.cloneProfile(profile.id) }
+                            refresh()
+                        }
+                    },
                     onDelete = { deleteProfile = profile },
                 )
                 }
@@ -345,11 +379,16 @@ private fun SettingsScreen(activity: Activity) {
             title = { Text("Delete ${profile.displayName}?") },
             text = { Text("The profile and its encrypted credentials will be removed.") },
             confirmButton = { TextButton(onClick = {
-                val reconnect = store.isConnectionDesired() && store.connectionProfile().id == profile.id
-                store.deleteProfile(profile.id)
-                refresh()
                 deleteProfile = null
-                if (reconnect) ProxyVpnService.reconnect(activity)
+                scope.launch {
+                    val reconnect = withContext(ConfigIoDispatcher) {
+                        val needed = store.isConnectionDesired() && store.connectionProfile().id == profile.id
+                        store.deleteProfile(profile.id)
+                        needed
+                    }
+                    refresh()
+                    if (reconnect) ProxyVpnService.reconnect(activity)
+                }
             }, enabled = profiles.size > 1) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { deleteProfile = null }) { Text("Cancel") } },
         )

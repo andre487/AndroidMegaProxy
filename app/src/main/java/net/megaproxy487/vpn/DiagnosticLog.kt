@@ -8,33 +8,14 @@ import java.time.format.DateTimeFormatter
 import java.util.concurrent.atomic.AtomicInteger
 
 object DiagnosticLog {
-    private const val MAX_ENTRIES = 200
-    private val timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
-    private val mainHandler = Handler(Looper.getMainLooper())
-    private val pendingUiUpdates = AtomicInteger(0)
-
-    val entries = mutableStateListOf<String>()
-
     fun add(message: String) {
-        val safeMessage = PrivacyLogSanitizer.sanitize(message)
-        PersistentDiagnosticLog.write(safeMessage)
-        val append = {
-            entries.add("${LocalTime.now().format(timeFormat)}  $safeMessage")
-            while (entries.size > MAX_ENTRIES) entries.removeAt(0)
-        }
-        if (Looper.myLooper() == Looper.getMainLooper()) append()
-        else if (pendingUiUpdates.incrementAndGet() <= MAX_PENDING_UI_UPDATES) {
-            mainHandler.post {
-                try { append() } finally { pendingUiUpdates.decrementAndGet() }
-            }
-        } else pendingUiUpdates.decrementAndGet()
+        // The persistent logger already has its own bounded background queue. Do not
+        // mirror normal VPN traffic into Compose state: native diagnostics can be very
+        // frequent and flooding the main looper makes the entire UI unresponsive.
+        PersistentDiagnosticLog.write(message)
     }
 
-    fun clear() {
-        if (Looper.myLooper() == Looper.getMainLooper()) entries.clear() else mainHandler.post { entries.clear() }
-    }
-
-    private const val MAX_PENDING_UI_UPDATES = 512
+    fun clear() = Unit
 }
 
 enum class TestState { IDLE, RUNNING, SUCCEEDED, FAILED }

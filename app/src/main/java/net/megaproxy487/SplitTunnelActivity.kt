@@ -41,17 +41,20 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.model.GlobalConnectionSettings
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class SplitTunnelActivity : LocalizedActivity() {
@@ -73,17 +76,20 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
     var showReconnectPrompt by remember { mutableStateOf(false) }
     var showAlwaysOnDeferredNotice by remember { mutableStateOf(false) }
     var deferChangesUntilNextConnection by remember { mutableStateOf(false) }
+    val coroutineScope = rememberCoroutineScope()
+    val alwaysOnActive = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
 
     fun updateSettings(updated: GlobalConnectionSettings) {
         val selectedPackagesOnly = settings.selectedPackages != updated.selectedPackages &&
             settings.copy(selectedPackages = updated.selectedPackages) == updated
         val affectsActiveRouting = !(settings.routeAllApps && updated.routeAllApps && selectedPackagesOnly)
         settings = updated
-        store.saveGlobalConnectionSettings(updated)
-        if (ProxyVpnService.isRunning && affectsActiveRouting) store.markPendingReconnect()
+        coroutineScope.launch(ConfigIoDispatcher) {
+            store.saveGlobalConnectionSettings(updated)
+            if (ProxyVpnService.isRunning && affectsActiveRouting) store.markPendingReconnect()
+        }
         if (ProxyVpnService.isRunning && affectsActiveRouting && !deferChangesUntilNextConnection) {
-            val alwaysOn = ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled
-            if (alwaysOn) {
+            if (alwaysOnActive) {
                 deferChangesUntilNextConnection = true
                 showAlwaysOnDeferredNotice = true
             } else {

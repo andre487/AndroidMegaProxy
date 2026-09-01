@@ -97,6 +97,10 @@ class ConfigStore(context: Context) {
     fun connectionProfile(): ProxyProfile =
         profile(prefs.getString(CONNECTION_PROFILE_ID, null).orEmpty()) ?: activeProfile()
 
+    /** Identifier-only lookup that never decrypts or parses profile payloads. */
+    fun connectionProfileId(): String =
+        prefs.getString(CONNECTION_PROFILE_ID, null).orEmpty().ifEmpty(::activeProfileId)
+
     fun connectionConfig(): ProxyConfig = globalConnectionSettings().applyTo(connectionProfile().config)
 
     fun setConnectionProfile(id: String) {
