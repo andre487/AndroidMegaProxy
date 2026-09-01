@@ -23,6 +23,8 @@ Builds:
       - apt-get install -y gcc libc-dev make
       - apt-get install -y -t bookworm openjdk-17-jdk-headless
       - sdkmanager 'platforms;android-26'
+      - mkdir -p /home/runner/work/AndroidMegaProxy
+      - chown -R vagrant:vagrant /home/runner
     gradle:
       - yes
     srclibs:
@@ -35,7 +37,10 @@ Builds:
       - export GOROOT=$$go$$
       - export GOPATH=$HOME/go
       - export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
+      - cp -a .. /home/runner/work/AndroidMegaProxy/AndroidMegaProxy
+      - cd /home/runner/work/AndroidMegaProxy/AndroidMegaProxy/app
       - ../scripts/build-fdroid-native.sh
+      - cp libs/megaproxy.aar $OLDPWD/libs/
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
