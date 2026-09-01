@@ -440,20 +440,20 @@ private fun MainScreen(activity: Activity) {
                 onClick = {
                     if (isAlwaysOnVpnActive(activity)) {
                         systemVpnStatus = readAlwaysOnVpnStatus(activity)
-                    } else if (connected) {
+                    } else if (connection != VpnConnectionState.DISCONNECTED) {
                         ProxyVpnService.stop(activity)
                     } else {
                         connect()
                     }
                 },
-                enabled = connection != VpnConnectionState.CONNECTING && !alwaysOn &&
-                    (connected || activeProfileError == null),
+                enabled = !alwaysOn &&
+                    (connection != VpnConnectionState.DISCONNECTED || activeProfileError == null),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
                     when (connection) {
                         VpnConnectionState.CONNECTED -> stringResource(R.string.disconnect)
-                        VpnConnectionState.CONNECTING -> stringResource(R.string.connecting)
+                        VpnConnectionState.CONNECTING -> stringResource(R.string.disconnect)
                         VpnConnectionState.DISCONNECTED -> stringResource(R.string.connect)
                     },
                 )

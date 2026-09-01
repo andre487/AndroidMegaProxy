@@ -2,8 +2,10 @@ package net.megaproxy487
 
 import android.content.Context
 import android.content.res.Configuration
+import android.os.Bundle
 import android.os.LocaleList
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import java.util.Locale
 
 enum class AppLanguage(val tag: String) {
@@ -45,6 +47,13 @@ object AppLanguageManager {
 }
 
 abstract class LocalizedActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        // Keep every screen on the same backward-compatible edge-to-edge path.
+        // Individual Compose roots remain responsible for consuming system and IME insets.
+        enableEdgeToEdge()
+    }
+
     override fun attachBaseContext(newBase: Context) {
         super.attachBaseContext(AppLanguageManager.wrap(newBase))
     }

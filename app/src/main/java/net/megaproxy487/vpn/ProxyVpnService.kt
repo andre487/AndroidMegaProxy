@@ -40,6 +40,9 @@ class ProxyVpnService : VpnService() {
     @Volatile private var connectionBlockedForAction = false
     @Volatile private var reconnectAfterStart = false
     @Volatile private var healthWarningActive = false
+    @Volatile private var consecutiveStartFailures = 0
+    @Volatile private var nextStartAttemptAt = 0L
+    @Volatile private var retryStatus: String? = null
     private var lastHealthBytes = 0L
     private var lastHealthOutcomes = 0L
     private val tunnelStateLock = Any()
@@ -81,9 +84,10 @@ class ProxyVpnService : VpnService() {
                 updatePassiveHealthState()
                 getSystemService(NotificationManager::class.java).notify(
                     NOTIFICATION_ID,
-                    notification(failoverNotice ?: VpnRuntimeState.networkWarning.value ?: if (isRunning) "Connected" else "Reconnecting…"),
+                    notification(failoverNotice ?: retryStatus ?: VpnRuntimeState.networkWarning.value ?: if (isRunning) "Connected" else "Reconnecting…"),
                 )
-                if (tunnel == null && hostKeyPrompt == null && !connectionBlockedForAction && !testRunning.get() && startRunning.compareAndSet(false, true)) {
+                val retryDue = SystemClock.elapsedRealtime() >= nextStartAttemptAt
+                if (retryDue && tunnel == null && hostKeyPrompt == null && !connectionBlockedForAction && !testRunning.get() && startRunning.compareAndSet(false, true)) {
                     val generation = startGeneration.get()
                     VpnRuntimeState.update(VpnConnectionState.CONNECTING)
                     thread(name = "megaproxy-vpn-recovery") {
@@ -113,11 +117,12 @@ class ProxyVpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val systemAlwaysOnStart = intent?.action == SERVICE_INTERFACE
-        val preserveKnownStatus = intent?.action == ACTION_REFRESH_STATUS && isAlwaysOnMode
         // Android starts the selected service with SERVICE_INTERFACE on older releases;
         // the explicit isAlwaysOn property itself was only added in API 29.
         val platformAlwaysOn = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && isAlwaysOn
-        isAlwaysOnMode = platformAlwaysOn || systemAlwaysOnStart || preserveKnownStatus
+        // ACTION_REFRESH_STATUS must be allowed to clear a stale true value after the
+        // user disables Always-on in Android Settings.
+        isAlwaysOnMode = platformAlwaysOn || systemAlwaysOnStart
         isLockdownMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) isLockdownEnabled else false
         val store = ConfigStore(this)
         // Android may call the sticky service again with a null intent. Do not replace a
@@ -136,6 +141,7 @@ class ProxyVpnService : VpnService() {
             probableFailureCounts.clear(); probableFailureTimes.clear(); attemptedFailoverProfiles.clear(); failoverNotice = null
             freshDnsRecoveryProfiles.clear()
             connectionBlockedForAction = false
+            resetRetryState()
             store.setFailoverState(false, null)
             VpnRuntimeState.updateNetworkWarning(null)
         }
@@ -156,6 +162,7 @@ class ProxyVpnService : VpnService() {
         if (intent?.action == ACTION_RECONNECT) {
             hostKeyPrompt = null; failoverNotice = null
             connectionBlockedForAction = false
+            resetRetryState()
             store.setFailoverState(false, null)
             probableFailureCounts.clear(); probableFailureTimes.clear(); attemptedFailoverProfiles.clear()
             VpnRuntimeState.updateNetworkWarning(null)
@@ -402,6 +409,7 @@ class ProxyVpnService : VpnService() {
         else VpnRuntimeState.updateNetworkWarning(failoverNotice)
         VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, promptProfileId)
         if (!testOnly) configStore.clearPendingReconnect(pendingReconnectToken)
+        resetRetryState()
         VpnRuntimeState.update(VpnConnectionState.CONNECTED)
         return true
     }
@@ -443,13 +451,58 @@ class ProxyVpnService : VpnService() {
                 }
                 return
             }
-            DiagnosticLog.add("$message; retrying")
+            val failureStage = connectionFailureStage(detail)
+            consecutiveStartFailures++
+            if (!isAlwaysOnMode && consecutiveStartFailures >= MAX_MANUAL_START_FAILURES) {
+                val notice = "$failureStage Connection stopped after $consecutiveStartFailures failed attempts."
+                DiagnosticLog.add("event=vpn_retry result=exhausted attempts=$consecutiveStartFailures stage=${failureStageToken(detail)}")
+                retryStatus = null
+                ConfigStore(this).setConnectionDesired(false)
+                VpnRuntimeState.updateNetworkWarning(notice)
+                VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
+                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+                return
+            }
+            val delay = retryDelayMs(consecutiveStartFailures)
+            nextStartAttemptAt = SystemClock.elapsedRealtime() + delay
+            retryStatus = "$failureStage Retrying in ${delay / 1_000}s (attempt ${consecutiveStartFailures + 1})."
+            DiagnosticLog.add("event=vpn_retry result=scheduled attempt=${consecutiveStartFailures + 1} delay_ms=$delay stage=${failureStageToken(detail)}")
             VpnRuntimeState.update(VpnConnectionState.CONNECTING)
             getSystemService(NotificationManager::class.java).notify(
                 NOTIFICATION_ID,
-                notification(VpnRuntimeState.networkWarning.value ?: "Connection failed; retrying…"),
+                notification(retryStatus!!),
             )
         }
+    }
+
+    private fun retryDelayMs(failures: Int): Long = RETRY_DELAYS_MS[
+        (failures - 1).coerceIn(0, RETRY_DELAYS_MS.lastIndex)
+    ]
+
+    private fun resetRetryState() {
+        consecutiveStartFailures = 0
+        nextStartAttemptAt = 0L
+        retryStatus = null
+    }
+
+    private fun connectionFailureStage(detail: String): String = when {
+        "SSH jump handshake" in detail -> "Jump host SSH handshake failed."
+        "SSH destination handshake" in detail -> "Destination SSH handshake failed."
+        "jump host could not reach" in detail -> "Jump host could not reach the destination."
+        "dial jump host" in detail -> "Could not connect to the jump host."
+        "VPN interface could not be established" in detail -> "Android could not create the VPN interface."
+        else -> "Connection failed."
+    }
+
+    private fun failureStageToken(detail: String): String = when {
+        "SSH jump handshake" in detail -> "ssh_jump_handshake"
+        "SSH destination handshake" in detail -> "ssh_destination_handshake"
+        "jump host could not reach" in detail -> "ssh_jump_direct_tcpip"
+        "dial jump host" in detail -> "ssh_jump_tcp_connect"
+        "VPN interface could not be established" in detail -> "vpn_establish"
+        else -> "other"
     }
 
     private fun requiresUserAction(detail: String): Boolean {
@@ -507,6 +560,7 @@ class ProxyVpnService : VpnService() {
             return
         }
         attemptedFailoverProfiles += next.id
+        resetRetryState()
         store.setConnectionProfile(next.id)
         val notice = "Failover active: switched to ${next.displayName}. Location and exit IP may have changed."
         failoverNotice = notice
@@ -649,6 +703,7 @@ class ProxyVpnService : VpnService() {
             else DiagnosticLog.add("Stopping VPN")
         }
         VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
+        resetRetryState()
         stopped.second?.stop()
         stopped.first?.close()
         if (removeForeground) stopForeground(STOP_FOREGROUND_REMOVE)
@@ -730,7 +785,9 @@ class ProxyVpnService : VpnService() {
         private const val MONITOR_INTERVAL_MS = 10_000L
         private const val FAILURE_WINDOW_MS = 60_000L
         private const val NETWORK_CHANGE_DEBOUNCE_MS = 1_500L
+        private const val MAX_MANUAL_START_FAILURES = 5
         private const val VPN_MTU = 1_400
+        private val RETRY_DELAYS_MS = longArrayOf(5_000L, 10_000L, 20_000L, 40_000L, 80_000L, 180_000L, 300_000L)
         private val testRunning = AtomicBoolean(false)
         private val startRunning = AtomicBoolean(false)
         private val commandScope = CoroutineScope(SupervisorJob() + ConfigIoDispatcher)

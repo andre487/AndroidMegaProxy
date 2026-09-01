@@ -11,10 +11,11 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.systemBars
+import androidx.compose.foundation.layout.union
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
@@ -156,13 +157,14 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                 }
             }
         },
-        contentWindowInsets = WindowInsets.safeDrawing,
+        // Use one inset source. Applying safeDrawing in Scaffold and imePadding to
+        // its child can double-apply or misreport the IME area on some OEM builds.
+        contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
     ) { padding ->
         LazyColumn(
             Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .imePadding(),
+                .padding(padding),
             contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {

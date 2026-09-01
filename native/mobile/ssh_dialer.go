@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -97,20 +98,26 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 		return d.client, nil
 	}
 	if d.config.Type == "SSH_JUMP" {
+		started := time.Now()
 		raw, err := d.protectedDialer().DialContext(ctx, "tcp", d.config.jumpAddress())
 		if err != nil {
+			report(d.reporter, "event=ssh_transport hop=jump stage=tcp_connect result=failed reason=%s elapsed_ms=%d", errorClass(err), time.Since(started).Milliseconds())
 			return nil, fmt.Errorf("dial jump host: %w", err)
 		}
+		report(d.reporter, "event=ssh_transport hop=jump stage=tcp_connect result=success elapsed_ms=%d", time.Since(started).Milliseconds())
 		jump, err := newSSHClient(ctx, raw, d.config.JumpHost, d.config.JumpUsername, d.config.JumpPassword, d.config.JumpPrivateKey, d.config.JumpTrustedHostKey, d.config.JumpAcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "jump", d.reporter)
 		if err != nil {
 			raw.Close()
 			return nil, err
 		}
+		started = time.Now()
 		nested, err := jump.DialContext(ctx, "tcp", d.config.address())
 		if err != nil {
 			jump.Close()
+			report(d.reporter, "event=ssh_transport hop=destination stage=direct_tcpip result=failed reason=%s elapsed_ms=%d", errorClass(err), time.Since(started).Milliseconds())
 			return nil, fmt.Errorf("jump host could not reach destination SSH host: %w", err)
 		}
+		report(d.reporter, "event=ssh_transport hop=destination stage=direct_tcpip result=success elapsed_ms=%d", time.Since(started).Milliseconds())
 		client, err := newSSHClient(ctx, nested, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
 		if err != nil {
 			nested.Close()
@@ -119,10 +126,13 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 		}
 		d.jumpClient, d.client = jump, client
 	} else {
+		started := time.Now()
 		raw, err := d.protectedDialer().DialContext(ctx, "tcp", d.config.address())
 		if err != nil {
+			report(d.reporter, "event=ssh_transport hop=destination stage=tcp_connect result=failed reason=%s elapsed_ms=%d", errorClass(err), time.Since(started).Milliseconds())
 			return nil, fmt.Errorf("dial SSH host: %w", err)
 		}
+		report(d.reporter, "event=ssh_transport hop=destination stage=tcp_connect result=success elapsed_ms=%d", time.Since(started).Milliseconds())
 		client, err := newSSHClient(ctx, raw, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
 		if err != nil {
 			raw.Close()
@@ -151,8 +161,9 @@ func newSSHClient(ctx context.Context, conn net.Conn, hostname, username, passwo
 		err      error
 	}
 	result := make(chan handshakeResult, 1)
+	observed := &sshResponseObserver{Conn: conn, reporter: reporter, hop: hop, started: time.Now()}
 	go func() {
-		cc, channels, requests, err := ssh.NewClientConn(conn, net.JoinHostPort(hostname, "22"), cfg)
+		cc, channels, requests, err := ssh.NewClientConn(observed, net.JoinHostPort(hostname, "22"), cfg)
 		result <- handshakeResult{conn: cc, channels: channels, requests: requests, err: err}
 	}()
 	timer := time.NewTimer(20 * time.Second)
@@ -167,7 +178,11 @@ func newSSHClient(ctx context.Context, conn net.Conn, hostname, username, passwo
 	case <-timer.C:
 		conn.Close()
 		<-result
-		return nil, fmt.Errorf("SSH %s handshake: timeout", hop)
+		report(reporter, "event=ssh_transport hop=%s stage=handshake_timeout result=failed read_bytes=%d written_bytes=%d", hop, observed.readBytes.Load(), observed.writtenBytes.Load())
+		if observed.received.Load() {
+			return nil, fmt.Errorf("SSH %s handshake: timeout after server response", hop)
+		}
+		return nil, fmt.Errorf("SSH %s handshake: timeout before server response", hop)
 	}
 	cc, channels, requests, err := handshake.conn, handshake.channels, handshake.requests, handshake.err
 	if err != nil {
@@ -176,6 +191,59 @@ func newSSHClient(ctx context.Context, conn net.Conn, hostname, username, passwo
 	report(reporter, "event=ssh_handshake hop=%s result=success profile=%s", hop, profile)
 	report(reporter, "event=transport_capability transport=ssh hop=%s client_family=%s server_family=%s direct_tcpip=true multiplexed=true rekey_mb=%d", hop, sshClientFamily(profile), sshServerFamily(string(cc.ServerVersion())), sshRekeyBytes/(1024*1024))
 	return ssh.NewClient(cc, channels, requests), nil
+}
+
+type sshResponseObserver struct {
+	net.Conn
+	reporter     Reporter
+	hop          string
+	started      time.Time
+	received     atomic.Bool
+	readBytes    atomic.Uint64
+	writtenBytes atomic.Uint64
+	serverBanner atomic.Bool
+	serverBinary atomic.Bool
+	clientBanner atomic.Bool
+	clientBinary atomic.Bool
+}
+
+func (c *sshResponseObserver) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	if n > 0 {
+		c.readBytes.Add(uint64(n))
+		if c.received.CompareAndSwap(false, true) {
+			report(c.reporter, "event=ssh_transport hop=%s stage=server_response result=received elapsed_ms=%d", c.hop, time.Since(c.started).Milliseconds())
+		}
+		payload := p[:n]
+		if !c.serverBanner.Load() {
+			if newline := bytes.IndexByte(payload, '\n'); newline >= 0 && c.serverBanner.CompareAndSwap(false, true) {
+				report(c.reporter, "event=ssh_transport hop=%s stage=server_banner result=received elapsed_ms=%d", c.hop, time.Since(c.started).Milliseconds())
+				if newline+1 < len(payload) && c.serverBinary.CompareAndSwap(false, true) {
+					report(c.reporter, "event=ssh_transport hop=%s stage=server_binary_packet result=received elapsed_ms=%d", c.hop, time.Since(c.started).Milliseconds())
+				}
+			}
+		} else if c.serverBinary.CompareAndSwap(false, true) {
+			report(c.reporter, "event=ssh_transport hop=%s stage=server_binary_packet result=received elapsed_ms=%d", c.hop, time.Since(c.started).Milliseconds())
+		}
+	}
+	return n, err
+}
+
+func (c *sshResponseObserver) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	if n > 0 {
+		c.writtenBytes.Add(uint64(n))
+		payload := p[:n]
+		if !c.clientBanner.Load() && bytes.HasPrefix(payload, []byte("SSH-")) && c.clientBanner.CompareAndSwap(false, true) {
+			report(c.reporter, "event=ssh_transport hop=%s stage=client_banner result=sent elapsed_ms=%d", c.hop, time.Since(c.started).Milliseconds())
+			if newline := bytes.IndexByte(payload, '\n'); newline >= 0 && newline+1 < len(payload) && c.clientBinary.CompareAndSwap(false, true) {
+				report(c.reporter, "event=ssh_transport hop=%s stage=client_binary_packet result=sent elapsed_ms=%d", c.hop, time.Since(c.started).Milliseconds())
+			}
+		} else if c.clientBanner.Load() && c.clientBinary.CompareAndSwap(false, true) {
+			report(c.reporter, "event=ssh_transport hop=%s stage=client_binary_packet result=sent elapsed_ms=%d", c.hop, time.Since(c.started).Milliseconds())
+		}
+	}
+	return n, err
 }
 
 func sshAuthMethods(privateKey, password, authMode string) ([]ssh.AuthMethod, error) {
