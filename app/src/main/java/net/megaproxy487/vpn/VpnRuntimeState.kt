@@ -6,6 +6,17 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 
 enum class VpnConnectionState { DISCONNECTED, CONNECTING, CONNECTED }
+enum class VpnTransportProtocol { UNKNOWN, HTTP_1_1, HTTP_2, SSH_MULTIPLEXED }
+
+fun transportProtocolFromDiagnostic(message: String): VpnTransportProtocol? = when {
+    "event=connection" in message && "protocol=http2" in message &&
+        "stage=tunnel" in message && "result=established" in message -> VpnTransportProtocol.HTTP_2
+    "event=connection" in message && "mode=proxy" in message &&
+        "stage=tunnel" in message && "result=established" in message -> VpnTransportProtocol.HTTP_1_1
+    "event=transport_capability" in message && "transport=ssh" in message &&
+        "multiplexed=true" in message -> VpnTransportProtocol.SSH_MULTIPLEXED
+    else -> null
+}
 
 object VpnRuntimeState {
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -21,10 +32,21 @@ object VpnRuntimeState {
     val connectionProfileId: State<String> = mutableConnectionProfileId
     private val mutableNetworkWarning = mutableStateOf<String?>(null)
     val networkWarning: State<String?> = mutableNetworkWarning
+    private val mutableTransportProtocol = mutableStateOf(VpnTransportProtocol.UNKNOWN)
+    val transportProtocol: State<VpnTransportProtocol> = mutableTransportProtocol
 
     fun update(value: VpnConnectionState) {
-        if (Looper.myLooper() == Looper.getMainLooper()) mutableConnection.value = value
-        else mainHandler.post { mutableConnection.value = value }
+        val update = {
+            mutableConnection.value = value
+            if (value != VpnConnectionState.CONNECTED) mutableTransportProtocol.value = VpnTransportProtocol.UNKNOWN
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
+    }
+
+    fun observeDiagnostic(message: String) {
+        val protocol = transportProtocolFromDiagnostic(message) ?: return
+        val update = { mutableTransportProtocol.value = protocol }
+        if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
     }
 
     fun updateNetworkWarning(value: String?) {

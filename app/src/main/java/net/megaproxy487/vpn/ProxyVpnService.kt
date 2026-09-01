@@ -43,6 +43,7 @@ class ProxyVpnService : VpnService() {
     private val probableFailureCounts = ConcurrentHashMap<String, Int>()
     private val probableFailureTimes = ConcurrentHashMap<String, Long>()
     private val attemptedFailoverProfiles = ConcurrentHashMap.newKeySet<String>()
+    private val freshDnsRecoveryProfiles = ConcurrentHashMap.newKeySet<String>()
     private val underlyingCapabilities = ConcurrentHashMap<Network, NetworkCapabilities>()
     @Volatile private var underlyingNetwork: Network? = null
     @Volatile private var networkCallbackRegistered = false
@@ -130,6 +131,7 @@ class ProxyVpnService : VpnService() {
         if (intent?.action == ACTION_START_MANUAL) {
             store.setConnectionProfile(store.activeProfileId())
             probableFailureCounts.clear(); probableFailureTimes.clear(); attemptedFailoverProfiles.clear(); failoverNotice = null
+            freshDnsRecoveryProfiles.clear()
             connectionBlockedForAction = false
             store.setFailoverState(false, null)
             VpnRuntimeState.updateNetworkWarning(null)
@@ -329,24 +331,26 @@ class ProxyVpnService : VpnService() {
         diagnostics("TUN established with IPv4, IPv6 and intercepted DNS")
         val proxyCore = NativeProxyCore(this, diagnostics)
         val addressCache = BootstrapAddressCache(this)
-        val proxyIp = proxyCore.resolveProxy(storedConfig.host) { message ->
-            failureDetail = message
-            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
-        }?.also { addressCache.put(storedConfig.host, it) } ?: addressCache.get(storedConfig.host)?.also {
-            diagnostics("event=bootstrap_dns result=cached_fallback age_limit_days=7")
-        } ?: run {
+        fun resolveHost(host: String, target: String): String? {
+            if (!testOnly) {
+                addressCache.get(host)?.let {
+                    diagnostics("event=bootstrap_dns result=cache_hit target=$target age_limit_days=7")
+                    return it
+                }
+            }
+            return proxyCore.resolveProxy(host) { message ->
+                failureDetail = message
+                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
+            }?.also { addressCache.put(host, it) }
+        }
+        val proxyIp = resolveHost(storedConfig.host, "proxy") ?: run {
             establishedTunnel.close()
             if (!isStartCurrent(generation)) return false
             handleStartFailure(testOnly, "Proxy bootstrap DNS failed", failureDetail, promptProfileId)
             return false
         }
         val jumpIp = if (storedConfig.type == net.megaproxy487.model.ProxyType.SSH_JUMP) {
-            proxyCore.resolveProxy(storedConfig.jumpHost) { message ->
-                failureDetail = message
-                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
-            }?.also { addressCache.put(storedConfig.jumpHost, it) } ?: addressCache.get(storedConfig.jumpHost)?.also {
-                diagnostics("event=bootstrap_dns result=cached_fallback target=jump age_limit_days=7")
-            } ?: run {
+            resolveHost(storedConfig.jumpHost, "jump") ?: run {
                 establishedTunnel.close()
                 if (!isStartCurrent(generation)) return false
                 handleStartFailure(testOnly, "Jump host bootstrap DNS failed", failureDetail, promptProfileId)
@@ -457,6 +461,23 @@ class ProxyVpnService : VpnService() {
         val settings = store.globalConnectionSettings()
         val warning = "Proxy probably blocked (${signal.name.lowercase().replace('_', ' ')})."
         VpnRuntimeState.updateNetworkWarning(warning)
+        // DNS failover may move a hostname away from a filtered or stale address. Give
+        // the current profile one fresh resolution attempt before changing exit IP or
+        // location through profile failover.
+        if (freshDnsRecoveryProfiles.add(profileId)) {
+            store.profile(profileId)?.config?.let { profile ->
+                BootstrapAddressCache(this).apply {
+                    remove(profile.host)
+                    if (profile.type == net.megaproxy487.model.ProxyType.SSH_JUMP) remove(profile.jumpHost)
+                }
+            }
+            val notice = "$warning Retrying this profile with fresh encrypted DNS before failover."
+            VpnRuntimeState.updateNetworkWarning(notice)
+            DiagnosticLog.add("event=blocking_recovery action=refresh_dns profile_type=${store.profile(profileId)?.config?.type?.name?.lowercase() ?: "unknown"}")
+            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
+            if (tunnel != null) stopTunnel(removeForeground = false)
+            return
+        }
         if (settings.failoverMode == FailoverMode.DISABLED) {
             val notice = "$warning Failover is disabled; the connection may remain unavailable."
             VpnRuntimeState.updateNetworkWarning(notice)

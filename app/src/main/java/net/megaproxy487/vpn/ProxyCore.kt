@@ -110,6 +110,7 @@ class NativeProxyCore(
             val reporter = callback(reporterType, "report") {
                 val message = it!![0] as String
                 diagnostics(message)
+                VpnRuntimeState.observeDiagnostic(message)
                 if ("SSH_HOST_KEY_" in message || "dpi_hint=possible" in message) status(message)
                 null
             }

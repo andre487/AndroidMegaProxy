@@ -82,6 +82,7 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
+import net.megaproxy487.vpn.VpnTransportProtocol
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.vpn.hasOtherProvider
 import net.megaproxy487.vpn.openAndroidVpnSettings
@@ -136,6 +137,7 @@ private fun MainScreen(activity: Activity) {
     val runtimeLockdown by VpnRuntimeState.lockdown
     val runtimeProfileId by VpnRuntimeState.connectionProfileId
     val networkWarning by VpnRuntimeState.networkWarning
+    val transportProtocol by VpnRuntimeState.transportProtocol
     val store = remember { ConfigStore(activity) }
     var error by remember { mutableStateOf<String?>(null) }
     var profileMenuExpanded by remember { mutableStateOf(false) }
@@ -287,6 +289,25 @@ private fun MainScreen(activity: Activity) {
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                    }
+                    if (connected && transportProtocol != VpnTransportProtocol.UNKNOWN) {
+                        val transportLabel = when (transportProtocol) {
+                            VpnTransportProtocol.HTTP_1_1 -> stringResource(R.string.transport_http_1_1)
+                            VpnTransportProtocol.HTTP_2 -> stringResource(R.string.transport_http_2)
+                            VpnTransportProtocol.SSH_MULTIPLEXED -> stringResource(R.string.transport_ssh_multiplexed)
+                            VpnTransportProtocol.UNKNOWN -> ""
+                        }
+                        Surface(
+                            color = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                            shape = RoundedCornerShape(999.dp),
+                        ) {
+                            Text(
+                                transportLabel,
+                                style = MaterialTheme.typography.labelLarge,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                            )
+                        }
                     }
                 }
             }

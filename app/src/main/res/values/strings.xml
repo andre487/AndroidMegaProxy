@@ -53,4 +53,7 @@
     <string name="next_connection">Next connection</string>
     <string name="clear_action">Clear</string>
     <string name="run_checks_again">Run checks again</string>
+    <string name="transport_http_1_1">HTTP/1.1</string>
+    <string name="transport_http_2">HTTP/2 multiplexed</string>
+    <string name="transport_ssh_multiplexed">SSH multiplexed</string>
 </resources>

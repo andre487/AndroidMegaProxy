@@ -9,6 +9,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -32,6 +33,8 @@ type httpsConnectDialer struct {
 	dohClient    *http.Client
 	dohInFlight  chan struct{}
 	connections  chan struct{}
+	h2Session    *http2ConnectSession
+	h2Disabled   bool
 }
 
 func (d *httpsConnectDialer) Close() error {
@@ -40,6 +43,10 @@ func (d *httpsConnectDialer) Close() error {
 	if d.dohClient != nil {
 		d.dohClient.CloseIdleConnections()
 		d.dohClient = nil
+	}
+	if d.h2Session != nil {
+		_ = d.h2Session.close()
+		d.h2Session = nil
 	}
 	return nil
 }
@@ -89,6 +96,19 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		report(d.reporter, "event=connection conn=%d mode=direct stage=tcp_connect result=success elapsed_ms=%d", connectionID, time.Since(directStarted).Milliseconds())
 		return &diagnosticConn{Conn: connection, connectionID: connectionID, reporter: d.reporter}, nil
 	}
+	if session := d.currentHTTP2Session(); session != nil {
+		connection, err := d.openHTTP2Tunnel(ctx, session, target, connectionID, totalStarted, true)
+		if err == nil {
+			return connection, nil
+		}
+		if shouldFallbackToHTTP1(err) {
+			d.disableHTTP2(session)
+			report(d.reporter, "event=http2_session result=unsupported action=fallback_http1")
+			return d.connectTarget(ctx, target)
+		}
+		d.invalidateHTTP2Session(session)
+		report(d.reporter, "event=http2_session result=stale action=reconnect reason=%s", errorClass(err))
+	}
 	report(d.reporter, "event=connection conn=%d mode=proxy stage=tcp_connect result=started fingerprint=%s", connectionID, d.config.Profile)
 	dialStarted := time.Now()
 	raw, err := d.protectedDialer().DialContext(ctx, "tcp", d.config.address())
@@ -126,6 +146,12 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 			return nil, err
 		}
 	}
+	if d.isHTTP2Disabled() {
+		if err := forceHTTP11ALPN(uconn); err != nil {
+			recordConnectionOutcome(false)
+			return nil, fmt.Errorf("configure HTTP/1.1 ALPN fallback: %w", err)
+		}
+	}
 	tlsStarted := time.Now()
 	handshakeContext, cancelHandshake := context.WithTimeout(ctx, 15*time.Second)
 	err = uconn.HandshakeContext(handshakeContext)
@@ -139,6 +165,24 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	}
 	tlsState := uconn.ConnectionState()
 	report(d.reporter, "event=connection conn=%d mode=proxy stage=tls_handshake result=success elapsed_ms=%d version=0x%04x cipher=0x%04x alpn=%q certificates=%d", connectionID, time.Since(tlsStarted).Milliseconds(), tlsState.Version, tlsState.CipherSuite, tlsState.NegotiatedProtocol, len(tlsState.PeerCertificates))
+	h2Negotiated := tlsState.NegotiatedProtocol == "h2"
+	report(d.reporter, "event=transport_capability transport=https_proxy tls_version=0x%04x outer_alpn=%s h2_negotiated=%t h2_connect_supported=true connect_protocol=%s session_resumed=%t", tlsState.Version, normalizedALPN(tlsState.NegotiatedProtocol), h2Negotiated, connectProtocol(h2Negotiated), tlsState.DidResume)
+	if h2Negotiated {
+		session, sessionErr := newHTTP2ConnectSession(uconn)
+		if sessionErr != nil {
+			recordConnectionOutcome(false)
+			return nil, fmt.Errorf("initialize HTTP/2 proxy session: %w", sessionErr)
+		}
+		closeOnError = false // The HTTP/2 session now owns the outer TLS connection.
+		session = d.installHTTP2Session(session)
+		connection, connectErr := d.openHTTP2Tunnel(ctx, session, target, connectionID, totalStarted, false)
+		if shouldFallbackToHTTP1(connectErr) {
+			d.disableHTTP2(session)
+			report(d.reporter, "event=http2_session result=unsupported action=fallback_http1")
+			return d.connectTarget(ctx, target)
+		}
+		return connection, connectErr
+	}
 	deadline := time.Now().Add(15 * time.Second)
 	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
 		deadline = contextDeadline
@@ -183,6 +227,113 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		connection = &bufferedConn{Conn: uconn, reader: reader}
 	}
 	return &diagnosticConn{Conn: connection, connectionID: connectionID, reporter: d.reporter}, nil
+}
+
+type http2ConnectStatusError struct{ status int }
+
+func (e *http2ConnectStatusError) Error() string {
+	return fmt.Sprintf("HTTP/2 proxy CONNECT returned status %d", e.status)
+}
+
+func shouldFallbackToHTTP1(err error) bool {
+	var statusError *http2ConnectStatusError
+	return errors.As(err, &statusError) && (statusError.status == http.StatusMethodNotAllowed || statusError.status == http.StatusNotImplemented)
+}
+
+func connectProtocol(h2 bool) string {
+	if h2 {
+		return "http2"
+	}
+	return "http1_1"
+}
+
+func (d *httpsConnectDialer) currentHTTP2Session() *http2ConnectSession {
+	d.cacheMu.Lock()
+	defer d.cacheMu.Unlock()
+	if d.h2Session != nil && d.h2Session.canTakeRequest() {
+		return d.h2Session
+	}
+	return nil
+}
+
+func (d *httpsConnectDialer) installHTTP2Session(candidate *http2ConnectSession) *http2ConnectSession {
+	d.cacheMu.Lock()
+	defer d.cacheMu.Unlock()
+	if d.h2Session != nil && d.h2Session.canTakeRequest() {
+		_ = candidate.close()
+		return d.h2Session
+	}
+	if d.h2Session != nil {
+		_ = d.h2Session.close()
+	}
+	d.h2Session = candidate
+	report(d.reporter, "event=http2_session result=established multiplexed=true")
+	return candidate
+}
+
+func (d *httpsConnectDialer) invalidateHTTP2Session(session *http2ConnectSession) {
+	d.cacheMu.Lock()
+	defer d.cacheMu.Unlock()
+	if d.h2Session == session {
+		d.h2Session = nil
+		_ = session.close()
+	}
+}
+
+func (d *httpsConnectDialer) disableHTTP2(session *http2ConnectSession) {
+	d.cacheMu.Lock()
+	defer d.cacheMu.Unlock()
+	d.h2Disabled = true
+	if d.h2Session == session {
+		d.h2Session = nil
+		_ = session.close()
+	}
+}
+
+func (d *httpsConnectDialer) isHTTP2Disabled() bool {
+	d.cacheMu.Lock()
+	defer d.cacheMu.Unlock()
+	return d.h2Disabled
+}
+
+func (d *httpsConnectDialer) openHTTP2Tunnel(ctx context.Context, session *http2ConnectSession, target string, connectionID uint64, totalStarted time.Time, reused bool) (net.Conn, error) {
+	auth := "Basic " + base64.StdEncoding.EncodeToString([]byte(d.config.Username+":"+d.config.Password))
+	started := time.Now()
+	tunnel, status, err := session.openTunnel(ctx, target, auth)
+	if err != nil {
+		recordConnectionOutcome(false)
+		if status != 0 {
+			report(d.reporter, "event=connection conn=%d mode=proxy protocol=http2 stage=connect_response result=rejected status=%d status_class=%dxx reused_session=%t", connectionID, status, status/100, reused)
+			return nil, &http2ConnectStatusError{status: status}
+		}
+		report(d.reporter, "event=connection conn=%d mode=proxy protocol=http2 stage=connect_response result=failed reason=%s reused_session=%t", connectionID, errorClass(err), reused)
+		return nil, fmt.Errorf("HTTP/2 proxy CONNECT: %w", err)
+	}
+	recordProxyLatency(time.Since(started))
+	recordConnectionOutcome(true)
+	report(d.reporter, "event=connection conn=%d mode=proxy protocol=http2 stage=tunnel result=established stream_multiplexed=true reused_session=%t total_ms=%d", connectionID, reused, time.Since(totalStarted).Milliseconds())
+	return &diagnosticConn{Conn: tunnel, connectionID: connectionID, reporter: d.reporter}, nil
+}
+
+func normalizedALPN(value string) string {
+	if value == "" {
+		return "none"
+	}
+	return strings.ReplaceAll(value, " ", "_")
+}
+
+func forceHTTP11ALPN(connection *tls.UConn) error {
+	if err := connection.BuildHandshakeState(); err != nil {
+		return err
+	}
+	for _, extension := range connection.Extensions {
+		if alpn, ok := extension.(*tls.ALPNExtension); ok {
+			alpn.AlpnProtocols = []string{"http/1.1"}
+			return nil
+		}
+	}
+	connection.Extensions = append(connection.Extensions, &tls.ALPNExtension{AlpnProtocols: []string{"http/1.1"}})
+	return nil
 }
 
 func (d *httpsConnectDialer) clientSessionCache() tls.ClientSessionCache {

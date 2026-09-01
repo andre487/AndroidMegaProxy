@@ -71,7 +71,8 @@ func testHTTPSGet(ctx context.Context, connect func(context.Context, string) (ne
 	if err := connection.HandshakeContext(ctx); err != nil {
 		return "", fmt.Errorf("destination TLS handshake: %w", err)
 	}
-	report(reporter, "event=connection_test stage=destination_tls result=success certificate=verified")
+	tlsState := connection.ConnectionState()
+	report(reporter, "event=connection_test stage=destination_tls result=success certificate=verified version=0x%04x cipher=0x%04x alpn=%s h2_negotiated=%t session_resumed=%t", tlsState.Version, tlsState.CipherSuite, normalizedALPN(tlsState.NegotiatedProtocol), tlsState.NegotiatedProtocol == "h2", tlsState.DidResume)
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+host+path, nil)
 	if err != nil {

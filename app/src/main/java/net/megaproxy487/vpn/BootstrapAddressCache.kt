@@ -25,6 +25,10 @@ class BootstrapAddressCache(context: Context) {
         ).apply()
     }
 
+    fun remove(host: String) {
+        preferences.edit().remove(key(host)).apply()
+    }
+
     private fun key(host: String): String = MessageDigest.getInstance("SHA-256")
         .digest(host.trim().lowercase().toByteArray(Charsets.UTF_8))
         .joinToString("") { "%02x".format(it) }

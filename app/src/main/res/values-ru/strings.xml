@@ -52,4 +52,7 @@
     <string name="next_connection">При следующем подключении</string>
     <string name="clear_action">Очистить</string>
     <string name="run_checks_again">Повторить проверку</string>
+    <string name="transport_http_1_1">HTTP/1.1</string>
+    <string name="transport_http_2">HTTP/2, мультиплексирование</string>
+    <string name="transport_ssh_multiplexed">SSH, мультиплексирование</string>
 </resources>

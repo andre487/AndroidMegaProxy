@@ -156,6 +156,7 @@ func newSSHClient(conn net.Conn, hostname, username, password, privateKey, trust
 		return nil, fmt.Errorf("clear SSH %s handshake deadline: %w", hop, err)
 	}
 	report(reporter, "event=ssh_handshake hop=%s result=success profile=%s", hop, profile)
+	report(reporter, "event=transport_capability transport=ssh hop=%s client_family=%s server_family=%s direct_tcpip=true multiplexed=true rekey_mb=%d", hop, sshClientFamily(profile), sshServerFamily(string(cc.ServerVersion())), sshRekeyBytes/(1024*1024))
 	return ssh.NewClient(cc, channels, requests), nil
 }
 
@@ -207,13 +208,52 @@ func applySSHProfile(c *ssh.ClientConfig, profile string) {
 	case "TERMIUS_ANDROID":
 		c.ClientVersion = "SSH-2.0-Termius"
 	default:
-		c.ClientVersion = "SSH-2.0-OpenSSH_9.9"
+		// OpenSSH 8.4 is a better claim than a newer banner whose mandatory/default
+		// post-quantum proposal cannot be reproduced byte-for-byte by this stack.
+		c.ClientVersion = "SSH-2.0-OpenSSH_8.4"
 	}
-	// x/crypto exposes ordering, but not every packet-level extension used by the
-	// named clients. Keep modern algorithms only and use the preset for stable ordering/banner.
-	c.Config.KeyExchanges = []string{ssh.KeyExchangeCurve25519, ssh.KeyExchangeECDHP256, ssh.KeyExchangeDHGEXSHA256}
-	c.Config.Ciphers = []string{"chacha20-poly1305@openssh.com", "aes128-gcm@openssh.com", "aes256-gcm@openssh.com", "aes128-ctr", "aes256-ctr"}
+	// This is the common modern OpenSSH-style order supported by x/crypto. It
+	// avoids the distinctive Go defaults and weak legacy algorithms while keeping
+	// compatibility with ordinary servers and dynamic forwarding (`ssh -D`).
+	c.Config.KeyExchanges = []string{
+		ssh.KeyExchangeCurve25519,
+		ssh.KeyExchangeECDHP256,
+		ssh.KeyExchangeECDHP384,
+		ssh.KeyExchangeECDHP521,
+		ssh.KeyExchangeDHGEXSHA256,
+		ssh.KeyExchangeDH16SHA512,
+		ssh.KeyExchangeDH14SHA256,
+	}
+	c.Config.Ciphers = []string{"chacha20-poly1305@openssh.com", "aes128-gcm@openssh.com", "aes256-gcm@openssh.com", "aes128-ctr", "aes192-ctr", "aes256-ctr"}
 	c.Config.MACs = []string{ssh.HMACSHA256ETM, ssh.HMACSHA512ETM, ssh.HMACSHA256, ssh.HMACSHA512}
+	c.Config.RekeyThreshold = sshRekeyBytes
+}
+
+const sshRekeyBytes = 1 << 30
+
+func sshClientFamily(profile string) string {
+	switch profile {
+	case "CONNECTBOT":
+		return "connectbot"
+	case "JUICESSH":
+		return "juicessh"
+	case "TERMIUS_ANDROID":
+		return "termius"
+	default:
+		return "openssh"
+	}
+}
+
+func sshServerFamily(version string) string {
+	value := strings.ToLower(version)
+	switch {
+	case strings.Contains(value, "openssh"):
+		return "openssh"
+	case strings.Contains(value, "dropbear"):
+		return "dropbear"
+	default:
+		return "other"
+	}
 }
 
 func (d *sshDialer) protectedDialer() *net.Dialer {

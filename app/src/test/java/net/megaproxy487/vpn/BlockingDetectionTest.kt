@@ -8,6 +8,18 @@ class BlockingDetectionTest {
     @Test fun classifiesTimeoutAndReset() {
         assertEquals(BlockingSignal.TCP_TIMEOUT, BlockingDetection.classify("dial tcp: i/o timeout"))
         assertEquals(BlockingSignal.CONNECTION_RESET, BlockingDetection.classify("connection reset by peer"))
+        assertEquals(
+            BlockingSignal.TLS_HANDSHAKE_RESET,
+            BlockingDetection.classify("event=connection stage=tls_handshake result=failed reason=reset"),
+        )
+        assertEquals(
+            BlockingSignal.CONNECT_RESPONSE_TIMEOUT,
+            BlockingDetection.classify("event=connection stage=connect_response result=failed reason=timeout"),
+        )
+        assertEquals(
+            BlockingSignal.SSH_HANDSHAKE_TIMEOUT,
+            BlockingDetection.classify("SSH destination handshake: i/o timeout"),
+        )
     }
 
     @Test fun doesNotTreatAuthenticationOrCertificateErrorsAsBlocking() {
