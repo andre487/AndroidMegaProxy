@@ -11,8 +11,11 @@ data class ProxyListImportResult(val proxies: List<ImportedProxy>, val skippedNo
 object ProxyListParser {
     fun parse(text: String): Result<ProxyListImportResult> = runCatching {
         val lines = text.lineSequence().map(String::trim)
-            .filter { it.isNotEmpty() && !it.startsWith("#") }.toList()
+            .filter { it.isNotEmpty() && !it.startsWith("#") }
+            .take(MAX_IMPORTED_PROFILES + 1)
+            .toList()
         require(lines.isNotEmpty()) { "The proxy list is empty" }
+        require(lines.size <= MAX_IMPORTED_PROFILES) { "The proxy list contains more than $MAX_IMPORTED_PROFILES entries" }
         var skippedNonHttps = 0
         val proxies = lines.mapIndexedNotNull { index, line ->
             val uri = runCatching { URI(line) }.getOrElse { error("Line ${index + 1} is not a valid URI") }
@@ -27,12 +30,15 @@ object ProxyListParser {
     }
 
     private fun parseLine(uri: URI, lineNumber: Int): ImportedProxy {
+        require(uri.toString().length <= 64 * 1024) { "Line $lineNumber is too long" }
         val host = uri.host?.takeIf(String::isNotBlank) ?: error("Line $lineNumber has no proxy host")
         val userInfo = uri.rawUserInfo ?: error("Line $lineNumber has no Basic Auth credentials")
         val separator = userInfo.indexOf(':')
         require(separator >= 0) { "Line $lineNumber has no Basic Auth password" }
         val username = decodeUriComponent(userInfo.substring(0, separator))
         val password = decodeUriComponent(userInfo.substring(separator + 1))
+        require(username.length <= 4_096) { "Line $lineNumber has an excessively long username" }
+        require(password.length <= 16_384) { "Line $lineNumber has an excessively long password" }
         val query = parseQuery(uri.rawQuery)
         return ImportedProxy(
             name = query["title"].orEmpty(),
@@ -48,7 +54,9 @@ object ProxyListParser {
     }
 
     private fun parseQuery(rawQuery: String?): Map<String, String> = rawQuery.orEmpty()
-        .split('&').filter(String::isNotEmpty).associate { pair ->
+        .splitToSequence('&').filter(String::isNotEmpty).take(101).toList().also {
+            require(it.size <= 100) { "A proxy URL contains too many query parameters" }
+        }.associate { pair ->
             val separator = pair.indexOf('=')
             if (separator < 0) decode(pair) to ""
             else decode(pair.substring(0, separator)) to decode(pair.substring(separator + 1))

@@ -38,6 +38,7 @@ type dohPacketConn struct {
 	connect      func(context.Context, string) (net.Conn, error)
 	url          string
 	replies      chan dnsReply
+	inFlight     chan struct{}
 	closed       chan struct{}
 	closeOnce    sync.Once
 	deadlineMu   sync.Mutex
@@ -48,17 +49,18 @@ type dohPacketConn struct {
 }
 
 func newDoHPacketConn(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string) *dohPacketConn {
-	return newDoHPacketConnWithClient(c, reporter, connect, endpoint, newDoHHTTPClient(connect))
+	return newDoHPacketConnWithClient(c, reporter, connect, endpoint, newDoHHTTPClient(connect), nil)
 }
 
 func newDoHHTTPClient(connect func(context.Context, string) (net.Conn, error)) *http.Client {
 	transport := &http.Transport{
-		Proxy:               nil,
-		ForceAttemptHTTP2:   true,
-		TLSHandshakeTimeout: 15 * time.Second,
-		MaxConnsPerHost:     2,
-		MaxIdleConnsPerHost: 2,
-		IdleConnTimeout:     90 * time.Second,
+		Proxy:                  nil,
+		ForceAttemptHTTP2:      true,
+		TLSHandshakeTimeout:    15 * time.Second,
+		MaxConnsPerHost:        2,
+		MaxIdleConnsPerHost:    2,
+		IdleConnTimeout:        90 * time.Second,
+		MaxResponseHeaderBytes: 64 * 1024,
 		DialContext: func(ctx context.Context, _, address string) (net.Conn, error) {
 			return connect(ctx, address)
 		},
@@ -66,11 +68,14 @@ func newDoHHTTPClient(connect func(context.Context, string) (net.Conn, error)) *
 	return &http.Client{Transport: transport, Timeout: 20 * time.Second}
 }
 
-func newDoHPacketConnWithClient(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string, client *http.Client) *dohPacketConn {
+func newDoHPacketConnWithClient(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string, client *http.Client, limiter chan struct{}) *dohPacketConn {
 	ctx, cancel := context.WithCancel(context.Background())
+	if limiter == nil {
+		limiter = make(chan struct{}, 8)
+	}
 	return &dohPacketConn{
 		config: c, reporter: reporter, connect: connect, url: endpoint, replies: make(chan dnsReply, 16), closed: make(chan struct{}),
-		client: client, context: ctx, cancel: cancel,
+		inFlight: limiter, client: client, context: ctx, cancel: cancel,
 	}
 }
 
@@ -92,7 +97,15 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 		}
 	}
 	query := append([]byte(nil), payload...)
+	select {
+	case c.inFlight <- struct{}{}:
+	case <-c.closed:
+		return 0, net.ErrClosed
+	case <-c.context.Done():
+		return 0, c.context.Err()
+	}
 	go func() {
+		defer func() { <-c.inFlight }()
 		req, err := http.NewRequestWithContext(c.context, http.MethodPost, c.url, bytes.NewReader(query))
 		if err == nil {
 			req.Header.Set("Accept", "application/dns-message")

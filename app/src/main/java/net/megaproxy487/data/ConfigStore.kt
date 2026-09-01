@@ -120,7 +120,7 @@ class ConfigStore(context: Context) {
         if (stored != null) {
             migrateGlobalIpv6ToProfiles(stored)
             val decoded = decodeGlobalConnectionSettings(stored)
-            if (!JSONObject(stored).has("sshProfile")) {
+            if (!runCatching { JSONObject(stored).has("sshProfile") }.getOrDefault(false)) {
                 val upgraded = decoded.copy(sshProfile = activeProfile().config.sshProfile)
                 saveGlobalConnectionSettings(upgraded)
                 return upgraded

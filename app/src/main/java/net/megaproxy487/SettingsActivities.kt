@@ -282,7 +282,7 @@ private fun TlsFingerprintScreen(activity: Activity) {
         if (settings.tlsProfile == TlsProfile.CUSTOM) {
             OutlinedTextField(
                 settings.customJa3,
-                { save(customJa3 = it) },
+                { if (it.length <= 64 * 1024) save(customJa3 = it) },
                 label = { Text("JA3: version,ciphers,extensions,groups,points") },
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth(),

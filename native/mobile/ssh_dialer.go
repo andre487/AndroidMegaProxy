@@ -30,6 +30,7 @@ type sshDialer struct {
 	sessionBytes   atomic.Uint64
 	keepaliveStop  chan struct{}
 	dohClient      *http.Client
+	dohInFlight    chan struct{}
 }
 
 func (d *sshDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
@@ -73,7 +74,9 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 		return nil, err
 	}
 	started := time.Now()
-	conn, err := client.Dial("tcp", target)
+	dialContext, cancelDial := context.WithTimeout(ctx, 20*time.Second)
+	conn, err := client.DialContext(dialContext, "tcp", target)
+	cancelDial()
 	if err != nil {
 		d.invalidate()
 		report(d.reporter, "event=connection mode=ssh stage=direct_tcpip result=failed reason=%s", errorClass(err))
@@ -103,7 +106,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 			raw.Close()
 			return nil, err
 		}
-		nested, err := jump.Dial("tcp", d.config.address())
+		nested, err := jump.DialContext(ctx, "tcp", d.config.address())
 		if err != nil {
 			jump.Close()
 			return nil, fmt.Errorf("jump host could not reach destination SSH host: %w", err)
@@ -141,9 +144,16 @@ func newSSHClient(conn net.Conn, hostname, username, password, privateKey, trust
 	}
 	cfg := &ssh.ClientConfig{User: username, Auth: auth, HostKeyCallback: hostKeyCallback(trusted, acceptAny, hop), Timeout: 20 * time.Second}
 	applySSHProfile(cfg, profile)
+	if err := conn.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
+		return nil, fmt.Errorf("set SSH %s handshake deadline: %w", hop, err)
+	}
 	cc, channels, requests, err := ssh.NewClientConn(conn, net.JoinHostPort(hostname, "22"), cfg)
 	if err != nil {
 		return nil, fmt.Errorf("SSH %s handshake: %w", hop, err)
+	}
+	if err := conn.SetDeadline(time.Time{}); err != nil {
+		cc.Close()
+		return nil, fmt.Errorf("clear SSH %s handshake deadline: %w", hop, err)
 	}
 	report(reporter, "event=ssh_handshake hop=%s result=success profile=%s", hop, profile)
 	return ssh.NewClient(cc, channels, requests), nil
@@ -224,16 +234,20 @@ func (d *sshDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 	if metadata.DstPort != 53 {
 		return nil, errUDPBlocked
 	}
-	return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, d.sharedDoHClient()), nil
+	client, limiter := d.sharedDoHResources()
+	return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter), nil
 }
 
-func (d *sshDialer) sharedDoHClient() *http.Client {
+func (d *sshDialer) sharedDoHResources() (*http.Client, chan struct{}) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.dohClient == nil {
 		d.dohClient = newDoHHTTPClient(d.connectTarget)
 	}
-	return d.dohClient
+	if d.dohInFlight == nil {
+		d.dohInFlight = make(chan struct{}, 8)
+	}
+	return d.dohClient, d.dohInFlight
 }
 
 func (d *sshDialer) invalidate() {

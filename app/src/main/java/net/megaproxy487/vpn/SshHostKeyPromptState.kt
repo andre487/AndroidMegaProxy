@@ -1,5 +1,7 @@
 package net.megaproxy487.vpn
 
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.runtime.mutableStateOf
 
 data class PendingSshHostKey(
@@ -12,13 +14,19 @@ data class PendingSshHostKey(
 )
 
 object SshHostKeyPromptState {
+    private val mainHandler = Handler(Looper.getMainLooper())
     val pending = mutableStateOf<PendingSshHostKey?>(null)
 
     fun show(value: PendingSshHostKey) {
-        pending.value = value
+        update(value)
     }
 
     fun clear() {
-        pending.value = null
+        update(null)
+    }
+
+    private fun update(value: PendingSshHostKey?) {
+        if (Looper.myLooper() == Looper.getMainLooper()) pending.value = value
+        else mainHandler.post { pending.value = value }
     }
 }

@@ -53,6 +53,9 @@ class ProxyVpnService : VpnService() {
                     thread(name = "megaproxy-vpn-recovery") {
                         try {
                             startTunnel(testOnly = false, generation = generation)
+                        } catch (error: Exception) {
+                            if (!isStartCurrent(generation)) return@thread
+                            handleStartFailure(false, "VPN recovery failed", error.message.orEmpty(), ConfigStore(this@ProxyVpnService).connectionProfile().id)
                         } finally {
                             finishStartAttempt()
                         }
@@ -130,6 +133,9 @@ class ProxyVpnService : VpnService() {
                 thread(name = "megaproxy-vpn-reconnect") {
                     try {
                         startTunnel(testOnly = false, generation = generation)
+                    } catch (error: Exception) {
+                        if (!isStartCurrent(generation)) return@thread
+                        handleStartFailure(false, "VPN reconnect failed", error.message.orEmpty(), ConfigStore(this@ProxyVpnService).connectionProfile().id)
                     } finally {
                         finishStartAttempt()
                     }
@@ -138,11 +144,28 @@ class ProxyVpnService : VpnService() {
             return START_STICKY
         }
         if (intent?.action == ACTION_TEST) {
+            if (startRunning.get()) {
+                TestDiagnosticLog.fail("Wait for the current VPN connection attempt to finish")
+                return START_NOT_STICKY
+            }
+            if (!testRunning.compareAndSet(false, true)) {
+                TestDiagnosticLog.add("Connection test is already running")
+                return START_NOT_STICKY
+            }
             hostKeyPrompt = null
             SshHostKeyPromptState.clear()
             startForeground(NOTIFICATION_ID, notification("Testing connection…"))
             TestDiagnosticLog.begin()
-            thread(name = "megaproxy-connection-test") { testConnection() }
+            thread(name = "megaproxy-connection-test") {
+                try {
+                    testConnection()
+                } catch (error: Exception) {
+                    TestDiagnosticLog.fail("Connection test stopped unexpectedly: ${error.message ?: error.javaClass.simpleName}")
+                    if (tunnelTestOnly) stopTunnel()
+                } finally {
+                    testRunning.set(false)
+                }
+            }
             return START_NOT_STICKY
         }
         startForeground(NOTIFICATION_ID, notification("Connecting…"))
@@ -152,6 +175,9 @@ class ProxyVpnService : VpnService() {
             thread(name = "megaproxy-vpn-start") {
                 try {
                     startTunnel(testOnly = false, generation = generation)
+                } catch (error: Exception) {
+                    if (!isStartCurrent(generation)) return@thread
+                    handleStartFailure(false, "VPN start failed", error.message.orEmpty(), ConfigStore(this@ProxyVpnService).connectionProfile().id)
                 } finally {
                     finishStartAttempt()
                 }
@@ -172,21 +198,15 @@ class ProxyVpnService : VpnService() {
     }
 
     private fun testConnection() {
-        if (!testRunning.compareAndSet(false, true)) {
-            TestDiagnosticLog.add("Connection test is already running")
-            return
-        }
         val storedConfig = ConfigStore(this).globalConnectionSettings().applyTo(ConfigStore(this).activeProfile().config)
         storedConfig.connectionValidationError()?.let {
             TestDiagnosticLog.fail("Connection test cannot start: $it")
-            testRunning.set(false)
             if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
             return
         }
         val temporaryVpn = tunnel == null
         if (temporaryVpn && !startTunnel(testOnly = true, suppliedConfig = storedConfig, generation = startGeneration.get())) {
             TestDiagnosticLog.fail("Connection test failed: temporary VPN could not be started")
-            testRunning.set(false)
             if (hostKeyPrompt == null) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
                 stopSelf()
@@ -195,7 +215,6 @@ class ProxyVpnService : VpnService() {
         }
         val config = synchronized(tunnelStateLock) { activeConfig } ?: run {
             TestDiagnosticLog.fail("Connection test failed: active VPN configuration is unavailable")
-            testRunning.set(false)
             return
         }
         val exitIp = NativeProxyCore(this, TestDiagnosticLog::add).test(config) { message ->
@@ -203,7 +222,6 @@ class ProxyVpnService : VpnService() {
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
         }
         if (exitIp != null) TestDiagnosticLog.succeed(exitIp) else TestDiagnosticLog.fail()
-        testRunning.set(false)
         if (temporaryVpn) {
             stopTunnel()
             stopSelf()
@@ -393,6 +411,7 @@ class ProxyVpnService : VpnService() {
         ).any(value::contains)
     }
 
+    @Synchronized
     private fun handleProbableBlocking(profileId: String, signal: BlockingSignal) {
         val store = ConfigStore(this)
         val settings = store.globalConnectionSettings()
@@ -414,20 +433,22 @@ class ProxyVpnService : VpnService() {
             else -> emptyList()
         }.filter { it.id != profileId && it.id !in attemptedFailoverProfiles }
         val next = candidates.firstOrNull() ?: run {
-            failoverNotice = "$warning No eligible fallback profile remains."
-            store.setFailoverState(false, failoverNotice)
-            VpnRuntimeState.updateNetworkWarning(failoverNotice)
-            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(failoverNotice!!))
+            val notice = "$warning No eligible fallback profile remains."
+            failoverNotice = notice
+            store.setFailoverState(false, notice)
+            VpnRuntimeState.updateNetworkWarning(notice)
+            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
             return
         }
         attemptedFailoverProfiles += next.id
         store.setConnectionProfile(next.id)
-        failoverNotice = "Failover active: switched to ${next.displayName}. Location and exit IP may have changed."
-        store.setFailoverState(true, failoverNotice)
-        VpnRuntimeState.updateNetworkWarning(failoverNotice)
+        val notice = "Failover active: switched to ${next.displayName}. Location and exit IP may have changed."
+        failoverNotice = notice
+        store.setFailoverState(true, notice)
+        VpnRuntimeState.updateNetworkWarning(notice)
         VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, next.id)
         if (tunnel != null) stopTunnel(removeForeground = false)
-        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(failoverNotice!!))
+        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
     }
 
     private fun handleRuntimeDiagnostic(profileId: String, detail: String) {

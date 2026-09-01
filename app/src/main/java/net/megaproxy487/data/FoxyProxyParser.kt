@@ -12,6 +12,9 @@ object FoxyProxyParser {
         val data = root.optJSONArray("data")
             ?: error("The FoxyProxy configuration has no data array")
         require(data.length() > 0) { "The FoxyProxy proxy list is empty" }
+        require(data.length() <= MAX_IMPORTED_PROFILES) {
+            "The FoxyProxy configuration contains more than $MAX_IMPORTED_PROFILES entries"
+        }
 
         var skippedNonHttps = 0
         val proxies = buildList {
@@ -33,8 +36,8 @@ object FoxyProxyParser {
     }
 
     private fun parseProxy(item: JSONObject, position: Int): ImportedProxy? {
-        val host = item.optString("hostname").trim().ifEmpty {
-            item.optString("address").trim()
+        val host = item.limitedString("hostname", 253).trim().ifEmpty {
+            item.limitedString("address", 253).trim()
         }
         require(host.isNotEmpty() && !host.contains(Regex("[/:\\s]"))) {
             "FoxyProxy entry $position has an invalid hostname"
@@ -47,14 +50,18 @@ object FoxyProxyParser {
         val countryCode = item.optString("cc").trim().uppercase()
             .takeIf { it.matches(Regex("[A-Z]{2}")) }.orEmpty()
         return ImportedProxy(
-            name = item.optString("title").trim(),
+            name = item.limitedString("title", 256).trim(),
             countryCode = countryCode,
             config = ProxyConfig(
                 host = host,
                 port = port,
-                username = item.optString("username"),
-                password = item.optString("password"),
+                username = item.limitedString("username", 4_096),
+                password = item.limitedString("password", 16_384),
             ),
         )
+    }
+
+    private fun JSONObject.limitedString(name: String, maxLength: Int): String = optString(name).also {
+        require(it.length <= maxLength) { "$name is too long" }
     }
 }

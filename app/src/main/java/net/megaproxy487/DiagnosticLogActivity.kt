@@ -38,6 +38,7 @@ import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
@@ -48,6 +49,7 @@ import androidx.lifecycle.repeatOnLifecycle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.launch
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 
@@ -65,6 +67,7 @@ private fun DiagnosticLogScreen(activity: Activity) {
     val store = remember { ConfigStore(activity) }
     val listState = rememberLazyListState()
     val lifecycleOwner = LocalLifecycleOwner.current
+    val scope = rememberCoroutineScope()
     var lines by remember { mutableStateOf(emptyList<String>()) }
     var autoScroll by remember { mutableStateOf(true) }
     var limitText by remember { mutableStateOf(store.diagnosticLogLimitMb().toString()) }
@@ -78,12 +81,16 @@ private fun DiagnosticLogScreen(activity: Activity) {
 
     val exportDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
         if (uri != null) {
-            runCatching {
-                activity.contentResolver.openOutputStream(uri, "wt")?.buffered()?.use {
-                    PersistentDiagnosticLog.copyTo(it)
-                } ?: error("Could not open the export file")
-            }.onSuccess { message = "Diagnostic log exported." }
-                .onFailure { message = it.message ?: "Could not export the diagnostic log" }
+            scope.launch {
+                runCatching {
+                    withContext(Dispatchers.IO) {
+                        activity.contentResolver.openOutputStream(uri, "wt")?.buffered()?.use {
+                            PersistentDiagnosticLog.copyTo(it)
+                        } ?: error("Could not open the export file")
+                    }
+                }.onSuccess { message = "Diagnostic log exported." }
+                    .onFailure { message = it.message ?: "Could not export the diagnostic log" }
+            }
         }
     }
 

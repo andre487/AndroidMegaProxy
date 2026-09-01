@@ -5,11 +5,13 @@ import android.os.Looper
 import androidx.compose.runtime.mutableStateListOf
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
+import java.util.concurrent.atomic.AtomicInteger
 
 object DiagnosticLog {
     private const val MAX_ENTRIES = 200
     private val timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val pendingUiUpdates = AtomicInteger(0)
 
     val entries = mutableStateListOf<String>()
 
@@ -20,12 +22,19 @@ object DiagnosticLog {
             entries.add("${LocalTime.now().format(timeFormat)}  $safeMessage")
             while (entries.size > MAX_ENTRIES) entries.removeAt(0)
         }
-        if (Looper.myLooper() == Looper.getMainLooper()) append() else mainHandler.post(append)
+        if (Looper.myLooper() == Looper.getMainLooper()) append()
+        else if (pendingUiUpdates.incrementAndGet() <= MAX_PENDING_UI_UPDATES) {
+            mainHandler.post {
+                try { append() } finally { pendingUiUpdates.decrementAndGet() }
+            }
+        } else pendingUiUpdates.decrementAndGet()
     }
 
     fun clear() {
         if (Looper.myLooper() == Looper.getMainLooper()) entries.clear() else mainHandler.post { entries.clear() }
     }
+
+    private const val MAX_PENDING_UI_UPDATES = 512
 }
 
 enum class TestState { IDLE, RUNNING, SUCCEEDED, FAILED }
@@ -34,6 +43,7 @@ object TestDiagnosticLog {
     private const val MAX_ENTRIES = 300
     private val timeFormat = DateTimeFormatter.ofPattern("HH:mm:ss.SSS")
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val pendingUiUpdates = AtomicInteger(0)
     val entries = mutableStateListOf<String>()
     private val mutableState = androidx.compose.runtime.mutableStateOf(TestState.IDLE)
     private val mutableExitIp = androidx.compose.runtime.mutableStateOf<String?>(null)
@@ -41,7 +51,12 @@ object TestDiagnosticLog {
     val exitIp: androidx.compose.runtime.State<String?> = mutableExitIp
 
     private fun onMain(action: () -> Unit) {
-        if (Looper.myLooper() == Looper.getMainLooper()) action() else mainHandler.post(action)
+        if (Looper.myLooper() == Looper.getMainLooper()) action()
+        else if (pendingUiUpdates.incrementAndGet() <= MAX_PENDING_UI_UPDATES) {
+            mainHandler.post {
+                try { action() } finally { pendingUiUpdates.decrementAndGet() }
+            }
+        } else pendingUiUpdates.decrementAndGet()
     }
 
     fun reset() = onMain {
@@ -74,4 +89,6 @@ object TestDiagnosticLog {
         if (message != null) add(message)
         mutableState.value = TestState.FAILED
     }
+
+    private const val MAX_PENDING_UI_UPDATES = 512
 }

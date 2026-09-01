@@ -74,6 +74,7 @@ import net.megaproxy487.data.FoxyProxyParser
 import net.megaproxy487.data.PortableConfiguration
 import net.megaproxy487.data.ProxyListParser
 import net.megaproxy487.data.SuperProxyParser
+import net.megaproxy487.data.readConfigText
 import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.ProxyType
@@ -161,7 +162,7 @@ private fun SettingsScreen(activity: Activity) {
     val importDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) {
             runCatching {
-                val text = activity.contentResolver.openInputStream(uri)?.bufferedReader()?.use { it.readText() }
+                val text = activity.contentResolver.openInputStream(uri)?.buffered()?.use { it.readConfigText() }
                     ?: error("Could not read the selected file")
                 val isJson = activity.contentResolver.getType(uri) == "application/json" ||
                     uri.lastPathSegment.orEmpty().substringAfterLast('.', "").equals("json", true) ||

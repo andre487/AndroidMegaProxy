@@ -88,6 +88,7 @@ object ConfigTransfer {
         val version = root.optInt("version", 0)
         require(version in 1..SCHEMA_VERSION) { "Unsupported MegaProxy configuration version: $version" }
         val array = root.optJSONArray("profiles") ?: error("The configuration has no profiles")
+        require(array.length() <= MAX_IMPORTED_PROFILES) { "The configuration contains more than $MAX_IMPORTED_PROFILES profiles" }
         val decoded = (0 until array.length()).map { index ->
             runCatching { decodeProfile(array.getJSONObject(index), index) }
         }
@@ -118,8 +119,10 @@ object ConfigTransfer {
         val failover = root.optJSONObject("failover") ?: JSONObject()
         val parsedTls = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT)
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
+            require(array.length() <= MAX_IMPORTED_PACKAGES) { "The configuration contains too many application package names" }
             (0 until array.length()).mapNotNull { index ->
-                array.optString(index).trim().takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
+                array.optString(index).takeIf { it.length <= 256 }?.trim()
+                    ?.takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
             }.toSet()
         }.orEmpty()
         return GlobalConnectionSettings(
@@ -132,9 +135,12 @@ object ConfigTransfer {
             sshRotationMb = ssh.optInt("rotationMb", 0).coerceIn(0, 10240),
             failoverMode = enumValue(failover.optString("mode"), FailoverMode.DISABLED),
             failoverProfileIds = failover.optJSONArray("profileIds")?.let { array ->
-                (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }
+                require(array.length() <= MAX_IMPORTED_PROFILES) { "The configuration contains too many failover profile IDs" }
+                (0 until array.length()).mapNotNull {
+                    array.optString(it).takeIf { id -> id.isNotBlank() && id.length <= 256 }
+                }
             }.orEmpty(),
-            customJa3 = tls.optString("customJa3"),
+            customJa3 = tls.limitedString("customJa3", 64 * 1024),
             selectedPackages = packages,
             routeAllApps = routing.optBoolean("routeAllApps", true),
             bypassLocalNetworks = routing.optBoolean("bypassLocalNetworks", true),
@@ -191,47 +197,55 @@ object ConfigTransfer {
         val tls = item.optJSONObject("tls") ?: JSONObject()
         val dns = item.optJSONObject("dns") ?: JSONObject()
         val routing = item.optJSONObject("routing") ?: JSONObject()
-        val host = proxy.optString("host").trim()
+        val host = proxy.limitedString("host", 253).trim()
         require(host.isNotEmpty() && !host.contains(Regex("[/:\\s]")))
+        val jump = proxy.optJSONObject("jump")
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
+            require(array.length() <= MAX_IMPORTED_PACKAGES) { "A profile contains too many application package names" }
             (0 until array.length()).mapNotNull { packageIndex ->
-                array.optString(packageIndex).trim().takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
+                array.optString(packageIndex).takeIf { it.length <= 256 }?.trim()
+                    ?.takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
             }.toSet()
         }.orEmpty()
         return ProxyProfile(
-            id = item.optString("id").ifBlank { "import-$index" },
-            name = item.optString("name").trim(),
+            id = item.limitedString("id", 256).ifBlank { "import-$index" },
+            name = item.limitedString("name", 256).trim(),
             colorIndex = item.optInt("color", index),
-            countryCode = item.optString("countryCode").uppercase().takeIf { it.matches(Regex("[A-Z]{2}")) }.orEmpty(),
+            countryCode = item.limitedString("countryCode", 2).uppercase()
+                .takeIf { it.matches(Regex("[A-Z]{2}")) }.orEmpty(),
             config = ProxyConfig(
                 type = enumValue(proxy.optString("type"), ProxyType.HTTPS),
                 host = host,
                 port = proxy.optInt("port", 443).takeIf { it in 1..65535 } ?: 443,
-                username = proxy.optString("username"),
-                password = proxy.optString("password"),
-                privateKey = proxy.optString("privateKey"),
+                username = proxy.limitedString("username", 4_096),
+                password = proxy.limitedString("password", 16_384),
+                privateKey = proxy.limitedString("privateKey", 64 * 1024),
                 sshProfile = enumValue(proxy.optString("sshProfile"), SshProfile.DEFAULT),
-                trustedHostKey = proxy.optString("trustedHostKey"),
+                trustedHostKey = proxy.limitedString("trustedHostKey", 256),
                 acceptAnyHostKey = proxy.optBoolean("acceptAnyHostKey", false),
-                jumpHost = proxy.optJSONObject("jump")?.optString("host").orEmpty(),
-                jumpPort = proxy.optJSONObject("jump")?.optInt("port", 22) ?: 22,
-                sameJumpAuthentication = proxy.optJSONObject("jump")?.optBoolean("sameAuthentication", true) ?: true,
-                jumpUsername = proxy.optJSONObject("jump")?.optString("username").orEmpty(),
-                jumpPassword = proxy.optJSONObject("jump")?.optString("password").orEmpty(),
-                jumpPrivateKey = proxy.optJSONObject("jump")?.optString("privateKey").orEmpty(),
-                jumpTrustedHostKey = proxy.optJSONObject("jump")?.optString("trustedHostKey").orEmpty(),
-                jumpAcceptAnyHostKey = proxy.optJSONObject("jump")?.optBoolean("acceptAnyHostKey", false) ?: false,
+                jumpHost = jump?.limitedString("host", 253).orEmpty(),
+                jumpPort = jump?.optInt("port", 22) ?: 22,
+                sameJumpAuthentication = jump?.optBoolean("sameAuthentication", true) ?: true,
+                jumpUsername = jump?.limitedString("username", 4_096).orEmpty(),
+                jumpPassword = jump?.limitedString("password", 16_384).orEmpty(),
+                jumpPrivateKey = jump?.limitedString("privateKey", 64 * 1024).orEmpty(),
+                jumpTrustedHostKey = jump?.limitedString("trustedHostKey", 256).orEmpty(),
+                jumpAcceptAnyHostKey = jump?.optBoolean("acceptAnyHostKey", false) ?: false,
                 allowInvalidProxyCertificate = proxy.optBoolean("allowInvalidProxyCertificate", false),
                 profile = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT),
-                customJa3 = tls.optString("customJa3"),
+                customJa3 = tls.limitedString("customJa3", 64 * 1024),
                 dnsProvider = enumValue(dns.optString("provider"), DnsProvider.CLOUDFLARE),
-                customDohUrl = dns.optString("customDohUrl"),
+                customDohUrl = dns.limitedString("customDohUrl", 2_048),
                 selectedPackages = packages,
                 allowIpv6 = routing.optBoolean("allowIpv6", false),
                 routeAllApps = routing.optBoolean("routeAllApps", false),
                 bypassLocalNetworks = routing.optBoolean("bypassLocalNetworks", true),
             ),
         )
+    }
+
+    private fun JSONObject.limitedString(name: String, maxLength: Int): String = optString(name).also {
+        require(it.length <= maxLength) { "$name is too long" }
     }
 
     private inline fun <reified T : Enum<T>> enumValue(value: String, default: T): T =

@@ -30,6 +30,8 @@ type httpsConnectDialer struct {
 	cacheMu      sync.Mutex
 	sessionCache tls.ClientSessionCache
 	dohClient    *http.Client
+	dohInFlight  chan struct{}
+	connections  chan struct{}
 }
 
 func (d *httpsConnectDialer) Close() error {
@@ -43,7 +45,23 @@ func (d *httpsConnectDialer) Close() error {
 }
 
 func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
-	return d.connectTarget(ctx, metadata.DestinationAddress())
+	d.cacheMu.Lock()
+	if d.connections == nil {
+		d.connections = make(chan struct{}, 256)
+	}
+	connections := d.connections
+	d.cacheMu.Unlock()
+	select {
+	case connections <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	connection, err := d.connectTarget(ctx, metadata.DestinationAddress())
+	if err != nil {
+		<-connections
+		return nil, err
+	}
+	return &slotConn{Conn: connection, release: func() { <-connections }}, nil
 }
 
 func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (net.Conn, error) {
@@ -109,7 +127,10 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		}
 	}
 	tlsStarted := time.Now()
-	if err := uconn.HandshakeContext(ctx); err != nil {
+	handshakeContext, cancelHandshake := context.WithTimeout(ctx, 15*time.Second)
+	err = uconn.HandshakeContext(handshakeContext)
+	cancelHandshake()
+	if err != nil {
 		recordConnectionOutcome(false)
 		reason := errorClass(err)
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=tls_handshake result=failed reason=%s elapsed_ms=%d dpi_hint=%s fingerprint=%s", connectionID, reason, time.Since(tlsStarted).Milliseconds(), tlsInterferenceHint(reason), d.config.Profile)
@@ -133,7 +154,9 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_write result=failed reason=%s", connectionID, errorClass(err))
 		return nil, err
 	}
-	reader := bufio.NewReader(uconn)
+	// A peer-controlled CONNECT header must not be allowed to grow the process heap
+	// without bound. Any tunneled bytes already buffered after the header are retained.
+	reader := bufio.NewReader(&limitedHeaderReader{reader: uconn, remaining: 64 * 1024})
 	response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
 	if err != nil {
 		recordConnectionOutcome(false)
@@ -209,9 +232,13 @@ func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, erro
 	if d.dohClient == nil {
 		d.dohClient = newDoHHTTPClient(d.connectTarget)
 	}
+	if d.dohInFlight == nil {
+		d.dohInFlight = make(chan struct{}, 8)
+	}
 	client := d.dohClient
+	limiter := d.dohInFlight
 	d.cacheMu.Unlock()
-	return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client), nil
+	return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter), nil
 }
 
 type bufferedConn struct {
@@ -221,12 +248,53 @@ type bufferedConn struct {
 
 func (c *bufferedConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
 
+type limitedHeaderReader struct {
+	reader    io.Reader
+	remaining int
+	window    uint32
+	done      bool
+}
+
+func (r *limitedHeaderReader) Read(p []byte) (int, error) {
+	if r.done {
+		return r.reader.Read(p)
+	}
+	if r.remaining <= 0 {
+		return 0, errors.New("proxy CONNECT response headers exceed 64 KB")
+	}
+	if len(p) > r.remaining {
+		p = p[:r.remaining]
+	}
+	n, err := r.reader.Read(p)
+	r.remaining -= n
+	for _, value := range p[:n] {
+		r.window = r.window<<8 | uint32(value)
+		if r.window == 0x0d0a0d0a {
+			r.done = true
+			break
+		}
+	}
+	return n, err
+}
+
 type diagnosticConn struct {
 	net.Conn
 	connectionID uint64
 	reporter     Reporter
 	once         sync.Once
 	transferred  atomic.Uint64
+}
+
+type slotConn struct {
+	net.Conn
+	release func()
+	once    sync.Once
+}
+
+func (c *slotConn) Close() error {
+	err := c.Conn.Close()
+	c.once.Do(c.release)
+	return err
 }
 
 func (c *diagnosticConn) reportError(operation string, err error) {

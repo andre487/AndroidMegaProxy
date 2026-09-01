@@ -38,8 +38,9 @@ func ResolveProxy(host string, protector Protector, reporter Reporter) (string, 
 		},
 	}
 	transport := &http.Transport{
-		Proxy:               nil,
-		TLSHandshakeTimeout: 10 * time.Second,
+		Proxy:                  nil,
+		TLSHandshakeTimeout:    10 * time.Second,
+		MaxResponseHeaderBytes: 64 * 1024,
 		DialContext: func(ctx context.Context, _, _ string) (net.Conn, error) {
 			return dialer.DialContext(ctx, "tcp", bootstrapDoHIP)
 		},

@@ -7,7 +7,9 @@ import java.io.OutputStream
 import java.io.RandomAccessFile
 import java.time.Instant
 import java.util.UUID
-import java.util.concurrent.Executors
+import java.util.concurrent.ArrayBlockingQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 object PersistentDiagnosticLog {
     const val DEFAULT_LIMIT_MB = 3
@@ -16,9 +18,13 @@ object PersistentDiagnosticLog {
 
     private const val CURRENT_FILE = "diagnostic.log"
     private const val PREVIOUS_FILE = "diagnostic.1.log"
-    private val executor = Executors.newSingleThreadExecutor { task ->
-        Thread(task, "megaproxy-diagnostic-log").apply { isDaemon = true }
-    }
+    // Native networking can emit diagnostics faster than flash storage can append them.
+    // Keep memory bounded under an error storm; oldest pending diagnostics are expendable.
+    private val executor = ThreadPoolExecutor(
+        1, 1, 0L, TimeUnit.MILLISECONDS, ArrayBlockingQueue(2_048),
+        { task -> Thread(task, "megaproxy-diagnostic-log").apply { isDaemon = true } },
+        ThreadPoolExecutor.DiscardOldestPolicy(),
+    )
     private val lock = Any()
     private val sessionId = UUID.randomUUID().toString().take(8)
     @Volatile private var directory: File? = null
@@ -97,15 +103,15 @@ object PersistentDiagnosticLog {
     }
 
     fun copyTo(output: OutputStream) {
-        executor.submit {
-            synchronized(lock) {
-                val logDirectory = directory ?: return@synchronized
-                listOf(PREVIOUS_FILE, CURRENT_FILE).forEach { name ->
-                    val file = File(logDirectory, name)
-                    if (file.isFile) file.inputStream().buffered().use { it.copyTo(output) }
-                }
+        // A bounded logger queue may discard diagnostics, but an export must never lose
+        // its task and then wait forever on a discarded Future.
+        synchronized(lock) {
+            val logDirectory = directory ?: return
+            listOf(PREVIOUS_FILE, CURRENT_FILE).forEach { name ->
+                val file = File(logDirectory, name)
+                if (file.isFile) file.inputStream().buffered().use { it.copyTo(output) }
             }
-        }.get()
+        }
     }
 
     fun clear() {
@@ -182,7 +188,7 @@ object PrivacyLogSanitizer {
     private val privatePath = Regex("(?i)/(?:data|storage|sdcard|mnt)/[^\\s]+")
     private val packageName = Regex("(?<![A-Za-z0-9_])(?:[a-z][a-z0-9_]*\\.){2,}[a-zA-Z0-9_]+")
 
-    fun sanitize(message: String): String = message
+    fun sanitize(message: String): String = message.take(16_000)
         .replace(credentials) { "${it.groupValues[1]}=[redacted]" }
         .replace(email, "[email]")
         .replace(url, "[url]")

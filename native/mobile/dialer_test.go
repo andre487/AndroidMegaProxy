@@ -1,6 +1,10 @@
 package mobile
 
-import "testing"
+import (
+	"bytes"
+	"io"
+	"testing"
+)
 
 func TestLocalNetworkTargets(t *testing.T) {
 	local := []string{
@@ -16,6 +20,27 @@ func TestLocalNetworkTargets(t *testing.T) {
 		if !isLocalNetworkTarget(target) {
 			t.Errorf("expected local target: %s", target)
 		}
+	}
+}
+
+func TestLimitedHeaderReaderRejectsOversizedHeaders(t *testing.T) {
+	raw := bytes.Repeat([]byte{'x'}, 32)
+	reader := &limitedHeaderReader{reader: bytes.NewReader(raw), remaining: 16}
+	if _, err := io.ReadAll(reader); err == nil {
+		t.Fatal("expected oversized CONNECT headers to fail")
+	}
+}
+
+func TestLimitedHeaderReaderBecomesUnlimitedAfterHeaders(t *testing.T) {
+	body := bytes.Repeat([]byte{'b'}, 128)
+	raw := append([]byte("HTTP/1.1 200 OK\r\n\r\n"), body...)
+	reader := &limitedHeaderReader{reader: bytes.NewReader(raw), remaining: 64}
+	got, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, raw) {
+		t.Fatalf("unexpected data length: got %d, want %d", len(got), len(raw))
 	}
 }
 
