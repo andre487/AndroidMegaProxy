@@ -21,7 +21,10 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -31,7 +34,6 @@ import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -106,20 +108,22 @@ private fun SettingsHomeScreen(activity: Activity) {
     }
 
     SettingsScaffold(activity, "Settings") {
-        SettingsButton("Profiles") { activity.startActivity(Intent(activity, ProfilesActivity::class.java)) }
-        SettingsButton("Always-on VPN") { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
-        SettingsButton("Fingerprints") { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
-        SettingsButton("Split tunneling") { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
-        SettingsButton("Failover") { activity.startActivity(Intent(activity, FailoverSettingsActivity::class.java)) }
-        SettingsButton("Visibility") { activity.startActivity(Intent(activity, VisibilityActivity::class.java)) }
+        Text("Connection", style = MaterialTheme.typography.titleMedium)
+        SettingsButton("Profiles", "Proxy servers, credentials, DNS and IPv6") { activity.startActivity(Intent(activity, ProfilesActivity::class.java)) }
+        SettingsButton("Always-on VPN", "Startup profile and Android VPN controls") { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
+        SettingsButton("Fingerprints", "HTTPS JA3 and SSH client behavior") { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
+        SettingsButton("Split tunneling", "Choose global or per-app routing") { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
+        SettingsButton("Failover", "Fallback profiles when blocking is suspected") { activity.startActivity(Intent(activity, FailoverSettingsActivity::class.java)) }
+        Text("Diagnostics", style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
+        SettingsButton("Visibility", "Check what applications can detect") { activity.startActivity(Intent(activity, VisibilityActivity::class.java)) }
         if (!batteryOptimizationDisabled) {
-            SettingsButton("Battery settings") {
+            SettingsButton("Battery settings", "Allow reliable background VPN operation") {
                 activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
                     data = Uri.parse("package:${activity.packageName}")
                 })
             }
         }
-        SettingsButton("Diagnostic log") { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) }
+        SettingsButton("Diagnostic log", "Inspect, export or clear privacy-filtered events") { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) }
     }
 }
 
@@ -194,7 +198,7 @@ private fun AlwaysOnSettingsScreen(activity: Activity) {
     val store = remember { ConfigStore(activity) }
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(store.alwaysOnProfile()) }
-    var showDeferredNotice by remember { mutableStateOf(false) }
+    val alwaysOnActive = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
     SettingsScaffold(activity, "Always-on VPN") {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
@@ -209,23 +213,20 @@ private fun AlwaysOnSettingsScreen(activity: Activity) {
                         selected = profile
                         store.setAlwaysOnProfile(profile.id)
                         expanded = false
-                        if (ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning) showDeferredNotice = true
+                        if (alwaysOnActive && ProxyVpnService.isRunning) {
+                            ProxyVpnService.switchProfile(activity, profile.id, true)
+                        }
                     })
                 }
             }
         }
         Text("This profile is used when Android starts MegaProxy as an Always-on VPN.", style = MaterialTheme.typography.bodySmall)
+        if (alwaysOnActive) {
+            Text("Always-on is active. Selecting another profile reconnects immediately.", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+        }
         SettingsButton("Open Android Always-on VPN settings") {
             activity.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
         }
-    }
-    if (showDeferredNotice) {
-        AlertDialog(
-            onDismissRequest = { showDeferredNotice = false },
-            title = { Text("Profile saved") },
-            text = { Text("The new Always-on profile will be used the next time the VPN connects.") },
-            confirmButton = { TextButton(onClick = { showDeferredNotice = false }) { Text("OK") } },
-        )
     }
 }
 
@@ -282,7 +283,7 @@ private fun TlsFingerprintScreen(activity: Activity) {
         if (settings.tlsProfile == TlsProfile.CUSTOM) {
             OutlinedTextField(
                 settings.customJa3,
-                { if (it.length <= 64 * 1024) save(customJa3 = it) },
+                { if (it.length <= 8 * 1024) save(customJa3 = it) },
                 label = { Text("JA3: version,ciphers,extensions,groups,points") },
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth(),
@@ -333,24 +334,30 @@ private fun TlsFingerprintScreen(activity: Activity) {
             saveSettings(settings.copy(sshRotationMb = it))
         }
         Text("The SSH profile controls the client banner and preferred KEX, cipher and MAC ordering.", style = MaterialTheme.typography.bodySmall)
+        if (showReconnectPrompt) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text("Reconnect to apply these changes to the active VPN.")
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                        TextButton(onClick = { showReconnectPrompt = false; deferred = true }) { Text("Next connection") }
+                        TextButton(onClick = {
+                            showReconnectPrompt = false
+                            deferred = true
+                            ProxyVpnService.reconnect(activity)
+                        }) { Text("Reconnect now") }
+                    }
+                }
+            }
+        }
+        if (showAlwaysOnNotice) {
+            Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Always-on is active. Changes apply on the next connection.", modifier = Modifier.weight(1f))
+                    TextButton(onClick = { showAlwaysOnNotice = false }) { Text("Dismiss") }
+                }
+            }
+        }
         Text("Changes are saved automatically and apply to every profile.", style = MaterialTheme.typography.bodySmall)
-    }
-    if (showReconnectPrompt) {
-        AlertDialog(
-            onDismissRequest = { showReconnectPrompt = false; deferred = true },
-            title = { Text("Apply fingerprint change?") },
-            text = { Text("Reconnect now to apply the new HTTPS or SSH fingerprint, or apply it the next time the VPN connects.") },
-            confirmButton = { TextButton(onClick = { showReconnectPrompt = false; ProxyVpnService.reconnect(activity) }) { Text("Reconnect now") } },
-            dismissButton = { TextButton(onClick = { showReconnectPrompt = false; deferred = true }) { Text("Next connection") } },
-        )
-    }
-    if (showAlwaysOnNotice) {
-        AlertDialog(
-            onDismissRequest = { showAlwaysOnNotice = false },
-            title = { Text("Fingerprint saved") },
-            text = { Text("Always-on VPN is managed by Android. The new HTTPS or SSH fingerprint will be applied the next time the VPN connects.") },
-            confirmButton = { TextButton(onClick = { showAlwaysOnNotice = false }) { Text("OK") } },
-        )
     }
 }
 
@@ -401,6 +408,19 @@ private fun SettingsScaffold(activity: Activity, title: String, content: @Compos
 }
 
 @Composable
-private fun SettingsButton(label: String, onClick: () -> Unit) {
-    OutlinedButton(onClick = onClick, modifier = Modifier.fillMaxWidth()) { Text(label) }
+private fun SettingsButton(label: String, description: String? = null, onClick: () -> Unit) {
+    Card(onClick = onClick, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text(label, style = MaterialTheme.typography.titleSmall)
+                description?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+            Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = null)
+        }
+    }
 }

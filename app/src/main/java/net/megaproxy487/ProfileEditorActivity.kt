@@ -18,6 +18,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -257,6 +259,32 @@ private fun ProfileEditorScreen(activity: Activity) {
             }
             if (config.dnsProvider == DnsProvider.CUSTOM) OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } }, label = { Text("Custom DoH URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            if (showReconnectPrompt) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text("Reconnect to apply these changes to the active VPN.", style = MaterialTheme.typography.bodyMedium)
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = {
+                                showReconnectPrompt = false
+                                connectionChangeDeferred = true
+                            }) { Text("Next connection") }
+                            TextButton(onClick = {
+                                showReconnectPrompt = false
+                                connectionChangeDeferred = true
+                                ProxyVpnService.reconnect(activity)
+                            }) { Text("Reconnect now") }
+                        }
+                    }
+                }
+            }
+            if (showAlwaysOnNotice) {
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
+                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
+                        Text("Always-on is active. Changes apply on the next connection.", modifier = Modifier.weight(1f))
+                        TextButton(onClick = { showAlwaysOnNotice = false }) { Text("Dismiss") }
+                    }
+                }
+            }
             Text("Changes are saved automatically.", style = MaterialTheme.typography.bodySmall)
         }
     }
@@ -282,17 +310,4 @@ private fun ProfileEditorScreen(activity: Activity) {
             dismissButton = { TextButton(onClick = { unsafeHostKeyHop = null }) { Text("Cancel") } },
         )
     }
-    if (showReconnectPrompt) AlertDialog(
-        onDismissRequest = { showReconnectPrompt = false; connectionChangeDeferred = true },
-        title = { Text("Apply profile changes?") },
-        text = { Text("Reconnect now to apply the connection settings, or apply them the next time the VPN connects.") },
-        confirmButton = { TextButton(onClick = { showReconnectPrompt = false; ProxyVpnService.reconnect(activity) }) { Text("Reconnect now") } },
-        dismissButton = { TextButton(onClick = { showReconnectPrompt = false; connectionChangeDeferred = true }) { Text("Next connection") } },
-    )
-    if (showAlwaysOnNotice) AlertDialog(
-        onDismissRequest = { showAlwaysOnNotice = false },
-        title = { Text("Profile settings saved") },
-        text = { Text("Always-on VPN is active. The current tunnel is unchanged; these settings apply on its next connection, including a failover attempt.") },
-        confirmButton = { TextButton(onClick = { showAlwaysOnNotice = false }) { Text("OK") } },
-    )
 }

@@ -27,6 +27,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -143,6 +144,9 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
                         style = MaterialTheme.typography.titleLarge,
                         color = statusColor,
                     )
+                    if (state == TestState.RUNNING) {
+                        CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+                    }
                     exitIp?.let { Text("Proxy exit IP: $it") }
                 }
             }
@@ -151,7 +155,7 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
                 Button(onClick = {
                     val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     clipboard.setPrimaryClip(ClipData.newPlainText("MegaProxy connection test", TestDiagnosticLog.entries.joinToString("\n")))
-                }) { Text("Copy log") }
+                }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text("Copy log") }
             }
             Text(
                 "The test uses a temporary VPN when the main connection is inactive. Credentials and traffic content are not logged.",
@@ -160,7 +164,9 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
             Box(Modifier.fillMaxWidth().weight(1f)) {
                 SelectionContainer {
                     Text(
-                        TestDiagnosticLog.entries.joinToString("\n").ifEmpty { "No test events yet." },
+                        TestDiagnosticLog.entries.joinToString("\n").ifEmpty {
+                            if (state == TestState.RUNNING) "Waiting for the first diagnostic event…" else "No test events yet."
+                        },
                         style = MaterialTheme.typography.bodySmall,
                         modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
                     )

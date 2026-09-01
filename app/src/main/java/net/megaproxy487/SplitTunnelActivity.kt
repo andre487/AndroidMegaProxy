@@ -16,7 +16,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -101,6 +102,35 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                 },
             )
         },
+        bottomBar = {
+            if (showReconnectPrompt || showAlwaysOnDeferredNotice) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                ) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text(
+                            if (showAlwaysOnDeferredNotice) "Always-on is active. Routing changes apply on the next connection."
+                            else "Reconnect to apply routing changes to the active VPN.",
+                        )
+                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                            TextButton(onClick = {
+                                showReconnectPrompt = false
+                                showAlwaysOnDeferredNotice = false
+                                deferChangesUntilNextConnection = true
+                            }) { Text(if (showAlwaysOnDeferredNotice) "Dismiss" else "Next connection") }
+                            if (showReconnectPrompt) {
+                                TextButton(onClick = {
+                                    showReconnectPrompt = false
+                                    deferChangesUntilNextConnection = true
+                                    ProxyVpnService.reconnect(activity)
+                                }) { Text("Reconnect now") }
+                            }
+                        }
+                    }
+                }
+            }
+        },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
         LazyColumn(
@@ -163,39 +193,5 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
             }
             item { Text("Changes are saved automatically and apply to every profile.", style = MaterialTheme.typography.bodySmall) }
         }
-    }
-
-    if (showReconnectPrompt) {
-        AlertDialog(
-            onDismissRequest = { showReconnectPrompt = false; deferChangesUntilNextConnection = true },
-            title = { Text("Apply routing changes?") },
-            text = { Text("Reconnect now to apply the new split-tunneling settings, or apply them the next time the VPN connects.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showReconnectPrompt = false
-                    ProxyVpnService.reconnect(activity)
-                }) {
-                    Text("Reconnect now")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    showReconnectPrompt = false
-                    deferChangesUntilNextConnection = true
-                }) {
-                    Text("Next connection")
-                }
-            },
-        )
-    }
-    if (showAlwaysOnDeferredNotice) {
-        AlertDialog(
-            onDismissRequest = { showAlwaysOnDeferredNotice = false },
-            title = { Text("Routing settings saved") },
-            text = { Text("Always-on VPN is managed by Android. The new split-tunneling settings will be applied the next time the VPN connects.") },
-            confirmButton = { TextButton(onClick = {
-                showAlwaysOnDeferredNotice = false
-            }) { Text("OK") } },
-        )
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
 import androidx.compose.material3.Button
 import androidx.compose.material3.AlertDialog
@@ -241,7 +242,7 @@ private fun MainScreen(activity: Activity) {
         Column(
             Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
+            verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             val connected = connection == VpnConnectionState.CONNECTED
             val statusColor = if (connected) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
@@ -274,7 +275,7 @@ private fun MainScreen(activity: Activity) {
                     }
                 }
             }
-            Spacer(Modifier.height(24.dp))
+            Spacer(Modifier.height(4.dp))
             networkWarning?.let {
                 Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFE0B2)), modifier = Modifier.fillMaxWidth()) {
                     Text(it, color = Color(0xFF7A4300), modifier = Modifier.padding(14.dp))
@@ -288,6 +289,7 @@ private fun MainScreen(activity: Activity) {
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
             val activeProfile = profiles.firstOrNull { it.id == displayedProfileId } ?: profiles.first()
             val actualProfile = profiles.firstOrNull { it.id == runtimeProfileId }
+            val activeProfileError = store.globalConnectionSettings().applyTo(activeProfile.config).connectionValidationError()
             val profileColor = Color(ProfileColors.argb[Math.floorMod(activeProfile.colorIndex, ProfileColors.argb.size)])
             val onProfileColor = if (profileColor.luminance() > 0.45f) Color.Black else Color.White
             Box(Modifier.fillMaxWidth()) {
@@ -319,6 +321,7 @@ private fun MainScreen(activity: Activity) {
                         }
                         Text(activeProfile.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                         ProfileTypeBadge(activeProfile.config.type, onProfileColor)
+                        Icon(Icons.Filled.ArrowDropDown, contentDescription = "Select profile", tint = onProfileColor)
                     }
                     if (actualProfile != null && actualProfile.id != activeProfile.id && connection != VpnConnectionState.DISCONNECTED) {
                         Text("Connected through: ${actualProfile.displayNameWithFlag}", style = MaterialTheme.typography.bodySmall)
@@ -352,7 +355,25 @@ private fun MainScreen(activity: Activity) {
                     }
                 }
             }
-            Spacer(Modifier.height(12.dp))
+            if (connection == VpnConnectionState.DISCONNECTED && activeProfileError != null) {
+                Card(
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth().padding(14.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(activeProfileError, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer)
+                        TextButton(onClick = {
+                            activity.startActivity(Intent(activity, ProfileEditorActivity::class.java).apply {
+                                putExtra(ProfileEditorActivity.EXTRA_PROFILE_ID, activeProfile.id)
+                            })
+                        }) { Text("Configure") }
+                    }
+                }
+            }
             Button(
                 onClick = {
                     if (isAlwaysOnVpnActive(activity)) {
@@ -363,9 +384,18 @@ private fun MainScreen(activity: Activity) {
                         connect()
                     }
                 },
-                enabled = connection != VpnConnectionState.CONNECTING && !alwaysOn,
+                enabled = connection != VpnConnectionState.CONNECTING && !alwaysOn &&
+                    (connected || activeProfileError == null),
                 modifier = Modifier.fillMaxWidth(),
-            ) { Text(if (connected) "Disconnect" else "Connect") }
+            ) {
+                Text(
+                    when (connection) {
+                        VpnConnectionState.CONNECTED -> "Disconnect"
+                        VpnConnectionState.CONNECTING -> "Connecting…"
+                        VpnConnectionState.DISCONNECTED -> "Connect"
+                    },
+                )
+            }
             FilledTonalButton(
                 onClick = { activity.startActivity(Intent(activity, ConnectionTestActivity::class.java)) },
                 modifier = Modifier.fillMaxWidth(),
