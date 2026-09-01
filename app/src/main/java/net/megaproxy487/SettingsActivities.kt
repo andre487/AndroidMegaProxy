@@ -175,6 +175,12 @@ private fun SettingsHomeScreen(activity: Activity) {
             }.onFailure { supportError = activity.getString(R.string.no_browser) }
         }
         supportError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Text(
+            stringResource(R.string.version_and_commit, BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
+        )
     }
 
     if (showLanguageDialog) {

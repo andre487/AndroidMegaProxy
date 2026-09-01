@@ -8,6 +8,16 @@ val releaseKeystorePath = providers.environmentVariable("MEGAPROXY_KEYSTORE_PATH
 val releaseKeystorePassword = providers.environmentVariable("MEGAPROXY_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("MEGAPROXY_KEY_ALIAS").orNull
 val releaseKeyPassword = providers.environmentVariable("MEGAPROXY_KEY_PASSWORD").orNull
+val gitCommitHash = providers.environmentVariable("GITHUB_SHA")
+    .orElse(providers.environmentVariable("MEGAPROXY_GIT_COMMIT"))
+    .orElse(providers.exec {
+        commandLine("git", "rev-parse", "--short=8", "HEAD")
+        isIgnoreExitValue = true
+    }.standardOutput.asText)
+    .map { value ->
+        value.trim().take(8).takeIf { it.matches(Regex("[0-9a-fA-F]{7,8}")) } ?: "unknown"
+    }
+    .get()
 
 android {
     namespace = "net.megaproxy487"
@@ -19,6 +29,7 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.0.1"
+        buildConfigField("String", "GIT_COMMIT_HASH", "\"$gitCommitHash\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
@@ -46,7 +57,10 @@ android {
         }
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+        buildConfig = true
+    }
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17

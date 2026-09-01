@@ -30,6 +30,7 @@
     <string name="feedback_description">Отправить отзыв с диагностическим журналом</string>
     <string name="github_issues">GitHub Issues</string>
     <string name="github_issues_description">Сообщить об ошибке или посмотреть известные проблемы</string>
+    <string name="version_and_commit">Версия %1$s · %2$s</string>
     <string name="connect">Подключиться</string>
     <string name="disconnect">Отключиться</string>
     <string name="connecting">Подключение…</string>
@@ -42,7 +43,7 @@
     <string name="routing_mode">Режим маршрутизации</string>
     <string name="applications">Приложения</string>
     <string name="run_again">Проверить снова</string>
-    <string name="copy_log">Копировать журнал</string>
+    <string name="copy_log">Копировать</string>
     <string name="import_action">Импорт</string>
     <string name="export_action">Экспорт</string>
     <string name="changes_saved_automatically">Изменения сохраняются автоматически.</string>

@@ -31,6 +31,7 @@
     <string name="feedback_description">Send feedback and attach the diagnostic log</string>
     <string name="github_issues">GitHub issues</string>
     <string name="github_issues_description">Report a bug or follow known issues</string>
+    <string name="version_and_commit">Version %1$s · %2$s</string>
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
     <string name="connecting">Connecting…</string>
@@ -43,7 +44,7 @@
     <string name="routing_mode">Routing mode</string>
     <string name="applications">Applications</string>
     <string name="run_again">Run again</string>
-    <string name="copy_log">Copy log</string>
+    <string name="copy_log">Copy</string>
     <string name="import_action">Import</string>
     <string name="export_action">Export</string>
     <string name="changes_saved_automatically">Changes are saved automatically.</string>
