@@ -13,13 +13,13 @@ MegaProxy поддерживает Android 8.0 (API 26) и новее. Офиц�
 `universal.apk`. Это основной рекомендуемый вариант: он поддерживает все перечисленные ниже
 архитектуры и используется для независимой проверки воспроизводимой сборки в F-Droid.
 
-| Окончание имени APK | Для каких устройств |
+| APK | Для каких устройств |
 | --- | --- |
-| `universal` | Рекомендуется для телефонов, планшетов и эмуляторов; включает все поддерживаемые архитектуры |
-| `arm64-v8a` | Уменьшенный APK почти для всех современных телефонов и планшетов Android |
-| `armeabi-v7a` | Старые 32-битные устройства ARM |
-| `x86_64` | 64-битные устройства Android на x86 |
-| `x86` | Старые 32-битные устройства Android на x86 |
+| [`mega-proxy-universal.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk) | Рекомендуется для телефонов, планшетов и эмуляторов; включает все поддерживаемые архитектуры |
+| [`mega-proxy-arm64-v8a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-arm64-v8a.apk) | Уменьшенный APK почти для всех современных телефонов и планшетов Android |
+| [`mega-proxy-armeabi-v7a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-armeabi-v7a.apk) | Старые 32-битные устройства ARM |
+| [`mega-proxy-x86_64.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86_64.apk) | 64-битные устройства Android на x86 |
+| [`mega-proxy-x86.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86.apk) | Старые 32-битные устройства Android на x86 |
 
 APK для конкретной архитектуры меньше по размеру, но его стоит выбирать только когда архитектура
 устройства точно известна.

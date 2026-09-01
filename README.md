@@ -109,13 +109,13 @@ verified for F-Droid distribution.
 
 **[Download the recommended universal APK](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**
 
-| APK suffix | Intended device |
+| APK | Intended device |
 | --- | --- |
-| `universal` | Recommended for phones, tablets, and emulators; supports all listed architectures |
-| `arm64-v8a` | Smaller download for almost all modern Android phones and tablets |
-| `armeabi-v7a` | Older 32-bit ARM devices |
-| `x86_64` | 64-bit x86 Android emulators and uncommon x86 devices |
-| `x86` | Older 32-bit x86 Android emulators and devices |
+| [`mega-proxy-universal.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk) | Recommended for phones, tablets, and emulators; supports all listed architectures |
+| [`mega-proxy-arm64-v8a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-arm64-v8a.apk) | Smaller download for almost all modern Android phones and tablets |
+| [`mega-proxy-armeabi-v7a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-armeabi-v7a.apk) | Older 32-bit ARM devices |
+| [`mega-proxy-x86_64.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86_64.apk) | 64-bit x86 Android emulators and uncommon x86 devices |
+| [`mega-proxy-x86.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86.apk) | Older 32-bit x86 Android emulators and devices |
 
 ### Install a release APK on the device
 

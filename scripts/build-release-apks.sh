@@ -65,7 +65,7 @@ fi
 mkdir -p "$MEGAPROXY_RELEASE_DIR" "$project_dir/app/libs"
 # Avoid carrying artifacts from an older version into SHA256SUMS or a release.
 find "$MEGAPROXY_RELEASE_DIR" -maxdepth 1 -type f \
-    \( -name 'mega-proxy-v*.apk' -o -name mega-proxy-universal.apk -o -name SHA256SUMS \) -delete
+    \( -name 'mega-proxy-*.apk' -o -name SHA256SUMS \) -delete
 apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
 if [[ ! -x "$apksigner" ]]; then
     echo "Android apksigner 34.0.0 is unavailable: $apksigner" >&2
@@ -148,7 +148,7 @@ echo "Running Android unit tests"
 for target in "${targets[@]}"; do
     go_arch="${target%%:*}"
     android_abi="${target##*:}"
-    output_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-v${version_name}-${android_abi}.apk"
+    output_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-${android_abi}.apk"
 
     if [[ "$android_abi" == "$first_android_abi" ]]; then
         echo "Reusing initial native AAR for $android_abi"
