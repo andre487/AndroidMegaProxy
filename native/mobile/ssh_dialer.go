@@ -101,7 +101,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("dial jump host: %w", err)
 		}
-		jump, err := newSSHClient(raw, d.config.JumpHost, d.config.JumpUsername, d.config.JumpPassword, d.config.JumpPrivateKey, d.config.JumpTrustedHostKey, d.config.JumpAcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "jump", d.reporter)
+		jump, err := newSSHClient(ctx, raw, d.config.JumpHost, d.config.JumpUsername, d.config.JumpPassword, d.config.JumpPrivateKey, d.config.JumpTrustedHostKey, d.config.JumpAcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "jump", d.reporter)
 		if err != nil {
 			raw.Close()
 			return nil, err
@@ -111,7 +111,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 			jump.Close()
 			return nil, fmt.Errorf("jump host could not reach destination SSH host: %w", err)
 		}
-		client, err := newSSHClient(nested, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
+		client, err := newSSHClient(ctx, nested, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
 		if err != nil {
 			nested.Close()
 			jump.Close()
@@ -123,7 +123,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("dial SSH host: %w", err)
 		}
-		client, err := newSSHClient(raw, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
+		client, err := newSSHClient(ctx, raw, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
 		if err != nil {
 			raw.Close()
 			return nil, err
@@ -137,23 +137,41 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 	return d.client, nil
 }
 
-func newSSHClient(conn net.Conn, hostname, username, password, privateKey, trusted string, acceptAny bool, profile, authMode, hop string, reporter Reporter) (*ssh.Client, error) {
+func newSSHClient(ctx context.Context, conn net.Conn, hostname, username, password, privateKey, trusted string, acceptAny bool, profile, authMode, hop string, reporter Reporter) (*ssh.Client, error) {
 	auth, err := sshAuthMethods(privateKey, password, authMode)
 	if err != nil {
 		return nil, err
 	}
 	cfg := &ssh.ClientConfig{User: username, Auth: auth, HostKeyCallback: hostKeyCallback(trusted, acceptAny, hop), Timeout: 20 * time.Second}
 	applySSHProfile(cfg, profile)
-	if err := conn.SetDeadline(time.Now().Add(20 * time.Second)); err != nil {
-		return nil, fmt.Errorf("set SSH %s handshake deadline: %w", hop, err)
+	type handshakeResult struct {
+		conn     ssh.Conn
+		channels <-chan ssh.NewChannel
+		requests <-chan *ssh.Request
+		err      error
 	}
-	cc, channels, requests, err := ssh.NewClientConn(conn, net.JoinHostPort(hostname, "22"), cfg)
+	result := make(chan handshakeResult, 1)
+	go func() {
+		cc, channels, requests, err := ssh.NewClientConn(conn, net.JoinHostPort(hostname, "22"), cfg)
+		result <- handshakeResult{conn: cc, channels: channels, requests: requests, err: err}
+	}()
+	timer := time.NewTimer(20 * time.Second)
+	defer timer.Stop()
+	var handshake handshakeResult
+	select {
+	case handshake = <-result:
+	case <-ctx.Done():
+		conn.Close()
+		<-result
+		return nil, fmt.Errorf("SSH %s handshake: %w", hop, ctx.Err())
+	case <-timer.C:
+		conn.Close()
+		<-result
+		return nil, fmt.Errorf("SSH %s handshake: timeout", hop)
+	}
+	cc, channels, requests, err := handshake.conn, handshake.channels, handshake.requests, handshake.err
 	if err != nil {
 		return nil, fmt.Errorf("SSH %s handshake: %w", hop, err)
-	}
-	if err := conn.SetDeadline(time.Time{}); err != nil {
-		cc.Close()
-		return nil, fmt.Errorf("clear SSH %s handshake deadline: %w", hop, err)
 	}
 	report(reporter, "event=ssh_handshake hop=%s result=success profile=%s", hop, profile)
 	report(reporter, "event=transport_capability transport=ssh hop=%s client_family=%s server_family=%s direct_tcpip=true multiplexed=true rekey_mb=%d", hop, sshClientFamily(profile), sshServerFamily(string(cc.ServerVersion())), sshRekeyBytes/(1024*1024))

@@ -58,4 +58,6 @@
     <string name="transport_http_1_1">HTTP/1.1</string>
     <string name="transport_http_2">HTTP/2, мультиплексирование</string>
     <string name="transport_ssh_multiplexed">SSH, мультиплексирование</string>
+    <string name="import_destination_key">Импортировать ключ назначения из файла</string>
+    <string name="import_jump_key">Импортировать ключ jump host из файла</string>
 </resources>

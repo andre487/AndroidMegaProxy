@@ -59,4 +59,6 @@
     <string name="transport_http_1_1">HTTP/1.1</string>
     <string name="transport_http_2">HTTP/2 multiplexed</string>
     <string name="transport_ssh_multiplexed">SSH multiplexed</string>
+    <string name="import_destination_key">Import destination key from file</string>
+    <string name="import_jump_key">Import jump key from file</string>
 </resources>

@@ -80,6 +80,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.vpn.SshHostKeyPromptState
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.VpnTransportProtocol
@@ -138,6 +139,7 @@ private fun MainScreen(activity: Activity) {
     val runtimeProfileId by VpnRuntimeState.connectionProfileId
     val networkWarning by VpnRuntimeState.networkWarning
     val transportProtocol by VpnRuntimeState.transportProtocol
+    val pendingHostKey by SshHostKeyPromptState.pending
     val store = remember { ConfigStore(activity) }
     var error by remember { mutableStateOf<String?>(null) }
     var profileMenuExpanded by remember { mutableStateOf(false) }
@@ -550,6 +552,38 @@ private fun MainScreen(activity: Activity) {
             },
             dismissButton = {
                 TextButton(onClick = { showAlwaysOnConflict = false }) { Text("Cancel") }
+            },
+        )
+    }
+
+    pendingHostKey?.takeIf { !it.testOnly }?.let { pending ->
+        fun dismissHostKeyPrompt() {
+            SshHostKeyPromptState.clear()
+            ProxyVpnService.dismissHostKeyPrompt(activity)
+        }
+        AlertDialog(
+            onDismissRequest = ::dismissHostKeyPrompt,
+            title = { Text(if (pending.changed) "SSH host key changed" else "Trust SSH host key?") },
+            text = { Text(buildString {
+                if (pending.changed) {
+                    append("Warning: the previously trusted key for the ${pending.hop} host has changed. This may indicate a server reinstall or a man-in-the-middle attack. Verify it through a trusted channel before replacing it.\n\n")
+                } else {
+                    append("This is the first connection to the ${pending.hop} SSH host. Verify its fingerprint through a trusted channel.\n\n")
+                }
+                append("Algorithm: ${pending.algorithm}\nFingerprint: ${pending.fingerprint}")
+            }) },
+            confirmButton = {
+                TextButton(onClick = {
+                    if (store.trustSshHostKey(pending.profileId, pending.hop, pending.fingerprint)) {
+                        SshHostKeyPromptState.clear()
+                        ProxyVpnService.reconnect(activity)
+                    } else {
+                        error = "The SSH host key could not be saved to this profile"
+                    }
+                }) { Text(if (pending.changed) "Replace trusted key" else "Trust and connect") }
+            },
+            dismissButton = {
+                TextButton(onClick = ::dismissHostKeyPrompt) { Text("Cancel") }
             },
         )
     }

@@ -1,23 +1,25 @@
 package net.megaproxy487
 
 import android.app.Activity
+import android.net.Uri
 import android.os.Bundle
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -45,14 +47,17 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.readPrivateKeyText
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProfileColorMatcher
 import net.megaproxy487.model.ProxyConfig
@@ -61,13 +66,14 @@ import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
 import java.util.Locale
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 class ProfileEditorActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        // This screen can display proxy passwords and SSH private keys. Keep them
-        // out of screenshots, screen recording and the recent-apps thumbnail.
         window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         setContent { MegaProxyTheme { ProfileEditorScreen(this) } }
     }
@@ -122,6 +128,29 @@ private fun ProfileEditorScreen(activity: Activity) {
             }
         }
     }
+    val coroutineScope = rememberCoroutineScope()
+    fun importPrivateKey(uri: Uri, jump: Boolean) {
+        coroutineScope.launch {
+            val result = runCatching {
+                withContext(Dispatchers.IO) {
+                    activity.contentResolver.openInputStream(uri)?.use { it.readPrivateKeyText() }
+                        ?: throw IllegalArgumentException("Unable to open the selected file")
+                }
+            }
+            result.onSuccess { imported ->
+                updateConfig(if (jump) config.copy(jumpPrivateKey = imported) else config.copy(privateKey = imported))
+                error = null
+            }.onFailure { failure ->
+                error = failure.message ?: "Unable to import the private key"
+            }
+        }
+    }
+    val destinationKeyPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { importPrivateKey(it, jump = false) }
+    }
+    val jumpKeyPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let { importPrivateKey(it, jump = true) }
+    }
 
     Scaffold(
         topBar = {
@@ -136,19 +165,20 @@ private fun ProfileEditorScreen(activity: Activity) {
         },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
-        Column(
+        LazyColumn(
             Modifier
                 .fillMaxSize()
-                .padding(padding)
-                .imePadding()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState()),
+                .padding(padding),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
+          item {
             OutlinedTextField(profile.name, { name -> acceptText(name, 256) {
                 profile = profile.copy(name = name)
                 saveProfile()
             } }, label = { Text("Profile name (optional)") }, supportingText = { Text("Defaults to the proxy host") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+          }
+          item {
             ExposedDropdownMenuBox(countryExpanded, { countryExpanded = it }) {
                 OutlinedTextField(
                     profile.countryCode.takeIf(String::isNotEmpty)?.let { code ->
@@ -177,8 +207,12 @@ private fun ProfileEditorScreen(activity: Activity) {
                     }
                 }
             }
+          }
 
+          item {
             Text("Connection", style = MaterialTheme.typography.titleMedium)
+          }
+          item {
             ExposedDropdownMenuBox(typeExpanded, { typeExpanded = it }) {
                 OutlinedTextField(config.type.title, {}, readOnly = true, label = { Text("Profile type") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
                 DropdownMenu(typeExpanded, { typeExpanded = false }) {
@@ -190,16 +224,25 @@ private fun ProfileEditorScreen(activity: Activity) {
                     }) }
                 }
             }
+          }
+          item {
             OutlinedTextField(config.host, { value -> acceptText(value, 253) { updateConfig(config.copy(host = it)) } }, label = { Text(if (config.type == ProxyType.HTTPS) "HTTPS proxy hostname" else "Destination SSH hostname") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+          }
+          item {
             OutlinedTextField(portText, { value ->
                 portText = value
                 val port = value.toIntOrNull()
                 if (port == null) error = "Port must be between 1 and 65535"
                 else updateConfig(config.copy(port = port))
             }, label = { Text("Port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+          }
+          item {
             OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { Text(if (config.type == ProxyType.HTTPS) "Basic Auth username" else "SSH username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+          }
+          item {
             OutlinedTextField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it)) } }, label = { Text(if (config.type == ProxyType.HTTPS) "Password" else "SSH password (optional)") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-            if (config.type == ProxyType.HTTPS) SettingCheckboxRow(
+          }
+          if (config.type == ProxyType.HTTPS) item { SettingCheckboxRow(
                 checked = config.allowInvalidProxyCertificate,
                 title = "Allow self-signed proxy certificate",
                 description = "Disables certificate verification only for the HTTPS proxy.",
@@ -208,67 +251,113 @@ private fun ProfileEditorScreen(activity: Activity) {
                     else updateConfig(config.copy(allowInvalidProxyCertificate = false))
                 },
             )
+          }
 
             if (config.type != ProxyType.HTTPS) {
-                OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it)) } }, label = { Text("Private key (optional)") }, supportingText = { Text("PEM or OpenSSH format. Passphrase-protected keys are not supported.") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+              item {
+                OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it)) } }, label = { Text("Private key (optional)") }, supportingText = { Text("PEM or OpenSSH format. Passphrase-protected keys are not supported.") }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+              }
+              item {
+                OutlinedButton(
+                    onClick = { destinationKeyPicker.launch(arrayOf("*/*")) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.import_destination_key)) }
+              }
                 if (config.password.isBlank() && config.privateKey.isBlank()) {
+                  item {
                     Text(
                         "No SSH password or private key is configured. Connection will only work if the server permits authentication without credentials.",
                         color = MaterialTheme.colorScheme.tertiary,
                         style = MaterialTheme.typography.bodySmall,
                     )
+                  }
                 }
+              item {
                 SettingCheckboxRow(config.acceptAnyHostKey, "Accept any destination host key", "Unsafe: disables SSH server identity verification.") { checked ->
                     if (checked) unsafeHostKeyHop = "destination" else updateConfig(config.copy(acceptAnyHostKey = false))
                 }
-                if (config.trustedHostKey.isNotBlank()) Text("Trusted destination key: ${config.trustedHostKey}", style = MaterialTheme.typography.bodySmall)
+              }
+                if (config.trustedHostKey.isNotBlank()) item { Text("Trusted destination key: ${config.trustedHostKey}", style = MaterialTheme.typography.bodySmall) }
             }
 
             if (config.type == ProxyType.SSH_JUMP) {
+              item {
                 HorizontalDivider()
+              }
+              item {
                 Text("Jump host", style = MaterialTheme.typography.titleMedium)
+              }
+              item {
                 OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { Text("Jump SSH hostname") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+              }
+              item {
                 OutlinedTextField(jumpPortText, { value ->
                     if (value.length <= 5 && value.all(Char::isDigit)) {
                         jumpPortText = value
                         value.toIntOrNull()?.let { updateConfig(config.copy(jumpPort = it)) }
                     }
                 }, label = { Text("Jump port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+              }
+              item {
                 SettingCheckboxRow(config.sameJumpAuthentication, "Use the same authentication", "Reuse destination username, password and private key.") {
                     updateConfig(config.copy(sameJumpAuthentication = it))
                 }
+              }
                 if (!config.sameJumpAuthentication) {
+                  item {
                     OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { Text("Jump SSH username") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                  }
+                  item {
                     OutlinedTextField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it)) } }, label = { Text("Jump SSH password (optional)") }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
-                    OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(jumpPrivateKey = it)) } }, label = { Text("Jump private key (optional)") }, minLines = 3, modifier = Modifier.fillMaxWidth())
+                  }
+                  item {
+                    OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(jumpPrivateKey = it)) } }, label = { Text("Jump private key (optional)") }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                  }
+                  item {
+                    OutlinedButton(
+                        onClick = { jumpKeyPicker.launch(arrayOf("*/*")) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) { Text(stringResource(R.string.import_jump_key)) }
+                  }
                     if (config.jumpPassword.isBlank() && config.jumpPrivateKey.isBlank()) {
+                      item {
                         Text(
                             "No jump password or private key is configured. Connection will only work if the jump server permits authentication without credentials.",
                             color = MaterialTheme.colorScheme.tertiary,
                             style = MaterialTheme.typography.bodySmall,
                         )
+                      }
                     }
                 }
+              item {
                 SettingCheckboxRow(config.jumpAcceptAnyHostKey, "Accept any jump host key", "Unsafe: disables jump host identity verification.") { checked ->
                     if (checked) unsafeHostKeyHop = "jump" else updateConfig(config.copy(jumpAcceptAnyHostKey = false))
                 }
-                if (config.jumpTrustedHostKey.isNotBlank()) Text("Trusted jump key: ${config.jumpTrustedHostKey}", style = MaterialTheme.typography.bodySmall)
+              }
+                if (config.jumpTrustedHostKey.isNotBlank()) item { Text("Trusted jump key: ${config.jumpTrustedHostKey}", style = MaterialTheme.typography.bodySmall) }
             }
 
+          item {
             SettingCheckboxRow(config.allowIpv6, "Enable IPv6 destinations", "Enable only if this proxy can reach IPv6 destinations.") {
                 updateConfig(config.copy(allowIpv6 = it))
             }
+          }
 
+          item {
             Text("DNS over HTTPS", style = MaterialTheme.typography.titleMedium)
+          }
+          item {
             ExposedDropdownMenuBox(dnsExpanded, { dnsExpanded = it }) {
                 OutlinedTextField(config.dnsProvider.title, {}, readOnly = true, label = { Text("DNS over HTTPS") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
                 DropdownMenu(dnsExpanded, { dnsExpanded = false }) {
                     DnsProvider.entries.forEach { provider -> DropdownMenuItem(text = { Text(provider.title) }, onClick = { updateConfig(config.copy(dnsProvider = provider)); dnsExpanded = false }) }
                 }
             }
-            if (config.dnsProvider == DnsProvider.CUSTOM) OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } }, label = { Text("Custom DoH URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+          }
+            if (config.dnsProvider == DnsProvider.CUSTOM) item { OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } }, label = { Text("Custom DoH URL") }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
             if (showReconnectPrompt) {
+              item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                         Text("Reconnect to apply these changes to the active VPN.", style = MaterialTheme.typography.bodyMedium)
@@ -285,16 +374,21 @@ private fun ProfileEditorScreen(activity: Activity) {
                         }
                     }
                 }
+              }
             }
             if (showAlwaysOnNotice) {
+              item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                     Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
                         Text("Always-on is active. Changes apply on the next connection.", modifier = Modifier.weight(1f))
                         TextButton(onClick = { showAlwaysOnNotice = false }) { Text("Dismiss") }
                     }
                 }
+              }
             }
+          item {
             Text("Changes are saved automatically.", style = MaterialTheme.typography.bodySmall)
+          }
         }
     }
 
