@@ -15,6 +15,7 @@ fi
 : "${MEGAPROXY_KEY_PASSWORD_FILE:=$HOME/.my-tokens/android-key-password}"
 : "${MEGAPROXY_KEY_ALIAS:=key0}"
 : "${MEGAPROXY_RELEASE_DIR:=$project_dir/dist/release}"
+: "${MEGAPROXY_EXPECTED_CERT_SHA256:=8a014a2a558a75b5f900ee0c33cd50f24b7432734912406699fc08866747f822}"
 
 export JAVA_HOME ANDROID_HOME ANDROID_NDK_HOME
 export PATH="$JAVA_HOME/bin:$HOME/go/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
@@ -62,6 +63,27 @@ if [[ -z "$version_name" ]]; then
 fi
 
 mkdir -p "$MEGAPROXY_RELEASE_DIR" "$project_dir/app/libs"
+# Avoid carrying artifacts from an older version into SHA256SUMS or a release.
+find "$MEGAPROXY_RELEASE_DIR" -maxdepth 1 -type f \
+    \( -name 'mega-proxy-*.apk' -o -name SHA256SUMS \) -delete
+apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+if [[ ! -x "$apksigner" ]]; then
+    echo "Android apksigner 34.0.0 is unavailable: $apksigner" >&2
+    exit 1
+fi
+
+verify_release_apk() {
+    local apk="$1"
+    local actual_fingerprint
+    actual_fingerprint="$(
+        "$apksigner" verify --verbose --print-certs "$apk" \
+            | sed -n 's/^Signer #1 certificate SHA-256 digest: //p'
+    )"
+    if [[ "$actual_fingerprint" != "$MEGAPROXY_EXPECTED_CERT_SHA256" ]]; then
+        echo "Unexpected signing certificate for $apk: $actual_fingerprint" >&2
+        exit 1
+    fi
+}
 
 temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/megaproxy-release.XXXXXX")"
 original_aar="$project_dir/app/libs/megaproxy.aar"
@@ -126,7 +148,7 @@ echo "Running Android unit tests"
 for target in "${targets[@]}"; do
     go_arch="${target%%:*}"
     android_abi="${target##*:}"
-    output_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-v${version_name}-${android_abi}.apk"
+    output_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-${android_abi}.apk"
 
     if [[ "$android_abi" == "$first_android_abi" ]]; then
         echo "Reusing initial native AAR for $android_abi"
@@ -160,16 +182,38 @@ for target in "${targets[@]}"; do
     fi
     cp "$built_apk" "$output_apk"
 
-    apksigner="$ANDROID_HOME/build-tools/35.0.0/apksigner"
-    if [[ ! -x "$apksigner" ]]; then
-        apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner -perm -u+x | sort -V | tail -n 1)"
-    fi
-    if [[ -z "$apksigner" || ! -x "$apksigner" ]]; then
-        echo "Android apksigner is unavailable" >&2
-        exit 1
-    fi
-    "$apksigner" verify --verbose --print-certs "$output_apk" >/dev/null
+    verify_release_apk "$output_apk"
 done
+
+# F-Droid verifies this universal APK against a clean source build before
+# publishing it with the upstream signature. Keep its gomobile and Gradle
+# inputs identical to the F-Droid recipe in .fdroid.yml.
+echo "Building optimized native AAR for the universal APK"
+(
+    cd "$project_dir/native"
+    gomobile bind \
+        -target=android \
+        -androidapi 26 \
+        -trimpath \
+        -ldflags="-s -w -buildid=" \
+        -o ../app/libs/megaproxy.aar \
+        ./mobile
+)
+
+echo "Building and signing universal APK"
+(
+    cd "$project_dir"
+    ./gradlew clean
+    ./gradlew assembleRelease
+)
+universal_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-universal.apk"
+built_apk="$project_dir/app/build/outputs/apk/release/app-release.apk"
+if [[ ! -f "$built_apk" ]]; then
+    echo "Gradle did not produce the expected APK: $built_apk" >&2
+    exit 1
+fi
+cp "$built_apk" "$universal_apk"
+verify_release_apk "$universal_apk"
 
 (
     cd "$MEGAPROXY_RELEASE_DIR"

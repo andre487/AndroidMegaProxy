@@ -5,26 +5,30 @@
 MegaProxy поддерживает Android 8.0 (API 26) и новее. Официальные APK публикуются в разделе
 [GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest).
 
+**[Скачать рекомендуемый universal APK](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**
+
 ## Выбор APK
 
-Откройте последний релиз, разверните список **Assets** и выберите APK для архитектуры устройства:
+Откройте последний релиз, разверните список **Assets** и скачайте файл с окончанием
+`universal.apk`. Это основной рекомендуемый вариант: он поддерживает все перечисленные ниже
+архитектуры и используется для независимой проверки воспроизводимой сборки в F-Droid.
 
-| Окончание имени APK | Для каких устройств |
+| APK | Для каких устройств |
 | --- | --- |
-| `arm64-v8a` | Почти все современные телефоны и планшеты Android; выбирайте этот вариант, если не уверены |
-| `armeabi-v7a` | Старые 32-битные устройства ARM |
-| `x86_64` | 64-битные устройства Android на x86 |
-| `x86` | Старые 32-битные устройства Android на x86 |
+| [`mega-proxy-universal.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk) | Рекомендуется для телефонов, планшетов и эмуляторов; включает все поддерживаемые архитектуры |
+| [`mega-proxy-arm64-v8a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-arm64-v8a.apk) | Уменьшенный APK почти для всех современных телефонов и планшетов Android |
+| [`mega-proxy-armeabi-v7a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-armeabi-v7a.apk) | Старые 32-битные устройства ARM |
+| [`mega-proxy-x86_64.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86_64.apk) | 64-битные устройства Android на x86 |
+| [`mega-proxy-x86.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86.apk) | Старые 32-битные устройства Android на x86 |
 
-Для современного телефона почти всегда нужен файл, имя которого заканчивается на
-`arm64-v8a.apk`.
+APK для конкретной архитектуры меньше по размеру, но его стоит выбирать только когда архитектура
+устройства точно известна.
 
 ## Установка на телефон
 
 1. Откройте на телефоне страницу
    [последнего релиза MegaProxy](https://github.com/andre487/AndroidMegaProxy/releases/latest).
-2. Разверните раздел **Assets** и нажмите на подходящий APK — обычно это файл с окончанием
-   `arm64-v8a.apk`.
+2. Разверните раздел **Assets** и нажмите на файл с окончанием `universal.apk`.
 3. Если браузер предупреждает, что APK-файл может быть опасен, убедитесь, что адрес начинается с
    `https://github.com/andre487/AndroidMegaProxy/`, и подтвердите скачивание.
 4. После завершения скачивания откройте файл из уведомления браузера или системного приложения
@@ -62,7 +66,7 @@ adb devices
 Затем установите или обновите приложение:
 
 ```shell
-adb install -r mega-proxy-v0.0.3-arm64-v8a.apk
+adb install -r mega-proxy-universal.apk
 ```
 
 Укажите фактическое имя скачанного APK. Параметр `-r` устанавливает новую версию поверх текущей и
@@ -72,7 +76,8 @@ adb install -r mega-proxy-v0.0.3-arm64-v8a.apk
 
 Чтобы обновить MegaProxy:
 
-1. Скачайте APK новой версии с той же архитектурой.
+1. Скачайте universal APK новой версии. Подходящий APK для конкретной архитектуры также можно
+   установить поверх существующей версии.
 2. Откройте его на телефоне и подтвердите обновление существующего приложения.
 3. Не удаляйте MegaProxy перед обновлением: удаление приложения стирает профили, известные ключи
    SSH и остальные локальные настройки.

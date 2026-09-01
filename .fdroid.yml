@@ -1,0 +1,47 @@
+Categories:
+  - Connectivity
+License: MIT
+WebSite: https://github.com/andre487/AndroidMegaProxy
+SourceCode: https://github.com/andre487/AndroidMegaProxy
+IssueTracker: https://github.com/andre487/AndroidMegaProxy/issues
+Changelog: https://github.com/andre487/AndroidMegaProxy/releases
+AllowedAPKSigningKeys: 8a014a2a558a75b5f900ee0c33cd50f24b7432734912406699fc08866747f822
+
+RepoType: git
+Repo: https://github.com/andre487/AndroidMegaProxy.git
+
+Builds:
+  - versionName: 0.0.4
+    versionCode: 4
+    commit: v0.0.4
+    subdir: app
+    ndk: 29.0.14206865
+    sudo:
+      - apt-get update
+      - apt-get install -t bookworm-backports -y golang-go
+      - apt-get install -y gcc libc-dev make
+    gradle:
+      - yes
+    srclibs:
+      - go@go1.26.3
+    rm:
+      - libs/megaproxy-sources.jar
+    binary: https://github.com/andre487/AndroidMegaProxy/releases/download/v%v/mega-proxy-universal.apk
+    build:
+      - pushd $$go$$/src
+      - ./make.bash
+      - popd
+      - export GOROOT=$$go$$
+      - export GOPATH=$HOME/go
+      - export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
+      - cd ../native
+      - go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
+      - go install golang.org/x/mobile/cmd/gobind@v0.0.0-20260821190718-4776eadac327
+      - gomobile init
+      - gomobile bind -target=android -androidapi 26 -trimpath -ldflags='-s -w -buildid='
+        -o ../app/libs/megaproxy.aar ./mobile
+
+AutoUpdateMode: Version
+UpdateCheckMode: Tags
+CurrentVersion: 0.0.4
+CurrentVersionCode: 4

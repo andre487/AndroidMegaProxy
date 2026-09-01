@@ -103,21 +103,26 @@ vendors may impose additional background-execution restrictions.
 
 MegaProxy requires Android 8.0 (API 26) or newer. Download the latest signed build from
 [GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest), expand the
-**Assets** section, and choose the APK matching the device architecture:
+**Assets** section, and download the file ending in `universal.apk`. It is the recommended build:
+it supports every architecture listed below and is also the artifact independently rebuilt and
+verified for F-Droid distribution.
 
-| APK suffix | Intended device |
+**[Download the recommended universal APK](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**
+
+| APK | Intended device |
 | --- | --- |
-| `arm64-v8a` | Almost all modern Android phones and tablets; choose this when unsure |
-| `armeabi-v7a` | Older 32-bit ARM devices |
-| `x86_64` | 64-bit x86 Android emulators and uncommon x86 devices |
-| `x86` | Older 32-bit x86 Android emulators and devices |
+| [`mega-proxy-universal.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk) | Recommended for phones, tablets, and emulators; supports all listed architectures |
+| [`mega-proxy-arm64-v8a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-arm64-v8a.apk) | Smaller download for almost all modern Android phones and tablets |
+| [`mega-proxy-armeabi-v7a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-armeabi-v7a.apk) | Older 32-bit ARM devices |
+| [`mega-proxy-x86_64.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86_64.apk) | 64-bit x86 Android emulators and uncommon x86 devices |
+| [`mega-proxy-x86.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86.apk) | Older 32-bit x86 Android emulators and devices |
 
 ### Install a release APK on the device
 
 1. Open the [latest release](https://github.com/andre487/AndroidMegaProxy/releases/latest) on the
    Android device.
-2. Under **Assets**, download the appropriate APK, normally the file ending in
-   `arm64-v8a.apk`.
+2. Under **Assets**, download the file ending in `universal.apk`. Architecture-specific APKs are
+   smaller alternatives when the device architecture is known.
 3. Open the downloaded file from the browser notification or the system Downloads application.
 4. If Android blocks the installation, open the settings offered by the warning and enable
    **Allow from this source** for the browser or file manager that opened the APK. Return to the
@@ -136,10 +141,10 @@ before installation when the distribution channel is not trusted:
 
 ```shell
 # macOS
-shasum -a 256 mega-proxy-v0.0.3-arm64-v8a.apk
+shasum -a 256 mega-proxy-universal.apk
 
 # Linux
-sha256sum mega-proxy-v0.0.3-arm64-v8a.apk
+sha256sum mega-proxy-universal.apk
 ```
 
 The printed value must exactly match the corresponding line in `SHA256SUMS`. Substitute the
@@ -151,7 +156,7 @@ Alternatively, download the APK to a computer. With USB debugging enabled and th
 by `adb devices`, install or update MegaProxy with:
 
 ```shell
-adb install -r mega-proxy-v0.0.3-arm64-v8a.apk
+adb install -r mega-proxy-universal.apk
 ```
 
 Use the APK filename that was actually downloaded. The `-r` option preserves existing application
@@ -160,7 +165,8 @@ shows one.
 
 ### Update an existing installation
 
-Download the newer APK for the same architecture and install it over the existing application.
+Download the newer universal APK and install it over the existing application. An appropriate
+architecture-specific APK signed by the project key can also update the same installation.
 Do not uninstall MegaProxy first: uninstalling removes its profiles, trusted SSH host keys, and
 other local settings. Android accepts an in-place update only when the application ID and signing
 key match the installed build.
@@ -277,7 +283,8 @@ logging.
 
 ### Signed release builds
 
-Build optimized and signed APKs for `arm64-v8a`, `armeabi-v7a`, `x86_64`, and `x86`:
+Build optimized and signed APKs for `arm64-v8a`, `armeabi-v7a`, `x86_64`, and `x86`, plus the
+universal APK used for reproducible F-Droid verification:
 
 ```shell
 ./scripts/build-release-apks.sh
@@ -292,8 +299,8 @@ Pushing a version tag runs the GitHub release workflow, builds and verifies ever
 the artifacts to a GitHub Release. The tag must match `versionName` exactly:
 
 ```shell
-git tag v0.0.3
-git push origin v0.0.3
+git tag v0.0.4
+git push origin v0.0.4
 ```
 
 ## Contributing
