@@ -70,8 +70,10 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigExportFormat
 import net.megaproxy487.data.ConfigTransfer
+import net.megaproxy487.data.FoxyProxyParser
 import net.megaproxy487.data.PortableConfiguration
 import net.megaproxy487.data.ProxyListParser
+import net.megaproxy487.data.SuperProxyParser
 import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.vpn.PersistentDiagnosticLog
@@ -163,21 +165,45 @@ private fun SettingsScreen(activity: Activity) {
                     uri.lastPathSegment.orEmpty().substringAfterLast('.', "").equals("json", true) ||
                     text.trimStart().startsWith('{')
                 if (isJson) {
-                    val configuration = ConfigTransfer.importJson(text)
-                    if (configuration.profiles.any { it.config.allowInvalidProxyCertificate }) {
-                        pendingUnsafeImport = configuration
+                    val isMegaProxy = runCatching {
+                        org.json.JSONObject(text).optString("schema") == "dev.megaproxy.config"
+                    }.getOrDefault(false)
+                    if (isMegaProxy) {
+                        val configuration = ConfigTransfer.importJson(text)
+                        if (configuration.profiles.any { it.config.allowInvalidProxyCertificate }) {
+                            pendingUnsafeImport = configuration
+                        } else {
+                            applyJsonImport(configuration)
+                        }
                     } else {
-                        applyJsonImport(configuration)
+                        val imported = FoxyProxyParser.parse(text).getOrThrow()
+                        val added = store.importProfiles(imported.proxies)
+                        refresh()
+                        importedProfileCount = added.size
+                        skippedNonHttps = imported.skippedNonHttps
+                        showImportFilterNotice = imported.skippedNonHttps > 0
+                        if (imported.skippedNonHttps == 0) {
+                            transferMessage = "Imported ${added.size} HTTPS proxy profile(s) from FoxyProxy."
+                        }
                     }
                 } else {
-                    val imported = ProxyListParser.parse(text).getOrThrow()
+                    val isSuperProxy = SuperProxyParser.matches(text)
+                    val imported = if (isSuperProxy) {
+                        SuperProxyParser.parse(text).getOrThrow()
+                    } else {
+                        ProxyListParser.parse(text).getOrThrow()
+                    }
                     val added = store.importProfiles(imported.proxies)
                     refresh()
                     importedProfileCount = added.size
                     skippedNonHttps = imported.skippedNonHttps
                     showImportFilterNotice = imported.skippedNonHttps > 0
                     if (imported.skippedNonHttps == 0) {
-                        transferMessage = "Imported ${added.size} HTTPS proxy profile(s)."
+                        transferMessage = if (isSuperProxy) {
+                            "Imported ${added.size} HTTPS proxy profile(s) from Super Proxy. Certificate pins were not imported."
+                        } else {
+                            "Imported ${added.size} HTTPS proxy profile(s)."
+                        }
                     }
                 }
                 importError = null
