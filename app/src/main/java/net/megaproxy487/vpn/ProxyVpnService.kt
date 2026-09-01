@@ -763,6 +763,15 @@ class ProxyVpnService : VpnService() {
                 ContextCompat.startForegroundService(app, Intent(app, ProxyVpnService::class.java).setAction(ACTION_RECONNECT))
             }
         }
+        /** Called from MY_PACKAGE_REPLACED after its receiver has checked persisted state. */
+        fun restoreAfterPackageUpdate(context: Context) {
+            val app = context.applicationContext
+            ContextCompat.startForegroundService(
+                app,
+                Intent(app, ProxyVpnService::class.java).setAction(ACTION_RECONNECT)
+                    .putExtra(EXTRA_RECONNECT_REASON, "package_replaced"),
+            )
+        }
         fun switchProfile(context: Context, profileId: String, useAsAlwaysOn: Boolean) {
             val app = context.applicationContext
             commandScope.launch {
