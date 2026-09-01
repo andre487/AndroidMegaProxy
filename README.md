@@ -99,9 +99,71 @@ vendors may impose additional background-execution restrictions.
 
 ## Installation
 
-Download an APK for your device architecture from
-[GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases). Most modern Android
-phones use `arm64-v8a`. Android 8.0 (API 26) or newer is required.
+[Инструкция по установке на русском языке](docs/ru/installation.md)
+
+MegaProxy requires Android 8.0 (API 26) or newer. Download the latest signed build from
+[GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest), expand the
+**Assets** section, and choose the APK matching the device architecture:
+
+| APK suffix | Intended device |
+| --- | --- |
+| `arm64-v8a` | Almost all modern Android phones and tablets; choose this when unsure |
+| `armeabi-v7a` | Older 32-bit ARM devices |
+| `x86_64` | 64-bit x86 Android emulators and uncommon x86 devices |
+| `x86` | Older 32-bit x86 Android emulators and devices |
+
+### Install a release APK on the device
+
+1. Open the [latest release](https://github.com/andre487/AndroidMegaProxy/releases/latest) on the
+   Android device.
+2. Under **Assets**, download the appropriate APK, normally the file ending in
+   `arm64-v8a.apk`.
+3. Open the downloaded file from the browser notification or the system Downloads application.
+4. If Android blocks the installation, open the settings offered by the warning and enable
+   **Allow from this source** for the browser or file manager that opened the APK. Return to the
+   installer and confirm **Install**. This permission can be disabled again after installation.
+5. Open MegaProxy. Android asks for VPN access when the first connection is started; approve the
+   system VPN confirmation dialog.
+
+Browsers may warn that APK files can be harmful because the application is installed outside an
+app store. Confirm the download only when the URL belongs to this repository. Do not download
+MegaProxy APKs from third-party mirrors.
+
+### Verify the download
+
+Each release includes a `SHA256SUMS` file. Download it alongside the APK and compare the APK hash
+before installation when the distribution channel is not trusted:
+
+```shell
+# macOS
+shasum -a 256 mega-proxy-v0.0.3-arm64-v8a.apk
+
+# Linux
+sha256sum mega-proxy-v0.0.3-arm64-v8a.apk
+```
+
+The printed value must exactly match the corresponding line in `SHA256SUMS`. Substitute the
+downloaded version and architecture in the filename.
+
+### Install with ADB
+
+Alternatively, download the APK to a computer. With USB debugging enabled and the device listed
+by `adb devices`, install or update MegaProxy with:
+
+```shell
+adb install -r mega-proxy-v0.0.3-arm64-v8a.apk
+```
+
+Use the APK filename that was actually downloaded. The `-r` option preserves existing application
+data during an update. Confirm the USB-debugging authorization prompt on the phone if Android
+shows one.
+
+### Update an existing installation
+
+Download the newer APK for the same architecture and install it over the existing application.
+Do not uninstall MegaProxy first: uninstalling removes its profiles, trusted SSH host keys, and
+other local settings. Android accepts an in-place update only when the application ID and signing
+key match the installed build.
 
 Release APKs are signed by the project's release key. SHA-256 checksums are published alongside
 the APK files. Android will preserve application data across upgrades only when the package name
