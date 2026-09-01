@@ -11,6 +11,7 @@ import net.megaproxy487.model.ProfileSort
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.TlsProfile
+import net.megaproxy487.model.GlobalConnectionSettings
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.KeyStore
@@ -88,8 +89,38 @@ class ConfigStore(context: Context) {
     fun connectionProfile(): ProxyProfile =
         profile(prefs.getString(CONNECTION_PROFILE_ID, null).orEmpty()) ?: activeProfile()
 
+    fun connectionConfig(): ProxyConfig = globalConnectionSettings().applyTo(connectionProfile().config)
+
     fun setConnectionProfile(id: String) {
         if (profile(id) != null) prefs.edit().putString(CONNECTION_PROFILE_ID, id).apply()
+    }
+
+    @Synchronized
+    fun globalConnectionSettings(): GlobalConnectionSettings {
+        ensureMigrated()
+        val stored = prefs.getString(GLOBAL_CONNECTION_SETTINGS, null)
+        if (stored != null) {
+            val decoded = decodeGlobalConnectionSettings(stored)
+            return decoded
+        }
+        val source = activeProfile().config
+        val migrated = GlobalConnectionSettings(
+            tlsProfile = source.profile.takeIf { it.available } ?: TlsProfile.DEFAULT,
+            customJa3 = source.customJa3,
+            selectedPackages = source.selectedPackages,
+            allowIpv6 = source.allowIpv6,
+            routeAllApps = source.routeAllApps,
+            bypassLocalNetworks = source.bypassLocalNetworks,
+        )
+        saveGlobalConnectionSettings(migrated)
+        return migrated
+    }
+
+    fun saveGlobalConnectionSettings(settings: GlobalConnectionSettings) {
+        val normalized = settings.copy(
+            tlsProfile = settings.tlsProfile.takeIf { it.available } ?: TlsProfile.DEFAULT,
+        )
+        prefs.edit().putString(GLOBAL_CONNECTION_SETTINGS, encodeGlobalConnectionSettings(normalized)).apply()
     }
 
     @Synchronized
@@ -155,6 +186,7 @@ class ConfigStore(context: Context) {
         configuration.activeProfileId?.let(idMap::get)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
         configuration.alwaysOnProfileId?.let(idMap::get)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
         editor.apply()
+        configuration.globalConnectionSettings?.let(::saveGlobalConnectionSettings)
         return added
     }
 
@@ -221,13 +253,13 @@ class ConfigStore(context: Context) {
         username = prefs.getString("username", "").orEmpty(),
         password = decrypt(prefs.getString("password", null)),
         allowInvalidProxyCertificate = false,
-        profile = enumValue(prefs.getString("profile", null), TlsProfile.CHROME_ANDROID),
+        profile = enumValue(prefs.getString("profile", null), TlsProfile.DEFAULT),
         customJa3 = prefs.getString("custom_ja3", "").orEmpty(),
         dnsProvider = enumValue(prefs.getString("dns_provider", null), DnsProvider.CLOUDFLARE),
         customDohUrl = prefs.getString("custom_doh_url", "").orEmpty(),
         selectedPackages = prefs.getStringSet("packages", emptySet())?.toSet().orEmpty(),
         allowIpv6 = prefs.getBoolean("allow_ipv6", false),
-        routeAllApps = false,
+        routeAllApps = true,
         bypassLocalNetworks = true,
     )
 
@@ -292,7 +324,7 @@ class ConfigStore(context: Context) {
         username = item.optString("username"),
         password = decrypt(item.optString("password").ifEmpty { null }),
         allowInvalidProxyCertificate = item.optBoolean("allowInvalidProxyCertificate", false),
-        profile = enumValue(item.optString("fingerprint"), TlsProfile.CHROME_ANDROID),
+        profile = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT),
         customJa3 = item.optString("customJa3"),
         dnsProvider = enumValue(item.optString("dnsProvider"), DnsProvider.CLOUDFLARE),
         customDohUrl = item.optString("customDohUrl"),
@@ -303,6 +335,30 @@ class ConfigStore(context: Context) {
         routeAllApps = item.optBoolean("routeAllApps", false),
         bypassLocalNetworks = item.optBoolean("bypassLocalNetworks", true),
     )
+
+    private fun encodeGlobalConnectionSettings(settings: GlobalConnectionSettings) = JSONObject().apply {
+        put("fingerprint", settings.tlsProfile.name)
+        put("customJa3", settings.customJa3.trim())
+        put("packages", JSONArray(settings.selectedPackages.sorted()))
+        put("allowIpv6", settings.allowIpv6)
+        put("routeAllApps", settings.routeAllApps)
+        put("bypassLocalNetworks", settings.bypassLocalNetworks)
+    }.toString()
+
+    private fun decodeGlobalConnectionSettings(value: String): GlobalConnectionSettings = runCatching {
+        val item = JSONObject(value)
+        val parsedTls = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT)
+        GlobalConnectionSettings(
+            tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
+            customJa3 = item.optString("customJa3"),
+            selectedPackages = item.optJSONArray("packages")?.let { array ->
+                (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }.toSet()
+            }.orEmpty(),
+            allowIpv6 = item.optBoolean("allowIpv6", false),
+            routeAllApps = item.optBoolean("routeAllApps", true),
+            bypassLocalNetworks = item.optBoolean("bypassLocalNetworks", true),
+        )
+    }.getOrDefault(GlobalConnectionSettings())
 
     private fun key(): SecretKey {
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
@@ -343,5 +399,6 @@ class ConfigStore(context: Context) {
         const val PROFILE_SORT = "profile_sort"
         const val PROFILE_SORT_ASCENDING = "profile_sort_ascending"
         const val DIAGNOSTIC_LOG_LIMIT_MB = "diagnostic_log_limit_mb"
+        const val GLOBAL_CONNECTION_SETTINGS = "global_connection_settings_v1"
     }
 }

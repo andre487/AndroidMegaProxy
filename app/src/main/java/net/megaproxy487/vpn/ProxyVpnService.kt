@@ -118,7 +118,7 @@ class ProxyVpnService : VpnService() {
             TestDiagnosticLog.add("Connection test is already running")
             return
         }
-        val storedConfig = ConfigStore(this).activeProfile().config
+        val storedConfig = ConfigStore(this).globalConnectionSettings().applyTo(ConfigStore(this).activeProfile().config)
         storedConfig.connectionValidationError()?.let {
             TestDiagnosticLog.fail("Connection test cannot start: $it")
             testRunning.set(false)
@@ -151,7 +151,7 @@ class ProxyVpnService : VpnService() {
 
     private fun startTunnel(testOnly: Boolean, suppliedConfig: net.megaproxy487.model.ProxyConfig? = null): Boolean {
         val storedProfile = ConfigStore(this).connectionProfile()
-        val storedConfig = suppliedConfig ?: storedProfile.config
+        val storedConfig = suppliedConfig ?: ConfigStore(this).globalConnectionSettings().applyTo(storedProfile.config)
         val diagnostics = if (testOnly) TestDiagnosticLog::add else DiagnosticLog::add
         diagnostics(
             if (testOnly) "event=vpn_start mode=test"

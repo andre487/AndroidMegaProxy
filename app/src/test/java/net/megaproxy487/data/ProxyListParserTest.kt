@@ -17,7 +17,7 @@ class ProxyListParserTest {
         assertEquals(8443, result.config.port)
         assertEquals("user", result.config.username)
         assertEquals("p@ss:word", result.config.password)
-        assertTrue(!result.config.routeAllApps)
+        assertTrue(result.config.routeAllApps)
     }
 
     @Test

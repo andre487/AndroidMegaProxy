@@ -5,6 +5,7 @@ import net.megaproxy487.model.ProfileSort
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.TlsProfile
+import net.megaproxy487.model.GlobalConnectionSettings
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.URLEncoder
@@ -22,11 +23,12 @@ data class PortableConfiguration(
     val sort: ProfileSort,
     val sortAscending: Boolean,
     val diagnosticLogLimitMb: Int = 3,
+    val globalConnectionSettings: GlobalConnectionSettings? = null,
     val skippedProfiles: Int = 0,
 )
 
 object ConfigTransfer {
-    const val SCHEMA_VERSION = 1
+    const val SCHEMA_VERSION = 2
 
     fun exportProxyList(profiles: List<ProxyProfile>, includePasswords: Boolean): String =
         profiles.joinToString("\n", postfix = "\n") { profile ->
@@ -53,6 +55,17 @@ object ConfigTransfer {
         put("profileSort", store.profileSort().name)
         put("profileSortAscending", store.isProfileSortAscending())
         put("diagnosticLogLimitMb", store.diagnosticLogLimitMb())
+        val global = store.globalConnectionSettings()
+        put("tls", JSONObject().apply {
+            put("fingerprint", global.tlsProfile.name)
+            put("customJa3", global.customJa3.trim())
+        })
+        put("routing", JSONObject().apply {
+            put("routeAllApps", global.routeAllApps)
+            put("selectedPackages", JSONArray(global.selectedPackages.sorted()))
+            put("allowIpv6", global.allowIpv6)
+            put("bypassLocalNetworks", global.bypassLocalNetworks)
+        })
         put("profiles", JSONArray().apply {
             store.profiles().forEach { profile -> put(encodeProfile(profile, includePasswords)) }
         })
@@ -76,7 +89,27 @@ object ConfigTransfer {
             sort = enumValue(root.optString("profileSort"), ProfileSort.NAME),
             sortAscending = root.optBoolean("profileSortAscending", true),
             diagnosticLogLimitMb = root.optInt("diagnosticLogLimitMb", 3).coerceIn(1, 100),
+            globalConnectionSettings = if (version >= 2) decodeGlobalSettings(root) else null,
             skippedProfiles = decoded.count(Result<ProxyProfile>::isFailure),
+        )
+    }
+
+    private fun decodeGlobalSettings(root: JSONObject): GlobalConnectionSettings {
+        val tls = root.optJSONObject("tls") ?: JSONObject()
+        val routing = root.optJSONObject("routing") ?: JSONObject()
+        val parsedTls = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT)
+        val packages = routing.optJSONArray("selectedPackages")?.let { array ->
+            (0 until array.length()).mapNotNull { index ->
+                array.optString(index).trim().takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
+            }.toSet()
+        }.orEmpty()
+        return GlobalConnectionSettings(
+            tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
+            customJa3 = tls.optString("customJa3"),
+            selectedPackages = packages,
+            allowIpv6 = routing.optBoolean("allowIpv6", false),
+            routeAllApps = routing.optBoolean("routeAllApps", true),
+            bypassLocalNetworks = routing.optBoolean("bypassLocalNetworks", true),
         )
     }
 
@@ -131,7 +164,7 @@ object ConfigTransfer {
                 username = proxy.optString("username"),
                 password = proxy.optString("password"),
                 allowInvalidProxyCertificate = proxy.optBoolean("allowInvalidProxyCertificate", false),
-                profile = enumValue(tls.optString("fingerprint"), TlsProfile.CHROME_ANDROID),
+                profile = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT),
                 customJa3 = tls.optString("customJa3"),
                 dnsProvider = enumValue(dns.optString("provider"), DnsProvider.CLOUDFLARE),
                 customDohUrl = dns.optString("customDohUrl"),

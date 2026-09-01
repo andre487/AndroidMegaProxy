@@ -72,7 +72,7 @@ import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.model.ProfileSort
 import net.megaproxy487.vpn.ProxyVpnService
 
-class ProxySettingsActivity : ComponentActivity() {
+class ProfilesActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { MaterialTheme { SettingsScreen(this) } }
@@ -87,10 +87,8 @@ private fun SettingsScreen(activity: Activity) {
     var sort by remember { mutableStateOf(store.profileSort()) }
     var ascending by remember { mutableStateOf(store.isProfileSortAscending()) }
     var sortExpanded by remember { mutableStateOf(false) }
-    var alwaysOnExpanded by remember { mutableStateOf(false) }
     var deleteProfile by remember { mutableStateOf<ProxyProfile?>(null) }
-    var showReconnectWarning by remember { mutableStateOf(false) }
-    var importedProfileIds by remember { mutableStateOf<List<String>>(emptyList()) }
+    var importedProfileCount by remember { mutableStateOf(0) }
     var importError by remember { mutableStateOf<String?>(null) }
     var skippedNonHttps by remember { mutableStateOf(0) }
     var showImportFilterNotice by remember { mutableStateOf(false) }
@@ -101,7 +99,6 @@ private fun SettingsScreen(activity: Activity) {
     var pendingExportContent by remember { mutableStateOf("") }
     var transferMessage by remember { mutableStateOf<String?>(null) }
     var pendingUnsafeImport by remember { mutableStateOf<PortableConfiguration?>(null) }
-    var showCrashConfirmation by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
 
     fun refresh() { profiles = store.sortedProfiles() }
@@ -109,13 +106,6 @@ private fun SettingsScreen(activity: Activity) {
         activity.startActivity(Intent(activity, ProfileEditorActivity::class.java).apply {
             putExtra(ProfileEditorActivity.EXTRA_PROFILE_ID, profile.id)
         })
-    }
-    fun openImportedRouting(individual: Boolean) {
-        activity.startActivity(Intent(activity, SplitTunnelActivity::class.java).apply {
-            putStringArrayListExtra(SplitTunnelActivity.EXTRA_PROFILE_IDS, ArrayList(importedProfileIds))
-            putExtra(SplitTunnelActivity.EXTRA_CONFIGURE_INDIVIDUALLY, individual)
-        })
-        importedProfileIds = emptyList()
     }
     fun writeExport(uri: Uri?) {
         if (uri == null) return
@@ -140,7 +130,7 @@ private fun SettingsScreen(activity: Activity) {
                 append(" Reconnect the VPN to apply the imported Always-on profile selection.")
             }
         }
-        importedProfileIds = emptyList()
+        importedProfileCount = 0
     }
 
     DisposableEffect(lifecycleOwner) {
@@ -178,9 +168,12 @@ private fun SettingsScreen(activity: Activity) {
                     val imported = ProxyListParser.parse(text).getOrThrow()
                     val added = store.importProfiles(imported.proxies)
                     refresh()
-                    importedProfileIds = added.map { it.id }
+                    importedProfileCount = added.size
                     skippedNonHttps = imported.skippedNonHttps
                     showImportFilterNotice = imported.skippedNonHttps > 0
+                    if (imported.skippedNonHttps == 0) {
+                        transferMessage = "Imported ${added.size} HTTPS proxy profile(s)."
+                    }
                 }
                 importError = null
             }.onFailure { importError = it.message ?: "Could not import the configuration" }
@@ -190,7 +183,7 @@ private fun SettingsScreen(activity: Activity) {
     Scaffold(
         topBar = {
         TopAppBar(
-            title = { Text("Settings") },
+            title = { Text("Profiles") },
             navigationIcon = {
                 IconButton(onClick = { activity.finish() }) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
@@ -219,51 +212,6 @@ private fun SettingsScreen(activity: Activity) {
             Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            item { Text("Always-on VPN", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp)) }
-            item {
-                ExposedDropdownMenuBox(alwaysOnExpanded, { alwaysOnExpanded = it }) {
-                    OutlinedTextField(
-                        store.alwaysOnProfile().displayNameWithFlag, {}, readOnly = true,
-                        label = { Text("Profile for Always-on VPN") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(alwaysOnExpanded) },
-                        modifier = Modifier.menuAnchor().fillMaxWidth(),
-                    )
-                    DropdownMenu(alwaysOnExpanded, { alwaysOnExpanded = false }) {
-                        profiles.forEach { profile -> DropdownMenuItem(text = { Text(profile.displayNameWithFlag) }, onClick = {
-                            store.setAlwaysOnProfile(profile.id)
-                            alwaysOnExpanded = false
-                            if (ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning) showReconnectWarning = true
-                        }) }
-                    }
-                }
-            }
-            item {
-                OutlinedButton(
-                    onClick = { activity.startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Open Android Always-on VPN settings") }
-            }
-            item {
-                OutlinedButton(onClick = {
-                    activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                        data = Uri.parse("package:${activity.packageName}")
-                    })
-                }, modifier = Modifier.fillMaxWidth()) { Text("Battery settings") }
-            }
-            item {
-                OutlinedButton(
-                    onClick = { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Diagnostic log") }
-            }
-            item {
-                OutlinedButton(
-                    onClick = { showCrashConfirmation = true },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text("Crash") }
-            }
-            item { HorizontalDivider(Modifier.padding(vertical = 6.dp)) }
-            item { Text("Profiles", style = MaterialTheme.typography.titleLarge, modifier = Modifier.padding(top = 8.dp)) }
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     ExposedDropdownMenuBox(sortExpanded, { sortExpanded = it }, Modifier.weight(1f)) {
@@ -316,43 +264,12 @@ private fun SettingsScreen(activity: Activity) {
             dismissButton = { TextButton(onClick = { deleteProfile = null }) { Text("Cancel") } },
         )
     }
-    if (showReconnectWarning) {
-        AlertDialog(
-            onDismissRequest = { showReconnectWarning = false },
-            title = { Text("Reconnect required") },
-            text = { Text("The new Always-on profile will be used only after the VPN reconnects.") },
-            confirmButton = { TextButton(onClick = { showReconnectWarning = false }) { Text("OK") } },
-        )
-    }
-    if (showCrashConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showCrashConfirmation = false },
-            title = { Text("Crash MegaProxy?") },
-            text = { Text("The app will close immediately. Reopen it to test the crash report dialog.") },
-            confirmButton = {
-                TextButton(onClick = {
-                    showCrashConfirmation = false
-                    throw IllegalStateException("Intentional crash requested from Settings")
-                }) { Text("Crash") }
-            },
-            dismissButton = { TextButton(onClick = { showCrashConfirmation = false }) { Text("Cancel") } },
-        )
-    }
     if (showImportFilterNotice) {
         AlertDialog(
             onDismissRequest = { showImportFilterNotice = false },
             title = { Text("Only HTTPS proxies were imported") },
-            text = { Text("Imported ${importedProfileIds.size} HTTPS proxy profile(s). Skipped $skippedNonHttps non-HTTPS URL(s).") },
+            text = { Text("Imported $importedProfileCount HTTPS proxy profile(s). Skipped $skippedNonHttps non-HTTPS URL(s).") },
             confirmButton = { TextButton(onClick = { showImportFilterNotice = false }) { Text("Continue") } },
-        )
-    }
-    if (importedProfileIds.isNotEmpty() && !showImportFilterNotice) {
-        AlertDialog(
-            onDismissRequest = { importedProfileIds = emptyList() },
-            title = { Text("Configure imported profiles") },
-            text = { Text("Choose whether routing settings should be shared by all imported profiles or configured one profile at a time.") },
-            confirmButton = { TextButton(onClick = { openImportedRouting(false) }) { Text("Same for all") } },
-            dismissButton = { TextButton(onClick = { openImportedRouting(true) }) { Text("One by one") } },
         )
     }
     if (showExportDialog) {

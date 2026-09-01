@@ -6,13 +6,13 @@ data class ProxyConfig(
     val username: String = "",
     val password: String = "",
     val allowInvalidProxyCertificate: Boolean = false,
-    val profile: TlsProfile = TlsProfile.CHROME_ANDROID,
+    val profile: TlsProfile = TlsProfile.DEFAULT,
     val customJa3: String = "",
     val dnsProvider: DnsProvider = DnsProvider.CLOUDFLARE,
     val customDohUrl: String = "",
     val selectedPackages: Set<String> = emptySet(),
     val allowIpv6: Boolean = false,
-    val routeAllApps: Boolean = false,
+    val routeAllApps: Boolean = true,
     val bypassLocalNetworks: Boolean = true,
     val resolvedProxyIp: String = "",
 ) {
@@ -30,7 +30,6 @@ data class ProxyConfig(
     }
 
     fun validationError(): String? = connectionValidationError()
-        ?: if (!routeAllApps && selectedPackages.isEmpty()) "Select at least one application" else null
 }
 
 data class ProxyProfile(
@@ -79,6 +78,7 @@ enum class DnsProvider(val title: String, val url: String) {
 }
 
 enum class TlsProfile(val title: String, val available: Boolean = true) {
+    DEFAULT("Default (currently Chrome Android)"),
     CHROME_ANDROID("Chrome Android 133 (uTLS)"),
     FIREFOX_ANDROID("Firefox Android 120 (uTLS)"),
     EDGE_ANDROID("Edge Android (awaiting a verified profile)", false),
@@ -86,6 +86,24 @@ enum class TlsProfile(val title: String, val available: Boolean = true) {
     SAMSUNG_INTERNET("Samsung Internet (awaiting a verified profile)", false),
     YANDEX_BROWSER("Yandex Browser (awaiting a verified profile)", false),
     CUSTOM("Manual JA3"),
+}
+
+data class GlobalConnectionSettings(
+    val tlsProfile: TlsProfile = TlsProfile.DEFAULT,
+    val customJa3: String = "",
+    val selectedPackages: Set<String> = emptySet(),
+    val allowIpv6: Boolean = false,
+    val routeAllApps: Boolean = true,
+    val bypassLocalNetworks: Boolean = true,
+) {
+    fun applyTo(config: ProxyConfig): ProxyConfig = config.copy(
+        profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.CHROME_ANDROID else tlsProfile,
+        customJa3 = customJa3,
+        selectedPackages = selectedPackages,
+        allowIpv6 = allowIpv6,
+        routeAllApps = routeAllApps,
+        bypassLocalNetworks = bypassLocalNetworks,
+    )
 }
 
 data class Ja3Spec(

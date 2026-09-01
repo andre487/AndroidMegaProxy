@@ -1,7 +1,6 @@
 package net.megaproxy487
 
 import android.app.Activity
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -46,7 +45,6 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProfileColorMatcher
 import net.megaproxy487.model.ProxyConfig
-import net.megaproxy487.model.TlsProfile
 import java.util.Locale
 
 class ProfileEditorActivity : ComponentActivity() {
@@ -70,7 +68,6 @@ private fun ProfileEditorScreen(activity: Activity) {
     var portText by remember { mutableStateOf(config.port.toString()) }
     var error by remember { mutableStateOf<String?>(null) }
     var countryExpanded by remember { mutableStateOf(false) }
-    var tlsExpanded by remember { mutableStateOf(false) }
     var dnsExpanded by remember { mutableStateOf(false) }
     var showInvalidCertificateWarning by remember { mutableStateOf(false) }
     val countries = remember {
@@ -84,7 +81,7 @@ private fun ProfileEditorScreen(activity: Activity) {
         config = updated
         profile = profile.copy(config = updated)
         saveProfile()
-        error = updated.connectionValidationError()
+        error = store.globalConnectionSettings().applyTo(updated).connectionValidationError()
     }
 
     Scaffold(
@@ -158,15 +155,6 @@ private fun ProfileEditorScreen(activity: Activity) {
                 })
             }
 
-            Text("TLS fingerprint", style = MaterialTheme.typography.titleMedium)
-            ExposedDropdownMenuBox(tlsExpanded, { tlsExpanded = it }) {
-                OutlinedTextField(config.profile.title, {}, readOnly = true, label = { Text("TLS / JA3 profile") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(tlsExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth())
-                DropdownMenu(tlsExpanded, { tlsExpanded = false }) {
-                    TlsProfile.entries.forEach { tls -> DropdownMenuItem(text = { Text(tls.title) }, enabled = tls.available, onClick = { updateConfig(config.copy(profile = tls)); tlsExpanded = false }) }
-                }
-            }
-            if (config.profile == TlsProfile.CUSTOM) OutlinedTextField(config.customJa3, { updateConfig(config.copy(customJa3 = it)) }, label = { Text("JA3: version,ciphers,extensions,groups,points") }, modifier = Modifier.fillMaxWidth(), minLines = 2)
-
             Text("DNS over HTTPS", style = MaterialTheme.typography.titleMedium)
             ExposedDropdownMenuBox(dnsExpanded, { dnsExpanded = it }) {
                 OutlinedTextField(config.dnsProvider.title, {}, readOnly = true, label = { Text("DNS over HTTPS") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth())
@@ -177,12 +165,6 @@ private fun ProfileEditorScreen(activity: Activity) {
             if (config.dnsProvider == DnsProvider.CUSTOM) OutlinedTextField(config.customDohUrl, { updateConfig(config.copy(customDohUrl = it)) }, label = { Text("Custom DoH URL") }, singleLine = true, modifier = Modifier.fillMaxWidth())
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Text("Changes are saved automatically.", style = MaterialTheme.typography.bodySmall)
-            HorizontalDivider()
-            OutlinedButton(onClick = {
-                activity.startActivity(Intent(activity, SplitTunnelActivity::class.java).apply {
-                    putStringArrayListExtra(SplitTunnelActivity.EXTRA_PROFILE_IDS, arrayListOf(profile.id))
-                })
-            }, modifier = Modifier.fillMaxWidth()) { Text("Routing") }
         }
     }
 

@@ -5,6 +5,14 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ProxyConfigTest {
+    @Test
+    fun `default TLS fingerprint currently resolves to Chrome Android`() {
+        val resolved = GlobalConnectionSettings(tlsProfile = TlsProfile.DEFAULT)
+            .applyTo(ProxyConfig())
+
+        assertEquals(TlsProfile.CHROME_ANDROID, resolved.profile)
+    }
+
     private val validConnection = ProxyConfig(
         host = "proxy.example.com",
         username = "user",
@@ -12,12 +20,12 @@ class ProxyConfigTest {
     )
 
     @Test
-    fun splitTunnelingRequiresAnApplication() {
-        assertEquals("Select at least one application", validConnection.validationError())
+    fun splitTunnelingAllowsNoApplications() {
+        assertNull(validConnection.copy(routeAllApps = false).validationError())
     }
 
     @Test
     fun globalVpnDoesNotRequireSelectedApplications() {
-        assertNull(validConnection.copy(routeAllApps = true).validationError())
+        assertNull(validConnection.validationError())
     }
 }

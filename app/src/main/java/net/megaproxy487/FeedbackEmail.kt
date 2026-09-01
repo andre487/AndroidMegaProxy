@@ -26,7 +26,7 @@ object FeedbackEmail {
         crashReport: Boolean = false,
     ): Intent {
         val store = ConfigStore(context)
-        val config = store.connectionProfile().config
+        val config = store.globalConnectionSettings().applyTo(store.connectionProfile().config)
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         val versionCode = if (Build.VERSION.SDK_INT >= 28) packageInfo.longVersionCode else {
             @Suppress("DEPRECATION")

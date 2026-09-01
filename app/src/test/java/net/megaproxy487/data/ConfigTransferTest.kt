@@ -60,9 +60,30 @@ class ConfigTransferTest {
         )
         val profile = imported.profiles.single()
         assertEquals(443, profile.config.port)
-        assertEquals(TlsProfile.CHROME_ANDROID, profile.config.profile)
+        assertEquals(TlsProfile.DEFAULT, profile.config.profile)
         assertEquals(setOf("com.example.not.installed"), profile.config.selectedPackages)
         assertEquals("", profile.config.password)
         assertEquals("source", imported.activeProfileId)
+    }
+
+    @Test
+    fun `unsupported global fingerprint falls back to default`() {
+        val imported = ConfigTransfer.importJson(
+            """
+            {
+              "schema":"dev.megaproxy.config",
+              "version":2,
+              "tls":{"fingerprint":"SAMSUNG_INTERNET","customJa3":"ignored"},
+              "routing":{"selectedPackages":["com.example.missing"],"routeAllApps":false},
+              "profiles":[{
+                "id":"one",
+                "proxy":{"host":"proxy.example","username":"user"}
+              }]
+            }
+            """.trimIndent(),
+        )
+
+        assertEquals(TlsProfile.DEFAULT, imported.globalConnectionSettings?.tlsProfile)
+        assertEquals(setOf("com.example.missing"), imported.globalConnectionSettings?.selectedPackages)
     }
 }

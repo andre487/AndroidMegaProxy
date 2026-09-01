@@ -82,7 +82,9 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
         }
     }
     val runTest = {
-        val error = ConfigStore(activity).load().connectionValidationError()
+        val configStore = ConfigStore(activity)
+        val error = configStore.globalConnectionSettings().applyTo(configStore.activeProfile().config)
+            .connectionValidationError()
         if (error != null) {
             TestDiagnosticLog.fail(error)
         } else {

@@ -201,7 +201,7 @@ private fun MainScreen(activity: Activity) {
             systemVpnStatus = readAlwaysOnVpnStatus(activity)
             error = null
         } else {
-            error = store.activeProfile().config.validationError()
+            error = store.globalConnectionSettings().applyTo(store.activeProfile().config).validationError()
         }
         if (error == null && !isAlwaysOnVpnActive(activity)) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(

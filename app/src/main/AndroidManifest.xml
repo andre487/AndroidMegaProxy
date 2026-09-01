@@ -23,6 +23,9 @@
             </intent-filter>
         </activity>
         <activity android:name=".ProxySettingsActivity" android:exported="false" />
+        <activity android:name=".ProfilesActivity" android:exported="false" />
+        <activity android:name=".AlwaysOnSettingsActivity" android:exported="false" />
+        <activity android:name=".TlsFingerprintActivity" android:exported="false" />
         <activity android:name=".ProfileEditorActivity" android:exported="false" />
         <activity android:name=".SplitTunnelActivity" android:exported="false" />
         <activity android:name=".ConnectionTestActivity" android:exported="false" />
