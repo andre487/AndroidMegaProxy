@@ -64,12 +64,6 @@ object ProfileColors {
     )
 }
 
-enum class ProfileSort(val title: String) {
-    NAME("Name"),
-    HOST("Host"),
-    COUNTRY("Country"),
-}
-
 enum class DnsProvider(val title: String, val url: String) {
     CLOUDFLARE("Cloudflare", "https://cloudflare-dns.com/dns-query"),
     GOOGLE("Google", "https://dns.google/dns-query"),

@@ -1,7 +1,6 @@
 package net.megaproxy487.data
 
 import net.megaproxy487.model.DnsProvider
-import net.megaproxy487.model.ProfileSort
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.TlsProfile
@@ -20,8 +19,6 @@ data class PortableConfiguration(
     val profiles: List<ProxyProfile>,
     val activeProfileId: String?,
     val alwaysOnProfileId: String?,
-    val sort: ProfileSort,
-    val sortAscending: Boolean,
     val diagnosticLogLimitMb: Int = 3,
     val globalConnectionSettings: GlobalConnectionSettings? = null,
     val skippedProfiles: Int = 0,
@@ -52,8 +49,6 @@ object ConfigTransfer {
         put("passwordsIncluded", includePasswords)
         put("activeProfileId", store.activeProfileId())
         put("alwaysOnProfileId", store.alwaysOnProfileId())
-        put("profileSort", store.profileSort().name)
-        put("profileSortAscending", store.isProfileSortAscending())
         put("diagnosticLogLimitMb", store.diagnosticLogLimitMb())
         val global = store.globalConnectionSettings()
         put("tls", JSONObject().apply {
@@ -86,8 +81,6 @@ object ConfigTransfer {
             profiles = profiles,
             activeProfileId = root.optString("activeProfileId").ifBlank { null },
             alwaysOnProfileId = root.optString("alwaysOnProfileId").ifBlank { null },
-            sort = enumValue(root.optString("profileSort"), ProfileSort.NAME),
-            sortAscending = root.optBoolean("profileSortAscending", true),
             diagnosticLogLimitMb = root.optInt("diagnosticLogLimitMb", 3).coerceIn(1, 100),
             globalConnectionSettings = if (version >= 2) decodeGlobalSettings(root) else null,
             skippedProfiles = decoded.count(Result<ProxyProfile>::isFailure),

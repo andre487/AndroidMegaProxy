@@ -21,6 +21,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -50,11 +52,15 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.unit.dp
@@ -69,7 +75,6 @@ import net.megaproxy487.data.ProxyListParser
 import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.vpn.PersistentDiagnosticLog
-import net.megaproxy487.model.ProfileSort
 import net.megaproxy487.vpn.ProxyVpnService
 
 class ProfilesActivity : ComponentActivity() {
@@ -83,10 +88,7 @@ class ProfilesActivity : ComponentActivity() {
 @Composable
 private fun SettingsScreen(activity: Activity) {
     val store = remember { ConfigStore(activity) }
-    var profiles by remember { mutableStateOf(store.sortedProfiles()) }
-    var sort by remember { mutableStateOf(store.profileSort()) }
-    var ascending by remember { mutableStateOf(store.isProfileSortAscending()) }
-    var sortExpanded by remember { mutableStateOf(false) }
+    val profiles = remember { mutableStateListOf<ProxyProfile>().apply { addAll(store.sortedProfiles()) } }
     var deleteProfile by remember { mutableStateOf<ProxyProfile?>(null) }
     var importedProfileCount by remember { mutableStateOf(0) }
     var importError by remember { mutableStateOf<String?>(null) }
@@ -100,8 +102,13 @@ private fun SettingsScreen(activity: Activity) {
     var transferMessage by remember { mutableStateOf<String?>(null) }
     var pendingUnsafeImport by remember { mutableStateOf<PortableConfiguration?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
+    val listState = rememberLazyListState()
+    var draggedProfileId by remember { mutableStateOf<String?>(null) }
 
-    fun refresh() { profiles = store.sortedProfiles() }
+    fun refresh() {
+        profiles.clear()
+        profiles.addAll(store.sortedProfiles())
+    }
     fun edit(profile: ProxyProfile) {
         activity.startActivity(Intent(activity, ProfileEditorActivity::class.java).apply {
             putExtra(ProfileEditorActivity.EXTRA_PROFILE_ID, profile.id)
@@ -118,8 +125,6 @@ private fun SettingsScreen(activity: Activity) {
     fun applyJsonImport(configuration: PortableConfiguration) {
         val added = store.importConfiguration(configuration)
         PersistentDiagnosticLog.setLimitMb(store.diagnosticLogLimitMb())
-        sort = store.profileSort()
-        ascending = store.isProfileSortAscending()
         refresh()
         val missingPasswords = added.count { it.config.password.isEmpty() }
         transferMessage = buildString {
@@ -210,37 +215,50 @@ private fun SettingsScreen(activity: Activity) {
     ) { padding ->
         LazyColumn(
             Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
+            state = listState,
             verticalArrangement = Arrangement.spacedBy(10.dp),
         ) {
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    ExposedDropdownMenuBox(sortExpanded, { sortExpanded = it }, Modifier.weight(1f)) {
-                        OutlinedTextField(
-                            sort.title, {}, readOnly = true, label = { Text("Sort by") },
-                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sortExpanded) },
-                            modifier = Modifier.menuAnchor().fillMaxWidth(),
-                        )
-                        DropdownMenu(sortExpanded, { sortExpanded = false }) {
-                            ProfileSort.entries.forEach { option -> DropdownMenuItem(text = { Text(option.title) }, onClick = {
-                                sort = option
-                                store.setProfileSort(sort, ascending)
-                                refresh()
-                                sortExpanded = false
-                            }) }
-                        }
-                    }
-                    OutlinedButton(onClick = {
-                        ascending = !ascending
-                        store.setProfileSort(sort, ascending)
-                        refresh()
-                    }, modifier = Modifier.padding(top = 8.dp)) {
-                        Text(if (ascending) "Ascending" else "Descending")
-                    }
-                }
-            }
             items(profiles, key = { it.id }) { profile ->
+                var dragOffset by remember(profile.id) { mutableStateOf(0f) }
                 ProfileCard(
                     profile = profile,
+                    modifier = Modifier
+                        .zIndex(if (draggedProfileId == profile.id) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = dragOffset
+                            alpha = if (draggedProfileId == profile.id) 0.92f else 1f
+                        }
+                        .pointerInput(profile.id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { draggedProfileId = profile.id },
+                                onDragCancel = {
+                                    dragOffset = 0f
+                                    draggedProfileId = null
+                                    store.reorderProfiles(profiles.map(ProxyProfile::id))
+                                },
+                                onDragEnd = {
+                                    dragOffset = 0f
+                                    draggedProfileId = null
+                                    store.reorderProfiles(profiles.map(ProxyProfile::id))
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragOffset += amount.y
+                                    val currentIndex = profiles.indexOfFirst { it.id == profile.id }
+                                    val currentInfo = listState.layoutInfo.visibleItemsInfo
+                                        .firstOrNull { it.key == profile.id } ?: return@detectDragGesturesAfterLongPress
+                                    val targetY = currentInfo.offset + currentInfo.size / 2f + dragOffset
+                                    val targetInfo = listState.layoutInfo.visibleItemsInfo.firstOrNull {
+                                        it.key != profile.id && targetY.toInt() in it.offset..(it.offset + it.size)
+                                    } ?: return@detectDragGesturesAfterLongPress
+                                    val targetIndex = profiles.indexOfFirst { it.id == targetInfo.key }
+                                    if (currentIndex >= 0 && targetIndex >= 0 && currentIndex != targetIndex) {
+                                        dragOffset += currentInfo.offset - targetInfo.offset
+                                        profiles.add(targetIndex, profiles.removeAt(currentIndex))
+                                    }
+                                },
+                            )
+                        },
                     onConfigure = { edit(profile) },
                     onClone = { store.cloneProfile(profile.id); refresh() },
                     onDelete = { deleteProfile = profile },
@@ -340,6 +358,7 @@ private fun SettingsScreen(activity: Activity) {
 @Composable
 private fun ProfileCard(
     profile: ProxyProfile,
+    modifier: Modifier = Modifier,
     onConfigure: () -> Unit,
     onClone: () -> Unit,
     onDelete: () -> Unit,
@@ -348,7 +367,7 @@ private fun ProfileCard(
     val foreground = if (background.luminance() > 0.45f) Color.Black else Color.White
     Card(
         colors = CardDefaults.cardColors(containerColor = background, contentColor = foreground),
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onConfigure),
+        modifier = modifier.fillMaxWidth().clickable(onClick = onConfigure),
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

@@ -7,7 +7,6 @@ import android.util.Base64
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProfileColorMatcher
-import net.megaproxy487.model.ProfileSort
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.TlsProfile
@@ -46,24 +45,15 @@ class ConfigStore(context: Context) {
 
     fun alwaysOnProfile(): ProxyProfile = profile(alwaysOnProfileId()) ?: profiles().first()
 
-    fun profileSort(): ProfileSort = enumValue(prefs.getString(PROFILE_SORT, null), ProfileSort.NAME)
+    fun sortedProfiles(): List<ProxyProfile> = profiles()
 
-    fun isProfileSortAscending(): Boolean = prefs.getBoolean(PROFILE_SORT_ASCENDING, true)
-
-    fun setProfileSort(sort: ProfileSort, ascending: Boolean) {
-        prefs.edit()
-            .putString(PROFILE_SORT, sort.name)
-            .putBoolean(PROFILE_SORT_ASCENDING, ascending)
-            .apply()
-    }
-
-    fun sortedProfiles(): List<ProxyProfile> {
-        val comparator = when (profileSort()) {
-            ProfileSort.NAME -> compareBy<ProxyProfile> { it.displayName.lowercase() }
-            ProfileSort.HOST -> compareBy { it.config.host.lowercase() }
-            ProfileSort.COUNTRY -> compareBy<ProxyProfile> { it.countryCode }.thenBy { it.displayName.lowercase() }
-        }
-        return profiles().sortedWith(if (isProfileSortAscending()) comparator else comparator.reversed())
+    @Synchronized
+    fun reorderProfiles(orderedIds: List<String>) {
+        val current = profiles()
+        val byId = current.associateBy(ProxyProfile::id)
+        val reordered = orderedIds.mapNotNull(byId::get) + current.filter { it.id !in orderedIds }
+        if (reordered.map(ProxyProfile::id) == current.map(ProxyProfile::id)) return
+        writeProfiles(reordered)
     }
 
     fun profile(id: String): ProxyProfile? = profiles().firstOrNull { it.id == id }
@@ -180,8 +170,6 @@ class ConfigStore(context: Context) {
         }
         writeProfiles(existing + added)
         val editor = prefs.edit()
-            .putString(PROFILE_SORT, configuration.sort.name)
-            .putBoolean(PROFILE_SORT_ASCENDING, configuration.sortAscending)
             .putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
         configuration.activeProfileId?.let(idMap::get)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
         configuration.alwaysOnProfileId?.let(idMap::get)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
@@ -396,8 +384,6 @@ class ConfigStore(context: Context) {
         const val CONNECTION_PROFILE_ID = "connection_profile_id"
         const val FLAG_COLOR_VERSION = "flag_color_version"
         const val CURRENT_FLAG_COLOR_VERSION = 1
-        const val PROFILE_SORT = "profile_sort"
-        const val PROFILE_SORT_ASCENDING = "profile_sort_ascending"
         const val DIAGNOSTIC_LOG_LIMIT_MB = "diagnostic_log_limit_mb"
         const val GLOBAL_CONNECTION_SETTINGS = "global_connection_settings_v1"
     }
