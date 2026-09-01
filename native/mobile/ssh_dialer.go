@@ -7,6 +7,7 @@ import (
 	"net"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -17,12 +18,16 @@ import (
 // sshDialer implements OpenSSH-style dynamic forwarding. SOCKS CONNECT semantics
 // are mapped directly to SSH direct-tcpip channels; SSH has no general UDP relay.
 type sshDialer struct {
-	config     config
-	protector  Protector
-	reporter   Reporter
-	mu         sync.Mutex
-	client     *ssh.Client
-	jumpClient *ssh.Client
+	config         config
+	protector      Protector
+	reporter       Reporter
+	mu             sync.Mutex
+	client         *ssh.Client
+	jumpClient     *ssh.Client
+	channels       chan struct{}
+	sessionCreated time.Time
+	sessionBytes   atomic.Uint64
+	keepaliveStop  chan struct{}
 }
 
 func (d *sshDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
@@ -39,6 +44,26 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
 		return d.protectedDialer().DialContext(ctx, "tcp", target)
 	}
+	if d.rotationDue() {
+		d.invalidate()
+	}
+	d.mu.Lock()
+	if d.channels == nil {
+		d.channels = make(chan struct{}, d.config.SSHMaxChannels)
+	}
+	channels := d.channels
+	d.mu.Unlock()
+	select {
+	case channels <- struct{}{}:
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	}
+	release := true
+	defer func() {
+		if release {
+			<-channels
+		}
+	}()
 	client, err := d.session(ctx)
 	if err != nil {
 		recordConnectionOutcome(false)
@@ -55,7 +80,9 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	}
 	recordConnectionOutcome(true)
 	report(d.reporter, "event=connection mode=ssh stage=direct_tcpip result=success elapsed_ms=%d", time.Since(started).Milliseconds())
-	return &diagnosticConn{Conn: conn, connectionID: nextDiagnosticConnectionID(), reporter: d.reporter}, nil
+	release = false
+	tracked := &sshTrackedConn{Conn: conn, release: func() { <-channels }, bytes: &d.sessionBytes}
+	return &diagnosticConn{Conn: tracked, connectionID: nextDiagnosticConnectionID(), reporter: d.reporter}, nil
 }
 
 func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
@@ -69,7 +96,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("dial jump host: %w", err)
 		}
-		jump, err := newSSHClient(raw, d.config.JumpHost, d.config.JumpUsername, d.config.JumpPassword, d.config.JumpPrivateKey, d.config.JumpTrustedHostKey, d.config.JumpAcceptAnyHostKey, d.config.SSHProfile, "jump", d.reporter)
+		jump, err := newSSHClient(raw, d.config.JumpHost, d.config.JumpUsername, d.config.JumpPassword, d.config.JumpPrivateKey, d.config.JumpTrustedHostKey, d.config.JumpAcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "jump", d.reporter)
 		if err != nil {
 			raw.Close()
 			return nil, err
@@ -79,7 +106,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 			jump.Close()
 			return nil, fmt.Errorf("jump host could not reach destination SSH host: %w", err)
 		}
-		client, err := newSSHClient(nested, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, "destination", d.reporter)
+		client, err := newSSHClient(nested, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
 		if err != nil {
 			nested.Close()
 			jump.Close()
@@ -91,7 +118,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 		if err != nil {
 			return nil, fmt.Errorf("dial SSH host: %w", err)
 		}
-		client, err := newSSHClient(raw, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, "destination", d.reporter)
+		client, err := newSSHClient(raw, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
 		if err != nil {
 			raw.Close()
 			return nil, err
@@ -99,11 +126,14 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 		d.client = client
 	}
 	report(d.reporter, "event=ssh_session result=established type=%s profile=%s", d.config.Type, d.config.SSHProfile)
+	d.sessionCreated = time.Now()
+	d.sessionBytes.Store(0)
+	d.startKeepalive()
 	return d.client, nil
 }
 
-func newSSHClient(conn net.Conn, hostname, username, password, privateKey, trusted string, acceptAny bool, profile, hop string, reporter Reporter) (*ssh.Client, error) {
-	auth, err := sshAuthMethods(privateKey, password)
+func newSSHClient(conn net.Conn, hostname, username, password, privateKey, trusted string, acceptAny bool, profile, authMode, hop string, reporter Reporter) (*ssh.Client, error) {
+	auth, err := sshAuthMethods(privateKey, password, authMode)
 	if err != nil {
 		return nil, err
 	}
@@ -117,9 +147,9 @@ func newSSHClient(conn net.Conn, hostname, username, password, privateKey, trust
 	return ssh.NewClient(cc, channels, requests), nil
 }
 
-func sshAuthMethods(privateKey, password string) ([]ssh.AuthMethod, error) {
+func sshAuthMethods(privateKey, password, authMode string) ([]ssh.AuthMethod, error) {
 	methods := make([]ssh.AuthMethod, 0, 2)
-	if strings.TrimSpace(privateKey) != "" {
+	if authMode != "PASSWORD_ONLY" && strings.TrimSpace(privateKey) != "" {
 		signer, err := ssh.ParsePrivateKey([]byte(privateKey))
 		if err != nil {
 			var passphraseErr *ssh.PassphraseMissingError
@@ -130,7 +160,7 @@ func sshAuthMethods(privateKey, password string) ([]ssh.AuthMethod, error) {
 		}
 		methods = append(methods, ssh.PublicKeys(signer))
 	}
-	if password != "" {
+	if authMode != "KEY_ONLY" && password != "" {
 		methods = append(methods, ssh.Password(password))
 		methods = append(methods, ssh.KeyboardInteractive(func(_ string, _ string, questions []string, _ []bool) ([]string, error) {
 			answers := make([]string, len(questions))
@@ -205,6 +235,68 @@ func (d *sshDialer) invalidate() {
 		d.jumpClient.Close()
 	}
 	d.client, d.jumpClient = nil, nil
+	if d.keepaliveStop != nil {
+		close(d.keepaliveStop)
+		d.keepaliveStop = nil
+	}
 }
 
 func (d *sshDialer) Close() error { d.invalidate(); return nil }
+
+func (d *sshDialer) rotationDue() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.client == nil {
+		return false
+	}
+	if d.channels != nil && len(d.channels) > 0 {
+		return false
+	}
+	if d.config.SSHRotationMinutes > 0 && time.Since(d.sessionCreated) >= time.Duration(d.config.SSHRotationMinutes)*time.Minute {
+		return true
+	}
+	return d.config.SSHRotationMB > 0 && d.sessionBytes.Load() >= uint64(d.config.SSHRotationMB)*1024*1024
+}
+
+func (d *sshDialer) startKeepalive() {
+	if d.config.SSHKeepaliveSeconds <= 0 || d.client == nil {
+		return
+	}
+	stop := make(chan struct{})
+	d.keepaliveStop = stop
+	client := d.client
+	interval := time.Duration(d.config.SSHKeepaliveSeconds) * time.Second
+	go func() {
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				if _, _, err := client.SendRequest("keepalive@openssh.com", true, nil); err != nil {
+					return
+				}
+			case <-stop:
+				return
+			}
+		}
+	}()
+}
+
+type sshTrackedConn struct {
+	net.Conn
+	release func()
+	bytes   *atomic.Uint64
+	once    sync.Once
+}
+
+func (c *sshTrackedConn) Read(p []byte) (int, error) {
+	n, err := c.Conn.Read(p)
+	c.bytes.Add(uint64(n))
+	return n, err
+}
+func (c *sshTrackedConn) Write(p []byte) (int, error) {
+	n, err := c.Conn.Write(p)
+	c.bytes.Add(uint64(n))
+	return n, err
+}
+func (c *sshTrackedConn) Close() error { err := c.Conn.Close(); c.once.Do(c.release); return err }

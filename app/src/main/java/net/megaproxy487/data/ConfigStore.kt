@@ -11,6 +11,8 @@ import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.SshProfile
+import net.megaproxy487.model.SshAuthMode
+import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.GlobalConnectionSettings
 import org.json.JSONArray
@@ -75,7 +77,10 @@ class ConfigStore(context: Context) {
     }
 
     fun setAlwaysOnProfile(id: String) {
-        if (profile(id) != null) prefs.edit().putString(ALWAYS_ON_PROFILE_ID, id).apply()
+        if (profile(id) != null) prefs.edit()
+            .putString(ALWAYS_ON_PROFILE_ID, id)
+            .putBoolean(FAILOVER_ACTIVE, false)
+            .apply()
     }
 
     fun connectionProfile(): ProxyProfile =
@@ -87,11 +92,22 @@ class ConfigStore(context: Context) {
         if (profile(id) != null) prefs.edit().putString(CONNECTION_PROFILE_ID, id).apply()
     }
 
+    fun failoverNotice(): String? = prefs.getString(FAILOVER_NOTICE, null)
+
+    fun isFailoverActive(): Boolean = prefs.getBoolean(FAILOVER_ACTIVE, false)
+
+    fun setFailoverState(active: Boolean, notice: String?) {
+        prefs.edit().putBoolean(FAILOVER_ACTIVE, active).apply {
+            if (notice == null) remove(FAILOVER_NOTICE) else putString(FAILOVER_NOTICE, notice)
+        }.apply()
+    }
+
     @Synchronized
     fun globalConnectionSettings(): GlobalConnectionSettings {
         ensureMigrated()
         val stored = prefs.getString(GLOBAL_CONNECTION_SETTINGS, null)
         if (stored != null) {
+            migrateGlobalIpv6ToProfiles(stored)
             val decoded = decodeGlobalConnectionSettings(stored)
             if (!JSONObject(stored).has("sshProfile")) {
                 val upgraded = decoded.copy(sshProfile = activeProfile().config.sshProfile)
@@ -106,17 +122,30 @@ class ConfigStore(context: Context) {
             sshProfile = source.sshProfile,
             customJa3 = source.customJa3,
             selectedPackages = source.selectedPackages,
-            allowIpv6 = source.allowIpv6,
             routeAllApps = source.routeAllApps,
             bypassLocalNetworks = source.bypassLocalNetworks,
         )
         saveGlobalConnectionSettings(migrated)
+        prefs.edit().putBoolean(IPV6_PROFILE_MIGRATED, true).apply()
         return migrated
+    }
+
+    @Synchronized
+    private fun migrateGlobalIpv6ToProfiles(storedSettings: String) {
+        if (prefs.getBoolean(IPV6_PROFILE_MIGRATED, false)) return
+        val enabled = runCatching { JSONObject(storedSettings).optBoolean("allowIpv6", false) }.getOrDefault(false)
+        writeProfiles(profiles().map { it.copy(config = it.config.copy(allowIpv6 = enabled)) })
+        prefs.edit().putBoolean(IPV6_PROFILE_MIGRATED, true).apply()
     }
 
     fun saveGlobalConnectionSettings(settings: GlobalConnectionSettings) {
         val normalized = settings.copy(
             tlsProfile = settings.tlsProfile.takeIf { it.available } ?: TlsProfile.DEFAULT,
+            sshKeepaliveSeconds = settings.sshKeepaliveSeconds.coerceIn(0, 3600),
+            sshMaxChannels = settings.sshMaxChannels.coerceIn(1, 256),
+            sshRotationMinutes = settings.sshRotationMinutes.coerceIn(0, 1440),
+            sshRotationMb = settings.sshRotationMb.coerceIn(0, 10240),
+            failoverProfileIds = settings.failoverProfileIds.distinct(),
         )
         prefs.edit().putString(GLOBAL_CONNECTION_SETTINGS, encodeGlobalConnectionSettings(normalized)).apply()
     }
@@ -382,9 +411,15 @@ class ConfigStore(context: Context) {
     private fun encodeGlobalConnectionSettings(settings: GlobalConnectionSettings) = JSONObject().apply {
         put("fingerprint", settings.tlsProfile.name)
         put("sshProfile", settings.sshProfile.name)
+        put("sshAuthMode", settings.sshAuthMode.name)
+        put("sshKeepaliveSeconds", settings.sshKeepaliveSeconds)
+        put("sshMaxChannels", settings.sshMaxChannels)
+        put("sshRotationMinutes", settings.sshRotationMinutes)
+        put("sshRotationMb", settings.sshRotationMb)
+        put("failoverMode", settings.failoverMode.name)
+        put("failoverProfileIds", JSONArray(settings.failoverProfileIds))
         put("customJa3", settings.customJa3.trim())
         put("packages", JSONArray(settings.selectedPackages.sorted()))
-        put("allowIpv6", settings.allowIpv6)
         put("routeAllApps", settings.routeAllApps)
         put("bypassLocalNetworks", settings.bypassLocalNetworks)
     }.toString()
@@ -395,11 +430,19 @@ class ConfigStore(context: Context) {
         GlobalConnectionSettings(
             tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
             sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),
+            sshAuthMode = enumValue(item.optString("sshAuthMode"), SshAuthMode.AUTO),
+            sshKeepaliveSeconds = item.optInt("sshKeepaliveSeconds", 30).coerceIn(0, 3600),
+            sshMaxChannels = item.optInt("sshMaxChannels", 32).coerceIn(1, 256),
+            sshRotationMinutes = item.optInt("sshRotationMinutes", 0).coerceIn(0, 1440),
+            sshRotationMb = item.optInt("sshRotationMb", 0).coerceIn(0, 10240),
+            failoverMode = enumValue(item.optString("failoverMode"), FailoverMode.DISABLED),
+            failoverProfileIds = item.optJSONArray("failoverProfileIds")?.let { array ->
+                (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }
+            }.orEmpty(),
             customJa3 = item.optString("customJa3"),
             selectedPackages = item.optJSONArray("packages")?.let { array ->
                 (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }.toSet()
             }.orEmpty(),
-            allowIpv6 = item.optBoolean("allowIpv6", false),
             routeAllApps = item.optBoolean("routeAllApps", true),
             bypassLocalNetworks = item.optBoolean("bypassLocalNetworks", true),
         )
@@ -438,10 +481,13 @@ class ConfigStore(context: Context) {
         const val PROFILES = "profiles_v2"
         const val ACTIVE_PROFILE_ID = "active_profile_id"
         const val ALWAYS_ON_PROFILE_ID = "always_on_profile_id"
+        private const val FAILOVER_ACTIVE = "failover_active"
+        private const val FAILOVER_NOTICE = "failover_notice"
         const val CONNECTION_PROFILE_ID = "connection_profile_id"
         const val FLAG_COLOR_VERSION = "flag_color_version"
         const val CURRENT_FLAG_COLOR_VERSION = 1
         const val DIAGNOSTIC_LOG_LIMIT_MB = "diagnostic_log_limit_mb"
         const val GLOBAL_CONNECTION_SETTINGS = "global_connection_settings_v1"
+        private const val IPV6_PROFILE_MIGRATED = "ipv6_profile_migrated_v1"
     }
 }

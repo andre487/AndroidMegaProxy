@@ -10,6 +10,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -21,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -42,6 +44,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -50,6 +53,8 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.model.Ja3Spec
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.SshProfile
+import net.megaproxy487.model.SshAuthMode
+import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 
@@ -71,6 +76,13 @@ class TlsFingerprintActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent { MaterialTheme { TlsFingerprintScreen(this) } }
+    }
+}
+
+class FailoverSettingsActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { MaterialTheme { FailoverSettingsScreen(this) } }
     }
 }
 
@@ -99,6 +111,7 @@ private fun SettingsHomeScreen(activity: Activity) {
         SettingsButton("Always-on VPN") { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
         SettingsButton("Fingerprints") { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
         SettingsButton("Split tunneling") { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
+        SettingsButton("Failover") { activity.startActivity(Intent(activity, FailoverSettingsActivity::class.java)) }
         SettingsButton("Visibility") { activity.startActivity(Intent(activity, VisibilityActivity::class.java)) }
         if (!batteryOptimizationDisabled) {
             SettingsButton("Battery settings") {
@@ -119,6 +132,71 @@ private fun SettingsHomeScreen(activity: Activity) {
             dismissButton = { TextButton(onClick = { showCrashConfirmation = false }) { Text("Cancel") } },
         )
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun FailoverSettingsScreen(activity: Activity) {
+    val store = remember { ConfigStore(activity) }
+    var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
+    var expanded by remember { mutableStateOf(false) }
+    var pendingAll by remember { mutableStateOf(false) }
+    val alwaysOn = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
+    fun save(mode: FailoverMode = settings.failoverMode, ids: List<String> = settings.failoverProfileIds) {
+        settings = settings.copy(failoverMode = mode, failoverProfileIds = ids)
+        store.saveGlobalConnectionSettings(settings)
+    }
+    SettingsScaffold(activity, "Failover") {
+        ExposedDropdownMenuBox(expanded, { expanded = it }) {
+            OutlinedTextField(settings.failoverMode.title, {}, readOnly = true, label = { Text("Failover mode") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor().fillMaxWidth())
+            DropdownMenu(expanded, { expanded = false }) {
+                FailoverMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(mode.title) }, onClick = {
+                    expanded = false
+                    if (mode == FailoverMode.ALL) pendingAll = true else save(mode = mode)
+                }) }
+            }
+        }
+        Text("Failover is only triggered after repeated timeout, reset or silent-drop signals. Authentication, host-key, certificate and configuration errors never trigger it.", style = MaterialTheme.typography.bodySmall)
+        if (settings.failoverMode == FailoverMode.SELECTED) {
+            Text("Fallback profiles", style = MaterialTheme.typography.titleMedium)
+            Text("Profiles are tried in the same order as the Profiles screen.", style = MaterialTheme.typography.bodySmall)
+            store.sortedProfiles().forEach { profile ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(profile.id in settings.failoverProfileIds, { checked ->
+                        val ids = if (checked) settings.failoverProfileIds + profile.id else settings.failoverProfileIds - profile.id
+                        save(ids = ids)
+                    })
+                    Text(profile.displayNameWithFlag)
+                }
+            }
+            val usableFallbacks = store.sortedProfiles().count { it.id in settings.failoverProfileIds }
+            if (usableFallbacks < 2) {
+                Text(
+                    "Select at least two profiles. With fewer profiles, failover may have nowhere to switch.",
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+        }
+        if (settings.failoverMode != FailoverMode.DISABLED) {
+            Text("Warning: switching profiles may change the apparent country and public exit IP.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            if (alwaysOn) Text(
+                if (settings.failoverMode == FailoverMode.ALL)
+                    "Always-on VPN remains active during automatic switching. Every switch is reported in the persistent notification and on the main screen."
+                else
+                    "Always-on VPN remains active during automatic switching. The persistent notification and the main screen show the profile actually in use.",
+                color = MaterialTheme.colorScheme.tertiary,
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+    }
+    if (pendingAll) AlertDialog(
+        onDismissRequest = { pendingAll = false },
+        title = { Text("Enable global failover?") },
+        text = { Text("MegaProxy will automatically try any configured profile when blocking is suspected. This can change your location and public exit IP. Individual switches will not require confirmation.") },
+        confirmButton = { TextButton(onClick = { pendingAll = false; save(mode = FailoverMode.ALL) }) { Text("Enable") } },
+        dismissButton = { TextButton(onClick = { pendingAll = false }) { Text("Cancel") } },
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -169,27 +247,31 @@ private fun TlsFingerprintScreen(activity: Activity) {
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
     var expanded by remember { mutableStateOf(false) }
     var sshExpanded by remember { mutableStateOf(false) }
+    var sshAuthExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var showReconnectPrompt by remember { mutableStateOf(false) }
     var showAlwaysOnNotice by remember { mutableStateOf(false) }
     var deferred by remember { mutableStateOf(false) }
+
+    fun saveSettings(updated: net.megaproxy487.model.GlobalConnectionSettings) {
+        settings = updated
+        store.saveGlobalConnectionSettings(settings)
+        if (ProxyVpnService.isRunning && !deferred) {
+            if (ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled) {
+                deferred = true; showAlwaysOnNotice = true
+            } else showReconnectPrompt = true
+        }
+    }
 
     fun save(
         profile: TlsProfile = settings.tlsProfile,
         customJa3: String = settings.customJa3,
         sshProfile: SshProfile = settings.sshProfile,
     ) {
-        settings = settings.copy(tlsProfile = profile, customJa3 = customJa3, sshProfile = sshProfile)
-        store.saveGlobalConnectionSettings(settings)
+        saveSettings(settings.copy(tlsProfile = profile, customJa3 = customJa3, sshProfile = sshProfile))
         error = if (profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null) {
             "JA3 must contain five fields: version,ciphers,extensions,groups,points"
         } else null
-        if (ProxyVpnService.isRunning && !deferred) {
-            if (ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled) {
-                deferred = true
-                showAlwaysOnNotice = true
-            } else showReconnectPrompt = true
-        }
     }
 
     SettingsScaffold(activity, "Fingerprints") {
@@ -235,6 +317,32 @@ private fun TlsFingerprintScreen(activity: Activity) {
                 }
             }
         }
+        ExposedDropdownMenuBox(sshAuthExpanded, { sshAuthExpanded = it }) {
+            OutlinedTextField(
+                settings.sshAuthMode.title, {}, readOnly = true,
+                label = { Text("SSH authentication") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshAuthExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
+            )
+            DropdownMenu(sshAuthExpanded, { sshAuthExpanded = false }) {
+                SshAuthMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(mode.title) }, onClick = {
+                    saveSettings(settings.copy(sshAuthMode = mode))
+                    sshAuthExpanded = false
+                }) }
+            }
+        }
+        OutlinedTextField(settings.sshKeepaliveSeconds.toString(), { value -> value.toIntOrNull()?.let {
+            saveSettings(settings.copy(sshKeepaliveSeconds = it))
+        } }, label = { Text("SSH keepalive, seconds (0 = disabled)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(settings.sshMaxChannels.toString(), { value -> value.toIntOrNull()?.let {
+            saveSettings(settings.copy(sshMaxChannels = it))
+        } }, label = { Text("Maximum parallel SSH channels") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(settings.sshRotationMinutes.toString(), { value -> value.toIntOrNull()?.let {
+            saveSettings(settings.copy(sshRotationMinutes = it))
+        } }, label = { Text("Rotate SSH session after minutes (0 = disabled)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        OutlinedTextField(settings.sshRotationMb.toString(), { value -> value.toIntOrNull()?.let {
+            saveSettings(settings.copy(sshRotationMb = it))
+        } }, label = { Text("Rotate SSH session after MB (0 = disabled)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
         Text("The SSH profile controls the client banner and preferred KEX, cipher and MAC ordering.", style = MaterialTheme.typography.bodySmall)
         Text("Changes are saved automatically and apply to every profile.", style = MaterialTheme.typography.bodySmall)
     }

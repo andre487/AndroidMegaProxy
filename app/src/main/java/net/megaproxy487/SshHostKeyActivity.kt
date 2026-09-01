@@ -19,10 +19,16 @@ class SshHostKeyActivity : ComponentActivity() {
         val fingerprint = intent.getStringExtra(EXTRA_FINGERPRINT).orEmpty()
         val changed = intent.getBooleanExtra(EXTRA_CHANGED, false)
         val testOnly = intent.getBooleanExtra(EXTRA_TEST_ONLY, false)
+        fun reject() {
+            // A normal/Always-on connection remains paused with an actionable persistent
+            // notification. Tests are disposable and may release their temporary service.
+            if (testOnly) ProxyVpnService.dismissHostKeyPrompt(this)
+            finish()
+        }
         setContent {
             MaterialTheme {
                 AlertDialog(
-                    onDismissRequest = { finish() },
+                    onDismissRequest = ::reject,
                     title = { Text(if (changed) "SSH host key changed" else "Trust SSH host key?") },
                     text = { Text(buildString {
                         if (changed) append("Warning: the previously trusted key for the $hop host has changed. This can indicate a server reinstall or a man-in-the-middle attack. Verify the fingerprint through a trusted channel before replacing it.\n\n")
@@ -35,7 +41,7 @@ class SshHostKeyActivity : ComponentActivity() {
                         }
                         finish()
                     }) { Text(if (changed) "Replace trusted key" else "Trust and connect") } },
-                    dismissButton = { TextButton(onClick = { ProxyVpnService.dismissHostKeyPrompt(this); finish() }) { Text("Cancel") } },
+                    dismissButton = { TextButton(onClick = ::reject) { Text("Cancel") } },
                 )
             }
         }

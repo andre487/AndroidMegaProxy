@@ -19,10 +19,17 @@ object VpnRuntimeState {
     val alwaysOn: State<Boolean> = mutableAlwaysOn
     val lockdown: State<Boolean> = mutableLockdown
     val connectionProfileId: State<String> = mutableConnectionProfileId
+    private val mutableNetworkWarning = mutableStateOf<String?>(null)
+    val networkWarning: State<String?> = mutableNetworkWarning
 
     fun update(value: VpnConnectionState) {
         if (Looper.myLooper() == Looper.getMainLooper()) mutableConnection.value = value
         else mainHandler.post { mutableConnection.value = value }
+    }
+
+    fun updateNetworkWarning(value: String?) {
+        if (Looper.myLooper() == Looper.getMainLooper()) mutableNetworkWarning.value = value
+        else mainHandler.post { mutableNetworkWarning.value = value }
     }
 
     fun updateSystem(alwaysOn: Boolean, lockdown: Boolean, connectionProfileId: String) {

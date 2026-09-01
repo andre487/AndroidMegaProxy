@@ -47,6 +47,8 @@ import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProfileColorMatcher
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import java.util.Locale
 
 class ProfileEditorActivity : ComponentActivity() {
@@ -74,6 +76,9 @@ private fun ProfileEditorScreen(activity: Activity) {
     var showInvalidCertificateWarning by remember { mutableStateOf(false) }
     var typeExpanded by remember { mutableStateOf(false) }
     var unsafeHostKeyHop by remember { mutableStateOf<String?>(null) }
+    var showReconnectPrompt by remember { mutableStateOf(false) }
+    var showAlwaysOnNotice by remember { mutableStateOf(false) }
+    var connectionChangeDeferred by remember { mutableStateOf(false) }
     val countries = remember {
         Locale.getISOCountries().map { code ->
             code to Locale.Builder().setRegion(code).build().getDisplayCountry(Locale.getDefault())
@@ -86,6 +91,14 @@ private fun ProfileEditorScreen(activity: Activity) {
         profile = profile.copy(config = updated)
         saveProfile()
         error = store.globalConnectionSettings().applyTo(updated).connectionValidationError()
+        if (ProxyVpnService.isRunning && !connectionChangeDeferred && profile.id == store.connectionProfile().id) {
+            if (ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled) {
+                connectionChangeDeferred = true
+                showAlwaysOnNotice = true
+            } else {
+                showReconnectPrompt = true
+            }
+        }
     }
 
     Scaffold(
@@ -213,6 +226,14 @@ private fun ProfileEditorScreen(activity: Activity) {
                 if (config.jumpTrustedHostKey.isNotBlank()) Text("Trusted jump key: ${config.jumpTrustedHostKey}", style = MaterialTheme.typography.bodySmall)
             }
 
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Column(Modifier.weight(1f)) {
+                    Text("Enable IPv6 destinations")
+                    Text("Enable only if this proxy can reach IPv6 destinations.", style = MaterialTheme.typography.bodySmall)
+                }
+                Checkbox(config.allowIpv6, { updateConfig(config.copy(allowIpv6 = it)) })
+            }
+
             Text("DNS over HTTPS", style = MaterialTheme.typography.titleMedium)
             ExposedDropdownMenuBox(dnsExpanded, { dnsExpanded = it }) {
                 OutlinedTextField(config.dnsProvider.title, {}, readOnly = true, label = { Text("DNS over HTTPS") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor().fillMaxWidth())
@@ -247,4 +268,17 @@ private fun ProfileEditorScreen(activity: Activity) {
             dismissButton = { TextButton(onClick = { unsafeHostKeyHop = null }) { Text("Cancel") } },
         )
     }
+    if (showReconnectPrompt) AlertDialog(
+        onDismissRequest = { showReconnectPrompt = false; connectionChangeDeferred = true },
+        title = { Text("Apply profile changes?") },
+        text = { Text("Reconnect now to apply the connection settings, or apply them the next time the VPN connects.") },
+        confirmButton = { TextButton(onClick = { showReconnectPrompt = false; ProxyVpnService.reconnect(activity) }) { Text("Reconnect now") } },
+        dismissButton = { TextButton(onClick = { showReconnectPrompt = false; connectionChangeDeferred = true }) { Text("Next connection") } },
+    )
+    if (showAlwaysOnNotice) AlertDialog(
+        onDismissRequest = { showAlwaysOnNotice = false },
+        title = { Text("Profile settings saved") },
+        text = { Text("Always-on VPN is active. The current tunnel is unchanged; these settings apply on its next connection, including a failover attempt.") },
+        confirmButton = { TextButton(onClick = { showAlwaysOnNotice = false }) { Text("OK") } },
+    )
 }

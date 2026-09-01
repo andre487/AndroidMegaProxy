@@ -13,6 +13,13 @@ class ProxyConfigTest {
         assertEquals(TlsProfile.CHROME_ANDROID, resolved.profile)
     }
 
+    @Test
+    fun `global settings preserve profile IPv6 capability`() {
+        val resolved = GlobalConnectionSettings().applyTo(ProxyConfig(allowIpv6 = true))
+
+        assertEquals(true, resolved.allowIpv6)
+    }
+
     private val validConnection = ProxyConfig(
         host = "proxy.example.com",
         username = "user",

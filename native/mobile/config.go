@@ -37,6 +37,11 @@ type config struct {
 	JumpTrustedHostKey           string `json:"jumpTrustedHostKey"`
 	JumpAcceptAnyHostKey         bool   `json:"jumpAcceptAnyHostKey"`
 	SameJumpAuthentication       bool   `json:"sameJumpAuthentication"`
+	SSHAuthMode                  string `json:"sshAuthMode"`
+	SSHKeepaliveSeconds          int    `json:"sshKeepaliveSeconds"`
+	SSHMaxChannels               int    `json:"sshMaxChannels"`
+	SSHRotationMinutes           int    `json:"sshRotationMinutes"`
+	SSHRotationMB                int    `json:"sshRotationMb"`
 }
 
 func parseConfig(raw string) (config, error) {
@@ -91,6 +96,18 @@ func parseConfig(raw string) (config, error) {
 	}
 	if c.Type != "HTTPS" && c.Type != "SSH" && c.Type != "SSH_JUMP" {
 		return c, fmt.Errorf("unsupported proxy type %q", c.Type)
+	}
+	if c.SSHAuthMode == "" {
+		c.SSHAuthMode = "AUTO"
+	}
+	if c.SSHAuthMode != "AUTO" && c.SSHAuthMode != "PASSWORD_ONLY" && c.SSHAuthMode != "KEY_ONLY" {
+		return c, errors.New("invalid SSH authentication mode")
+	}
+	if c.SSHMaxChannels == 0 {
+		c.SSHMaxChannels = 32
+	}
+	if c.SSHMaxChannels < 1 || c.SSHMaxChannels > 256 {
+		return c, errors.New("invalid SSH channel limit")
 	}
 	return c, nil
 }

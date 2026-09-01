@@ -125,6 +125,7 @@ private fun MainScreen(activity: Activity) {
     val runtimeAlwaysOn by VpnRuntimeState.alwaysOn
     val runtimeLockdown by VpnRuntimeState.lockdown
     val runtimeProfileId by VpnRuntimeState.connectionProfileId
+    val networkWarning by VpnRuntimeState.networkWarning
     val store = remember { ConfigStore(activity) }
     var error by remember { mutableStateOf<String?>(null) }
     var profileMenuExpanded by remember { mutableStateOf(false) }
@@ -278,12 +279,19 @@ private fun MainScreen(activity: Activity) {
                 }
             }
             Spacer(Modifier.height(24.dp))
+            networkWarning?.let {
+                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFE0B2)), modifier = Modifier.fillMaxWidth()) {
+                    Text(it, color = Color(0xFF7A4300), modifier = Modifier.padding(14.dp))
+                }
+                Spacer(Modifier.height(12.dp))
+            }
             connectionStats?.let { stats ->
                 ConnectionStatsCard(stats)
                 Spacer(Modifier.height(12.dp))
             }
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
             val activeProfile = profiles.firstOrNull { it.id == displayedProfileId } ?: profiles.first()
+            val actualProfile = profiles.firstOrNull { it.id == runtimeProfileId }
             val profileColor = Color(ProfileColors.argb[Math.floorMod(activeProfile.colorIndex, ProfileColors.argb.size)])
             val onProfileColor = if (profileColor.luminance() > 0.45f) Color.Black else Color.White
             Box(Modifier.fillMaxWidth()) {
@@ -317,6 +325,9 @@ private fun MainScreen(activity: Activity) {
                         }
                         Text(activeProfile.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                         ProfileTypeBadge(activeProfile.config.type, onProfileColor)
+                    }
+                    if (actualProfile != null && actualProfile.id != activeProfile.id && connection != VpnConnectionState.DISCONNECTED) {
+                        Text("Connected through: ${actualProfile.displayNameWithFlag}", style = MaterialTheme.typography.bodySmall)
                     }
                         DropdownMenu(profileMenuExpanded, { profileMenuExpanded = false }) {
                             profiles.forEach { profile ->

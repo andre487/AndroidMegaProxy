@@ -5,6 +5,8 @@ import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.SshProfile
+import net.megaproxy487.model.SshAuthMode
+import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.GlobalConnectionSettings
 import org.json.JSONArray
@@ -27,7 +29,7 @@ data class PortableConfiguration(
 )
 
 object ConfigTransfer {
-    const val SCHEMA_VERSION = 4
+    const val SCHEMA_VERSION = 6
 
     fun exportProxyList(profiles: List<ProxyProfile>, includePasswords: Boolean): String =
         profiles.filter { it.config.type == ProxyType.HTTPS }.joinToString("\n", postfix = "\n") { profile ->
@@ -58,11 +60,21 @@ object ConfigTransfer {
             put("fingerprint", global.tlsProfile.name)
             put("customJa3", global.customJa3.trim())
         })
-        put("ssh", JSONObject().apply { put("fingerprint", global.sshProfile.name) })
+        put("ssh", JSONObject().apply {
+            put("fingerprint", global.sshProfile.name)
+            put("authMode", global.sshAuthMode.name)
+            put("keepaliveSeconds", global.sshKeepaliveSeconds)
+            put("maxChannels", global.sshMaxChannels)
+            put("rotationMinutes", global.sshRotationMinutes)
+            put("rotationMb", global.sshRotationMb)
+        })
+        put("failover", JSONObject().apply {
+            put("mode", global.failoverMode.name)
+            put("profileIds", JSONArray(global.failoverProfileIds))
+        })
         put("routing", JSONObject().apply {
             put("routeAllApps", global.routeAllApps)
             put("selectedPackages", JSONArray(global.selectedPackages.sorted()))
-            put("allowIpv6", global.allowIpv6)
             put("bypassLocalNetworks", global.bypassLocalNetworks)
         })
         put("profiles", JSONArray().apply {
@@ -79,8 +91,12 @@ object ConfigTransfer {
         val decoded = (0 until array.length()).map { index ->
             runCatching { decodeProfile(array.getJSONObject(index), index) }
         }
-        val profiles = decoded.mapNotNull(Result<ProxyProfile>::getOrNull)
-        require(profiles.isNotEmpty()) { "The configuration contains no usable profiles" }
+        val decodedProfiles = decoded.mapNotNull(Result<ProxyProfile>::getOrNull)
+        require(decodedProfiles.isNotEmpty()) { "The configuration contains no usable profiles" }
+        val legacyIpv6 = root.optJSONObject("routing")?.optBoolean("allowIpv6", false) ?: false
+        val profiles = if (version < 6) decodedProfiles.map {
+            it.copy(config = it.config.copy(allowIpv6 = legacyIpv6))
+        } else decodedProfiles
         return PortableConfiguration(
             profiles = profiles,
             activeProfileId = root.optString("activeProfileId").ifBlank { null },
@@ -99,6 +115,7 @@ object ConfigTransfer {
         val tls = root.optJSONObject("tls") ?: JSONObject()
         val routing = root.optJSONObject("routing") ?: JSONObject()
         val ssh = root.optJSONObject("ssh") ?: JSONObject()
+        val failover = root.optJSONObject("failover") ?: JSONObject()
         val parsedTls = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT)
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
             (0 until array.length()).mapNotNull { index ->
@@ -108,9 +125,17 @@ object ConfigTransfer {
         return GlobalConnectionSettings(
             tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
             sshProfile = enumValue(ssh.optString("fingerprint"), SshProfile.DEFAULT),
+            sshAuthMode = enumValue(ssh.optString("authMode"), SshAuthMode.AUTO),
+            sshKeepaliveSeconds = ssh.optInt("keepaliveSeconds", 30).coerceIn(0, 3600),
+            sshMaxChannels = ssh.optInt("maxChannels", 32).coerceIn(1, 256),
+            sshRotationMinutes = ssh.optInt("rotationMinutes", 0).coerceIn(0, 1440),
+            sshRotationMb = ssh.optInt("rotationMb", 0).coerceIn(0, 10240),
+            failoverMode = enumValue(failover.optString("mode"), FailoverMode.DISABLED),
+            failoverProfileIds = failover.optJSONArray("profileIds")?.let { array ->
+                (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }
+            }.orEmpty(),
             customJa3 = tls.optString("customJa3"),
             selectedPackages = packages,
-            allowIpv6 = routing.optBoolean("allowIpv6", false),
             routeAllApps = routing.optBoolean("routeAllApps", true),
             bypassLocalNetworks = routing.optBoolean("bypassLocalNetworks", true),
         )

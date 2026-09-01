@@ -131,15 +131,6 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
             item {
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) {
-                        Text("Enable IPv6 destinations")
-                        Text("Disabled by default for proxies that cannot CONNECT to IPv6 addresses.", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Checkbox(settings.allowIpv6, { updateSettings(settings.copy(allowIpv6 = it)) })
-                }
-            }
-            item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Column(Modifier.weight(1f)) {
                         Text("Bypass local networks")
                         Text("Direct TCP access to private and link-local IP addresses.", style = MaterialTheme.typography.bodySmall)
                     }

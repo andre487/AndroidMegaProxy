@@ -29,6 +29,11 @@ data class ProxyConfig(
     val jumpAcceptAnyHostKey: Boolean = false,
     val sameJumpAuthentication: Boolean = true,
     val resolvedJumpIp: String = "",
+    val sshAuthMode: SshAuthMode = SshAuthMode.AUTO,
+    val sshKeepaliveSeconds: Int = 30,
+    val sshMaxChannels: Int = 32,
+    val sshRotationMinutes: Int = 0,
+    val sshRotationMb: Int = 0,
 ) {
     fun connectionValidationError(): String? = when {
         host.isBlank() -> if (type == ProxyType.HTTPS) "Enter the proxy hostname" else "Enter the SSH hostname"
@@ -63,6 +68,18 @@ enum class SshProfile(val title: String) {
     CONNECTBOT("ConnectBot"),
     JUICESSH("JuiceSSH"),
     TERMIUS_ANDROID("Termius Android"),
+}
+
+enum class SshAuthMode(val title: String) {
+    AUTO("Auto: key, then password"),
+    PASSWORD_ONLY("Password only"),
+    KEY_ONLY("Private key only"),
+}
+
+enum class FailoverMode(val title: String) {
+    DISABLED("Disabled"),
+    SELECTED("Selected profiles"),
+    ALL("All profiles"),
 }
 
 data class ProxyProfile(
@@ -118,9 +135,15 @@ enum class TlsProfile(val title: String, val available: Boolean = true) {
 data class GlobalConnectionSettings(
     val tlsProfile: TlsProfile = TlsProfile.DEFAULT,
     val sshProfile: SshProfile = SshProfile.DEFAULT,
+    val sshAuthMode: SshAuthMode = SshAuthMode.AUTO,
+    val sshKeepaliveSeconds: Int = 30,
+    val sshMaxChannels: Int = 32,
+    val sshRotationMinutes: Int = 0,
+    val sshRotationMb: Int = 0,
+    val failoverMode: FailoverMode = FailoverMode.DISABLED,
+    val failoverProfileIds: List<String> = emptyList(),
     val customJa3: String = "",
     val selectedPackages: Set<String> = emptySet(),
-    val allowIpv6: Boolean = false,
     val routeAllApps: Boolean = true,
     val bypassLocalNetworks: Boolean = true,
 ) {
@@ -128,8 +151,12 @@ data class GlobalConnectionSettings(
         profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.CHROME_ANDROID else tlsProfile,
         customJa3 = customJa3,
         sshProfile = sshProfile,
+        sshAuthMode = sshAuthMode,
+        sshKeepaliveSeconds = sshKeepaliveSeconds,
+        sshMaxChannels = sshMaxChannels,
+        sshRotationMinutes = sshRotationMinutes,
+        sshRotationMb = sshRotationMb,
         selectedPackages = selectedPackages,
-        allowIpv6 = allowIpv6,
         routeAllApps = routeAllApps,
         bypassLocalNetworks = bypassLocalNetworks,
     )

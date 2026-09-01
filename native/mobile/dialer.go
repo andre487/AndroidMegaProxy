@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -23,9 +24,11 @@ var errUDPBlocked = errors.New("UDP is intentionally blocked")
 type Protector interface{ Protect(fd int) bool }
 
 type httpsConnectDialer struct {
-	config    config
-	protector Protector
-	reporter  Reporter
+	config       config
+	protector    Protector
+	reporter     Reporter
+	cacheMu      sync.Mutex
+	sessionCache tls.ClientSessionCache
 }
 
 func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
@@ -85,6 +88,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		ServerName:         d.config.Host,
 		MinVersion:         tls.VersionTLS12,
 		InsecureSkipVerify: d.config.AllowInvalidProxyCertificate,
+		ClientSessionCache: d.clientSessionCache(),
 	}, hello)
 	if hello == tls.HelloCustom {
 		if err := applyJA3(uconn, d.config.CustomJA3, d.config.Host); err != nil {
@@ -137,6 +141,15 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	return &diagnosticConn{Conn: connection, connectionID: connectionID, reporter: d.reporter}, nil
 }
 
+func (d *httpsConnectDialer) clientSessionCache() tls.ClientSessionCache {
+	d.cacheMu.Lock()
+	defer d.cacheMu.Unlock()
+	if d.sessionCache == nil {
+		d.sessionCache = tls.NewLRUClientSessionCache(32)
+	}
+	return d.sessionCache
+}
+
 func (d *httpsConnectDialer) protectedDialer() *net.Dialer {
 	return &net.Dialer{
 		Timeout:   15 * time.Second,
@@ -186,12 +199,14 @@ type diagnosticConn struct {
 	connectionID uint64
 	reporter     Reporter
 	once         sync.Once
+	transferred  atomic.Uint64
 }
 
 func (c *diagnosticConn) reportError(operation string, err error) {
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
 		c.once.Do(func() {
-			report(c.reporter, "event=connection conn=%d stage=tunnel_io result=failed operation=%s reason=%s", c.connectionID, operation, errorClass(err))
+			reason := errorClass(err)
+			report(c.reporter, "event=connection conn=%d stage=tunnel_io result=failed operation=%s reason=%s transferred_bytes=%d dpi_hint=%s", c.connectionID, operation, reason, c.transferred.Load(), tlsInterferenceHint(reason))
 		})
 	}
 }
@@ -200,6 +215,7 @@ func (c *diagnosticConn) Read(p []byte) (int, error) {
 	n, err := c.Conn.Read(p)
 	if n > 0 {
 		telemetry.downloadBytes.Add(uint64(n))
+		c.transferred.Add(uint64(n))
 	}
 	c.reportError("read", err)
 	return n, err
@@ -209,6 +225,7 @@ func (c *diagnosticConn) Write(p []byte) (int, error) {
 	n, err := c.Conn.Write(p)
 	if n > 0 {
 		telemetry.uploadBytes.Add(uint64(n))
+		c.transferred.Add(uint64(n))
 	}
 	c.reportError("write", err)
 	return n, err

@@ -64,6 +64,11 @@ class NativeProxyCore(
         .put("jumpTrustedHostKey", config.jumpTrustedHostKey)
         .put("jumpAcceptAnyHostKey", config.jumpAcceptAnyHostKey)
         .put("sameJumpAuthentication", config.sameJumpAuthentication)
+        .put("sshAuthMode", config.sshAuthMode.name)
+        .put("sshKeepaliveSeconds", config.sshKeepaliveSeconds)
+        .put("sshMaxChannels", config.sshMaxChannels)
+        .put("sshRotationMinutes", config.sshRotationMinutes)
+        .put("sshRotationMb", config.sshRotationMb)
         .put("allowInvalidProxyCertificate", config.allowInvalidProxyCertificate)
         .put("profile", config.profile.name)
         .put("customJa3", config.customJa3.trim())
@@ -101,7 +106,7 @@ class NativeProxyCore(
             val reporter = callback(reporterType, "report") {
                 val message = it!![0] as String
                 diagnostics(message)
-                if ("SSH_HOST_KEY_" in message) status(message)
+                if ("SSH_HOST_KEY_" in message || "dpi_hint=possible" in message) status(message)
                 null
             }
             detachedFd = ParcelFileDescriptor.fromFd(tunFd).detachFd()
