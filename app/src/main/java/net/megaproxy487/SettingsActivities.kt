@@ -7,16 +7,22 @@ import android.os.Bundle
 import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,6 +37,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MenuAnchorType
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -47,6 +54,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -59,32 +67,37 @@ import net.megaproxy487.model.SshAuthMode
 import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.ui.theme.MegaProxyTheme
 
 class ProxySettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { SettingsHomeScreen(this) } }
+        enableEdgeToEdge()
+        setContent { MegaProxyTheme { SettingsHomeScreen(this) } }
     }
 }
 
 class AlwaysOnSettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { AlwaysOnSettingsScreen(this) } }
+        enableEdgeToEdge()
+        setContent { MegaProxyTheme { AlwaysOnSettingsScreen(this) } }
     }
 }
 
 class TlsFingerprintActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { TlsFingerprintScreen(this) } }
+        enableEdgeToEdge()
+        setContent { MegaProxyTheme { TlsFingerprintScreen(this) } }
     }
 }
 
 class FailoverSettingsActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { FailoverSettingsScreen(this) } }
+        enableEdgeToEdge()
+        setContent { MegaProxyTheme { FailoverSettingsScreen(this) } }
     }
 }
 
@@ -141,7 +154,7 @@ private fun FailoverSettingsScreen(activity: Activity) {
     }
     SettingsScaffold(activity, "Failover") {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
-            OutlinedTextField(settings.failoverMode.title, {}, readOnly = true, label = { Text("Failover mode") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor().fillMaxWidth())
+            OutlinedTextField(settings.failoverMode.title, {}, readOnly = true, label = { Text("Failover mode") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
             DropdownMenu(expanded, { expanded = false }) {
                 FailoverMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(mode.title) }, onClick = {
                     expanded = false
@@ -154,11 +167,19 @@ private fun FailoverSettingsScreen(activity: Activity) {
             Text("Fallback profiles", style = MaterialTheme.typography.titleMedium)
             Text("Profiles are tried in the same order as the Profiles screen.", style = MaterialTheme.typography.bodySmall)
             store.sortedProfiles().forEach { profile ->
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(profile.id in settings.failoverProfileIds, { checked ->
-                        val ids = if (checked) settings.failoverProfileIds + profile.id else settings.failoverProfileIds - profile.id
+                val checked = profile.id in settings.failoverProfileIds
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                        value = checked,
+                        onValueChange = { checkedValue ->
+                        val ids = if (checkedValue) settings.failoverProfileIds + profile.id else settings.failoverProfileIds - profile.id
                         save(ids = ids)
-                    })
+                        },
+                        role = Role.Checkbox,
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked, null)
                     Text(profile.displayNameWithFlag)
                 }
             }
@@ -205,7 +226,7 @@ private fun AlwaysOnSettingsScreen(activity: Activity) {
                 selected.displayNameWithFlag, {}, readOnly = true,
                 label = { Text("Profile for Always-on VPN") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             DropdownMenu(expanded, { expanded = false }) {
                 store.sortedProfiles().forEach { profile ->
@@ -271,7 +292,7 @@ private fun TlsFingerprintScreen(activity: Activity) {
                 settings.tlsProfile.title, {}, readOnly = true,
                 label = { Text("HTTPS TLS / JA3 profile") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             DropdownMenu(expanded, { expanded = false }) {
                 TlsProfile.entries.filter { it.available }.forEach { profile ->
@@ -296,7 +317,7 @@ private fun TlsFingerprintScreen(activity: Activity) {
                 settings.sshProfile.title, {}, readOnly = true,
                 label = { Text("SSH client profile") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             DropdownMenu(sshExpanded, { sshExpanded = false }) {
                 SshProfile.entries.forEach { profile ->
@@ -312,7 +333,7 @@ private fun TlsFingerprintScreen(activity: Activity) {
                 settings.sshAuthMode.title, {}, readOnly = true,
                 label = { Text("SSH authentication") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshAuthExpanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth(),
+                modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             DropdownMenu(sshAuthExpanded, { sshAuthExpanded = false }) {
                 SshAuthMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(mode.title) }, onClick = {
@@ -399,11 +420,13 @@ private fun SettingsScaffold(activity: Activity, title: String, content: @Compos
         },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-            content = content,
-        )
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            Column(
+                Modifier.widthIn(max = 840.dp).fillMaxWidth().fillMaxHeight().padding(16.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = content,
+            )
+        }
     }
 }
 

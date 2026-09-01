@@ -7,6 +7,7 @@ import android.content.Context
 import android.net.VpnService
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -44,6 +45,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
@@ -54,13 +59,15 @@ import net.megaproxy487.vpn.OTHER_ALWAYS_ON_VPN_MESSAGE
 import net.megaproxy487.vpn.hasOtherProvider
 import net.megaproxy487.vpn.openAndroidVpnSettings
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.ui.theme.MegaProxyTheme
 
 class ConnectionTestActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         val autoStart = savedInstanceState == null
         if (autoStart) TestDiagnosticLog.reset()
-        setContent { MaterialTheme { ConnectionTestScreen(this, autoStart) } }
+        setContent { MegaProxyTheme { ConnectionTestScreen(this, autoStart) } }
     }
 }
 
@@ -127,20 +134,24 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
             Modifier.fillMaxSize().padding(padding).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Card(Modifier.fillMaxWidth()) {
+            val statusLabel = when (state) {
+                TestState.IDLE -> "Ready"
+                TestState.RUNNING -> "Testing"
+                TestState.SUCCEEDED -> "Test passed"
+                TestState.FAILED -> "Test failed"
+            }
+            Card(Modifier.fillMaxWidth().semantics {
+                liveRegion = LiveRegionMode.Polite
+                stateDescription = statusLabel
+            }) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     val statusColor = when (state) {
-                        TestState.SUCCEEDED -> Color(0xFF2E7D32)
+                        TestState.SUCCEEDED -> MaterialTheme.colorScheme.primary
                         TestState.FAILED -> MaterialTheme.colorScheme.error
                         else -> MaterialTheme.colorScheme.onSurface
                     }
                     Text(
-                        when (state) {
-                            TestState.IDLE -> "Ready"
-                            TestState.RUNNING -> "Testing…"
-                            TestState.SUCCEEDED -> "Test passed"
-                            TestState.FAILED -> "Test failed"
-                        },
+                        if (state == TestState.RUNNING) "Testing…" else statusLabel,
                         style = MaterialTheme.typography.titleLarge,
                         color = statusColor,
                     )

@@ -8,6 +8,7 @@ import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -18,11 +19,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -57,6 +60,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
@@ -80,12 +87,14 @@ import net.megaproxy487.vpn.openAndroidVpnSettings
 import net.megaproxy487.vpn.OTHER_ALWAYS_ON_VPN_MESSAGE
 import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.ui.theme.MegaProxyTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         BatteryOptimizationReminder.maybeRequest(this)
-        setContent { MaterialTheme { MainScreen(this) } }
+        setContent { MegaProxyTheme { MainScreen(this) } }
     }
 
     override fun onResume() {
@@ -239,14 +248,23 @@ private fun MainScreen(activity: Activity) {
         topBar = { TopAppBar(title = { Text("MegaProxy") }) },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            Column(
+                Modifier.widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight().verticalScroll(rememberScrollState()).padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
             val connected = connection == VpnConnectionState.CONNECTED
-            val statusColor = if (connected) Color(0xFF2E7D32) else MaterialTheme.colorScheme.onSurfaceVariant
-            Card(Modifier.fillMaxWidth()) {
+            val statusLabel = when (connection) {
+                VpnConnectionState.CONNECTED -> "Connected"
+                VpnConnectionState.CONNECTING -> "Connecting"
+                VpnConnectionState.DISCONNECTED -> "Disconnected"
+            }
+            val statusColor = if (connected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            Card(Modifier.fillMaxWidth().semantics {
+                liveRegion = LiveRegionMode.Polite
+                stateDescription = statusLabel
+            }) {
                 Column(
                     Modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -258,11 +276,7 @@ private fun MainScreen(activity: Activity) {
                         tint = statusColor,
                     )
                     Text(
-                        when (connection) {
-                            VpnConnectionState.CONNECTED -> "Connected"
-                            VpnConnectionState.CONNECTING -> "Connecting…"
-                            VpnConnectionState.DISCONNECTED -> "Disconnected"
-                        },
+                        if (connection == VpnConnectionState.CONNECTING) "Connecting…" else statusLabel,
                         style = MaterialTheme.typography.headlineSmall,
                         color = statusColor,
                     )
@@ -277,8 +291,8 @@ private fun MainScreen(activity: Activity) {
             }
             Spacer(Modifier.height(4.dp))
             networkWarning?.let {
-                Card(colors = CardDefaults.cardColors(containerColor = Color(0xFFFFE0B2)), modifier = Modifier.fillMaxWidth()) {
-                    Text(it, color = Color(0xFF7A4300), modifier = Modifier.padding(14.dp))
+                Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer), modifier = Modifier.fillMaxWidth()) {
+                    Text(it, color = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.padding(14.dp))
                 }
                 Spacer(Modifier.height(12.dp))
             }
@@ -429,6 +443,7 @@ private fun MainScreen(activity: Activity) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 12.dp),
                 )
+            }
             }
         }
     }

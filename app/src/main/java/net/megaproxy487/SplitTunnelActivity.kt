@@ -3,6 +3,7 @@ package net.megaproxy487
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -12,8 +13,12 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.foundation.selection.selectableGroup
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -35,16 +40,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.model.GlobalConnectionSettings
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.ui.theme.MegaProxyTheme
 
 class SplitTunnelActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { SplitTunnelScreen(this) } }
+        enableEdgeToEdge()
+        setContent { MegaProxyTheme { SplitTunnelScreen(this) } }
     }
 }
 
@@ -140,31 +148,53 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
         ) {
             item { Text("Routing mode", style = MaterialTheme.typography.titleMedium) }
             item {
-                Row(Modifier.fillMaxWidth()) {
-                    RadioButton(!settings.routeAllApps, { updateSettings(settings.copy(routeAllApps = false)) })
-                    Column(Modifier.weight(1f).padding(top = 12.dp)) {
-                        Text("Split tunneling")
-                        Text("Only selected applications use the proxy.", style = MaterialTheme.typography.bodySmall)
+                Column(Modifier.selectableGroup()) {
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(
+                            selected = !settings.routeAllApps,
+                            onClick = { updateSettings(settings.copy(routeAllApps = false)) },
+                            role = Role.RadioButton,
+                        ),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        RadioButton(!settings.routeAllApps, null)
+                        Column(Modifier.weight(1f)) {
+                            Text("Split tunneling")
+                            Text("Only selected applications use the proxy.", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
-                }
-            }
-            item {
-                Row(Modifier.fillMaxWidth()) {
-                    RadioButton(settings.routeAllApps, { updateSettings(settings.copy(routeAllApps = true)) })
-                    Column(Modifier.weight(1f).padding(top = 12.dp)) {
-                        Text("Global VPN")
-                        Text("All applications use the proxy. This is the default mode.", style = MaterialTheme.typography.bodySmall)
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(
+                            selected = settings.routeAllApps,
+                            onClick = { updateSettings(settings.copy(routeAllApps = true)) },
+                            role = Role.RadioButton,
+                        ),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        RadioButton(settings.routeAllApps, null)
+                        Column(Modifier.weight(1f)) {
+                            Text("Global VPN")
+                            Text("All applications use the proxy. This is the default mode.", style = MaterialTheme.typography.bodySmall)
+                        }
                     }
                 }
             }
             item { Text("UDP and QUIC are blocked; DNS uses the profile's configured DoH endpoint.", style = MaterialTheme.typography.bodySmall) }
             item {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                Row(
+                    Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                        value = settings.bypassLocalNetworks,
+                        onValueChange = { updateSettings(settings.copy(bypassLocalNetworks = it)) },
+                        role = Role.Checkbox,
+                    ),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
                     Column(Modifier.weight(1f)) {
                         Text("Bypass local networks")
                         Text("Direct TCP access to private and link-local IP addresses.", style = MaterialTheme.typography.bodySmall)
                     }
-                    Checkbox(settings.bypassLocalNetworks, { updateSettings(settings.copy(bypassLocalNetworks = it)) })
+                    Checkbox(settings.bypassLocalNetworks, null)
                 }
             }
             if (!settings.routeAllApps) {
@@ -179,15 +209,24 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                     )
                 }
                 items(visibleApps, key = { it.packageName }) { app ->
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text(app.label, Modifier.weight(1f).padding(top = 12.dp))
-                        Checkbox(app.packageName in settings.selectedPackages, { checked ->
+                    val checked = app.packageName in settings.selectedPackages
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                            value = checked,
+                            onValueChange = { checkedValue ->
                             updateSettings(settings.copy(selectedPackages = if (checked) {
-                                settings.selectedPackages + app.packageName
+                                if (checkedValue) settings.selectedPackages else settings.selectedPackages - app.packageName
                             } else {
-                                settings.selectedPackages - app.packageName
+                                if (checkedValue) settings.selectedPackages + app.packageName else settings.selectedPackages
                             }))
-                        })
+                            },
+                            role = Role.Checkbox,
+                        ),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        Text(app.label, Modifier.weight(1f))
+                        Checkbox(checked, null)
                     }
                 }
             }

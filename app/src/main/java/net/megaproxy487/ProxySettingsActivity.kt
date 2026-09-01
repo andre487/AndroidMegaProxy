@@ -6,17 +6,20 @@ import android.net.Uri
 import android.os.Bundle
 import android.provider.Settings
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.lazy.LazyColumn
@@ -63,6 +66,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -80,11 +86,13 @@ import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.ui.theme.MegaProxyTheme
 
 class ProfilesActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { SettingsScreen(this) } }
+        enableEdgeToEdge()
+        setContent { MegaProxyTheme { SettingsScreen(this) } }
     }
 }
 
@@ -113,6 +121,14 @@ private fun SettingsScreen(activity: Activity) {
     fun refresh() {
         profiles.clear()
         profiles.addAll(store.sortedProfiles())
+    }
+    fun moveProfile(profileId: String, delta: Int): Boolean {
+        val sourceIndex = profiles.indexOfFirst { it.id == profileId }
+        val targetIndex = sourceIndex + delta
+        if (sourceIndex < 0 || targetIndex !in profiles.indices) return false
+        profiles.add(targetIndex, profiles.removeAt(sourceIndex))
+        store.reorderProfiles(profiles.map(ProxyProfile::id))
+        return true
     }
     fun edit(profile: ProxyProfile) {
         activity.startActivity(Intent(activity, ProfileEditorActivity::class.java).apply {
@@ -242,12 +258,24 @@ private fun SettingsScreen(activity: Activity) {
         },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
-        LazyColumn(
-            Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
-            state = listState,
-            verticalArrangement = Arrangement.spacedBy(10.dp),
+        Box(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentAlignment = Alignment.TopCenter,
         ) {
-            items(profiles, key = { it.id }) { profile ->
+            LazyColumn(
+                Modifier.fillMaxHeight().fillMaxWidth().widthIn(max = 840.dp).padding(horizontal = 16.dp),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item {
+                    Text(
+                        "Long press and drag a profile to reorder it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                items(profiles, key = { it.id }) { profile ->
                 var dragOffset by remember(profile.id) { mutableStateOf(0f) }
                 ProfileCard(
                     profile = profile,
@@ -287,14 +315,25 @@ private fun SettingsScreen(activity: Activity) {
                                     }
                                 },
                             )
+                        }
+                        .semantics {
+                            customActions = buildList {
+                                if (profiles.firstOrNull()?.id != profile.id) {
+                                    add(CustomAccessibilityAction("Move up") { moveProfile(profile.id, -1) })
+                                }
+                                if (profiles.lastOrNull()?.id != profile.id) {
+                                    add(CustomAccessibilityAction("Move down") { moveProfile(profile.id, 1) })
+                                }
+                            }
                         },
                     onConfigure = { edit(profile) },
                     onClone = { store.cloneProfile(profile.id); refresh() },
                     onDelete = { deleteProfile = profile },
                 )
+                }
+                importError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+                item { Text("Changes are saved automatically.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp)) }
             }
-            importError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
-            item { Text("Changes are saved automatically.", style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp)) }
         }
     }
 
@@ -403,7 +442,7 @@ private fun ProfileCard(
     val foreground = if (background.luminance() > 0.45f) Color.Black else Color.White
     Card(
         colors = CardDefaults.cardColors(containerColor = background, contentColor = foreground),
-        modifier = modifier.fillMaxWidth().clickable(onClick = onConfigure),
+        modifier = modifier.fillMaxWidth(),
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {

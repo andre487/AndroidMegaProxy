@@ -2,17 +2,20 @@ package net.megaproxy487
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import net.megaproxy487.ui.theme.MegaProxyTheme
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
 
 class SshHostKeyActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
         val profileId = intent.getStringExtra(EXTRA_PROFILE_ID).orEmpty()
         val hop = intent.getStringExtra(EXTRA_HOP).orEmpty()
         val algorithm = intent.getStringExtra(EXTRA_ALGORITHM).orEmpty()
@@ -26,7 +29,7 @@ class SshHostKeyActivity : ComponentActivity() {
             finish()
         }
         setContent {
-            MaterialTheme {
+            MegaProxyTheme {
                 AlertDialog(
                     onDismissRequest = ::reject,
                     title = { Text(if (changed) "SSH host key changed" else "Trust SSH host key?") },

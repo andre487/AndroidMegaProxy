@@ -3,6 +3,7 @@ package net.megaproxy487
 import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,11 +53,13 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.PersistentDiagnosticLog
+import net.megaproxy487.ui.theme.MegaProxyTheme
 
 class DiagnosticLogActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContent { MaterialTheme { DiagnosticLogScreen(this) } }
+        enableEdgeToEdge()
+        setContent { MegaProxyTheme { DiagnosticLogScreen(this) } }
     }
 }
 
