@@ -98,6 +98,7 @@ private fun SettingsHomeScreen(activity: Activity) {
         SettingsButton("Always-on VPN") { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
         SettingsButton("TLS fingerprint") { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
         SettingsButton("Split tunneling") { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
+        SettingsButton("Visibility") { activity.startActivity(Intent(activity, VisibilityActivity::class.java)) }
         if (!batteryOptimizationDisabled) {
             SettingsButton("Battery settings") {
                 activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
