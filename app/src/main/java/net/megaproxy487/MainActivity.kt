@@ -149,6 +149,7 @@ private fun MainScreen(activity: Activity) {
     var vpnPermissionRequestedAt by remember { mutableStateOf(0L) }
     var showCrashReport by remember { mutableStateOf(CrashHandler.hasPendingReport()) }
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
+    var pendingReconnect by remember { mutableStateOf(store.hasPendingReconnect()) }
     val alwaysOn = runtimeAlwaysOn || systemVpnStatus.enabled
     val lockdown = runtimeLockdown || systemVpnStatus.lockdown
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -164,10 +165,14 @@ private fun MainScreen(activity: Activity) {
                 } else {
                     store.connectionProfile().id
                 }
+                pendingReconnect = store.hasPendingReconnect()
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(connection) {
+        pendingReconnect = store.hasPendingReconnect()
     }
     LaunchedEffect(lifecycleOwner, connection) {
         if (connection != VpnConnectionState.CONNECTED) {
@@ -431,6 +436,32 @@ private fun MainScreen(activity: Activity) {
                         VpnConnectionState.DISCONNECTED -> stringResource(R.string.connect)
                     },
                 )
+            }
+            if (connected) {
+                FilledTonalButton(
+                    onClick = { ProxyVpnService.reconnect(activity) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(stringResource(R.string.reconnect))
+                        if (pendingReconnect) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                shape = RoundedCornerShape(999.dp),
+                            ) {
+                                Text(
+                                    stringResource(R.string.apply_new_settings),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                                )
+                            }
+                        }
+                    }
+                }
             }
             FilledTonalButton(
                 onClick = { activity.startActivity(Intent(activity, ConnectionTestActivity::class.java)) },

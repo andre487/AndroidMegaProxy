@@ -146,6 +146,7 @@ private fun SettingsScreen(activity: Activity) {
     }
     fun applyJsonImport(configuration: PortableConfiguration) {
         val added = store.importConfiguration(configuration)
+        if (ProxyVpnService.isRunning) store.markPendingReconnect()
         PersistentDiagnosticLog.setLimitMb(store.diagnosticLogLimitMb())
         refresh()
         val missingPasswords = added.count { it.config.password.isEmpty() }

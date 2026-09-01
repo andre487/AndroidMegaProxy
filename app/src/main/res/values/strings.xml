@@ -51,6 +51,8 @@
     <string name="cancel">Cancel</string>
     <string name="dismiss">Dismiss</string>
     <string name="reconnect_now">Reconnect now</string>
+    <string name="reconnect">Reconnect</string>
+    <string name="apply_new_settings">Apply new settings</string>
     <string name="next_connection">Next connection</string>
     <string name="clear_action">Clear</string>
     <string name="run_checks_again">Run checks again</string>

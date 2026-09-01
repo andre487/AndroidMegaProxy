@@ -110,6 +110,9 @@ private fun ProfileEditorScreen(activity: Activity) {
         profile = profile.copy(config = updated)
         saveProfile()
         error = store.globalConnectionSettings().applyTo(updated).connectionValidationError()
+        if (ProxyVpnService.isRunning && profile.id == store.connectionProfile().id) {
+            store.markPendingReconnect()
+        }
         if (ProxyVpnService.isRunning && !connectionChangeDeferred && profile.id == store.connectionProfile().id) {
             if (ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled) {
                 connectionChangeDeferred = true

@@ -80,6 +80,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
         val affectsActiveRouting = !(settings.routeAllApps && updated.routeAllApps && selectedPackagesOnly)
         settings = updated
         store.saveGlobalConnectionSettings(updated)
+        if (ProxyVpnService.isRunning && affectsActiveRouting) store.markPendingReconnect()
         if (ProxyVpnService.isRunning && affectsActiveRouting && !deferChangesUntilNextConnection) {
             val alwaysOn = ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled
             if (alwaysOn) {

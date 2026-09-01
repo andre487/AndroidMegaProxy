@@ -113,6 +113,20 @@ class ConfigStore(context: Context) {
         }.apply()
     }
 
+    fun hasPendingReconnect(): Boolean = pendingReconnectToken() != null
+
+    fun pendingReconnectToken(): String? = prefs.getString(PENDING_RECONNECT, null)
+
+    fun markPendingReconnect() {
+        prefs.edit().putString(PENDING_RECONNECT, UUID.randomUUID().toString()).apply()
+    }
+
+    fun clearPendingReconnect(appliedToken: String?) {
+        if (appliedToken != null && pendingReconnectToken() == appliedToken) {
+            prefs.edit().remove(PENDING_RECONNECT).apply()
+        }
+    }
+
     @Synchronized
     fun globalConnectionSettings(): GlobalConnectionSettings {
         ensureMigrated()
@@ -511,5 +525,6 @@ class ConfigStore(context: Context) {
         const val DIAGNOSTIC_LOG_LIMIT_MB = "diagnostic_log_limit_mb"
         const val GLOBAL_CONNECTION_SETTINGS = "global_connection_settings_v1"
         private const val IPV6_PROFILE_MIGRATED = "ipv6_profile_migrated_v1"
+        private const val PENDING_RECONNECT = "pending_reconnect"
     }
 }

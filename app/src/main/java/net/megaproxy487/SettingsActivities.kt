@@ -347,6 +347,7 @@ private fun TlsFingerprintScreen(activity: Activity) {
     fun saveSettings(updated: net.megaproxy487.model.GlobalConnectionSettings) {
         settings = updated
         store.saveGlobalConnectionSettings(settings)
+        if (ProxyVpnService.isRunning) store.markPendingReconnect()
         if (ProxyVpnService.isRunning && !deferred) {
             if (ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled) {
                 deferred = true; showAlwaysOnNotice = true

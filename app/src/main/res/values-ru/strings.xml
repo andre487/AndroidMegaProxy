@@ -50,6 +50,8 @@
     <string name="cancel">Отмена</string>
     <string name="dismiss">Скрыть</string>
     <string name="reconnect_now">Переподключиться сейчас</string>
+    <string name="reconnect">Переподключиться</string>
+    <string name="apply_new_settings">Применить новые настройки</string>
     <string name="next_connection">При следующем подключении</string>
     <string name="clear_action">Очистить</string>
     <string name="run_checks_again">Повторить проверку</string>

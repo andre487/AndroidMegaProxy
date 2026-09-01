@@ -267,9 +267,11 @@ class ProxyVpnService : VpnService() {
         suppliedConfig: net.megaproxy487.model.ProxyConfig? = null,
         generation: Long = startGeneration.get(),
     ): Boolean {
-        val storedProfile = ConfigStore(this).connectionProfile()
-        val storedConfig = suppliedConfig ?: ConfigStore(this).globalConnectionSettings().applyTo(storedProfile.config)
-        val promptProfileId = if (testOnly) ConfigStore(this).activeProfileId() else storedProfile.id
+        val configStore = ConfigStore(this)
+        val pendingReconnectToken = if (testOnly) null else configStore.pendingReconnectToken()
+        val storedProfile = configStore.connectionProfile()
+        val storedConfig = suppliedConfig ?: configStore.globalConnectionSettings().applyTo(storedProfile.config)
+        val promptProfileId = if (testOnly) configStore.activeProfileId() else storedProfile.id
         val diagnostics = if (testOnly) TestDiagnosticLog::add else DiagnosticLog::add
         var failureDetail = ""
         diagnostics(
@@ -397,6 +399,7 @@ class ProxyVpnService : VpnService() {
         if (failoverNotice == null) VpnRuntimeState.updateNetworkWarning(null)
         else VpnRuntimeState.updateNetworkWarning(failoverNotice)
         VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, promptProfileId)
+        if (!testOnly) configStore.clearPendingReconnect(pendingReconnectToken)
         VpnRuntimeState.update(VpnConnectionState.CONNECTED)
         return true
     }
