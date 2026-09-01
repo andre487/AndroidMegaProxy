@@ -19,7 +19,7 @@ Builds:
     sudo:
       - apt-get update
       - apt-get install -t trixie-backports -y golang-go
-      - apt-get install -y gcc libc-dev make
+      - apt-get install -y gcc libc-dev make openjdk-17-jdk-headless
       - sdkmanager 'platforms;android-26'
     gradle:
       - yes
