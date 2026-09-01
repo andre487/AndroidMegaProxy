@@ -42,6 +42,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
@@ -125,6 +126,11 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
         ) {
             Card(Modifier.fillMaxWidth()) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val statusColor = when (state) {
+                        TestState.SUCCEEDED -> Color(0xFF2E7D32)
+                        TestState.FAILED -> MaterialTheme.colorScheme.error
+                        else -> MaterialTheme.colorScheme.onSurface
+                    }
                     Text(
                         when (state) {
                             TestState.IDLE -> "Ready"
@@ -133,6 +139,7 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
                             TestState.FAILED -> "Test failed"
                         },
                         style = MaterialTheme.typography.titleLarge,
+                        color = statusColor,
                     )
                     exitIp?.let { Text("Proxy exit IP: $it") }
                 }
