@@ -46,17 +46,28 @@ type dohPacketConn struct {
 }
 
 func newDoHPacketConn(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string) *dohPacketConn {
+	return newDoHPacketConnWithClient(c, reporter, connect, endpoint, newDoHHTTPClient(connect))
+}
+
+func newDoHHTTPClient(connect func(context.Context, string) (net.Conn, error)) *http.Client {
 	transport := &http.Transport{
 		Proxy:               nil,
 		ForceAttemptHTTP2:   true,
 		TLSHandshakeTimeout: 15 * time.Second,
+		MaxConnsPerHost:     2,
+		MaxIdleConnsPerHost: 2,
+		IdleConnTimeout:     90 * time.Second,
 		DialContext: func(ctx context.Context, _, address string) (net.Conn, error) {
 			return connect(ctx, address)
 		},
 	}
+	return &http.Client{Transport: transport, Timeout: 20 * time.Second}
+}
+
+func newDoHPacketConnWithClient(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string, client *http.Client) *dohPacketConn {
 	return &dohPacketConn{
 		config: c, reporter: reporter, connect: connect, url: endpoint, replies: make(chan dnsReply, 16), closed: make(chan struct{}),
-		client: &http.Client{Transport: transport, Timeout: 20 * time.Second},
+		client: client,
 	}
 }
 
@@ -168,7 +179,7 @@ func (c *dohPacketConn) ReadFrom(buffer []byte) (int, net.Addr, error) {
 }
 
 func (c *dohPacketConn) Close() error {
-	c.closeOnce.Do(func() { close(c.closed); c.client.CloseIdleConnections() })
+	c.closeOnce.Do(func() { close(c.closed) })
 	return nil
 }
 func (c *dohPacketConn) LocalAddr() net.Addr { return dnsAddr("megaproxy-doh") }

@@ -29,6 +29,7 @@ type httpsConnectDialer struct {
 	reporter     Reporter
 	cacheMu      sync.Mutex
 	sessionCache tls.ClientSessionCache
+	dohClient    *http.Client
 }
 
 func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
@@ -184,7 +185,13 @@ func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, erro
 	if metadata.DstPort != 53 {
 		return nil, errUDPBlocked
 	}
-	return newDoHPacketConn(d.config, d.reporter, d.connectTarget, d.config.DoHURL), nil
+	d.cacheMu.Lock()
+	if d.dohClient == nil {
+		d.dohClient = newDoHHTTPClient(d.connectTarget)
+	}
+	client := d.dohClient
+	d.cacheMu.Unlock()
+	return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client), nil
 }
 
 type bufferedConn struct {

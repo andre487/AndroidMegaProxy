@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -28,6 +29,7 @@ type sshDialer struct {
 	sessionCreated time.Time
 	sessionBytes   atomic.Uint64
 	keepaliveStop  chan struct{}
+	dohClient      *http.Client
 }
 
 func (d *sshDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
@@ -222,7 +224,16 @@ func (d *sshDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 	if metadata.DstPort != 53 {
 		return nil, errUDPBlocked
 	}
-	return newDoHPacketConn(d.config, d.reporter, d.connectTarget, d.config.DoHURL), nil
+	return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, d.sharedDoHClient()), nil
+}
+
+func (d *sshDialer) sharedDoHClient() *http.Client {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	if d.dohClient == nil {
+		d.dohClient = newDoHHTTPClient(d.connectTarget)
+	}
+	return d.dohClient
 }
 
 func (d *sshDialer) invalidate() {
@@ -241,7 +252,16 @@ func (d *sshDialer) invalidate() {
 	}
 }
 
-func (d *sshDialer) Close() error { d.invalidate(); return nil }
+func (d *sshDialer) Close() error {
+	d.invalidate()
+	d.mu.Lock()
+	if d.dohClient != nil {
+		d.dohClient.CloseIdleConnections()
+		d.dohClient = nil
+	}
+	d.mu.Unlock()
+	return nil
+}
 
 func (d *sshDialer) rotationDue() bool {
 	d.mu.Lock()
