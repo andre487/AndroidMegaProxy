@@ -1,0 +1,106 @@
+name: Release APKs
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and publish signed APKs
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - name: Check out release tag
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: gradle
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+
+      - name: Install Android SDK components
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          if [[ ! -x "$sdkmanager" ]]; then
+            echo "sdkmanager is unavailable at $sdkmanager" >&2
+            exit 1
+          fi
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          "$sdkmanager" \
+            "platforms;android-35" \
+            "build-tools;34.0.0" \
+            "ndk;29.0.14206865"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+
+      - name: Install gomobile
+        run: |
+          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
+          gomobile init
+
+      - name: Validate release tag
+        run: |
+          version_name="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)"/\1/p' app/build.gradle.kts | head -n 1)"
+          expected_tag="v${version_name}"
+          if [[ -z "$version_name" || "$GITHUB_REF_NAME" != "$expected_tag" ]]; then
+            echo "Release tag $GITHUB_REF_NAME does not match app version $expected_tag" >&2
+            exit 1
+          fi
+
+      - name: Restore Android signing key
+        env:
+          SIGNING_KEY_BASE64: ${{ secrets.ANDROID_SIGNING_KEY_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+        run: |
+          if [[ -z "$SIGNING_KEY_BASE64" || -z "$KEYSTORE_PASSWORD" ]]; then
+            echo "Android signing secrets are not configured" >&2
+            exit 1
+          fi
+          keystore="$RUNNER_TEMP/megaproxy-release.p12"
+          password_file="$RUNNER_TEMP/megaproxy-keystore-password"
+          printf '%s' "$SIGNING_KEY_BASE64" | base64 --decode > "$keystore"
+          printf '%s' "$KEYSTORE_PASSWORD" > "$password_file"
+          chmod 600 "$keystore" "$password_file"
+          echo "MEGAPROXY_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
+          echo "MEGAPROXY_KEY_PASSWORD_FILE=$password_file" >> "$GITHUB_ENV"
+
+      - name: Build optimized signed APKs
+        env:
+          MEGAPROXY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MEGAPROXY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          MEGAPROXY_GIT_COMMIT: ${{ github.sha }}
+        run: ./scripts/build-release-apks.sh
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          assets=(dist/release/*.apk dist/release/SHA256SUMS)
+          if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
+              --repo "$GITHUB_REPOSITORY" \
+              --verify-tag \
+              --generate-notes \
+              --title "MegaProxy ${GITHUB_REF_NAME}"
+          fi

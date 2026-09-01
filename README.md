@@ -141,6 +141,15 @@ password from `$HOME/.my-tokens/android-key-password`. These locations can be ov
 Separate APKs are produced for `arm64-v8a`, `armeabi-v7a`, `x86_64`, and `x86`; each APK contains
 only its matching native library.
 
+Pushing a tag whose name starts with `v` runs the GitHub release workflow. It builds the same four
+APK variants with the repository signing key stored in GitHub Actions Secrets, verifies every
+signature, and publishes the APKs and `SHA256SUMS` to a new GitHub Release. For example:
+
+```shell
+git tag v0.0.1
+git push origin v0.0.1
+```
+
 ### VS Code workflow
 
 Open the repository in VS Code and install the workspace recommendations from
