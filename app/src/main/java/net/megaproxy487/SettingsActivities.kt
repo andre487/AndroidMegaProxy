@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
+import android.os.PowerManager
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -35,12 +36,16 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.model.Ja3Spec
 import net.megaproxy487.model.TlsProfile
@@ -72,15 +77,33 @@ class TlsFingerprintActivity : ComponentActivity() {
 @Composable
 private fun SettingsHomeScreen(activity: Activity) {
     var showCrashConfirmation by remember { mutableStateOf(false) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val powerManager = remember { activity.getSystemService(PowerManager::class.java) }
+    var batteryOptimizationDisabled by remember {
+        mutableStateOf(powerManager.isIgnoringBatteryOptimizations(activity.packageName))
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                batteryOptimizationDisabled = powerManager.isIgnoringBatteryOptimizations(activity.packageName)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     SettingsScaffold(activity, "Settings") {
         SettingsButton("Profiles") { activity.startActivity(Intent(activity, ProfilesActivity::class.java)) }
         SettingsButton("Always-on VPN") { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
         SettingsButton("TLS fingerprint") { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
         SettingsButton("Split tunneling") { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
-        SettingsButton("Battery settings") {
-            activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                data = Uri.parse("package:${activity.packageName}")
-            })
+        if (!batteryOptimizationDisabled) {
+            SettingsButton("Battery settings") {
+                activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                    data = Uri.parse("package:${activity.packageName}")
+                })
+            }
         }
         SettingsButton("Diagnostic log") { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) }
         SettingsButton("Crash") { showCrashConfirmation = true }
