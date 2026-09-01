@@ -1,0 +1,525 @@
+package net.megaproxy487
+
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.os.Bundle
+import android.provider.Settings
+import androidx.activity.ComponentActivity
+import androidx.activity.enableEdgeToEdge
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.semantics.CustomAccessibilityAction
+import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigIoDispatcher
+import net.megaproxy487.data.ConfigExportFormat
+import net.megaproxy487.data.ConfigTransfer
+import net.megaproxy487.data.FoxyProxyParser
+import net.megaproxy487.data.PortableConfiguration
+import net.megaproxy487.data.ProxyListParser
+import net.megaproxy487.data.SuperProxyParser
+import net.megaproxy487.data.readConfigText
+import net.megaproxy487.model.ProfileColors
+import net.megaproxy487.model.ProxyProfile
+import net.megaproxy487.model.ProxyType
+import net.megaproxy487.vpn.PersistentDiagnosticLog
+import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.ui.theme.MegaProxyTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
+class ProfilesActivity : LocalizedActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent { MegaProxyTheme { SettingsScreen(this) } }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun SettingsScreen(activity: Activity) {
+    val store = remember { ConfigStore(activity) }
+    val scope = rememberCoroutineScope()
+    val profiles = remember { mutableStateListOf<ProxyProfile>() }
+    var deleteProfile by remember { mutableStateOf<ProxyProfile?>(null) }
+    var importedProfileCount by remember { mutableStateOf(0) }
+    var importError by remember { mutableStateOf<String?>(null) }
+    var skippedNonHttps by remember { mutableStateOf(0) }
+    var showImportFilterNotice by remember { mutableStateOf(false) }
+    var showExportDialog by remember { mutableStateOf(false) }
+    var showPasswordExportWarning by remember { mutableStateOf(false) }
+    var exportFormat by remember { mutableStateOf(ConfigExportFormat.JSON) }
+    var includePasswords by remember { mutableStateOf(false) }
+    var includePrivateKeys by remember { mutableStateOf(false) }
+    var pendingExportContent by remember { mutableStateOf("") }
+    var transferMessage by remember { mutableStateOf<String?>(null) }
+    var pendingUnsafeImport by remember { mutableStateOf<PortableConfiguration?>(null) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val listState = rememberLazyListState()
+    var draggedProfileId by remember { mutableStateOf<String?>(null) }
+
+    fun refresh() {
+        scope.launch {
+            val loaded = withContext(ConfigIoDispatcher) { store.sortedProfiles() }
+            profiles.clear()
+            profiles.addAll(loaded)
+        }
+    }
+    LaunchedEffect(Unit) { refresh() }
+    fun moveProfile(profileId: String, delta: Int): Boolean {
+        val sourceIndex = profiles.indexOfFirst { it.id == profileId }
+        val targetIndex = sourceIndex + delta
+        if (sourceIndex < 0 || targetIndex !in profiles.indices) return false
+        profiles.add(targetIndex, profiles.removeAt(sourceIndex))
+        val order = profiles.map(ProxyProfile::id)
+        scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
+        return true
+    }
+    fun edit(profile: ProxyProfile) {
+        activity.startActivity(Intent(activity, ProfileEditorActivity::class.java).apply {
+            putExtra(ProfileEditorActivity.EXTRA_PROFILE_ID, profile.id)
+        })
+    }
+    fun writeExport(uri: Uri?) {
+        if (uri == null) return
+        val content = pendingExportContent
+        scope.launch {
+            val result = withContext(Dispatchers.IO) {
+                runCatching {
+                    activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { it.write(content) }
+                        ?: error("Could not open the export file")
+                }
+            }
+            result.onSuccess { transferMessage = "Configuration exported successfully." }
+                .onFailure { importError = it.message ?: "Could not export the configuration" }
+        }
+    }
+    fun applyJsonImport(configuration: PortableConfiguration) {
+        scope.launch {
+            val added = withContext(ConfigIoDispatcher) {
+                store.importConfiguration(configuration).also {
+                    if (ProxyVpnService.isRunning) store.markPendingReconnect()
+                    PersistentDiagnosticLog.setLimitMb(store.diagnosticLogLimitMb())
+                }
+            }
+            refresh()
+            val missingPasswords = added.count { it.config.password.isEmpty() }
+            transferMessage = buildString {
+                append("Imported ${added.size} profile(s) from JSON.")
+                if (configuration.skippedProfiles > 0) append(" Skipped ${configuration.skippedProfiles} invalid profile(s).")
+                if (missingPasswords > 0) append(" $missingPasswords profile(s) require a password.")
+                if (ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning) append(" Reconnect the VPN to apply the imported Always-on profile selection.")
+            }
+            importedProfileCount = 0
+        }
+    }
+
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event -> if (event == Lifecycle.Event.ON_RESUME) refresh() }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    val exportTxtDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain"), ::writeExport)
+    val exportJsonDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json"), ::writeExport)
+    fun launchExport() {
+        scope.launch {
+            pendingExportContent = withContext(ConfigIoDispatcher) {
+                when (exportFormat) {
+                    ConfigExportFormat.PROXY_LIST -> ConfigTransfer.exportProxyList(store.profiles(), includePasswords)
+                    ConfigExportFormat.JSON -> ConfigTransfer.exportJson(store, includePasswords, includePrivateKeys)
+                }
+            }
+            if (exportFormat == ConfigExportFormat.PROXY_LIST) exportTxtDocument.launch("ProxyList.txt")
+            else exportJsonDocument.launch("MegaProxy-config.json")
+        }
+    }
+    val importDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) {
+            runCatching {
+                val text = activity.contentResolver.openInputStream(uri)?.buffered()?.use { it.readConfigText() }
+                    ?: error("Could not read the selected file")
+                val isJson = activity.contentResolver.getType(uri) == "application/json" ||
+                    uri.lastPathSegment.orEmpty().substringAfterLast('.', "").equals("json", true) ||
+                    text.trimStart().startsWith('{')
+                if (isJson) {
+                    val isMegaProxy = runCatching {
+                        org.json.JSONObject(text).optString("schema") == "dev.megaproxy.config"
+                    }.getOrDefault(false)
+                    if (isMegaProxy) {
+                        val configuration = ConfigTransfer.importJson(text)
+                        if (configuration.profiles.any { it.config.allowInvalidProxyCertificate || it.config.acceptAnyHostKey || it.config.jumpAcceptAnyHostKey }) {
+                            pendingUnsafeImport = configuration
+                        } else {
+                            applyJsonImport(configuration)
+                        }
+                    } else {
+                        val imported = FoxyProxyParser.parse(text).getOrThrow()
+                        val added = store.importProfiles(imported.proxies)
+                        refresh()
+                        importedProfileCount = added.size
+                        skippedNonHttps = imported.skippedNonHttps
+                        showImportFilterNotice = imported.skippedNonHttps > 0
+                        if (imported.skippedNonHttps == 0) {
+                            transferMessage = "Imported ${added.size} HTTPS proxy profile(s) from FoxyProxy."
+                        }
+                    }
+                } else {
+                    val isSuperProxy = SuperProxyParser.matches(text)
+                    val imported = if (isSuperProxy) {
+                        SuperProxyParser.parse(text).getOrThrow()
+                    } else {
+                        ProxyListParser.parse(text).getOrThrow()
+                    }
+                    val added = store.importProfiles(imported.proxies)
+                    refresh()
+                    importedProfileCount = added.size
+                    skippedNonHttps = imported.skippedNonHttps
+                    showImportFilterNotice = imported.skippedNonHttps > 0
+                    if (imported.skippedNonHttps == 0) {
+                        transferMessage = if (isSuperProxy) {
+                            "Imported ${added.size} HTTPS proxy profile(s) from Super Proxy. Certificate pins were not imported."
+                        } else {
+                            "Imported ${added.size} HTTPS proxy profile(s)."
+                        }
+                    }
+                }
+                importError = null
+            }.onFailure { importError = it.message ?: "Could not import the configuration" }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+        TopAppBar(
+            title = { Text(stringResource(R.string.profiles)) },
+            navigationIcon = {
+                IconButton(onClick = { activity.finish() }) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                }
+            },
+            actions = {
+                TextButton(onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
+                    Text(stringResource(R.string.import_action))
+                }
+                TextButton(onClick = { showExportDialog = true }) { Text(stringResource(R.string.export_action)) }
+            },
+        )
+        },
+        floatingActionButton = {
+            FloatingActionButton(onClick = {
+                scope.launch {
+                    val profile = withContext(ConfigIoDispatcher) { store.addProfile() }
+                    refresh()
+                    edit(profile)
+                }
+            }) {
+                Icon(Icons.Default.Add, contentDescription = "Add profile")
+            }
+        },
+        contentWindowInsets = WindowInsets.safeDrawing,
+    ) { padding ->
+        Box(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentAlignment = Alignment.TopCenter,
+        ) {
+            LazyColumn(
+                Modifier.fillMaxHeight().fillMaxWidth().widthIn(max = 840.dp).padding(horizontal = 16.dp),
+                state = listState,
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                item {
+                    Text(
+                        "Long press and drag a profile to reorder it.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                }
+                items(profiles, key = { it.id }) { profile ->
+                var dragOffset by remember(profile.id) { mutableStateOf(0f) }
+                ProfileCard(
+                    profile = profile,
+                    modifier = Modifier
+                        .zIndex(if (draggedProfileId == profile.id) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = dragOffset
+                            alpha = if (draggedProfileId == profile.id) 0.92f else 1f
+                        }
+                        .pointerInput(profile.id) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = { draggedProfileId = profile.id },
+                                onDragCancel = {
+                                    dragOffset = 0f
+                                    draggedProfileId = null
+                                    val order = profiles.map(ProxyProfile::id)
+                                    scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
+                                },
+                                onDragEnd = {
+                                    dragOffset = 0f
+                                    draggedProfileId = null
+                                    val order = profiles.map(ProxyProfile::id)
+                                    scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
+                                },
+                                onDrag = { change, amount ->
+                                    change.consume()
+                                    dragOffset += amount.y
+                                    val currentIndex = profiles.indexOfFirst { it.id == profile.id }
+                                    val currentInfo = listState.layoutInfo.visibleItemsInfo
+                                        .firstOrNull { it.key == profile.id } ?: return@detectDragGesturesAfterLongPress
+                                    val targetY = currentInfo.offset + currentInfo.size / 2f + dragOffset
+                                    val targetInfo = listState.layoutInfo.visibleItemsInfo.firstOrNull {
+                                        it.key != profile.id && targetY.toInt() in it.offset..(it.offset + it.size)
+                                    } ?: return@detectDragGesturesAfterLongPress
+                                    val targetIndex = profiles.indexOfFirst { it.id == targetInfo.key }
+                                    if (currentIndex >= 0 && targetIndex >= 0 && currentIndex != targetIndex) {
+                                        dragOffset += currentInfo.offset - targetInfo.offset
+                                        profiles.add(targetIndex, profiles.removeAt(currentIndex))
+                                    }
+                                },
+                            )
+                        }
+                        .semantics {
+                            customActions = buildList {
+                                if (profiles.firstOrNull()?.id != profile.id) {
+                                    add(CustomAccessibilityAction("Move up") { moveProfile(profile.id, -1) })
+                                }
+                                if (profiles.lastOrNull()?.id != profile.id) {
+                                    add(CustomAccessibilityAction("Move down") { moveProfile(profile.id, 1) })
+                                }
+                            }
+                        },
+                    onConfigure = { edit(profile) },
+                    onClone = {
+                        scope.launch {
+                            withContext(ConfigIoDispatcher) { store.cloneProfile(profile.id) }
+                            refresh()
+                        }
+                    },
+                    onDelete = { deleteProfile = profile },
+                )
+                }
+                importError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
+                item { Text(stringResource(R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp)) }
+            }
+        }
+    }
+
+    deleteProfile?.let { profile ->
+        AlertDialog(
+            onDismissRequest = { deleteProfile = null },
+            title = { Text("Delete ${profile.displayName}?") },
+            text = { Text("The profile and its encrypted credentials will be removed.") },
+            confirmButton = { TextButton(onClick = {
+                deleteProfile = null
+                scope.launch {
+                    val reconnect = withContext(ConfigIoDispatcher) {
+                        val needed = store.isConnectionDesired() && store.connectionProfile().id == profile.id
+                        store.deleteProfile(profile.id)
+                        needed
+                    }
+                    refresh()
+                    if (reconnect) ProxyVpnService.reconnect(activity)
+                }
+            }, enabled = profiles.size > 1) { Text("Delete") } },
+            dismissButton = { TextButton(onClick = { deleteProfile = null }) { Text("Cancel") } },
+        )
+    }
+    if (showImportFilterNotice) {
+        AlertDialog(
+            onDismissRequest = { showImportFilterNotice = false },
+            title = { Text("Only HTTPS proxies were imported") },
+            text = { Text("Imported $importedProfileCount HTTPS proxy profile(s). Skipped $skippedNonHttps non-HTTPS URL(s).") },
+            confirmButton = { TextButton(onClick = { showImportFilterNotice = false }) { Text("Continue") } },
+        )
+    }
+    if (showExportDialog) {
+        AlertDialog(
+            onDismissRequest = { showExportDialog = false },
+            title = { Text("Export configuration") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("Format")
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(exportFormat == ConfigExportFormat.JSON, { exportFormat = ConfigExportFormat.JSON })
+                        Text("JSON · all MegaProxy settings")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        RadioButton(exportFormat == ConfigExportFormat.PROXY_LIST, { exportFormat = ConfigExportFormat.PROXY_LIST })
+                        Text("ProxyList.txt · compatible proxy fields only")
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(includePasswords, { includePasswords = it })
+                        Text("Include passwords")
+                    }
+                    if (!includePasswords) {
+                        Text("Passwords will be left empty and must be entered after import.", style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (exportFormat == ConfigExportFormat.JSON) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(includePrivateKeys, { includePrivateKeys = it })
+                        Text("Include SSH private keys")
+                    }
+                    if (includePrivateKeys) Text("Private keys will be exported in plain text.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                showExportDialog = false
+                if (includePasswords || includePrivateKeys) showPasswordExportWarning = true else launchExport()
+            }) { Text("Export") } },
+            dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text("Cancel") } },
+        )
+    }
+    if (showPasswordExportWarning) {
+        AlertDialog(
+            onDismissRequest = { showPasswordExportWarning = false },
+            title = { Text("Export secrets in plain text?") },
+            text = { Text("Anyone with access to the exported file will be able to read the selected passwords or SSH private keys. Store and transfer it securely.") },
+            confirmButton = { TextButton(onClick = {
+                showPasswordExportWarning = false
+                launchExport()
+            }) { Text("Export anyway") } },
+            dismissButton = { TextButton(onClick = { showPasswordExportWarning = false }) { Text("Cancel") } },
+        )
+    }
+    transferMessage?.let { message ->
+        AlertDialog(
+            onDismissRequest = { transferMessage = null },
+            title = { Text("Configuration transfer") },
+            text = { Text(message) },
+            confirmButton = { TextButton(onClick = { transferMessage = null }) { Text("OK") } },
+        )
+    }
+    pendingUnsafeImport?.let { configuration ->
+        AlertDialog(
+            onDismissRequest = { pendingUnsafeImport = null },
+            title = { Text("Import insecure verification settings?") },
+            text = { Text("One or more profiles disable HTTPS certificate or SSH host-key verification. This permits server impersonation and should only be used for servers you control.") },
+            confirmButton = { TextButton(onClick = {
+                pendingUnsafeImport = null
+                applyJsonImport(configuration)
+            }) { Text("Import anyway") } },
+            dismissButton = { TextButton(onClick = { pendingUnsafeImport = null }) { Text("Cancel") } },
+        )
+    }
+}
+
+@Composable
+private fun ProfileCard(
+    profile: ProxyProfile,
+    modifier: Modifier = Modifier,
+    onConfigure: () -> Unit,
+    onClone: () -> Unit,
+    onDelete: () -> Unit,
+) {
+    val background = Color(ProfileColors.argb[Math.floorMod(profile.colorIndex, ProfileColors.argb.size)])
+    val foreground = if (background.luminance() > 0.45f) Color.Black else Color.White
+    Card(
+        colors = CardDefaults.cardColors(containerColor = background, contentColor = foreground),
+        modifier = modifier.fillMaxWidth(),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (profile.flagEmoji.isNotEmpty()) {
+                    Surface(
+                        color = Color.White, contentColor = Color.Black,
+                        shape = RoundedCornerShape(6.dp),
+                        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.45f)),
+                    ) { Text(profile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
+                }
+                Column(Modifier.weight(1f)) {
+                    Text(profile.displayName, style = MaterialTheme.typography.titleMedium)
+                    Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
+                }
+                Surface(
+                    color = foreground.copy(alpha = 0.16f),
+                    contentColor = foreground,
+                    shape = RoundedCornerShape(50),
+                    border = BorderStroke(1.dp, foreground.copy(alpha = 0.55f)),
+                ) {
+                    Text(
+                        when (profile.config.type) {
+                            ProxyType.HTTPS -> "HTTPS"
+                            ProxyType.SSH -> "SSH"
+                            ProxyType.SSH_JUMP -> "SSH + Jump"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                    )
+                }
+            }
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                TextButton(onClick = onConfigure) { Text("Configure", color = foreground) }
+                TextButton(onClick = onClone) { Text("Clone", color = foreground) }
+                TextButton(onClick = onDelete) { Text("Delete", color = foreground) }
+            }
+        }
+    }
+}

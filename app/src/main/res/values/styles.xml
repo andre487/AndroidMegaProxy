@@ -1,0 +1,9 @@
+<resources>
+    <style name="Theme.MegaProxy" parent="android:style/Theme.Material.Light.NoActionBar">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#3F51B5</item>
+        <item name="android:navigationBarColor">#F7F7FC</item>
+        <item name="android:statusBarColor">#F7F7FC</item>
+        <item name="android:windowLightStatusBar">true</item>
+    </style>
+</resources>
