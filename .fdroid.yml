@@ -20,6 +20,7 @@ Builds:
       - apt-get update
       - apt-get install -t trixie-backports -y golang-go
       - apt-get install -y gcc libc-dev make
+      - sdkmanager 'platforms;android-26'
     gradle:
       - yes
     srclibs:
