@@ -52,7 +52,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.background
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -156,9 +155,6 @@ private fun MainScreen(activity: Activity) {
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
-    }
-    LaunchedEffect(alwaysOn) {
-        if (alwaysOn) profileMenuExpanded = false
     }
     LaunchedEffect(lifecycleOwner, connection) {
         if (connection != VpnConnectionState.CONNECTED) {
@@ -296,9 +292,7 @@ private fun MainScreen(activity: Activity) {
             val onProfileColor = if (profileColor.luminance() > 0.45f) Color.Black else Color.White
             Box(Modifier.fillMaxWidth()) {
                 Card(
-                    Modifier.fillMaxWidth().clickable(enabled = !alwaysOn) {
-                        if (!isAlwaysOnVpnActive(activity)) profileMenuExpanded = true
-                    },
+                    Modifier.fillMaxWidth().clickable { profileMenuExpanded = true },
                     colors = CardDefaults.cardColors(
                         containerColor = profileColor,
                         contentColor = onProfileColor,
@@ -339,29 +333,22 @@ private fun MainScreen(activity: Activity) {
                                         }
                                     },
                                     onClick = {
-                                        if (!isAlwaysOnVpnActive(activity)) {
+                                        val useAsAlwaysOn = isAlwaysOnVpnActive(activity)
+                                        if (useAsAlwaysOn) {
+                                            store.setAlwaysOnProfile(profile.id)
+                                            connectionProfileId = profile.id
+                                        } else {
                                             store.setActiveProfile(profile.id)
                                             activeProfileId = profile.id
+                                        }
+                                        if (useAsAlwaysOn || connection != VpnConnectionState.DISCONNECTED) {
+                                            ProxyVpnService.switchProfile(activity, profile.id, useAsAlwaysOn)
                                         }
                                         profileMenuExpanded = false
                                     },
                                 )
                             }
                         }
-                    }
-                }
-                if (alwaysOn) {
-                    Box(
-                        Modifier.matchParentSize()
-                            .background(Color.Gray.copy(alpha = 0.62f), RoundedCornerShape(12.dp))
-                            .clickable(onClick = {}),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Text(
-                            "Profile locked by Always-on VPN",
-                            color = Color.White,
-                            style = MaterialTheme.typography.labelLarge,
-                        )
                     }
                 }
             }
@@ -407,7 +394,7 @@ private fun MainScreen(activity: Activity) {
             }
             if (alwaysOn) {
                 Text(
-                    "Always-on VPN is used. Connection controls are managed by Android.",
+                    "Always-on VPN is used. Selecting a profile updates the Always-on profile and reconnects immediately; disconnect remains managed by Android.",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 12.dp),
