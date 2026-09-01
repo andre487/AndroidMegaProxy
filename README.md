@@ -124,6 +124,21 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n net.megaproxy487/.MainActivity
 ```
 
+### Signed release APKs
+
+Build R8-optimized, resource-shrunk and signed APKs for every supported Android ABI:
+
+```shell
+./scripts/build-release-apks.sh
+```
+
+By default the script uses `$HOME/AndroidApkKey`, alias `key0`, and reads the shared keystore/key
+password from `$HOME/.my-tokens/android-key-password`. These locations can be overridden with
+`MEGAPROXY_KEYSTORE_PATH`, `MEGAPROXY_KEY_ALIAS`, `MEGAPROXY_KEY_PASSWORD_FILE`, and
+`MEGAPROXY_KEY_PASSWORD`. Outputs and their SHA-256 checksums are written to `dist/release`.
+Separate APKs are produced for `arm64-v8a`, `armeabi-v7a`, `x86_64`, and `x86`; each APK contains
+only its matching native library.
+
 ### VS Code workflow
 
 Open the repository in VS Code and install the workspace recommendations from
