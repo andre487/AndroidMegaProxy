@@ -13,3 +13,5 @@ local.properties
 .cxx/
 native/*.aar
 app/libs/*.aar
+app/libs/megaproxy-sources.jar
+*.idsig

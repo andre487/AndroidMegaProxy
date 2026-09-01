@@ -22,13 +22,14 @@ val gitCommitHash = providers.environmentVariable("GITHUB_SHA")
 android {
     namespace = "net.megaproxy487"
     compileSdk = 35
+    buildToolsVersion = "34.0.0"
 
     defaultConfig {
         applicationId = "net.megaproxy487"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.0.3"
+        versionCode = 4
+        versionName = "0.0.4"
         buildConfigField("String", "GIT_COMMIT_HASH", "\"$gitCommitHash\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

@@ -1,0 +1,3 @@
+Prepare MegaProxy for verified distribution through F-Droid.
+
+Add a reproducible universal APK assembled entirely from source, localized store metadata, and graphics for the F-Droid catalog.

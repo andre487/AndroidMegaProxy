@@ -1,0 +1,3 @@
+Initial F-Droid release.
+
+Includes HTTPS, SSH, and SSH-with-jump profiles, global and per-app routing, encrypted DNS, configurable client fingerprints, connection diagnostics, failover, and Always-on VPN support.
