@@ -94,7 +94,7 @@ object ConfigTransfer {
         val decodedProfiles = decoded.mapNotNull(Result<ProxyProfile>::getOrNull)
         require(decodedProfiles.isNotEmpty()) { "The configuration contains no usable profiles" }
         val legacyIpv6 = root.optJSONObject("routing")?.optBoolean("allowIpv6", false) ?: false
-        val profiles = if (version < 6) decodedProfiles.map {
+        val profiles = if (version in 2..5) decodedProfiles.map {
             it.copy(config = it.config.copy(allowIpv6 = legacyIpv6))
         } else decodedProfiles
         return PortableConfiguration(

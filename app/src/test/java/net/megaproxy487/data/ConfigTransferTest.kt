@@ -86,4 +86,28 @@ class ConfigTransferTest {
         assertEquals(TlsProfile.DEFAULT, imported.globalConnectionSettings?.tlsProfile)
         assertEquals(setOf("com.example.missing"), imported.globalConnectionSettings?.selectedPackages)
     }
+
+    @Test
+    fun `version one keeps per-profile IPv6 setting`() {
+        val imported = ConfigTransfer.importJson(
+            """{"schema":"dev.megaproxy.config","version":1,"profiles":[{
+              "id":"one","proxy":{"host":"proxy.example"},"routing":{"allowIpv6":true}
+            }]}""",
+        )
+
+        assertTrue(imported.profiles.single().config.allowIpv6)
+    }
+
+    @Test
+    fun `legacy global IPv6 setting migrates to every profile`() {
+        val imported = ConfigTransfer.importJson(
+            """{"schema":"dev.megaproxy.config","version":5,
+              "routing":{"allowIpv6":true},"profiles":[
+                {"id":"one","proxy":{"host":"one.example"}},
+                {"id":"two","proxy":{"host":"two.example"}}
+              ]}""",
+        )
+
+        assertTrue(imported.profiles.all { it.config.allowIpv6 })
+    }
 }

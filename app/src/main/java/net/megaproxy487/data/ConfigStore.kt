@@ -30,7 +30,18 @@ class ConfigStore(context: Context) {
     @Synchronized
     fun profiles(): List<ProxyProfile> {
         ensureMigrated()
-        val decoded = decodeProfiles(prefs.getString(PROFILES, null)).ifEmpty { listOf(createInitialProfile()) }
+        val decoded = decodeProfiles(prefs.getString(PROFILES, null)).ifEmpty {
+            val recovered = createInitialProfile()
+            prefs.edit()
+                .putString(PROFILES, encodeProfiles(listOf(recovered)))
+                .putString(ACTIVE_PROFILE_ID, recovered.id)
+                .putString(ALWAYS_ON_PROFILE_ID, recovered.id)
+                .putString(CONNECTION_PROFILE_ID, recovered.id)
+                .putBoolean(FAILOVER_ACTIVE, false)
+                .remove(FAILOVER_NOTICE)
+                .apply()
+            listOf(recovered)
+        }
         if (prefs.getInt(FLAG_COLOR_VERSION, 0) >= CURRENT_FLAG_COLOR_VERSION) return decoded
         val recolored = decoded.map { profile ->
             if (profile.countryCode.isEmpty()) profile
@@ -213,7 +224,11 @@ class ConfigStore(context: Context) {
         configuration.activeProfileId?.let(idMap::get)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
         configuration.alwaysOnProfileId?.let(idMap::get)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
         editor.apply()
-        configuration.globalConnectionSettings?.let(::saveGlobalConnectionSettings)
+        configuration.globalConnectionSettings?.let { importedSettings ->
+            saveGlobalConnectionSettings(importedSettings.copy(
+                failoverProfileIds = importedSettings.failoverProfileIds.mapNotNull(idMap::get),
+            ))
+        }
         return added
     }
 
@@ -247,12 +262,19 @@ class ConfigStore(context: Context) {
     fun deleteProfile(id: String): Boolean {
         val current = profiles()
         if (current.size <= 1 || current.none { it.id == id }) return false
+        val connectionWasDeleted = connectionProfile().id == id
         val remaining = current.filterNot { it.id == id }
         val replacement = remaining.first().id
         val editor = prefs.edit().putString(PROFILES, encodeProfiles(remaining))
         if (activeProfileId() == id) editor.putString(ACTIVE_PROFILE_ID, replacement)
         if (alwaysOnProfileId() == id) editor.putString(ALWAYS_ON_PROFILE_ID, replacement)
+        if (connectionWasDeleted) editor.putString(CONNECTION_PROFILE_ID, replacement)
         editor.apply()
+        val settings = globalConnectionSettings()
+        if (id in settings.failoverProfileIds) {
+            saveGlobalConnectionSettings(settings.copy(failoverProfileIds = settings.failoverProfileIds - id))
+        }
+        if (connectionWasDeleted && isFailoverActive()) setFailoverState(false, null)
         return true
     }
 

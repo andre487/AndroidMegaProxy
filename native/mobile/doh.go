@@ -43,6 +43,8 @@ type dohPacketConn struct {
 	deadlineMu   sync.Mutex
 	readDeadline time.Time
 	client       *http.Client
+	context      context.Context
+	cancel       context.CancelFunc
 }
 
 func newDoHPacketConn(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string) *dohPacketConn {
@@ -65,9 +67,10 @@ func newDoHHTTPClient(connect func(context.Context, string) (net.Conn, error)) *
 }
 
 func newDoHPacketConnWithClient(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string, client *http.Client) *dohPacketConn {
+	ctx, cancel := context.WithCancel(context.Background())
 	return &dohPacketConn{
 		config: c, reporter: reporter, connect: connect, url: endpoint, replies: make(chan dnsReply, 16), closed: make(chan struct{}),
-		client: client,
+		client: client, context: ctx, cancel: cancel,
 	}
 }
 
@@ -90,7 +93,7 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	}
 	query := append([]byte(nil), payload...)
 	go func() {
-		req, err := http.NewRequestWithContext(context.Background(), http.MethodPost, c.url, bytes.NewReader(query))
+		req, err := http.NewRequestWithContext(c.context, http.MethodPost, c.url, bytes.NewReader(query))
 		if err == nil {
 			req.Header.Set("Accept", "application/dns-message")
 			req.Header.Set("Content-Type", "application/dns-message")
@@ -179,7 +182,10 @@ func (c *dohPacketConn) ReadFrom(buffer []byte) (int, net.Addr, error) {
 }
 
 func (c *dohPacketConn) Close() error {
-	c.closeOnce.Do(func() { close(c.closed) })
+	c.closeOnce.Do(func() {
+		close(c.closed)
+		c.cancel()
+	})
 	return nil
 }
 func (c *dohPacketConn) LocalAddr() net.Addr { return dnsAddr("megaproxy-doh") }

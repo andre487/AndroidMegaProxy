@@ -89,7 +89,6 @@ class FailoverSettingsActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsHomeScreen(activity: Activity) {
-    var showCrashConfirmation by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val powerManager = remember { activity.getSystemService(PowerManager::class.java) }
     var batteryOptimizationDisabled by remember {
@@ -121,16 +120,6 @@ private fun SettingsHomeScreen(activity: Activity) {
             }
         }
         SettingsButton("Diagnostic log") { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) }
-        SettingsButton("Crash") { showCrashConfirmation = true }
-    }
-    if (showCrashConfirmation) {
-        AlertDialog(
-            onDismissRequest = { showCrashConfirmation = false },
-            title = { Text("Crash MegaProxy?") },
-            text = { Text("The app will close immediately. Reopen it to test the crash report dialog.") },
-            confirmButton = { TextButton(onClick = { throw IllegalStateException("Intentional crash requested from Settings") }) { Text("Crash") } },
-            dismissButton = { TextButton(onClick = { showCrashConfirmation = false }) { Text("Cancel") } },
-        )
     }
 }
 
@@ -331,18 +320,18 @@ private fun TlsFingerprintScreen(activity: Activity) {
                 }) }
             }
         }
-        OutlinedTextField(settings.sshKeepaliveSeconds.toString(), { value -> value.toIntOrNull()?.let {
+        IntegerSettingField(settings.sshKeepaliveSeconds, 0..3600, "SSH keepalive, seconds (0 = disabled)") {
             saveSettings(settings.copy(sshKeepaliveSeconds = it))
-        } }, label = { Text("SSH keepalive, seconds (0 = disabled)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(settings.sshMaxChannels.toString(), { value -> value.toIntOrNull()?.let {
+        }
+        IntegerSettingField(settings.sshMaxChannels, 1..256, "Maximum parallel SSH channels") {
             saveSettings(settings.copy(sshMaxChannels = it))
-        } }, label = { Text("Maximum parallel SSH channels") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(settings.sshRotationMinutes.toString(), { value -> value.toIntOrNull()?.let {
+        }
+        IntegerSettingField(settings.sshRotationMinutes, 0..1440, "Rotate SSH session after minutes (0 = disabled)") {
             saveSettings(settings.copy(sshRotationMinutes = it))
-        } }, label = { Text("Rotate SSH session after minutes (0 = disabled)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-        OutlinedTextField(settings.sshRotationMb.toString(), { value -> value.toIntOrNull()?.let {
+        }
+        IntegerSettingField(settings.sshRotationMb, 0..10240, "Rotate SSH session after MB (0 = disabled)") {
             saveSettings(settings.copy(sshRotationMb = it))
-        } }, label = { Text("Rotate SSH session after MB (0 = disabled)") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+        }
         Text("The SSH profile controls the client banner and preferred KEX, cipher and MAC ordering.", style = MaterialTheme.typography.bodySmall)
         Text("Changes are saved automatically and apply to every profile.", style = MaterialTheme.typography.bodySmall)
     }
@@ -363,6 +352,28 @@ private fun TlsFingerprintScreen(activity: Activity) {
             confirmButton = { TextButton(onClick = { showAlwaysOnNotice = false }) { Text("OK") } },
         )
     }
+}
+
+@Composable
+private fun IntegerSettingField(initialValue: Int, range: IntRange, label: String, onValidValue: (Int) -> Unit) {
+    var text by remember { mutableStateOf(initialValue.toString()) }
+    val parsed = text.toIntOrNull()
+    OutlinedTextField(
+        value = text,
+        onValueChange = { value ->
+            if (value.length <= range.last.toString().length && value.all(Char::isDigit)) {
+                text = value
+                value.toIntOrNull()?.takeIf { it in range }?.let(onValidValue)
+            }
+        },
+        label = { Text(label) },
+        supportingText = if (text.isNotEmpty() && parsed !in range) {
+            { Text("Allowed range: ${range.first}–${range.last}") }
+        } else null,
+        isError = text.isNotEmpty() && parsed !in range,
+        singleLine = true,
+        modifier = Modifier.fillMaxWidth(),
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -32,6 +32,16 @@ type httpsConnectDialer struct {
 	dohClient    *http.Client
 }
 
+func (d *httpsConnectDialer) Close() error {
+	d.cacheMu.Lock()
+	defer d.cacheMu.Unlock()
+	if d.dohClient != nil {
+		d.dohClient.CloseIdleConnections()
+		d.dohClient = nil
+	}
+	return nil
+}
+
 func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
 	return d.connectTarget(ctx, metadata.DestinationAddress())
 }
@@ -108,6 +118,13 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	}
 	tlsState := uconn.ConnectionState()
 	report(d.reporter, "event=connection conn=%d mode=proxy stage=tls_handshake result=success elapsed_ms=%d version=0x%04x cipher=0x%04x alpn=%q certificates=%d", connectionID, time.Since(tlsStarted).Milliseconds(), tlsState.Version, tlsState.CipherSuite, tlsState.NegotiatedProtocol, len(tlsState.PeerCertificates))
+	deadline := time.Now().Add(15 * time.Second)
+	if contextDeadline, ok := ctx.Deadline(); ok && contextDeadline.Before(deadline) {
+		deadline = contextDeadline
+	}
+	if err := uconn.SetDeadline(deadline); err != nil {
+		return nil, fmt.Errorf("set CONNECT deadline: %w", err)
+	}
 
 	auth := base64.StdEncoding.EncodeToString([]byte(d.config.Username + ":" + d.config.Password))
 	if _, err := fmt.Fprintf(uconn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\nProxy-Connection: Keep-Alive\r\n\r\n", target, target, auth); err != nil {
@@ -131,6 +148,9 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		err = fmt.Errorf("proxy CONNECT returned %s", response.Status)
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_response result=rejected status=%d status_class=%dxx", connectionID, response.StatusCode, response.StatusCode/100)
 		return nil, err
+	}
+	if err := uconn.SetDeadline(time.Time{}); err != nil {
+		return nil, fmt.Errorf("clear CONNECT deadline: %w", err)
 	}
 	recordConnectionOutcome(true)
 	report(d.reporter, "event=connection conn=%d mode=proxy stage=tunnel result=established total_ms=%d", connectionID, time.Since(totalStarted).Milliseconds())

@@ -303,9 +303,11 @@ private fun SettingsScreen(activity: Activity) {
             title = { Text("Delete ${profile.displayName}?") },
             text = { Text("The profile and its encrypted credentials will be removed.") },
             confirmButton = { TextButton(onClick = {
+                val reconnect = store.isConnectionDesired() && store.connectionProfile().id == profile.id
                 store.deleteProfile(profile.id)
                 refresh()
                 deleteProfile = null
+                if (reconnect) ProxyVpnService.reconnect(activity)
             }, enabled = profiles.size > 1) { Text("Delete") } },
             dismissButton = { TextButton(onClick = { deleteProfile = null }) { Text("Cancel") } },
         )

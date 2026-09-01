@@ -19,6 +19,8 @@ import (
 
 var state struct {
 	sync.Mutex
+	generation  uint64
+	starting    bool
 	running     bool
 	device      device.Device
 	stack       *stack.Stack
@@ -41,12 +43,24 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 		return errors.New("invalid Android VPN bridge")
 	}
 	state.Lock()
-	if state.running {
+	if state.running || state.starting {
 		state.Unlock()
 		_ = syscall.Close(tunFD)
 		return errors.New("proxy core is already running")
 	}
-	defer state.Unlock()
+	state.generation++
+	generation := state.generation
+	state.starting = true
+	state.Unlock()
+	committed := false
+	defer func() {
+		if committed {
+			return
+		}
+		state.Lock()
+		state.starting = false
+		state.Unlock()
+	}()
 	resetStats()
 	dev, err := fdbased.Open(strconv.Itoa(tunFD), 1500, 0)
 	if err != nil {
@@ -56,7 +70,9 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 	t := tunnel.T()
 	var proxyCloser io.Closer
 	if c.Type == "HTTPS" {
-		t.SetProxy(&httpsConnectDialer{config: c, protector: protector, reporter: reporter})
+		httpsProxy := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
+		t.SetProxy(httpsProxy)
+		proxyCloser = httpsProxy
 	} else {
 		sshProxy := &sshDialer{config: c, protector: protector, reporter: reporter}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
@@ -75,17 +91,27 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 		dev.Close()
 		return err
 	}
-	state.device, state.stack, state.proxyCloser, state.running = dev, netstack, proxyCloser, true
+	state.Lock()
+	if state.generation != generation || !state.starting {
+		state.Unlock()
+		netstack.Close()
+		netstack.Wait()
+		if proxyCloser != nil {
+			_ = proxyCloser.Close()
+		}
+		return errors.New("proxy core start was superseded")
+	}
+	state.device, state.stack, state.proxyCloser = dev, netstack, proxyCloser
+	state.starting, state.running = false, true
+	committed = true
+	state.Unlock()
 	report(reporter, "event=native_stack result=started type=%s fingerprint=%s ssh_profile=%s ipv6=%t bypass_local=%t", c.Type, c.Profile, c.SSHProfile, c.AllowIPv6, c.BypassLocalNetworks)
 	return nil
 }
 
 func Stop() {
 	state.Lock()
-	if !state.running {
-		state.Unlock()
-		return
-	}
+	state.generation++
 	state.running = false
 	dev, netstack, proxyCloser := state.device, state.stack, state.proxyCloser
 	state.device, state.stack, state.proxyCloser = nil, nil, nil

@@ -70,6 +70,7 @@ private fun ProfileEditorScreen(activity: Activity) {
     var profile by remember { mutableStateOf(store.profile(profileId.orEmpty()) ?: store.activeProfile()) }
     var config by remember { mutableStateOf(profile.config) }
     var portText by remember { mutableStateOf(config.port.toString()) }
+    var jumpPortText by remember { mutableStateOf(config.jumpPort.toString()) }
     var error by remember { mutableStateOf<String?>(null) }
     var countryExpanded by remember { mutableStateOf(false) }
     var dnsExpanded by remember { mutableStateOf(false) }
@@ -158,6 +159,7 @@ private fun ProfileEditorScreen(activity: Activity) {
                     ProxyType.entries.forEach { type -> DropdownMenuItem(text = { Text(type.title) }, onClick = {
                         updateConfig(config.copy(type = type, port = type.defaultPort))
                         portText = type.defaultPort.toString()
+                        if (type == ProxyType.SSH_JUMP) jumpPortText = config.jumpPort.toString()
                         typeExpanded = false
                     }) }
                 }
@@ -202,7 +204,12 @@ private fun ProfileEditorScreen(activity: Activity) {
                 HorizontalDivider()
                 Text("Jump host", style = MaterialTheme.typography.titleMedium)
                 OutlinedTextField(config.jumpHost, { updateConfig(config.copy(jumpHost = it)) }, label = { Text("Jump SSH hostname") }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(config.jumpPort.toString(), { value -> value.toIntOrNull()?.let { updateConfig(config.copy(jumpPort = it)) } }, label = { Text("Jump port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(jumpPortText, { value ->
+                    if (value.length <= 5 && value.all(Char::isDigit)) {
+                        jumpPortText = value
+                        value.toIntOrNull()?.let { updateConfig(config.copy(jumpPort = it)) }
+                    }
+                }, label = { Text("Jump port") }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(Modifier.weight(1f)) { Text("Use the same authentication"); Text("Reuse destination username, password and private key.", style = MaterialTheme.typography.bodySmall) }
                     Checkbox(config.sameJumpAuthentication, { updateConfig(config.copy(sameJumpAuthentication = it)) })
