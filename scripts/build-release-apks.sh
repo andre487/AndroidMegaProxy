@@ -91,12 +91,6 @@ echo "Running native tests"
     go test ./...
 )
 
-echo "Running Android unit tests"
-(
-    cd "$project_dir"
-    ./gradlew testReleaseUnitTest
-)
-
 # gomobile architecture names and their corresponding Android ABI names.
 targets=(
     "arm64:arm64-v8a"
@@ -105,27 +99,59 @@ targets=(
     "386:x86"
 )
 
+# A clean checkout has no app/libs/megaproxy.aar. Gradle resolves local AAR
+# dependencies while configuring Android unit tests, so build the first ABI
+# before invoking Gradle and reuse it for the first release APK below.
+first_target="${targets[0]}"
+first_go_arch="${first_target%%:*}"
+first_android_abi="${first_target##*:}"
+echo "Building initial native AAR for $first_android_abi"
+(
+    cd "$project_dir/native"
+    gomobile bind \
+        -target="android/$first_go_arch" \
+        -androidapi 26 \
+        -trimpath \
+        -ldflags="-s -w -buildid=" \
+        -o ../app/libs/megaproxy.aar \
+        ./mobile
+)
+
+echo "Running Android unit tests"
+(
+    cd "$project_dir"
+    ./gradlew testReleaseUnitTest
+)
+
 for target in "${targets[@]}"; do
     go_arch="${target%%:*}"
     android_abi="${target##*:}"
     output_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-v${version_name}-${android_abi}.apk"
 
-    echo "Building optimized native AAR for $android_abi"
-    (
-        cd "$project_dir/native"
-        gomobile bind \
-            -target="android/$go_arch" \
-            -androidapi 26 \
-            -trimpath \
-            -ldflags="-s -w -buildid=" \
-            -o ../app/libs/megaproxy.aar \
-            ./mobile
-    )
+    if [[ "$android_abi" == "$first_android_abi" ]]; then
+        echo "Reusing initial native AAR for $android_abi"
+    else
+        echo "Building optimized native AAR for $android_abi"
+        (
+            cd "$project_dir/native"
+            gomobile bind \
+                -target="android/$go_arch" \
+                -androidapi 26 \
+                -trimpath \
+                -ldflags="-s -w -buildid=" \
+                -o ../app/libs/megaproxy.aar \
+                ./mobile
+        )
+    fi
 
     echo "Building and signing $android_abi APK"
     (
         cd "$project_dir"
-        ./gradlew clean assembleRelease
+        # Keep clean and assemble in separate Gradle invocations. When both are
+        # requested in one task graph, Gradle does not guarantee that clean has
+        # finished before every generated-resource task starts.
+        ./gradlew clean
+        ./gradlew assembleRelease
     )
     built_apk="$project_dir/app/build/outputs/apk/release/app-release.apk"
     if [[ ! -f "$built_apk" ]]; then
