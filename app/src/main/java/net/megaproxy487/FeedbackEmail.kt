@@ -13,6 +13,7 @@ import net.megaproxy487.vpn.VpnConnectionState
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
+import java.util.UUID
 
 object FeedbackEmail {
     private const val ADDRESS = "megaproxy-feedback@hotmail.com"
@@ -54,7 +55,14 @@ object FeedbackEmail {
         }
 
         val directory = File(context.cacheDir, "feedback").also { it.mkdirs() }
-        val logFile = File(directory, "megaproxy-diagnostics.zip")
+        directory.listFiles { file -> file.isFile && file.extension == "zip" }
+            .orEmpty()
+            .sortedByDescending(File::lastModified)
+            .drop(2)
+            .forEach(File::delete)
+        // Do not reuse a content URI that may still be granted to an email app:
+        // a stale grant must never expose diagnostics generated in the future.
+        val logFile = File(directory, "megaproxy-diagnostics-${UUID.randomUUID()}.zip")
         DiagnosticLog.add("event=feedback result=prepared")
         ZipOutputStream(logFile.outputStream().buffered()).use { zip ->
             zip.putNextEntry(ZipEntry("megaproxy-diagnostic.log"))

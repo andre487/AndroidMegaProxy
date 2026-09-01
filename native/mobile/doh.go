@@ -10,6 +10,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -22,6 +23,12 @@ func validateDoHURL(raw string) error {
 	}
 	if u.User != nil || u.Fragment != "" {
 		return errors.New("DoH URL must not contain credentials or fragment")
+	}
+	if port := u.Port(); port != "" {
+		value, parseErr := strconv.Atoi(port)
+		if parseErr != nil || value < 1 || value > 65535 {
+			return errors.New("DoH URL contains an invalid port")
+		}
 	}
 	return nil
 }

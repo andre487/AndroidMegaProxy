@@ -140,7 +140,7 @@ object ConfigTransfer {
                     array.optString(it).takeIf { id -> id.isNotBlank() && id.length <= 256 }
                 }
             }.orEmpty(),
-            customJa3 = tls.limitedString("customJa3", 64 * 1024),
+            customJa3 = tls.limitedString("customJa3", MAX_CUSTOM_JA3_LENGTH),
             selectedPackages = packages,
             routeAllApps = routing.optBoolean("routeAllApps", true),
             bypassLocalNetworks = routing.optBoolean("bypassLocalNetworks", true),
@@ -233,7 +233,7 @@ object ConfigTransfer {
                 jumpAcceptAnyHostKey = jump?.optBoolean("acceptAnyHostKey", false) ?: false,
                 allowInvalidProxyCertificate = proxy.optBoolean("allowInvalidProxyCertificate", false),
                 profile = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT),
-                customJa3 = tls.limitedString("customJa3", 64 * 1024),
+                customJa3 = tls.limitedString("customJa3", MAX_CUSTOM_JA3_LENGTH),
                 dnsProvider = enumValue(dns.optString("provider"), DnsProvider.CLOUDFLARE),
                 customDohUrl = dns.limitedString("customDohUrl", 2_048),
                 selectedPackages = packages,
@@ -250,6 +250,8 @@ object ConfigTransfer {
 
     private inline fun <reified T : Enum<T>> enumValue(value: String, default: T): T =
         enumValues<T>().firstOrNull { it.name == value } ?: default
+
+    private const val MAX_CUSTOM_JA3_LENGTH = 8 * 1024
 
     private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
         .replace("+", "%20")

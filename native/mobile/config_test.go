@@ -1,6 +1,9 @@
 package mobile
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestParseJA3(t *testing.T) {
 	s, err := parseJA3("771,4865-4866,0-10-11-13-16-43-51,29-23,0")
@@ -9,6 +12,19 @@ func TestParseJA3(t *testing.T) {
 	}
 	if s.Version != 771 || len(s.Ciphers) != 2 || len(s.Extensions) != 7 {
 		t.Fatalf("unexpected spec: %#v", s)
+	}
+}
+
+func TestParseJA3RejectsUnsafeOrUnboundedInput(t *testing.T) {
+	for _, raw := range []string{
+		"769,4865,0,29,0",
+		"771,,0,29,0",
+		strings.Repeat("1", 8193),
+		"771," + strings.TrimSuffix(strings.Repeat("4865-", 257), "-") + ",0,29,0",
+	} {
+		if _, err := parseJA3(raw); err == nil {
+			t.Fatalf("parseJA3(%q) unexpectedly succeeded", raw)
+		}
 	}
 }
 

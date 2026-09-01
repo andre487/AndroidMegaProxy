@@ -2,6 +2,7 @@ package net.megaproxy487
 
 import android.app.Activity
 import android.os.Bundle
+import android.view.WindowManager
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +55,9 @@ import java.util.Locale
 class ProfileEditorActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // This screen can display proxy passwords and SSH private keys. Keep them
+        // out of screenshots, screen recording and the recent-apps thumbnail.
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         setContent { MaterialTheme { ProfileEditorScreen(this) } }
     }
 

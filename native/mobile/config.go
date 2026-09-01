@@ -149,6 +149,9 @@ type ja3Spec struct {
 
 func parseJA3(raw string) (ja3Spec, error) {
 	var out ja3Spec
+	if len(raw) > 8192 {
+		return out, errors.New("JA3 is too long")
+	}
 	fields := strings.Split(strings.TrimSpace(raw), ",")
 	if len(fields) != 5 {
 		return out, errors.New("JA3 must contain five comma-separated fields")
@@ -159,6 +162,9 @@ func parseJA3(raw string) (ja3Spec, error) {
 			continue
 		}
 		for _, token := range strings.Split(field, "-") {
+			if len(values[i]) >= 256 {
+				return out, errors.New("JA3 field contains too many values")
+			}
 			n, err := strconv.ParseUint(token, 10, 16)
 			if err != nil {
 				return out, fmt.Errorf("invalid JA3 number %q", token)
@@ -170,6 +176,12 @@ func parseJA3(raw string) (ja3Spec, error) {
 		return out, errors.New("JA3 TLS version is required")
 	}
 	out.Version, out.Ciphers, out.Extensions, out.Groups = values[0][0], values[1], values[2], values[3]
+	if out.Version != tls.VersionTLS12 && out.Version != tls.VersionTLS13 {
+		return out, errors.New("JA3 TLS version must be TLS 1.2 or TLS 1.3")
+	}
+	if len(out.Ciphers) == 0 {
+		return out, errors.New("JA3 must contain at least one cipher suite")
+	}
 	for _, point := range values[4] {
 		if point > 255 {
 			return out, errors.New("EC point format exceeds 255")
