@@ -27,8 +27,8 @@ android {
         applicationId = "net.megaproxy487"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
-        versionName = "0.0.1"
+        versionCode = 3
+        versionName = "0.0.3"
         buildConfigField("String", "GIT_COMMIT_HASH", "\"$gitCommitHash\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

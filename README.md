@@ -230,8 +230,8 @@ Pushing a version tag runs the GitHub release workflow, builds and verifies ever
 the artifacts to a GitHub Release. The tag must match `versionName` exactly:
 
 ```shell
-git tag v0.0.1
-git push origin v0.0.1
+git tag v0.0.3
+git push origin v0.0.3
 ```
 
 ## Contributing
