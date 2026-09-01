@@ -1,0 +1,35 @@
+name: F-Droid recipe
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - .fdroid.yml
+      - app/build.gradle.kts
+      - native/**
+      - scripts/build-fdroid-native.sh
+      - scripts/check-fdroid-metadata-sync.sh
+      - .github/workflows/fdroid-recipe.yml
+  schedule:
+    - cron: "17 6 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fdroid-recipe-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  metadata-sync:
+    name: Check fdroiddata synchronization
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Compare the recipe with fdroiddata
+        run: ./scripts/check-fdroid-metadata-sync.sh
