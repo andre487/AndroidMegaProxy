@@ -115,6 +115,9 @@ After installation:
 4. Tap **Test** to validate the connection, then tap **Connect**.
 5. Optionally enable Always-on VPN in Android settings.
 
+For production-ready HTTPS, SSH, and SSH-with-jump server configurations, see the
+[English server guide](docs/en/index.md) or [Russian server guide](docs/ru/index.md).
+
 ## Current limitations
 
 - Only TCP application traffic is forwarded. General SOCKS5 UDP and QUIC forwarding are not
