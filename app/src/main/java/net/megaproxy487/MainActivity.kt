@@ -79,6 +79,7 @@ import net.megaproxy487.vpn.hasOtherProvider
 import net.megaproxy487.vpn.openAndroidVpnSettings
 import net.megaproxy487.vpn.OTHER_ALWAYS_ON_VPN_MESSAGE
 import net.megaproxy487.model.ProfileColors
+import net.megaproxy487.model.ProxyType
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -94,6 +95,26 @@ class MainActivity : ComponentActivity() {
         val store = ConfigStore(this)
         val profileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id
         VpnRuntimeState.updateSystem(status.enabled, status.lockdown, profileId)
+    }
+}
+
+@Composable
+private fun ProfileTypeBadge(type: ProxyType, foreground: Color) {
+    Surface(
+        color = foreground.copy(alpha = 0.14f),
+        contentColor = foreground,
+        shape = RoundedCornerShape(50),
+        border = BorderStroke(1.dp, foreground.copy(alpha = 0.5f)),
+    ) {
+        Text(
+            when (type) {
+                ProxyType.HTTPS -> "HTTPS"
+                ProxyType.SSH -> "SSH"
+                ProxyType.SSH_JUMP -> "SSH + Jump"
+            },
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+        )
     }
 }
 
@@ -280,6 +301,7 @@ private fun MainScreen(activity: Activity) {
                     Column(Modifier.fillMaxWidth().padding(14.dp)) {
                     Text("Profile", style = MaterialTheme.typography.labelMedium)
                     Row(
+                        modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                     ) {
@@ -293,12 +315,18 @@ private fun MainScreen(activity: Activity) {
                                 Text(activeProfile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
                             }
                         }
-                        Text(activeProfile.displayName, style = MaterialTheme.typography.titleMedium)
+                        Text(activeProfile.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
+                        ProfileTypeBadge(activeProfile.config.type, onProfileColor)
                     }
                         DropdownMenu(profileMenuExpanded, { profileMenuExpanded = false }) {
                             profiles.forEach { profile ->
                                 DropdownMenuItem(
-                                    text = { Text(profile.displayNameWithFlag) },
+                                    text = {
+                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                                            Text(profile.displayNameWithFlag, modifier = Modifier.weight(1f))
+                                            ProfileTypeBadge(profile.config.type, MaterialTheme.colorScheme.onSurface)
+                                        }
+                                    },
                                     onClick = {
                                         if (!isAlwaysOnVpnActive(activity)) {
                                             store.setActiveProfile(profile.id)

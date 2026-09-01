@@ -18,17 +18,26 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	if err != nil {
 		return "", err
 	}
-	dialer := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
+	var connect func(context.Context, string) (net.Conn, error)
+	var testReporter Reporter
+	if c.Type == "HTTPS" {
+		dialer := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
+		connect, testReporter = dialer.connectTarget, dialer.reporter
+	} else {
+		dialer := &sshDialer{config: c, protector: protector, reporter: reporter}
+		connect, testReporter = dialer.connectTarget, dialer.reporter
+		defer dialer.invalidate()
+	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 
 	report(reporter, "event=connection_test result=started")
-	if _, err := testHTTPSGet(ctx, dialer, "example.com", "/", false); err != nil {
+	if _, err := testHTTPSGet(ctx, connect, testReporter, "example.com", "/", false); err != nil {
 		return "", fmt.Errorf("example.com check: %w", err)
 	}
 	report(reporter, "event=connection_test stage=https_check result=success")
 
-	ip, err := testHTTPSGet(ctx, dialer, "ifconfig.me", "/ip", true)
+	ip, err := testHTTPSGet(ctx, connect, testReporter, "ifconfig.me", "/ip", true)
 	if err != nil {
 		return "", fmt.Errorf("public IP check: %w", err)
 	}
@@ -51,8 +60,8 @@ func ipFamily(value string) string {
 	return "ipv6"
 }
 
-func testHTTPSGet(ctx context.Context, dialer *httpsConnectDialer, host, path string, readBody bool) (string, error) {
-	tunnel, err := dialer.connectTarget(ctx, host+":443")
+func testHTTPSGet(ctx context.Context, connect func(context.Context, string) (net.Conn, error), reporter Reporter, host, path string, readBody bool) (string, error) {
+	tunnel, err := connect(ctx, host+":443")
 	if err != nil {
 		return "", err
 	}
@@ -62,7 +71,7 @@ func testHTTPSGet(ctx context.Context, dialer *httpsConnectDialer, host, path st
 	if err := connection.HandshakeContext(ctx); err != nil {
 		return "", fmt.Errorf("destination TLS handshake: %w", err)
 	}
-	report(dialer.reporter, "event=connection_test stage=destination_tls result=success certificate=verified")
+	report(reporter, "event=connection_test stage=destination_tls result=success certificate=verified")
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+host+path, nil)
 	if err != nil {

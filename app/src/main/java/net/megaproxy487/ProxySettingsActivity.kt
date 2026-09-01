@@ -76,6 +76,7 @@ import net.megaproxy487.data.ProxyListParser
 import net.megaproxy487.data.SuperProxyParser
 import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProxyProfile
+import net.megaproxy487.model.ProxyType
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.ProxyVpnService
 
@@ -100,6 +101,7 @@ private fun SettingsScreen(activity: Activity) {
     var showPasswordExportWarning by remember { mutableStateOf(false) }
     var exportFormat by remember { mutableStateOf(ConfigExportFormat.JSON) }
     var includePasswords by remember { mutableStateOf(false) }
+    var includePrivateKeys by remember { mutableStateOf(false) }
     var pendingExportContent by remember { mutableStateOf("") }
     var transferMessage by remember { mutableStateOf<String?>(null) }
     var pendingUnsafeImport by remember { mutableStateOf<PortableConfiguration?>(null) }
@@ -151,7 +153,7 @@ private fun SettingsScreen(activity: Activity) {
     fun launchExport() {
         pendingExportContent = when (exportFormat) {
             ConfigExportFormat.PROXY_LIST -> ConfigTransfer.exportProxyList(store.profiles(), includePasswords)
-            ConfigExportFormat.JSON -> ConfigTransfer.exportJson(store, includePasswords)
+            ConfigExportFormat.JSON -> ConfigTransfer.exportJson(store, includePasswords, includePrivateKeys)
         }
         if (exportFormat == ConfigExportFormat.PROXY_LIST) exportTxtDocument.launch("ProxyList.txt")
         else exportJsonDocument.launch("MegaProxy-config.json")
@@ -170,7 +172,7 @@ private fun SettingsScreen(activity: Activity) {
                     }.getOrDefault(false)
                     if (isMegaProxy) {
                         val configuration = ConfigTransfer.importJson(text)
-                        if (configuration.profiles.any { it.config.allowInvalidProxyCertificate }) {
+                        if (configuration.profiles.any { it.config.allowInvalidProxyCertificate || it.config.acceptAnyHostKey || it.config.jumpAcceptAnyHostKey }) {
                             pendingUnsafeImport = configuration
                         } else {
                             applyJsonImport(configuration)
@@ -338,11 +340,16 @@ private fun SettingsScreen(activity: Activity) {
                     if (!includePasswords) {
                         Text("Passwords will be left empty and must be entered after import.", style = MaterialTheme.typography.bodySmall)
                     }
+                    if (exportFormat == ConfigExportFormat.JSON) Row(verticalAlignment = Alignment.CenterVertically) {
+                        Checkbox(includePrivateKeys, { includePrivateKeys = it })
+                        Text("Include SSH private keys")
+                    }
+                    if (includePrivateKeys) Text("Private keys will be exported in plain text.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = { TextButton(onClick = {
                 showExportDialog = false
-                if (includePasswords) showPasswordExportWarning = true else launchExport()
+                if (includePasswords || includePrivateKeys) showPasswordExportWarning = true else launchExport()
             }) { Text("Export") } },
             dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text("Cancel") } },
         )
@@ -350,8 +357,8 @@ private fun SettingsScreen(activity: Activity) {
     if (showPasswordExportWarning) {
         AlertDialog(
             onDismissRequest = { showPasswordExportWarning = false },
-            title = { Text("Export passwords in plain text?") },
-            text = { Text("Anyone with access to the exported file will be able to read the proxy credentials. Store and transfer it securely.") },
+            title = { Text("Export secrets in plain text?") },
+            text = { Text("Anyone with access to the exported file will be able to read the selected passwords or SSH private keys. Store and transfer it securely.") },
             confirmButton = { TextButton(onClick = {
                 showPasswordExportWarning = false
                 launchExport()
@@ -370,8 +377,8 @@ private fun SettingsScreen(activity: Activity) {
     pendingUnsafeImport?.let { configuration ->
         AlertDialog(
             onDismissRequest = { pendingUnsafeImport = null },
-            title = { Text("Import insecure certificate settings?") },
-            text = { Text("One or more profiles accept an invalid or self-signed proxy certificate. This permits server impersonation and should only be used for proxies you control.") },
+            title = { Text("Import insecure verification settings?") },
+            text = { Text("One or more profiles disable HTTPS certificate or SSH host-key verification. This permits server impersonation and should only be used for servers you control.") },
             confirmButton = { TextButton(onClick = {
                 pendingUnsafeImport = null
                 applyJsonImport(configuration)
@@ -396,7 +403,7 @@ private fun ProfileCard(
         modifier = modifier.fillMaxWidth().clickable(onClick = onConfigure),
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 if (profile.flagEmoji.isNotEmpty()) {
                     Surface(
                         color = Color.White, contentColor = Color.Black,
@@ -404,9 +411,25 @@ private fun ProfileCard(
                         border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.45f)),
                     ) { Text(profile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
                 }
-                Column {
+                Column(Modifier.weight(1f)) {
                     Text(profile.displayName, style = MaterialTheme.typography.titleMedium)
                     Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
+                }
+                Surface(
+                    color = foreground.copy(alpha = 0.16f),
+                    contentColor = foreground,
+                    shape = RoundedCornerShape(50),
+                    border = BorderStroke(1.dp, foreground.copy(alpha = 0.55f)),
+                ) {
+                    Text(
+                        when (profile.config.type) {
+                            ProxyType.HTTPS -> "HTTPS"
+                            ProxyType.SSH -> "SSH"
+                            ProxyType.SSH_JUMP -> "SSH + Jump"
+                        },
+                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                    )
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {

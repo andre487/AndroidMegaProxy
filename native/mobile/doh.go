@@ -33,7 +33,9 @@ type dnsReply struct {
 }
 
 type dohPacketConn struct {
-	dialer       *httpsConnectDialer
+	config       config
+	reporter     Reporter
+	connect      func(context.Context, string) (net.Conn, error)
 	url          string
 	replies      chan dnsReply
 	closed       chan struct{}
@@ -43,17 +45,17 @@ type dohPacketConn struct {
 	client       *http.Client
 }
 
-func newDoHPacketConn(d *httpsConnectDialer, endpoint string) *dohPacketConn {
+func newDoHPacketConn(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string) *dohPacketConn {
 	transport := &http.Transport{
 		Proxy:               nil,
 		ForceAttemptHTTP2:   true,
 		TLSHandshakeTimeout: 15 * time.Second,
 		DialContext: func(ctx context.Context, _, address string) (net.Conn, error) {
-			return d.connectTarget(ctx, address)
+			return connect(ctx, address)
 		},
 	}
 	return &dohPacketConn{
-		dialer: d, url: endpoint, replies: make(chan dnsReply, 16), closed: make(chan struct{}),
+		config: c, reporter: reporter, connect: connect, url: endpoint, replies: make(chan dnsReply, 16), closed: make(chan struct{}),
 		client: &http.Client{Transport: transport, Timeout: 20 * time.Second},
 	}
 }
@@ -64,13 +66,13 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 		return 0, net.ErrClosed
 	default:
 	}
-	if !c.dialer.config.AllowIPv6 {
+	if !c.config.AllowIPv6 {
 		response, isAAAA, err := emptyAAAAResponse(payload)
 		if err != nil {
 			return 0, err
 		}
 		if isAAAA {
-			report(c.dialer.reporter, "event=doh result=suppressed query_type=aaaa reason=ipv4_only")
+			report(c.reporter, "event=doh result=suppressed query_type=aaaa reason=ipv4_only")
 			c.deliver(dnsReply{payload: response, addr: addr})
 			return len(payload), nil
 		}
@@ -99,10 +101,10 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 			}
 		}
 		if err != nil {
-			report(c.dialer.reporter, "event=doh result=failed reason=%s", errorClass(err))
+			report(c.reporter, "event=doh result=failed reason=%s", errorClass(err))
 			c.deliver(dnsReply{addr: addr, err: err})
 		} else {
-			report(c.dialer.reporter, "event=doh result=success")
+			report(c.reporter, "event=doh result=success")
 		}
 	}()
 	return len(payload), nil

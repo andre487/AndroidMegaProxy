@@ -45,11 +45,25 @@ class NativeProxyCore(
     private fun protectSocket(fd: Long): Boolean = vpnService.protect(fd.toInt())
 
     private fun configJson(config: ProxyConfig) = JSONObject()
+        .put("type", config.type.name)
         .put("host", config.host.trim())
         .put("dialHost", config.resolvedProxyIp)
         .put("port", config.port)
         .put("username", config.username)
         .put("password", config.password)
+        .put("privateKey", config.privateKey)
+        .put("sshProfile", config.sshProfile.name)
+        .put("trustedHostKey", config.trustedHostKey)
+        .put("acceptAnyHostKey", config.acceptAnyHostKey)
+        .put("jumpHost", config.jumpHost.trim())
+        .put("jumpDialHost", config.resolvedJumpIp)
+        .put("jumpPort", config.jumpPort)
+        .put("jumpUsername", config.jumpUsername)
+        .put("jumpPassword", config.jumpPassword)
+        .put("jumpPrivateKey", config.jumpPrivateKey)
+        .put("jumpTrustedHostKey", config.jumpTrustedHostKey)
+        .put("jumpAcceptAnyHostKey", config.jumpAcceptAnyHostKey)
+        .put("sameJumpAuthentication", config.sameJumpAuthentication)
         .put("allowInvalidProxyCertificate", config.allowInvalidProxyCertificate)
         .put("profile", config.profile.name)
         .put("customJa3", config.customJa3.trim())
@@ -84,7 +98,12 @@ class NativeProxyCore(
             val protectorType = Class.forName("mobile.Protector")
             val reporterType = Class.forName("mobile.Reporter")
             val protector = callback(protectorType, "protect") { protectSocket(it!![0] as Long) }
-            val reporter = callback(reporterType, "report") { diagnostics(it!![0] as String); null }
+            val reporter = callback(reporterType, "report") {
+                val message = it!![0] as String
+                diagnostics(message)
+                if ("SSH_HOST_KEY_" in message) status(message)
+                null
+            }
             detachedFd = ParcelFileDescriptor.fromFd(tunFd).detachFd()
             val startMethod = mobile.getMethod(
                 "start", Long::class.javaPrimitiveType, String::class.java, protectorType, reporterType,
@@ -92,7 +111,7 @@ class NativeProxyCore(
             val goFd = detachedFd!!
             detachedFd = null // Start's contract takes ownership, including error paths.
             startMethod.invoke(null, goFd.toLong(), configJson(config), protector, reporter)
-            status("TCP is protected by the HTTPS proxy")
+            status("TCP is protected by ${config.type.title}")
             true
         }.getOrElse {
             detachedFd?.let { fd -> runCatching { ParcelFileDescriptor.adoptFd(fd).close() } }
@@ -106,7 +125,12 @@ class NativeProxyCore(
         val protectorType = Class.forName("mobile.Protector")
         val reporterType = Class.forName("mobile.Reporter")
         val protector = callback(protectorType, "protect") { protectSocket(it!![0] as Long) }
-        val reporter = callback(reporterType, "report") { diagnostics(it!![0] as String); null }
+        val reporter = callback(reporterType, "report") {
+            val message = it!![0] as String
+            diagnostics(message)
+            if ("SSH_HOST_KEY_" in message) status(message)
+            null
+        }
         mobile.getMethod("testConnection", String::class.java, protectorType, reporterType)
             .invoke(null, configJson(config), protector, reporter) as String
     }.onSuccess {

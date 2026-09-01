@@ -171,7 +171,7 @@ func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, erro
 	if metadata.DstPort != 53 {
 		return nil, errUDPBlocked
 	}
-	return newDoHPacketConn(d, d.config.DoHURL), nil
+	return newDoHPacketConn(d.config, d.reporter, d.connectTarget, d.config.DoHURL), nil
 }
 
 type bufferedConn struct {

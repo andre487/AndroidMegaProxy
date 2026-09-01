@@ -13,6 +13,7 @@ import android.os.Looper
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import net.megaproxy487.MainActivity
+import net.megaproxy487.SshHostKeyActivity
 import net.megaproxy487.data.ConfigStore
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -22,6 +23,7 @@ class ProxyVpnService : VpnService() {
     private var core: ProxyCore? = null
     private var activeConfig: net.megaproxy487.model.ProxyConfig? = null
     private var tunnelTestOnly = false
+    private var hostKeyPrompt: PendingIntent? = null
     private val monitorHandler = Handler(Looper.getMainLooper())
     private val monitor = object : Runnable {
         override fun run() {
@@ -31,7 +33,7 @@ class ProxyVpnService : VpnService() {
                     NOTIFICATION_ID,
                     notification(if (isRunning) "Connected" else "Reconnecting…"),
                 )
-                if (tunnel == null && !testRunning.get() && startRunning.compareAndSet(false, true)) {
+                if (tunnel == null && hostKeyPrompt == null && !testRunning.get() && startRunning.compareAndSet(false, true)) {
                     VpnRuntimeState.update(VpnConnectionState.CONNECTING)
                     thread(name = "megaproxy-vpn-recovery") {
                         try {
@@ -71,12 +73,18 @@ class ProxyVpnService : VpnService() {
         if (intent?.action == ACTION_REFRESH_STATUS) {
             return if (tunnel != null) START_STICKY else START_NOT_STICKY
         }
+        if (intent?.action == ACTION_DISMISS_HOST_KEY) {
+            hostKeyPrompt = null
+            if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
+            return START_NOT_STICKY
+        }
         if (intent?.action == ACTION_STOP) {
             stopTunnel()
             stopSelf()
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_RECONNECT) {
+            hostKeyPrompt = null
             DiagnosticLog.add("event=vpn_reconnect reason=routing_settings_changed")
             startForeground(NOTIFICATION_ID, notification("Reconnecting…"))
             stopTunnel(removeForeground = false)
@@ -94,6 +102,8 @@ class ProxyVpnService : VpnService() {
             return START_STICKY
         }
         if (intent?.action == ACTION_TEST) {
+            hostKeyPrompt = null
+            SshHostKeyPromptState.clear()
             startForeground(NOTIFICATION_ID, notification("Testing connection…"))
             TestDiagnosticLog.begin()
             thread(name = "megaproxy-connection-test") { testConnection() }
@@ -129,8 +139,10 @@ class ProxyVpnService : VpnService() {
         if (temporaryVpn && !startTunnel(testOnly = true, suppliedConfig = storedConfig)) {
             TestDiagnosticLog.fail("Connection test failed: temporary VPN could not be started")
             testRunning.set(false)
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            if (hostKeyPrompt == null) {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
             return
         }
         val config = activeConfig ?: run {
@@ -139,6 +151,7 @@ class ProxyVpnService : VpnService() {
             return
         }
         val exitIp = NativeProxyCore(this, TestDiagnosticLog::add).test(config) { message ->
+            configureHostKeyPrompt(message, ConfigStore(this).activeProfileId(), true)
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
         }
         if (exitIp != null) TestDiagnosticLog.succeed(exitIp) else TestDiagnosticLog.fail()
@@ -152,6 +165,7 @@ class ProxyVpnService : VpnService() {
     private fun startTunnel(testOnly: Boolean, suppliedConfig: net.megaproxy487.model.ProxyConfig? = null): Boolean {
         val storedProfile = ConfigStore(this).connectionProfile()
         val storedConfig = suppliedConfig ?: ConfigStore(this).globalConnectionSettings().applyTo(storedProfile.config)
+        val promptProfileId = if (testOnly) ConfigStore(this).activeProfileId() else storedProfile.id
         val diagnostics = if (testOnly) TestDiagnosticLog::add else DiagnosticLog::add
         diagnostics(
             if (testOnly) "event=vpn_start mode=test"
@@ -200,9 +214,19 @@ class ProxyVpnService : VpnService() {
             handleStartFailure(testOnly, "Proxy bootstrap DNS failed")
             return false
         }
-        val config = storedConfig.copy(resolvedProxyIp = proxyIp)
+        val jumpIp = if (storedConfig.type == net.megaproxy487.model.ProxyType.SSH_JUMP) {
+            proxyCore.resolveProxy(storedConfig.jumpHost) { message ->
+                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
+            } ?: run {
+                tunnel?.close(); tunnel = null
+                handleStartFailure(testOnly, "Jump host bootstrap DNS failed")
+                return false
+            }
+        } else ""
+        val config = storedConfig.copy(resolvedProxyIp = proxyIp, resolvedJumpIp = jumpIp)
         core = proxyCore.also {
             val started = it.start(tunnel!!.fd, config) { message ->
+                configureHostKeyPrompt(message, promptProfileId, testOnly)
                 getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
             }
             if (!started) {
@@ -223,8 +247,14 @@ class ProxyVpnService : VpnService() {
     private fun handleStartFailure(testOnly: Boolean, message: String) {
         if (testOnly) {
             TestDiagnosticLog.fail(message)
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
+            if (hostKeyPrompt != null) {
+                getSystemService(NotificationManager::class.java).notify(
+                    NOTIFICATION_ID, notification("SSH host key approval required"),
+                )
+            } else {
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
         } else {
             DiagnosticLog.add("$message; retrying")
             VpnRuntimeState.update(VpnConnectionState.CONNECTING)
@@ -272,13 +302,41 @@ class ProxyVpnService : VpnService() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
+    private fun configureHostKeyPrompt(message: String, profileId: String, testOnly: Boolean) {
+        val marker = when {
+            "SSH_HOST_KEY_UNKNOWN|" in message -> "SSH_HOST_KEY_UNKNOWN|"
+            "SSH_HOST_KEY_CHANGED|" in message -> "SSH_HOST_KEY_CHANGED|"
+            else -> return
+        }
+        val parts = message.substringAfter(marker).substringBefore(' ').split('|')
+        if (parts.size < 3) return
+        val changed = marker.startsWith("SSH_HOST_KEY_CHANGED")
+        val fingerprint = if (changed) parts.getOrNull(3) else parts.getOrNull(2)
+        if (fingerprint == null || !fingerprint.startsWith("SHA256:")) return
+        val intent = Intent(this, SshHostKeyActivity::class.java)
+            .putExtra(SshHostKeyActivity.EXTRA_PROFILE_ID, profileId)
+            .putExtra(SshHostKeyActivity.EXTRA_HOP, parts[0])
+            .putExtra(SshHostKeyActivity.EXTRA_ALGORITHM, parts[1])
+            .putExtra(SshHostKeyActivity.EXTRA_FINGERPRINT, fingerprint)
+            .putExtra(SshHostKeyActivity.EXTRA_CHANGED, changed)
+            .putExtra(SshHostKeyActivity.EXTRA_TEST_ONLY, testOnly)
+        SshHostKeyPromptState.show(
+            PendingSshHostKey(profileId, parts[0], parts[1], fingerprint, changed, testOnly),
+        )
+        hostKeyPrompt = PendingIntent.getActivity(
+            this, profileId.hashCode() xor parts[0].hashCode(), intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
     private fun notification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(android.R.drawable.stat_sys_warning)
         .setContentTitle("MegaProxy is active")
         .setContentText(text)
         .setOngoing(true)
         .setCategory(NotificationCompat.CATEGORY_SERVICE)
-        .setContentIntent(PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
+        .setContentIntent(hostKeyPrompt ?: PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
+        .also { builder -> hostKeyPrompt?.let { builder.addAction(0, "Review SSH key", it) } }
         .build()
 
     companion object {
@@ -289,6 +347,7 @@ class ProxyVpnService : VpnService() {
         private const val ACTION_RECONNECT = "net.megaproxy487.RECONNECT"
         private const val ACTION_START_MANUAL = "net.megaproxy487.START_MANUAL"
         private const val ACTION_REFRESH_STATUS = "net.megaproxy487.REFRESH_STATUS"
+        private const val ACTION_DISMISS_HOST_KEY = "net.megaproxy487.DISMISS_HOST_KEY"
         private const val MONITOR_INTERVAL_MS = 10_000L
         private val testRunning = AtomicBoolean(false)
         private val startRunning = AtomicBoolean(false)
@@ -324,6 +383,10 @@ class ProxyVpnService : VpnService() {
             if (isRunning) {
                 context.startService(Intent(context, ProxyVpnService::class.java).setAction(ACTION_REFRESH_STATUS))
             }
+        }
+        fun dismissHostKeyPrompt(context: Context) {
+            SshHostKeyPromptState.clear()
+            context.startService(Intent(context, ProxyVpnService::class.java).setAction(ACTION_DISMISS_HOST_KEY))
         }
     }
 }

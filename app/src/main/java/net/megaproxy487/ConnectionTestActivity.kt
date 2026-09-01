@@ -48,6 +48,7 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.TestDiagnosticLog
 import net.megaproxy487.vpn.TestState
+import net.megaproxy487.vpn.SshHostKeyPromptState
 import net.megaproxy487.vpn.OTHER_ALWAYS_ON_VPN_MESSAGE
 import net.megaproxy487.vpn.hasOtherProvider
 import net.megaproxy487.vpn.openAndroidVpnSettings
@@ -67,6 +68,7 @@ class ConnectionTestActivity : ComponentActivity() {
 private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
     val state by TestDiagnosticLog.state
     val exitIp by TestDiagnosticLog.exitIp
+    val pendingHostKey by SshHostKeyPromptState.pending
     var vpnPermissionRequestedAt by remember { mutableStateOf(0L) }
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -180,6 +182,45 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
             },
             dismissButton = {
                 TextButton(onClick = { showAlwaysOnConflict = false }) { Text("Cancel") }
+            },
+        )
+    }
+    pendingHostKey?.takeIf { it.testOnly }?.let { pending ->
+        AlertDialog(
+            onDismissRequest = {
+                SshHostKeyPromptState.clear()
+                ProxyVpnService.dismissHostKeyPrompt(activity)
+            },
+            title = { Text(if (pending.changed) "SSH host key changed" else "Trust SSH host key?") },
+            text = { Text(buildString {
+                if (pending.changed) {
+                    append("Warning: the previously trusted key for the ${pending.hop} host has changed. This may indicate a server reinstall or a man-in-the-middle attack. Verify it through a trusted channel before replacing it.\n\n")
+                } else {
+                    append("This is the first connection to the ${pending.hop} SSH host. Verify its fingerprint through a trusted channel.\n\n")
+                }
+                append("Algorithm: ${pending.algorithm}\nFingerprint: ${pending.fingerprint}")
+            }) },
+            confirmButton = {
+                TextButton(onClick = {
+                    val saved = ConfigStore(activity).trustSshHostKey(
+                        pending.profileId, pending.hop, pending.fingerprint,
+                    )
+                    SshHostKeyPromptState.clear()
+                    val persisted = ConfigStore(activity).profile(pending.profileId)?.config?.let { config ->
+                        if (pending.hop == "jump") config.jumpTrustedHostKey else config.trustedHostKey
+                    }
+                    if (saved && persisted == pending.fingerprint) {
+                        ProxyVpnService.test(activity)
+                    } else {
+                        TestDiagnosticLog.fail("The SSH host key could not be saved to the tested profile")
+                    }
+                }) { Text(if (pending.changed) "Replace and test" else "Trust and test") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    SshHostKeyPromptState.clear()
+                    ProxyVpnService.dismissHostKeyPrompt(activity)
+                }) { Text("Cancel") }
             },
         )
     }

@@ -1,6 +1,7 @@
 package net.megaproxy487.model
 
 data class ProxyConfig(
+    val type: ProxyType = ProxyType.HTTPS,
     val host: String = "",
     val port: Int = 443,
     val username: String = "",
@@ -15,14 +16,32 @@ data class ProxyConfig(
     val routeAllApps: Boolean = true,
     val bypassLocalNetworks: Boolean = true,
     val resolvedProxyIp: String = "",
+    val privateKey: String = "",
+    val sshProfile: SshProfile = SshProfile.DEFAULT,
+    val trustedHostKey: String = "",
+    val acceptAnyHostKey: Boolean = false,
+    val jumpHost: String = "",
+    val jumpPort: Int = 22,
+    val jumpUsername: String = "",
+    val jumpPassword: String = "",
+    val jumpPrivateKey: String = "",
+    val jumpTrustedHostKey: String = "",
+    val jumpAcceptAnyHostKey: Boolean = false,
+    val sameJumpAuthentication: Boolean = true,
+    val resolvedJumpIp: String = "",
 ) {
     fun connectionValidationError(): String? = when {
-        host.isBlank() -> "Enter the proxy hostname"
+        host.isBlank() -> if (type == ProxyType.HTTPS) "Enter the proxy hostname" else "Enter the SSH hostname"
         host.contains(Regex("[/:\\s]")) -> "Enter a hostname without a scheme or path"
         port !in 1..65535 -> "Port must be between 1 and 65535"
-        username.isBlank() -> "Enter the Basic Auth username"
-        password.isBlank() -> "Enter the Basic Auth password"
-        profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
+        type == ProxyType.HTTPS && username.isBlank() -> "Enter the Basic Auth username"
+        type == ProxyType.HTTPS && password.isBlank() -> "Enter the Basic Auth password"
+        type != ProxyType.HTTPS && username.isBlank() -> "Enter the SSH username"
+        type == ProxyType.SSH_JUMP && jumpHost.isBlank() -> "Enter the jump host"
+        type == ProxyType.SSH_JUMP && jumpHost.contains(Regex("[/:\\s]")) -> "Enter a jump hostname without a scheme or path"
+        type == ProxyType.SSH_JUMP && jumpPort !in 1..65535 -> "Jump port must be between 1 and 65535"
+        type == ProxyType.SSH_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> "Enter the jump SSH username"
+        type == ProxyType.HTTPS && profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
             "JA3 must contain five fields: version,ciphers,extensions,groups,points"
         dnsProvider == DnsProvider.CUSTOM && !customDohUrl.matches(Regex("https://[^/\\s]+/.+")) ->
             "The custom DoH URL must start with https://"
@@ -30,6 +49,20 @@ data class ProxyConfig(
     }
 
     fun validationError(): String? = connectionValidationError()
+}
+
+enum class ProxyType(val title: String, val defaultPort: Int) {
+    HTTPS("HTTPS", 443),
+    SSH("SSH", 22),
+    SSH_JUMP("SSH with Jump", 22),
+}
+
+enum class SshProfile(val title: String) {
+    DEFAULT("Default (currently OpenSSH/Termux)"),
+    OPENSSH_TERMUX("OpenSSH / Termux"),
+    CONNECTBOT("ConnectBot"),
+    JUICESSH("JuiceSSH"),
+    TERMIUS_ANDROID("Termius Android"),
 }
 
 data class ProxyProfile(
@@ -84,6 +117,7 @@ enum class TlsProfile(val title: String, val available: Boolean = true) {
 
 data class GlobalConnectionSettings(
     val tlsProfile: TlsProfile = TlsProfile.DEFAULT,
+    val sshProfile: SshProfile = SshProfile.DEFAULT,
     val customJa3: String = "",
     val selectedPackages: Set<String> = emptySet(),
     val allowIpv6: Boolean = false,
@@ -93,6 +127,7 @@ data class GlobalConnectionSettings(
     fun applyTo(config: ProxyConfig): ProxyConfig = config.copy(
         profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.CHROME_ANDROID else tlsProfile,
         customJa3 = customJa3,
+        sshProfile = sshProfile,
         selectedPackages = selectedPackages,
         allowIpv6 = allowIpv6,
         routeAllApps = routeAllApps,

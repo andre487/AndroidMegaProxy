@@ -9,6 +9,8 @@ import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProfileColorMatcher
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
+import net.megaproxy487.model.ProxyType
+import net.megaproxy487.model.SshProfile
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.GlobalConnectionSettings
 import org.json.JSONArray
@@ -91,11 +93,17 @@ class ConfigStore(context: Context) {
         val stored = prefs.getString(GLOBAL_CONNECTION_SETTINGS, null)
         if (stored != null) {
             val decoded = decodeGlobalConnectionSettings(stored)
+            if (!JSONObject(stored).has("sshProfile")) {
+                val upgraded = decoded.copy(sshProfile = activeProfile().config.sshProfile)
+                saveGlobalConnectionSettings(upgraded)
+                return upgraded
+            }
             return decoded
         }
         val source = activeProfile().config
         val migrated = GlobalConnectionSettings(
             tlsProfile = source.profile.takeIf { it.available } ?: TlsProfile.DEFAULT,
+            sshProfile = source.sshProfile,
             customJa3 = source.customJa3,
             selectedPackages = source.selectedPackages,
             allowIpv6 = source.allowIpv6,
@@ -128,12 +136,14 @@ class ConfigStore(context: Context) {
     @Synchronized
     fun cloneProfile(id: String): ProxyProfile? {
         val existing = profiles()
-        val source = existing.firstOrNull { it.id == id } ?: return null
+        val sourceIndex = existing.indexOfFirst { it.id == id }
+        if (sourceIndex < 0) return null
+        val source = existing[sourceIndex]
         val clone = source.copy(
             id = UUID.randomUUID().toString(),
             name = "${source.displayName} copy",
         )
-        writeProfiles(existing + clone)
+        writeProfiles(existing.toMutableList().apply { add(sourceIndex + 1, clone) })
         return clone
     }
 
@@ -183,6 +193,25 @@ class ConfigStore(context: Context) {
         val current = profiles()
         val updated = current.map { if (it.id == profile.id) profile else it }
         if (updated != current) writeProfiles(updated)
+    }
+
+    @Synchronized
+    fun trustSshHostKey(profileId: String, hop: String, fingerprint: String): Boolean {
+        if (!fingerprint.matches(Regex("SHA256:[A-Za-z0-9+/]{20,}={0,2}"))) return false
+        val current = profiles()
+        var changed = false
+        val updated = current.map { profile ->
+            if (profile.id != profileId) profile else {
+                changed = true
+                profile.copy(config = if (hop == "jump") profile.config.copy(
+                    jumpTrustedHostKey = fingerprint, jumpAcceptAnyHostKey = false,
+                ) else profile.config.copy(
+                    trustedHostKey = fingerprint, acceptAnyHostKey = false,
+                ))
+            }
+        }
+        if (changed) writeProfiles(updated)
+        return changed
     }
 
     @Synchronized
@@ -277,10 +306,23 @@ class ConfigStore(context: Context) {
     }.toString()
 
     private fun encodeConfig(config: ProxyConfig) = JSONObject().apply {
+        put("type", config.type.name)
         put("host", config.host.trim())
         put("port", config.port)
         put("username", config.username)
         put("password", encrypt(config.password))
+        put("privateKey", encrypt(config.privateKey))
+        put("sshProfile", config.sshProfile.name)
+        put("trustedHostKey", config.trustedHostKey)
+        put("acceptAnyHostKey", config.acceptAnyHostKey)
+        put("jumpHost", config.jumpHost.trim())
+        put("jumpPort", config.jumpPort)
+        put("jumpUsername", config.jumpUsername)
+        put("jumpPassword", encrypt(config.jumpPassword))
+        put("jumpPrivateKey", encrypt(config.jumpPrivateKey))
+        put("jumpTrustedHostKey", config.jumpTrustedHostKey)
+        put("jumpAcceptAnyHostKey", config.jumpAcceptAnyHostKey)
+        put("sameJumpAuthentication", config.sameJumpAuthentication)
         put("allowInvalidProxyCertificate", config.allowInvalidProxyCertificate)
         put("fingerprint", config.profile.name)
         put("customJa3", config.customJa3.trim())
@@ -307,10 +349,23 @@ class ConfigStore(context: Context) {
     }.getOrDefault(emptyList())
 
     private fun decodeConfig(item: JSONObject) = ProxyConfig(
+        type = enumValue(item.optString("type"), ProxyType.HTTPS),
         host = item.optString("host"),
         port = item.optInt("port", 443),
         username = item.optString("username"),
         password = decrypt(item.optString("password").ifEmpty { null }),
+        privateKey = decrypt(item.optString("privateKey").ifEmpty { null }),
+        sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),
+        trustedHostKey = item.optString("trustedHostKey"),
+        acceptAnyHostKey = item.optBoolean("acceptAnyHostKey", false),
+        jumpHost = item.optString("jumpHost"),
+        jumpPort = item.optInt("jumpPort", 22),
+        jumpUsername = item.optString("jumpUsername"),
+        jumpPassword = decrypt(item.optString("jumpPassword").ifEmpty { null }),
+        jumpPrivateKey = decrypt(item.optString("jumpPrivateKey").ifEmpty { null }),
+        jumpTrustedHostKey = item.optString("jumpTrustedHostKey"),
+        jumpAcceptAnyHostKey = item.optBoolean("jumpAcceptAnyHostKey", false),
+        sameJumpAuthentication = item.optBoolean("sameJumpAuthentication", true),
         allowInvalidProxyCertificate = item.optBoolean("allowInvalidProxyCertificate", false),
         profile = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT),
         customJa3 = item.optString("customJa3"),
@@ -326,6 +381,7 @@ class ConfigStore(context: Context) {
 
     private fun encodeGlobalConnectionSettings(settings: GlobalConnectionSettings) = JSONObject().apply {
         put("fingerprint", settings.tlsProfile.name)
+        put("sshProfile", settings.sshProfile.name)
         put("customJa3", settings.customJa3.trim())
         put("packages", JSONArray(settings.selectedPackages.sorted()))
         put("allowIpv6", settings.allowIpv6)
@@ -338,6 +394,7 @@ class ConfigStore(context: Context) {
         val parsedTls = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT)
         GlobalConnectionSettings(
             tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
+            sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),
             customJa3 = item.optString("customJa3"),
             selectedPackages = item.optJSONArray("packages")?.let { array ->
                 (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }.toSet()

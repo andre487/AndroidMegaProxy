@@ -49,6 +49,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.model.Ja3Spec
 import net.megaproxy487.model.TlsProfile
+import net.megaproxy487.model.SshProfile
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 
@@ -96,7 +97,7 @@ private fun SettingsHomeScreen(activity: Activity) {
     SettingsScaffold(activity, "Settings") {
         SettingsButton("Profiles") { activity.startActivity(Intent(activity, ProfilesActivity::class.java)) }
         SettingsButton("Always-on VPN") { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
-        SettingsButton("TLS fingerprint") { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
+        SettingsButton("Fingerprints") { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
         SettingsButton("Split tunneling") { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
         SettingsButton("Visibility") { activity.startActivity(Intent(activity, VisibilityActivity::class.java)) }
         if (!batteryOptimizationDisabled) {
@@ -167,13 +168,18 @@ private fun TlsFingerprintScreen(activity: Activity) {
     val store = remember { ConfigStore(activity) }
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
     var expanded by remember { mutableStateOf(false) }
+    var sshExpanded by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     var showReconnectPrompt by remember { mutableStateOf(false) }
     var showAlwaysOnNotice by remember { mutableStateOf(false) }
     var deferred by remember { mutableStateOf(false) }
 
-    fun save(profile: TlsProfile = settings.tlsProfile, customJa3: String = settings.customJa3) {
-        settings = settings.copy(tlsProfile = profile, customJa3 = customJa3)
+    fun save(
+        profile: TlsProfile = settings.tlsProfile,
+        customJa3: String = settings.customJa3,
+        sshProfile: SshProfile = settings.sshProfile,
+    ) {
+        settings = settings.copy(tlsProfile = profile, customJa3 = customJa3, sshProfile = sshProfile)
         store.saveGlobalConnectionSettings(settings)
         error = if (profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null) {
             "JA3 must contain five fields: version,ciphers,extensions,groups,points"
@@ -186,11 +192,12 @@ private fun TlsFingerprintScreen(activity: Activity) {
         }
     }
 
-    SettingsScaffold(activity, "TLS fingerprint") {
+    SettingsScaffold(activity, "Fingerprints") {
+        Text("HTTPS fingerprint", style = MaterialTheme.typography.titleMedium)
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
                 settings.tlsProfile.title, {}, readOnly = true,
-                label = { Text("TLS / JA3 profile") },
+                label = { Text("HTTPS TLS / JA3 profile") },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier.menuAnchor().fillMaxWidth(),
             )
@@ -211,13 +218,31 @@ private fun TlsFingerprintScreen(activity: Activity) {
             )
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        Text("SSH fingerprint", style = MaterialTheme.typography.titleMedium)
+        ExposedDropdownMenuBox(sshExpanded, { sshExpanded = it }) {
+            OutlinedTextField(
+                settings.sshProfile.title, {}, readOnly = true,
+                label = { Text("SSH client profile") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth(),
+            )
+            DropdownMenu(sshExpanded, { sshExpanded = false }) {
+                SshProfile.entries.forEach { profile ->
+                    DropdownMenuItem(text = { Text(profile.title) }, onClick = {
+                        save(sshProfile = profile)
+                        sshExpanded = false
+                    })
+                }
+            }
+        }
+        Text("The SSH profile controls the client banner and preferred KEX, cipher and MAC ordering.", style = MaterialTheme.typography.bodySmall)
         Text("Changes are saved automatically and apply to every profile.", style = MaterialTheme.typography.bodySmall)
     }
     if (showReconnectPrompt) {
         AlertDialog(
             onDismissRequest = { showReconnectPrompt = false; deferred = true },
-            title = { Text("Apply TLS fingerprint change?") },
-            text = { Text("Reconnect now to apply the new TLS fingerprint, or apply it the next time the VPN connects.") },
+            title = { Text("Apply fingerprint change?") },
+            text = { Text("Reconnect now to apply the new HTTPS or SSH fingerprint, or apply it the next time the VPN connects.") },
             confirmButton = { TextButton(onClick = { showReconnectPrompt = false; ProxyVpnService.reconnect(activity) }) { Text("Reconnect now") } },
             dismissButton = { TextButton(onClick = { showReconnectPrompt = false; deferred = true }) { Text("Next connection") } },
         )
@@ -225,8 +250,8 @@ private fun TlsFingerprintScreen(activity: Activity) {
     if (showAlwaysOnNotice) {
         AlertDialog(
             onDismissRequest = { showAlwaysOnNotice = false },
-            title = { Text("TLS fingerprint saved") },
-            text = { Text("Always-on VPN is managed by Android. The new TLS fingerprint will be applied the next time the VPN connects.") },
+            title = { Text("Fingerprint saved") },
+            text = { Text("Always-on VPN is managed by Android. The new HTTPS or SSH fingerprint will be applied the next time the VPN connects.") },
             confirmButton = { TextButton(onClick = { showAlwaysOnNotice = false }) { Text("OK") } },
         )
     }

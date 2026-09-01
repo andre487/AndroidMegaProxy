@@ -3,6 +3,8 @@ package net.megaproxy487.data
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
+import net.megaproxy487.model.ProxyType
+import net.megaproxy487.model.SshProfile
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.GlobalConnectionSettings
 import org.json.JSONArray
@@ -25,10 +27,10 @@ data class PortableConfiguration(
 )
 
 object ConfigTransfer {
-    const val SCHEMA_VERSION = 2
+    const val SCHEMA_VERSION = 4
 
     fun exportProxyList(profiles: List<ProxyProfile>, includePasswords: Boolean): String =
-        profiles.joinToString("\n", postfix = "\n") { profile ->
+        profiles.filter { it.config.type == ProxyType.HTTPS }.joinToString("\n", postfix = "\n") { profile ->
             val config = profile.config
             val password = if (includePasswords) config.password else ""
             val userInfo = "${encode(config.username)}:${encode(password)}"
@@ -43,10 +45,11 @@ object ConfigTransfer {
             }
         }
 
-    fun exportJson(store: ConfigStore, includePasswords: Boolean): String = JSONObject().apply {
+    fun exportJson(store: ConfigStore, includePasswords: Boolean, includePrivateKeys: Boolean = false): String = JSONObject().apply {
         put("schema", "dev.megaproxy.config")
         put("version", SCHEMA_VERSION)
         put("passwordsIncluded", includePasswords)
+        put("privateKeysIncluded", includePrivateKeys)
         put("activeProfileId", store.activeProfileId())
         put("alwaysOnProfileId", store.alwaysOnProfileId())
         put("diagnosticLogLimitMb", store.diagnosticLogLimitMb())
@@ -55,6 +58,7 @@ object ConfigTransfer {
             put("fingerprint", global.tlsProfile.name)
             put("customJa3", global.customJa3.trim())
         })
+        put("ssh", JSONObject().apply { put("fingerprint", global.sshProfile.name) })
         put("routing", JSONObject().apply {
             put("routeAllApps", global.routeAllApps)
             put("selectedPackages", JSONArray(global.selectedPackages.sorted()))
@@ -62,7 +66,7 @@ object ConfigTransfer {
             put("bypassLocalNetworks", global.bypassLocalNetworks)
         })
         put("profiles", JSONArray().apply {
-            store.profiles().forEach { profile -> put(encodeProfile(profile, includePasswords)) }
+            store.profiles().forEach { profile -> put(encodeProfile(profile, includePasswords, includePrivateKeys)) }
         })
     }.toString(2)
 
@@ -82,7 +86,11 @@ object ConfigTransfer {
             activeProfileId = root.optString("activeProfileId").ifBlank { null },
             alwaysOnProfileId = root.optString("alwaysOnProfileId").ifBlank { null },
             diagnosticLogLimitMb = root.optInt("diagnosticLogLimitMb", 3).coerceIn(1, 100),
-            globalConnectionSettings = if (version >= 2) decodeGlobalSettings(root) else null,
+            globalConnectionSettings = if (version >= 2) {
+                decodeGlobalSettings(root).let { global ->
+                    if (version < 4) global.copy(sshProfile = profiles.first().config.sshProfile) else global
+                }
+            } else null,
             skippedProfiles = decoded.count(Result<ProxyProfile>::isFailure),
         )
     }
@@ -90,6 +98,7 @@ object ConfigTransfer {
     private fun decodeGlobalSettings(root: JSONObject): GlobalConnectionSettings {
         val tls = root.optJSONObject("tls") ?: JSONObject()
         val routing = root.optJSONObject("routing") ?: JSONObject()
+        val ssh = root.optJSONObject("ssh") ?: JSONObject()
         val parsedTls = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT)
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
             (0 until array.length()).mapNotNull { index ->
@@ -98,6 +107,7 @@ object ConfigTransfer {
         }.orEmpty()
         return GlobalConnectionSettings(
             tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
+            sshProfile = enumValue(ssh.optString("fingerprint"), SshProfile.DEFAULT),
             customJa3 = tls.optString("customJa3"),
             selectedPackages = packages,
             allowIpv6 = routing.optBoolean("allowIpv6", false),
@@ -106,17 +116,34 @@ object ConfigTransfer {
         )
     }
 
-    private fun encodeProfile(profile: ProxyProfile, includePasswords: Boolean) = JSONObject().apply {
+    private fun encodeProfile(profile: ProxyProfile, includePasswords: Boolean, includePrivateKeys: Boolean) = JSONObject().apply {
         put("id", profile.id)
         put("name", profile.name.trim())
         put("color", profile.colorIndex)
         put("countryCode", profile.countryCode.uppercase())
         put("proxy", JSONObject().apply {
+            put("type", profile.config.type.name)
             put("host", profile.config.host.trim())
             put("port", profile.config.port)
             put("username", profile.config.username)
             if (includePasswords) put("password", profile.config.password)
+            if (includePrivateKeys) put("privateKey", profile.config.privateKey)
             put("allowInvalidProxyCertificate", profile.config.allowInvalidProxyCertificate)
+            put("sshProfile", profile.config.sshProfile.name)
+            put("trustedHostKey", profile.config.trustedHostKey)
+            put("acceptAnyHostKey", profile.config.acceptAnyHostKey)
+            if (profile.config.type == ProxyType.SSH_JUMP) put("jump", JSONObject().apply {
+                put("host", profile.config.jumpHost)
+                put("port", profile.config.jumpPort)
+                put("sameAuthentication", profile.config.sameJumpAuthentication)
+                if (!profile.config.sameJumpAuthentication) {
+                    put("username", profile.config.jumpUsername)
+                    if (includePasswords) put("password", profile.config.jumpPassword)
+                    if (includePrivateKeys) put("privateKey", profile.config.jumpPrivateKey)
+                }
+                put("trustedHostKey", profile.config.jumpTrustedHostKey)
+                put("acceptAnyHostKey", profile.config.jumpAcceptAnyHostKey)
+            })
         })
         put("tls", JSONObject().apply {
             put("fingerprint", profile.config.profile.name)
@@ -152,10 +179,23 @@ object ConfigTransfer {
             colorIndex = item.optInt("color", index),
             countryCode = item.optString("countryCode").uppercase().takeIf { it.matches(Regex("[A-Z]{2}")) }.orEmpty(),
             config = ProxyConfig(
+                type = enumValue(proxy.optString("type"), ProxyType.HTTPS),
                 host = host,
                 port = proxy.optInt("port", 443).takeIf { it in 1..65535 } ?: 443,
                 username = proxy.optString("username"),
                 password = proxy.optString("password"),
+                privateKey = proxy.optString("privateKey"),
+                sshProfile = enumValue(proxy.optString("sshProfile"), SshProfile.DEFAULT),
+                trustedHostKey = proxy.optString("trustedHostKey"),
+                acceptAnyHostKey = proxy.optBoolean("acceptAnyHostKey", false),
+                jumpHost = proxy.optJSONObject("jump")?.optString("host").orEmpty(),
+                jumpPort = proxy.optJSONObject("jump")?.optInt("port", 22) ?: 22,
+                sameJumpAuthentication = proxy.optJSONObject("jump")?.optBoolean("sameAuthentication", true) ?: true,
+                jumpUsername = proxy.optJSONObject("jump")?.optString("username").orEmpty(),
+                jumpPassword = proxy.optJSONObject("jump")?.optString("password").orEmpty(),
+                jumpPrivateKey = proxy.optJSONObject("jump")?.optString("privateKey").orEmpty(),
+                jumpTrustedHostKey = proxy.optJSONObject("jump")?.optString("trustedHostKey").orEmpty(),
+                jumpAcceptAnyHostKey = proxy.optJSONObject("jump")?.optBoolean("acceptAnyHostKey", false) ?: false,
                 allowInvalidProxyCertificate = proxy.optBoolean("allowInvalidProxyCertificate", false),
                 profile = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT),
                 customJa3 = tls.optString("customJa3"),

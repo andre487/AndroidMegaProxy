@@ -12,6 +12,7 @@ import (
 )
 
 type config struct {
+	Type                         string `json:"type"`
 	Host                         string `json:"host"`
 	DialHost                     string `json:"dialHost"`
 	Port                         int    `json:"port"`
@@ -23,6 +24,19 @@ type config struct {
 	DoHURL                       string `json:"dohUrl"`
 	AllowIPv6                    bool   `json:"allowIpv6"`
 	BypassLocalNetworks          bool   `json:"bypassLocalNetworks"`
+	PrivateKey                   string `json:"privateKey"`
+	SSHProfile                   string `json:"sshProfile"`
+	TrustedHostKey               string `json:"trustedHostKey"`
+	AcceptAnyHostKey             bool   `json:"acceptAnyHostKey"`
+	JumpHost                     string `json:"jumpHost"`
+	JumpDialHost                 string `json:"jumpDialHost"`
+	JumpPort                     int    `json:"jumpPort"`
+	JumpUsername                 string `json:"jumpUsername"`
+	JumpPassword                 string `json:"jumpPassword"`
+	JumpPrivateKey               string `json:"jumpPrivateKey"`
+	JumpTrustedHostKey           string `json:"jumpTrustedHostKey"`
+	JumpAcceptAnyHostKey         bool   `json:"jumpAcceptAnyHostKey"`
+	SameJumpAuthentication       bool   `json:"sameJumpAuthentication"`
 }
 
 func parseConfig(raw string) (config, error) {
@@ -32,6 +46,9 @@ func parseConfig(raw string) (config, error) {
 	}
 	c.Host = strings.TrimSpace(c.Host)
 	c.DialHost = strings.TrimSpace(c.DialHost)
+	if c.Type == "" {
+		c.Type = "HTTPS"
+	}
 	if c.Host == "" || strings.ContainsAny(c.Host, "/: \t\r\n") {
 		return c, errors.New("invalid proxy hostname")
 	}
@@ -41,14 +58,39 @@ func parseConfig(raw string) (config, error) {
 	if c.Port < 1 || c.Port > 65535 {
 		return c, errors.New("invalid proxy port")
 	}
-	if c.Username == "" || c.Password == "" {
+	if c.Type == "HTTPS" && (c.Username == "" || c.Password == "") {
 		return c, errors.New("basic auth credentials are required")
+	}
+	if c.Type != "HTTPS" && c.Username == "" {
+		return c, errors.New("SSH username is required")
+	}
+	if c.Type == "SSH_JUMP" {
+		if c.JumpHost == "" || strings.ContainsAny(c.JumpHost, "/: \t\r\n") {
+			return c, errors.New("invalid jump hostname")
+		}
+		if net.ParseIP(c.JumpDialHost) == nil {
+			return c, errors.New("jump bootstrap IP is missing or invalid")
+		}
+		if c.JumpPort < 1 || c.JumpPort > 65535 {
+			return c, errors.New("invalid jump port")
+		}
+		if c.SameJumpAuthentication {
+			c.JumpUsername, c.JumpPassword, c.JumpPrivateKey = c.Username, c.Password, c.PrivateKey
+		}
+		if c.JumpUsername == "" {
+			return c, errors.New("jump SSH username is required")
+		}
 	}
 	if err := validateDoHURL(c.DoHURL); err != nil {
 		return c, err
 	}
-	if _, err := c.helloID(); err != nil {
-		return c, err
+	if c.Type == "HTTPS" {
+		if _, err := c.helloID(); err != nil {
+			return c, err
+		}
+	}
+	if c.Type != "HTTPS" && c.Type != "SSH" && c.Type != "SSH_JUMP" {
+		return c, fmt.Errorf("unsupported proxy type %q", c.Type)
 	}
 	return c, nil
 }
@@ -56,6 +98,9 @@ func parseConfig(raw string) (config, error) {
 func (c config) address() string { return net.JoinHostPort(c.DialHost, strconv.Itoa(c.Port)) }
 
 func (c config) displayAddress() string { return net.JoinHostPort(c.Host, strconv.Itoa(c.Port)) }
+func (c config) jumpAddress() string {
+	return net.JoinHostPort(c.JumpDialHost, strconv.Itoa(c.JumpPort))
+}
 
 func (c config) helloID() (tls.ClientHelloID, error) {
 	switch c.Profile {

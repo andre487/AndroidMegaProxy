@@ -2,10 +2,13 @@
 package mobile
 
 import (
+	"context"
 	"errors"
+	"io"
 	"strconv"
 	"sync"
 	"syscall"
+	"time"
 
 	"github.com/xjasonlyu/tun2socks/v2/core"
 	"github.com/xjasonlyu/tun2socks/v2/core/device"
@@ -16,9 +19,10 @@ import (
 
 var state struct {
 	sync.Mutex
-	running bool
-	device  device.Device
-	stack   *stack.Stack
+	running     bool
+	device      device.Device
+	stack       *stack.Stack
+	proxyCloser io.Closer
 }
 
 // Start takes ownership of a duplicate of tunFD held by Android's ParcelFileDescriptor.
@@ -50,14 +54,29 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 		return err
 	}
 	t := tunnel.T()
-	t.SetProxy(&httpsConnectDialer{config: c, protector: protector, reporter: reporter})
+	var proxyCloser io.Closer
+	if c.Type == "HTTPS" {
+		t.SetProxy(&httpsConnectDialer{config: c, protector: protector, reporter: reporter})
+	} else {
+		sshProxy := &sshDialer{config: c, protector: protector, reporter: reporter}
+		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		_, sessionErr := sshProxy.session(ctx)
+		cancel()
+		if sessionErr != nil {
+			dev.Close()
+			report(reporter, "event=ssh_session result=failed detail=%s", sessionErr)
+			return sessionErr
+		}
+		t.SetProxy(sshProxy)
+		proxyCloser = sshProxy
+	}
 	netstack, err := core.CreateStack(&core.Config{LinkEndpoint: dev, TransportHandler: t})
 	if err != nil {
 		dev.Close()
 		return err
 	}
-	state.device, state.stack, state.running = dev, netstack, true
-	report(reporter, "event=native_stack result=started fingerprint=%s ipv6=%t bypass_local=%t", c.Profile, c.AllowIPv6, c.BypassLocalNetworks)
+	state.device, state.stack, state.proxyCloser, state.running = dev, netstack, proxyCloser, true
+	report(reporter, "event=native_stack result=started type=%s fingerprint=%s ssh_profile=%s ipv6=%t bypass_local=%t", c.Type, c.Profile, c.SSHProfile, c.AllowIPv6, c.BypassLocalNetworks)
 	return nil
 }
 
@@ -68,8 +87,8 @@ func Stop() {
 		return
 	}
 	state.running = false
-	dev, netstack := state.device, state.stack
-	state.device, state.stack = nil, nil
+	dev, netstack, proxyCloser := state.device, state.stack, state.proxyCloser
+	state.device, state.stack, state.proxyCloser = nil, nil, nil
 	state.Unlock()
 	if dev != nil {
 		dev.Close()
@@ -77,5 +96,8 @@ func Stop() {
 	if netstack != nil {
 		netstack.Close()
 		netstack.Wait()
+	}
+	if proxyCloser != nil {
+		_ = proxyCloser.Close()
 	}
 }

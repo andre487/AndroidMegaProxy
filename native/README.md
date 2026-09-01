@@ -1,8 +1,10 @@
 # Go dataplane
 
 This module is bound into `megaproxy.aar` with gomobile. It embeds tun2socks/gVisor,
-registers an HTTPS CONNECT transport, protects every upstream socket through Android
-`VpnService.protect`, verifies the proxy certificate and uses uTLS for ClientHello control.
+registers HTTPS CONNECT and SSH `direct-tcpip` transports, protects every upstream socket through Android
+`VpnService.protect`, verifies HTTPS proxy certificates and SSH host keys, and uses uTLS for HTTPS ClientHello control.
+SSH with Jump creates a nested SSH client through the jump session. SSH transports support TCP;
+DNS is carried over DoH, while arbitrary UDP (including QUIC) is intentionally blocked.
 `Start` always takes ownership of the passed duplicate TUN descriptor, including error paths.
 
 Build prerequisites: Go 1.26+, Android SDK/NDK and `gomobile`.
