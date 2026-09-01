@@ -11,21 +11,19 @@ RepoType: git
 Repo: https://github.com/andre487/AndroidMegaProxy.git
 
 Builds:
-  - versionName: 0.0.4
-    versionCode: 4
-    commit: v0.0.4
+  - versionName: 0.0.5
+    versionCode: 5
+    commit: v0.0.5
     subdir: app
     ndk: 29.0.14206865
     sudo:
       - apt-get update
-      - apt-get install -t bookworm-backports -y golang-go
+      - apt-get install -t trixie-backports -y golang-go
       - apt-get install -y gcc libc-dev make
     gradle:
       - yes
     srclibs:
       - go@go1.26.3
-    rm:
-      - libs/megaproxy-sources.jar
     binary: https://github.com/andre487/AndroidMegaProxy/releases/download/v%v/mega-proxy-universal.apk
     build:
       - pushd $$go$$/src
@@ -34,14 +32,9 @@ Builds:
       - export GOROOT=$$go$$
       - export GOPATH=$HOME/go
       - export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
-      - cd ../native
-      - go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
-      - go install golang.org/x/mobile/cmd/gobind@v0.0.0-20260821190718-4776eadac327
-      - gomobile init
-      - gomobile bind -target=android -androidapi 26 -trimpath -ldflags='-s -w -buildid='
-        -o ../app/libs/megaproxy.aar ./mobile
+      - ../scripts/build-fdroid-native.sh
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.0.4
-CurrentVersionCode: 4
+CurrentVersion: 0.0.5
+CurrentVersionCode: 5

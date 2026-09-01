@@ -1,0 +1,3 @@
+Make the F-Droid build recipe easier to maintain and verify.
+
+GitHub Actions now exercises the same native release build path, while a scheduled check reports when fdroiddata needs to be updated.

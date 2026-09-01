@@ -67,21 +67,8 @@ jobs:
             "ndk;29.0.14206865"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
 
-      - name: Install gomobile
-        run: |
-          go install golang.org/x/mobile/cmd/gomobile@v0.0.0-20260821190718-4776eadac327
-          gomobile init
+      - name: Build native library using the F-Droid recipe
+        run: ./scripts/build-fdroid-native.sh
 
-      - name: Build arm64 Android AAR
-        working-directory: native
-        run: |
-          mkdir -p ../app/libs
-          gomobile bind \
-            -target=android/arm64 \
-            -androidapi 26 \
-            -trimpath \
-            -o ../app/libs/megaproxy.aar \
-            ./mobile
-
-      - name: Run Android unit tests, lint, and debug build
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug
+      - name: Run Android tests, checks, and clean-store builds
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleRelease
