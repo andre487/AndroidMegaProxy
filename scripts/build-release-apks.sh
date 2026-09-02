@@ -66,9 +66,9 @@ mkdir -p "$MEGAPROXY_RELEASE_DIR" "$project_dir/app/libs"
 # Avoid carrying artifacts from an older version into SHA256SUMS or a release.
 find "$MEGAPROXY_RELEASE_DIR" -maxdepth 1 -type f \
     \( -name 'mega-proxy-*.apk' -o -name SHA256SUMS \) -delete
-apksigner="$ANDROID_HOME/build-tools/34.0.0/apksigner"
+apksigner="$ANDROID_HOME/build-tools/36.0.0/apksigner"
 if [[ ! -x "$apksigner" ]]; then
-    echo "Android apksigner 34.0.0 is unavailable: $apksigner" >&2
+    echo "Android apksigner 36.0.0 is unavailable: $apksigner" >&2
     exit 1
 fi
 
@@ -90,7 +90,7 @@ verify_release_version_code() {
     local expected_version_code="$2"
     local actual_version_code
     actual_version_code="$(
-        "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$apk" \
+        "$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk" \
             | sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p"
     )"
     if [[ "$actual_version_code" != "$expected_version_code" ]]; then

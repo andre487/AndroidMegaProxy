@@ -19,7 +19,7 @@ fi
 export JAVA_HOME ANDROID_HOME ANDROID_NDK_HOME
 export PATH="$JAVA_HOME/bin:$HOME/go/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
 
-for command in go gomobile java jarsigner keytool unzip; do
+for command in go gomobile java jarsigner keytool unzip zip; do
     if ! command -v "$command" >/dev/null 2>&1; then
         echo "Required command is unavailable: $command" >&2
         exit 1
@@ -56,7 +56,8 @@ keytool -list \
     -alias "$MEGAPROXY_KEY_ALIAS" >/dev/null
 
 mkdir -p "$MEGAPROXY_RELEASE_DIR" "$project_dir/app/libs"
-find "$MEGAPROXY_RELEASE_DIR" -maxdepth 1 -type f -name 'mega-proxy.aab' -delete
+find "$MEGAPROXY_RELEASE_DIR" -maxdepth 1 -type f \
+    \( -name 'mega-proxy.aab' -o -name 'mega-proxy-native-debug-symbols.zip' \) -delete
 
 temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/megaproxy-bundle.XXXXXX")"
 original_aar="$project_dir/app/libs/megaproxy.aar"
@@ -75,6 +76,14 @@ restore_workspace() {
 }
 trap restore_workspace EXIT
 
+llvm_bin_dirs=("$ANDROID_NDK_HOME"/toolchains/llvm/prebuilt/*/bin)
+llvm_objcopy="${llvm_bin_dirs[0]}/llvm-objcopy"
+llvm_readelf="${llvm_bin_dirs[0]}/llvm-readelf"
+if [[ ! -x "$llvm_objcopy" || ! -x "$llvm_readelf" ]]; then
+    echo "NDK LLVM tools are unavailable under $ANDROID_NDK_HOME" >&2
+    exit 1
+fi
+
 export MEGAPROXY_KEYSTORE_PATH
 export MEGAPROXY_KEYSTORE_PASSWORD="$keystore_password"
 export MEGAPROXY_KEY_ALIAS
@@ -83,13 +92,41 @@ export MEGAPROXY_KEY_PASSWORD
 echo "Building universal native AAR for the App Bundle"
 (
     cd "$project_dir/native"
+    # External linking preserves the ELF symbol table and DWARF data in the
+    # input libraries. AGP strips the packaged copies and extracts the
+    # requested SYMBOL_TABLE metadata for Play Console symbolication.
     gomobile bind \
         -target=android \
         -androidapi 26 \
         -trimpath \
-        -ldflags="-s -w -buildid=" \
+        -ldflags="-linkmode=external -buildid= -extldflags=-Wl,--build-id=sha1" \
         -o ../app/libs/megaproxy.aar \
         ./mobile
+)
+
+# gomobile provides the Go shared libraries as an AAR dependency, so AGP does
+# not retain their symbols automatically. Create the Play-compatible archive
+# first, then replace the AAR copies with stripped libraries for the bundle.
+aar_contents="$temporary_dir/aar"
+symbols_dir="$temporary_dir/native-debug-symbols"
+mkdir -p "$aar_contents" "$symbols_dir"
+unzip -q "$original_aar" -d "$aar_contents"
+for library in "$aar_contents"/jni/*/libgojni.so; do
+    abi="$(basename "$(dirname "$library")")"
+    mkdir -p "$symbols_dir/$abi"
+    "$llvm_objcopy" --strip-debug "$library" "$symbols_dir/$abi/libgojni.so.dbg"
+    "$llvm_objcopy" --strip-all "$library" "$library.stripped"
+    mv "$library.stripped" "$library"
+done
+output_symbols="$MEGAPROXY_RELEASE_DIR/mega-proxy-native-debug-symbols.zip"
+(
+    cd "$symbols_dir"
+    zip -q -r "$output_symbols" .
+)
+rm "$original_aar"
+(
+    cd "$aar_contents"
+    zip -q -r "$original_aar" .
 )
 
 echo "Building signed App Bundle"
@@ -122,6 +159,8 @@ fi
 expected_abis=(arm64-v8a armeabi-v7a x86 x86_64)
 bundle_entries="$temporary_dir/bundle-entries.txt"
 unzip -Z1 "$output_bundle" > "$bundle_entries"
+symbol_entries="$temporary_dir/symbol-entries.txt"
+unzip -Z1 "$output_symbols" > "$symbol_entries"
 for abi in "${expected_abis[@]}"; do
     for library in libandroidx.graphics.path.so libgojni.so; do
         entry="base/lib/$abi/$library"
@@ -130,18 +169,34 @@ for abi in "${expected_abis[@]}"; do
             exit 1
         fi
     done
+    symbol_entry="$abi/libgojni.so.dbg"
+    if ! grep -Fxq "$symbol_entry" "$symbol_entries"; then
+        echo "Native debug-symbol archive is missing $symbol_entry" >&2
+        exit 1
+    fi
 done
+
+arm64_symbols="$temporary_dir/libgojni-arm64.so.dbg"
+unzip -p "$output_symbols" arm64-v8a/libgojni.so.dbg > "$arm64_symbols"
+if ! "$llvm_readelf" -S "$arm64_symbols" 2>/dev/null | grep '\.symtab' >/dev/null; then
+    echo "Native debug-symbol archive does not contain an ELF symbol table" >&2
+    exit 1
+fi
 
 (
     cd "$MEGAPROXY_RELEASE_DIR"
     checksum_files=()
     while IFS= read -r file; do
         checksum_files+=("$file")
-    done < <(find . -maxdepth 1 -type f \( -name 'mega-proxy-*.apk' -o -name 'mega-proxy.aab' \) -print | sort)
+    done < <(find . -maxdepth 1 -type f \
+        \( -name 'mega-proxy-*.apk' -o -name 'mega-proxy.aab' -o -name 'mega-proxy-native-debug-symbols.zip' \) \
+        -print | sort)
     shasum -a 256 "${checksum_files[@]}" > SHA256SUMS
 )
 
 echo
 echo "Signed release App Bundle:"
 ls -lh "$output_bundle"
+echo "Native debug symbols:"
+ls -lh "$output_symbols"
 echo "Checksums: $MEGAPROXY_RELEASE_DIR/SHA256SUMS"

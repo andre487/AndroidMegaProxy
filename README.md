@@ -206,7 +206,7 @@ The command-line build does not require Android Studio. It requires:
 - Go 1.26 or newer
 - `gomobile`
 - Android SDK Platform 35
-- Android Build Tools 34.0.0
+- Android SDK Platform 36 and Build Tools 36.0.0
 - Android NDK 29.0.14206865
 
 Example environment on macOS:
@@ -294,9 +294,10 @@ universal APK used for reproducible F-Droid verification:
 The scripts read the default signing key from `$HOME/AndroidApkKey` and its password from
 `$HOME/.my-tokens/android-key-password`. Override these with `MEGAPROXY_KEYSTORE_PATH`,
 `MEGAPROXY_KEY_ALIAS`, `MEGAPROXY_KEY_PASSWORD_FILE`, and `MEGAPROXY_KEY_PASSWORD`. The signed
-ABI-specific and universal APKs, the signed universal App Bundle, and `SHA256SUMS` are
-written to `dist/release`. The App Bundle contains every supported ABI; app stores generate and
-serve optimized device-specific APK splits from it.
+ABI-specific and universal APKs, the signed universal App Bundle, its native debug-symbol archive,
+and `SHA256SUMS` are written to `dist/release`. The App Bundle contains every supported ABI; app
+stores generate and serve optimized device-specific APK splits from it. Go native symbols are
+provided as `mega-proxy-native-debug-symbols.zip` for upload in Play Console.
 
 Pushing a version tag runs the GitHub release workflow, builds and verifies every APK and the App
 Bundle, and attaches the artifacts to a GitHub Release. The tag must match `versionName` exactly:
