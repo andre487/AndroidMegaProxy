@@ -202,7 +202,7 @@ For production-ready HTTPS, SSH, and SSH-with-jump server configurations, see th
 
 The command-line build does not require Android Studio. It requires:
 
-- JDK 17
+- JDK 21
 - Go 1.26 or newer
 - `gomobile`
 - Android SDK Platform 35
@@ -212,7 +212,7 @@ The command-line build does not require Android Studio. It requires:
 Example environment on macOS:
 
 ```shell
-export JAVA_HOME="/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home"
+export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
 export PATH="$JAVA_HOME/bin:$HOME/go/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"

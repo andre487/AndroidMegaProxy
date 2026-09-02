@@ -8,7 +8,7 @@ if [[ -f "$HOME/.zshrc.extra" ]]; then
     source "$HOME/.zshrc.extra"
 fi
 
-: "${JAVA_HOME:=/Library/Java/JavaVirtualMachines/temurin-17.jdk/Contents/Home}"
+: "${JAVA_HOME:=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home}"
 : "${ANDROID_HOME:=$HOME/Library/Android/sdk}"
 : "${ANDROID_NDK_HOME:=$ANDROID_HOME/ndk/29.0.14206865}"
 : "${MEGAPROXY_KEYSTORE_PATH:=$HOME/AndroidApkKey}"
