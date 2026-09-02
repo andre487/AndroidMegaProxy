@@ -72,7 +72,7 @@
             android:permission="android.permission.BIND_VPN_SERVICE">
             <property
                 android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="User-configured per-app VPN tunnel" />
+                android:value="User-initiated and always-on VPN tunnel that continuously routes selected apps or all device traffic through user-configured proxy profiles" />
             <intent-filter>
                 <action android:name="android.net.VpnService" />
             </intent-filter>
