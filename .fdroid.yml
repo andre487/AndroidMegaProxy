@@ -1,7 +1,8 @@
 Categories:
   - Connectivity
 License: MIT
-WebSite: https://github.com/andre487/AndroidMegaProxy
+AuthorName: Andrey Prokopyuk
+AuthorWebSite: https://github.com/andre487
 SourceCode: https://github.com/andre487/AndroidMegaProxy
 IssueTracker: https://github.com/andre487/AndroidMegaProxy/issues
 Changelog: https://github.com/andre487/AndroidMegaProxy/releases
@@ -11,15 +12,19 @@ RepoType: git
 Repo: https://github.com/andre487/AndroidMegaProxy.git
 
 Builds:
-  - versionName: 0.0.5
-    versionCode: 5
-    commit: v0.0.5
+  - versionName: 0.0.6
+    versionCode: 6
+    commit: v0.0.6
     subdir: app
     ndk: 29.0.14206865
     sudo:
       - apt-get update
       - apt-get install -t trixie-backports -y golang-go
-      - apt-get install -y gcc libc-dev make
+      - apt-get install -y gcc libc-dev make openjdk-21-jdk-headless
+      - mkdir -p /home/runner/work/AndroidMegaProxy
+      - chown -R vagrant:vagrant /home/runner
+    prebuild:
+      - sdkmanager 'platforms;android-26'
     gradle:
       - yes
     srclibs:
@@ -32,9 +37,13 @@ Builds:
       - export GOROOT=$$go$$
       - export GOPATH=$HOME/go
       - export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
+      - cp -a .. /home/runner/work/AndroidMegaProxy/AndroidMegaProxy
+      - cd /home/runner/work/AndroidMegaProxy/AndroidMegaProxy/app
       - ../scripts/build-fdroid-native.sh
+      - mkdir -p $OLDPWD/libs
+      - cp libs/megaproxy.aar $OLDPWD/libs/
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.0.5
-CurrentVersionCode: 5
+CurrentVersion: 0.0.6
+CurrentVersionCode: 6
