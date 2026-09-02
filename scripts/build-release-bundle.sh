@@ -99,7 +99,7 @@ echo "Building universal native AAR for the App Bundle"
         -target=android \
         -androidapi 26 \
         -trimpath \
-        -ldflags="-linkmode=external -buildid= -extldflags=-Wl,--build-id=sha1" \
+        -ldflags="-linkmode=external -buildid= -X=runtime.modinfo= -extldflags=-Wl,--build-id=sha1" \
         -o ../app/libs/megaproxy.aar \
         ./mobile
 )

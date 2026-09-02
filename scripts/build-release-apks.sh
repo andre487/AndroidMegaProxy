@@ -57,8 +57,9 @@ keytool -list \
     -alias "$MEGAPROXY_KEY_ALIAS" >/dev/null
 
 version_name="$(sed -nE 's/^[[:space:]]*versionName = "([^"]+)"/\1/p' "$project_dir/app/build.gradle.kts" | head -n 1)"
-if [[ -z "$version_name" ]]; then
-    echo "Unable to determine versionName from app/build.gradle.kts" >&2
+version_code_base="$(sed -nE 's/^[[:space:]]*val versionCodeBase = ([0-9]+)/\1/p' "$project_dir/app/build.gradle.kts" | head -n 1)"
+if [[ -z "$version_name" || -z "$version_code_base" ]]; then
+    echo "Unable to determine versionName or versionCodeBase from app/build.gradle.kts" >&2
     exit 1
 fi
 
@@ -129,10 +130,10 @@ echo "Running native tests"
 
 # gomobile architecture names and their corresponding Android ABI names.
 targets=(
-    "arm64:arm64-v8a:9002"
-    "arm:armeabi-v7a:9001"
-    "amd64:x86_64:9004"
-    "386:x86:9003"
+    "arm64:arm64-v8a:$((version_code_base * 1000 + 2))"
+    "arm:armeabi-v7a:$((version_code_base * 1000 + 1))"
+    "amd64:x86_64:$((version_code_base * 1000 + 4))"
+    "386:x86:$((version_code_base * 1000 + 3))"
 )
 
 # A clean checkout has no app/libs/megaproxy.aar. Gradle resolves local AAR
@@ -149,7 +150,7 @@ echo "Building initial native AAR for $first_android_abi"
         -target="android/$first_go_arch" \
         -androidapi 26 \
         -trimpath \
-        -ldflags="-s -w -buildid=" \
+        -ldflags="-s -w -buildid= -X=runtime.modinfo=" \
         -o ../app/libs/megaproxy.aar \
         ./mobile
 )
@@ -177,7 +178,7 @@ for target in "${targets[@]}"; do
                 -target="android/$go_arch" \
                 -androidapi 26 \
                 -trimpath \
-                -ldflags="-s -w -buildid=" \
+                -ldflags="-s -w -buildid= -X=runtime.modinfo=" \
                 -o ../app/libs/megaproxy.aar \
                 ./mobile
         )
@@ -213,7 +214,7 @@ echo "Building optimized native AAR for the universal APK"
         -target=android \
         -androidapi 26 \
         -trimpath \
-        -ldflags="-s -w -buildid=" \
+        -ldflags="-s -w -buildid= -X=runtime.modinfo=" \
         -o ../app/libs/megaproxy.aar \
         ./mobile
 )
@@ -232,7 +233,7 @@ if [[ ! -f "$built_apk" ]]; then
 fi
 cp "$built_apk" "$universal_apk"
 verify_release_apk "$universal_apk"
-verify_release_version_code "$universal_apk" 9000
+verify_release_version_code "$universal_apk" "$((version_code_base * 1000))"
 
 (
     cd "$MEGAPROXY_RELEASE_DIR"
