@@ -85,6 +85,20 @@ verify_release_apk() {
     fi
 }
 
+verify_release_version_code() {
+    local apk="$1"
+    local expected_version_code="$2"
+    local actual_version_code
+    actual_version_code="$(
+        "$ANDROID_HOME/build-tools/34.0.0/aapt" dump badging "$apk" \
+            | sed -n "s/^package:.*versionCode='\([^']*\)'.*/\1/p"
+    )"
+    if [[ "$actual_version_code" != "$expected_version_code" ]]; then
+        echo "Unexpected versionCode for $apk: expected $expected_version_code, got $actual_version_code" >&2
+        exit 1
+    fi
+}
+
 temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/megaproxy-release.XXXXXX")"
 original_aar="$project_dir/app/libs/megaproxy.aar"
 had_original_aar=false
@@ -115,10 +129,10 @@ echo "Running native tests"
 
 # gomobile architecture names and their corresponding Android ABI names.
 targets=(
-    "arm64:arm64-v8a"
-    "arm:armeabi-v7a"
-    "amd64:x86_64"
-    "386:x86"
+    "arm64:arm64-v8a:8002"
+    "arm:armeabi-v7a:8001"
+    "amd64:x86_64:8004"
+    "386:x86:8003"
 )
 
 # A clean checkout has no app/libs/megaproxy.aar. Gradle resolves local AAR
@@ -126,7 +140,8 @@ targets=(
 # before invoking Gradle and reuse it for the first release APK below.
 first_target="${targets[0]}"
 first_go_arch="${first_target%%:*}"
-first_android_abi="${first_target##*:}"
+first_target_rest="${first_target#*:}"
+first_android_abi="${first_target_rest%%:*}"
 echo "Building initial native AAR for $first_android_abi"
 (
     cd "$project_dir/native"
@@ -147,7 +162,9 @@ echo "Running Android unit tests"
 
 for target in "${targets[@]}"; do
     go_arch="${target%%:*}"
-    android_abi="${target##*:}"
+    target_rest="${target#*:}"
+    android_abi="${target_rest%%:*}"
+    version_code="${target_rest##*:}"
     output_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-${android_abi}.apk"
 
     if [[ "$android_abi" == "$first_android_abi" ]]; then
@@ -173,7 +190,7 @@ for target in "${targets[@]}"; do
         # requested in one task graph, Gradle does not guarantee that clean has
         # finished before every generated-resource task starts.
         ./gradlew clean
-        ./gradlew assembleRelease
+        ./gradlew assembleRelease -PmegaproxyVersionVariant="$android_abi"
     )
     built_apk="$project_dir/app/build/outputs/apk/release/app-release.apk"
     if [[ ! -f "$built_apk" ]]; then
@@ -183,6 +200,7 @@ for target in "${targets[@]}"; do
     cp "$built_apk" "$output_apk"
 
     verify_release_apk "$output_apk"
+    verify_release_version_code "$output_apk" "$version_code"
 done
 
 # F-Droid verifies this universal APK against a clean source build before
@@ -204,7 +222,7 @@ echo "Building and signing universal APK"
 (
     cd "$project_dir"
     ./gradlew clean
-    ./gradlew assembleRelease
+    ./gradlew assembleRelease -PmegaproxyVersionVariant=universal
 )
 universal_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-universal.apk"
 built_apk="$project_dir/app/build/outputs/apk/release/app-release.apk"
@@ -214,6 +232,7 @@ if [[ ! -f "$built_apk" ]]; then
 fi
 cp "$built_apk" "$universal_apk"
 verify_release_apk "$universal_apk"
+verify_release_version_code "$universal_apk" 8000
 
 (
     cd "$MEGAPROXY_RELEASE_DIR"
