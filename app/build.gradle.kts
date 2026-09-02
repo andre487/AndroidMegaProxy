@@ -8,6 +8,17 @@ val releaseKeystorePath = providers.environmentVariable("MEGAPROXY_KEYSTORE_PATH
 val releaseKeystorePassword = providers.environmentVariable("MEGAPROXY_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("MEGAPROXY_KEY_ALIAS").orNull
 val releaseKeyPassword = providers.environmentVariable("MEGAPROXY_KEY_PASSWORD").orNull
+val versionCodeBase = 8
+val versionVariant = providers.gradleProperty("megaproxyVersionVariant")
+    .orElse("universal")
+    .get()
+val versionVariantCode = mapOf(
+    "universal" to 0,
+    "armeabi-v7a" to 1,
+    "arm64-v8a" to 2,
+    "x86" to 3,
+    "x86_64" to 4,
+)[versionVariant] ?: throw GradleException("Unsupported MegaProxy version variant: $versionVariant")
 val gitCommitHash = providers.environmentVariable("GITHUB_SHA")
     .orElse(providers.environmentVariable("MEGAPROXY_GIT_COMMIT"))
     .orElse(providers.exec {
@@ -28,8 +39,11 @@ android {
         applicationId = "net.megaproxy487"
         minSdk = 26
         targetSdk = 35
-        versionCode = 7
-        versionName = "0.0.7"
+        // Each APK has a unique, monotonically ordered code. Keeping the
+        // universal code below the ABI variants lets app stores prefer the
+        // smaller compatible APK when both are available.
+        versionCode = versionCodeBase * 1000 + versionVariantCode
+        versionName = "0.0.8"
         buildConfigField("String", "GIT_COMMIT_HASH", "\"$gitCommitHash\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
