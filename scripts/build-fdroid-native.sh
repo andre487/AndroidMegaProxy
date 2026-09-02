@@ -34,6 +34,6 @@ gomobile bind \
   -target="$gomobile_target" \
   -androidapi 26 \
   -trimpath \
-  -ldflags='-s -w -buildid=' \
+  -ldflags='-s -w -buildid= -X=runtime.modinfo=' \
   -o "$project_dir/app/libs/megaproxy.aar" \
   ./mobile

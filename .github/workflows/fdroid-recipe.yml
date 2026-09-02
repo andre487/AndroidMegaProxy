@@ -32,4 +32,13 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Compare the recipe with fdroiddata
-        run: ./scripts/check-fdroid-metadata-sync.sh
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          if ./scripts/check-fdroid-metadata-sync.sh; then
+            exit 0
+          fi
+          echo "::warning title=F-Droid recipe is out of sync::Update the fdroiddata merge request after publishing the release."
+          if [[ "$EVENT_NAME" != "push" ]]; then
+            exit 1
+          fi
