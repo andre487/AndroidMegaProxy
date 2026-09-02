@@ -1,4 +1,4 @@
-name: Release APKs
+name: Release Android artifacts
 
 on:
   push:
@@ -14,7 +14,7 @@ concurrency:
 
 jobs:
   release:
-    name: Build and publish signed APKs
+    name: Build and publish signed Android artifacts
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
@@ -88,11 +88,18 @@ jobs:
           MEGAPROXY_GIT_COMMIT: ${{ github.sha }}
         run: ./scripts/build-release-apks.sh
 
+      - name: Build signed App Bundle
+        env:
+          MEGAPROXY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          MEGAPROXY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          MEGAPROXY_GIT_COMMIT: ${{ github.sha }}
+        run: ./scripts/build-release-bundle.sh
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          assets=(dist/release/*.apk dist/release/SHA256SUMS)
+          assets=(dist/release/*.apk dist/release/*.aab dist/release/SHA256SUMS)
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
