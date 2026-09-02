@@ -288,15 +288,18 @@ universal APK used for reproducible F-Droid verification:
 
 ```shell
 ./scripts/build-release-apks.sh
+./scripts/build-release-bundle.sh
 ```
 
-The script reads its default signing key from `$HOME/AndroidApkKey` and its password from
+The scripts read the default signing key from `$HOME/AndroidApkKey` and its password from
 `$HOME/.my-tokens/android-key-password`. Override these with `MEGAPROXY_KEYSTORE_PATH`,
-`MEGAPROXY_KEY_ALIAS`, `MEGAPROXY_KEY_PASSWORD_FILE`, and `MEGAPROXY_KEY_PASSWORD`. Outputs and
-`SHA256SUMS` are written to `dist/release`.
+`MEGAPROXY_KEY_ALIAS`, `MEGAPROXY_KEY_PASSWORD_FILE`, and `MEGAPROXY_KEY_PASSWORD`. The signed
+ABI-specific and universal APKs, the signed universal App Bundle, and `SHA256SUMS` are
+written to `dist/release`. The App Bundle contains every supported ABI; app stores generate and
+serve optimized device-specific APK splits from it.
 
-Pushing a version tag runs the GitHub release workflow, builds and verifies every APK, and attaches
-the artifacts to a GitHub Release. The tag must match `versionName` exactly:
+Pushing a version tag runs the GitHub release workflow, builds and verifies every APK and the App
+Bundle, and attaches the artifacts to a GitHub Release. The tag must match `versionName` exactly:
 
 ```shell
 git tag v0.0.4
