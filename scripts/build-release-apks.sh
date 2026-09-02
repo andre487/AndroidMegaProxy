@@ -129,10 +129,10 @@ echo "Running native tests"
 
 # gomobile architecture names and their corresponding Android ABI names.
 targets=(
-    "arm64:arm64-v8a:8002"
-    "arm:armeabi-v7a:8001"
-    "amd64:x86_64:8004"
-    "386:x86:8003"
+    "arm64:arm64-v8a:9002"
+    "arm:armeabi-v7a:9001"
+    "amd64:x86_64:9004"
+    "386:x86:9003"
 )
 
 # A clean checkout has no app/libs/megaproxy.aar. Gradle resolves local AAR
@@ -232,7 +232,7 @@ if [[ ! -f "$built_apk" ]]; then
 fi
 cp "$built_apk" "$universal_apk"
 verify_release_apk "$universal_apk"
-verify_release_version_code "$universal_apk" 8000
+verify_release_version_code "$universal_apk" 9000
 
 (
     cd "$MEGAPROXY_RELEASE_DIR"
