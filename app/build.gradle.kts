@@ -28,8 +28,8 @@ android {
         applicationId = "net.megaproxy487"
         minSdk = 26
         targetSdk = 35
-        versionCode = 6
-        versionName = "0.0.6"
+        versionCode = 7
+        versionName = "0.0.7"
         buildConfigField("String", "GIT_COMMIT_HASH", "\"$gitCommitHash\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -75,7 +75,12 @@ android {
     bundle { language { enableSplit = false } }
 }
 
-kotlin { jvmToolchain(17) }
+kotlin {
+    jvmToolchain(21)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+    }
+}
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2025.01.01"))
