@@ -11,9 +11,9 @@ RepoType: git
 Repo: https://github.com/andre487/AndroidMegaProxy.git
 
 Builds:
-  - versionName: 0.0.5
-    versionCode: 5
-    commit: v0.0.5
+  - versionName: 0.0.6
+    versionCode: 6
+    commit: v0.0.6
     subdir: app
     ndk: 29.0.14206865
     sudo:
@@ -45,5 +45,5 @@ Builds:
 
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
-CurrentVersion: 0.0.5
-CurrentVersionCode: 5
+CurrentVersion: 0.0.6
+CurrentVersionCode: 6
