@@ -32,13 +32,13 @@ val gitCommitHash = providers.environmentVariable("GITHUB_SHA")
 
 android {
     namespace = "net.megaproxy487"
-    compileSdk = 35
-    buildToolsVersion = "34.0.0"
+    compileSdk = 36
+    buildToolsVersion = "36.0.0"
 
     defaultConfig {
         applicationId = "net.megaproxy487"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         // Each APK has a unique, monotonically ordered code. Keeping the
         // universal code below the ABI variants lets app stores prefer the
         // smaller compatible APK when both are available.
@@ -73,6 +73,7 @@ android {
             signingConfig = signingConfigs.findByName("release")
             isMinifyEnabled = true
             isShrinkResources = true
+            ndk.debugSymbolLevel = "SYMBOL_TABLE"
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
