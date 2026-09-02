@@ -1,7 +1,8 @@
 Categories:
   - Connectivity
 License: MIT
-WebSite: https://github.com/andre487/AndroidMegaProxy
+AuthorName: Andrey Prokopyuk
+AuthorWebSite: https://github.com/andre487
 SourceCode: https://github.com/andre487/AndroidMegaProxy
 IssueTracker: https://github.com/andre487/AndroidMegaProxy/issues
 Changelog: https://github.com/andre487/AndroidMegaProxy/releases
@@ -17,14 +18,13 @@ Builds:
     subdir: app
     ndk: 29.0.14206865
     sudo:
-      - echo "deb https://deb.debian.org/debian bookworm main" > /etc/apt/sources.list.d/bookworm.list
       - apt-get update
       - apt-get install -t trixie-backports -y golang-go
-      - apt-get install -y gcc libc-dev make
-      - apt-get install -y -t bookworm openjdk-17-jdk-headless
-      - sdkmanager 'platforms;android-26'
+      - apt-get install -y gcc libc-dev make openjdk-21-jdk-headless
       - mkdir -p /home/runner/work/AndroidMegaProxy
       - chown -R vagrant:vagrant /home/runner
+    prebuild:
+      - sdkmanager 'platforms;android-26'
     gradle:
       - yes
     srclibs:
