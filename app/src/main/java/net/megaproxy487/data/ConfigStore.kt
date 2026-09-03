@@ -24,6 +24,13 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 
+data class ConfigurationImportResult(
+    val added: List<ProxyProfile>,
+    val updated: List<ProxyProfile>,
+    val unchanged: List<ProxyProfile>,
+    val missing: List<ProxyProfile>,
+)
+
 class ConfigStore(context: Context) {
     private val prefs = context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE)
 
@@ -209,46 +216,92 @@ class ConfigStore(context: Context) {
     fun importProfiles(imported: List<ImportedProxy>): List<ProxyProfile> {
         val existing = profiles()
         val allocated = existing.toMutableList()
-        val added = imported.map { source ->
-            val profile = ProxyProfile(
-                id = UUID.randomUUID().toString(),
-                name = source.name,
-                colorIndex = ProfileColorMatcher.colorIndexForFlag(
-                    source.countryCode,
-                    nextColorIndex(allocated),
-                ),
-                countryCode = source.countryCode,
-                config = source.config,
-            )
-            allocated += profile
-            profile
+        val changed = mutableListOf<ProxyProfile>()
+        imported.forEach { source ->
+            val matchIndex = allocated.indexOfFirst { it.importIdentity() == source.importIdentity() }
+            if (matchIndex >= 0) {
+                val current = allocated[matchIndex]
+                val updated = current.copy(
+                    name = source.name.ifBlank { current.name },
+                    countryCode = source.countryCode.ifBlank { current.countryCode },
+                    config = current.config.copy(
+                        type = source.config.type,
+                        host = source.config.host,
+                        port = source.config.port,
+                        username = source.config.username,
+                        password = source.config.password.ifEmpty { current.config.password },
+                    ),
+                )
+                allocated[matchIndex] = updated
+                if (updated != current) changed += updated
+            } else {
+                val profile = ProxyProfile(
+                    id = UUID.randomUUID().toString(),
+                    name = source.name,
+                    colorIndex = ProfileColorMatcher.colorIndexForFlag(
+                        source.countryCode,
+                        nextColorIndex(allocated),
+                    ),
+                    countryCode = source.countryCode,
+                    config = source.config,
+                )
+                allocated += profile
+                changed += profile
+            }
         }
-        writeProfiles(existing + added)
-        return added
+        if (allocated != existing) writeProfiles(allocated)
+        return changed
     }
 
     @Synchronized
-    fun importConfiguration(configuration: PortableConfiguration): List<ProxyProfile> {
+    fun importConfiguration(configuration: PortableConfiguration): ConfigurationImportResult {
         val existing = profiles()
-        val idMap = mutableMapOf<String, String>()
-        val added = configuration.profiles.map { source ->
-            val newId = UUID.randomUUID().toString()
-            idMap[source.id] = newId
-            source.copy(id = newId)
+        val existingById = existing.associateBy(ProxyProfile::id)
+        val importedById = configuration.profiles.associateBy(ProxyProfile::id)
+        val added = mutableListOf<ProxyProfile>()
+        val updated = mutableListOf<ProxyProfile>()
+        val unchanged = mutableListOf<ProxyProfile>()
+        val merged = configuration.profiles.map { source ->
+            val current = existingById[source.id]
+            val presence = configuration.secretPresence[source.id] ?: ProfileSecretPresence()
+            val resolved = if (current == null) source else source.copy(config = source.config.copy(
+                password = source.config.password.takeIf { presence.password } ?: current.config.password,
+                privateKey = source.config.privateKey.takeIf { presence.privateKey } ?: current.config.privateKey,
+                jumpPassword = source.config.jumpPassword.takeIf { presence.jumpPassword } ?: current.config.jumpPassword,
+                jumpPrivateKey = source.config.jumpPrivateKey.takeIf { presence.jumpPrivateKey } ?: current.config.jumpPrivateKey,
+            ))
+            when {
+                current == null -> added += resolved
+                current == resolved -> unchanged += resolved
+                else -> updated += resolved
+            }
+            resolved
         }
-        writeProfiles(existing + added)
+        val missing = existing.filter { it.id !in importedById }
+        writeProfiles(existing.map { importedById[it.id]?.let { mergedProfile ->
+            merged.first { profile -> profile.id == mergedProfile.id }
+        } ?: it } + added)
         val editor = prefs.edit()
             .putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
-        configuration.activeProfileId?.let(idMap::get)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
-        configuration.alwaysOnProfileId?.let(idMap::get)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
+        configuration.activeProfileId?.takeIf(importedById::containsKey)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
+        configuration.alwaysOnProfileId?.takeIf(importedById::containsKey)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
         editor.apply()
         configuration.globalConnectionSettings?.let { importedSettings ->
             saveGlobalConnectionSettings(importedSettings.copy(
-                failoverProfileIds = importedSettings.failoverProfileIds.mapNotNull(idMap::get),
+                failoverProfileIds = importedSettings.failoverProfileIds.filter(importedById::containsKey),
             ))
         }
-        return added
+        return ConfigurationImportResult(added, updated, unchanged, missing)
     }
+
+    private fun ProxyProfile.importIdentity(): String = config.importIdentity()
+
+    private fun ImportedProxy.importIdentity(): String = config.importIdentity()
+
+    private fun ProxyConfig.importIdentity(): String = listOf(
+        type.name, host.trim().lowercase(), port.toString(), username,
+        jumpHost.trim().lowercase(), jumpPort.toString(), jumpUsername,
+    ).joinToString("\u0000")
 
     @Synchronized
     fun saveProfile(profile: ProxyProfile) {
@@ -294,6 +347,28 @@ class ConfigStore(context: Context) {
         }
         if (connectionWasDeleted && isFailoverActive()) setFailoverState(false, null)
         return true
+    }
+
+    @Synchronized
+    fun deleteProfiles(ids: Set<String>): Boolean {
+        if (ids.isEmpty()) return false
+        val current = profiles()
+        val remaining = current.filter { it.id !in ids }
+        if (remaining.isEmpty() || remaining.size == current.size) return false
+        val removedIds = current.map(ProxyProfile::id).toSet() - remaining.map(ProxyProfile::id).toSet()
+        val replacement = remaining.first().id
+        val connectionWasDeleted = connectionProfileId() in removedIds
+        val editor = prefs.edit().putString(PROFILES, encodeProfiles(remaining))
+        if (activeProfileId() in removedIds) editor.putString(ACTIVE_PROFILE_ID, replacement)
+        if (alwaysOnProfileId() in removedIds) editor.putString(ALWAYS_ON_PROFILE_ID, replacement)
+        if (connectionWasDeleted) editor.putString(CONNECTION_PROFILE_ID, replacement)
+        editor.apply()
+        val settings = globalConnectionSettings()
+        saveGlobalConnectionSettings(settings.copy(
+            failoverProfileIds = settings.failoverProfileIds.filterNot(removedIds::contains),
+        ))
+        if (connectionWasDeleted && isFailoverActive()) setFailoverState(false, null)
+        return connectionWasDeleted
     }
 
     /** Compatibility accessor for callers that operate on the selected profile. */

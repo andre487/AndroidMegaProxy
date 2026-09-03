@@ -8,7 +8,7 @@ val releaseKeystorePath = providers.environmentVariable("MEGAPROXY_KEYSTORE_PATH
 val releaseKeystorePassword = providers.environmentVariable("MEGAPROXY_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("MEGAPROXY_KEY_ALIAS").orNull
 val releaseKeyPassword = providers.environmentVariable("MEGAPROXY_KEY_PASSWORD").orNull
-val versionCodeBase = 10
+val versionCodeBase = 11
 val versionVariant = providers.gradleProperty("megaproxyVersionVariant")
     .orElse("universal")
     .get()
@@ -43,7 +43,7 @@ android {
         // universal code below the ABI variants lets app stores prefer the
         // smaller compatible APK when both are available.
         versionCode = versionCodeBase * 1000 + versionVariantCode
-        versionName = "0.0.10"
+        versionName = "0.0.11"
         buildConfigField("String", "GIT_COMMIT_HASH", "\"$gitCommitHash\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         if (versionVariant != "universal") {

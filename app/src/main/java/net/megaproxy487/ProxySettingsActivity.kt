@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.WindowInsets
@@ -103,6 +104,102 @@ class ProfilesActivity : LocalizedActivity() {
     }
 }
 
+private data class MissingProfilesReview(
+    val profiles: List<ProxyProfile>,
+    val importSummary: String,
+)
+
+private data class ProfileOptionsReview(
+    val profile: ProxyProfile,
+    val changedGroups: List<Int>,
+)
+
+private data class ImportOptionsReview(
+    val configuration: PortableConfiguration,
+    val existingProfiles: Map<String, ProxyProfile>,
+    val profiles: List<ProfileOptionsReview>,
+    val globalChanged: Boolean,
+    val currentDiagnosticLogLimitMb: Int,
+)
+
+private fun profileOptionGroups(current: ProxyProfile, imported: ProxyProfile): List<Int> = buildList {
+    if (current.config.type != imported.config.type || current.config.port != imported.config.port ||
+        current.config.jumpPort != imported.config.jumpPort ||
+        current.config.sameJumpAuthentication != imported.config.sameJumpAuthentication
+    ) add(R.string.import_option_connection)
+    if (current.config.allowInvalidProxyCertificate != imported.config.allowInvalidProxyCertificate ||
+        current.config.profile != imported.config.profile || current.config.customJa3 != imported.config.customJa3 ||
+        current.config.sshProfile != imported.config.sshProfile ||
+        current.config.trustedHostKey != imported.config.trustedHostKey ||
+        current.config.acceptAnyHostKey != imported.config.acceptAnyHostKey ||
+        current.config.jumpTrustedHostKey != imported.config.jumpTrustedHostKey ||
+        current.config.jumpAcceptAnyHostKey != imported.config.jumpAcceptAnyHostKey
+    ) add(R.string.import_option_security)
+    if (current.config.dnsProvider != imported.config.dnsProvider ||
+        current.config.customDohUrl != imported.config.customDohUrl
+    ) add(R.string.import_option_dns)
+    if (current.config.selectedPackages != imported.config.selectedPackages ||
+        current.config.allowIpv6 != imported.config.allowIpv6 ||
+        current.config.routeAllApps != imported.config.routeAllApps ||
+        current.config.bypassLocalNetworks != imported.config.bypassLocalNetworks
+    ) add(R.string.import_option_routing)
+}
+
+private fun keepLocalProfileOptions(current: ProxyProfile, imported: ProxyProfile): ProxyProfile = current.copy(
+    id = imported.id,
+    name = imported.name,
+    colorIndex = imported.colorIndex,
+    countryCode = imported.countryCode,
+    config = current.config.copy(
+        host = imported.config.host,
+        username = imported.config.username,
+        password = imported.config.password,
+        privateKey = imported.config.privateKey,
+        jumpHost = imported.config.jumpHost,
+        jumpUsername = imported.config.jumpUsername,
+        jumpPassword = imported.config.jumpPassword,
+        jumpPrivateKey = imported.config.jumpPrivateKey,
+    ),
+)
+
+private fun importOptionKey(profileId: String, group: Int) = "$profileId:$group"
+
+private fun applySelectedProfileOptions(
+    current: ProxyProfile,
+    imported: ProxyProfile,
+    selected: Set<String>,
+): ProxyProfile {
+    var result = keepLocalProfileOptions(current, imported)
+    fun selected(group: Int) = importOptionKey(imported.id, group) in selected
+    if (selected(R.string.import_option_connection)) result = result.copy(config = result.config.copy(
+        type = imported.config.type,
+        port = imported.config.port,
+        jumpPort = imported.config.jumpPort,
+        sameJumpAuthentication = imported.config.sameJumpAuthentication,
+    ))
+    if (selected(R.string.import_option_security)) result = result.copy(config = result.config.copy(
+        allowInvalidProxyCertificate = imported.config.allowInvalidProxyCertificate,
+        profile = imported.config.profile,
+        customJa3 = imported.config.customJa3,
+        sshProfile = imported.config.sshProfile,
+        trustedHostKey = imported.config.trustedHostKey,
+        acceptAnyHostKey = imported.config.acceptAnyHostKey,
+        jumpTrustedHostKey = imported.config.jumpTrustedHostKey,
+        jumpAcceptAnyHostKey = imported.config.jumpAcceptAnyHostKey,
+    ))
+    if (selected(R.string.import_option_dns)) result = result.copy(config = result.config.copy(
+        dnsProvider = imported.config.dnsProvider,
+        customDohUrl = imported.config.customDohUrl,
+    ))
+    if (selected(R.string.import_option_routing)) result = result.copy(config = result.config.copy(
+        selectedPackages = imported.config.selectedPackages,
+        allowIpv6 = imported.config.allowIpv6,
+        routeAllApps = imported.config.routeAllApps,
+        bypassLocalNetworks = imported.config.bypassLocalNetworks,
+    ))
+    return result
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun SettingsScreen(activity: Activity) {
@@ -122,6 +219,11 @@ private fun SettingsScreen(activity: Activity) {
     var pendingExportContent by remember { mutableStateOf("") }
     var transferMessage by remember { mutableStateOf<String?>(null) }
     var pendingUnsafeImport by remember { mutableStateOf<PortableConfiguration?>(null) }
+    var missingProfilesReview by remember { mutableStateOf<MissingProfilesReview?>(null) }
+    val selectedMissingProfileIds = remember { mutableStateListOf<String>() }
+    var importOptionsReview by remember { mutableStateOf<ImportOptionsReview?>(null) }
+    val selectedImportOptionKeys = remember { mutableStateListOf<String>() }
+    var applyImportedGlobalOptions by remember { mutableStateOf(false) }
     val lifecycleOwner = LocalLifecycleOwner.current
     val listState = rememberLazyListState()
     var draggedProfileId by remember { mutableStateOf<String?>(null) }
@@ -158,27 +260,76 @@ private fun SettingsScreen(activity: Activity) {
                         ?: error("Could not open the export file")
                 }
             }
-            result.onSuccess { transferMessage = "Configuration exported successfully." }
-                .onFailure { importError = it.message ?: "Could not export the configuration" }
+            result.onSuccess { transferMessage = activity.getString(R.string.configuration_exported) }
+                .onFailure {
+                    importError = activity.getString(
+                        R.string.configuration_export_failed,
+                        it.message ?: activity.getString(R.string.unknown_error),
+                    )
+                }
         }
     }
     fun applyJsonImport(configuration: PortableConfiguration) {
         scope.launch {
-            val added = withContext(ConfigIoDispatcher) {
+            val result = withContext(ConfigIoDispatcher) {
                 store.importConfiguration(configuration).also {
                     if (ProxyVpnService.isRunning) store.markPendingReconnect()
                     PersistentDiagnosticLog.setLimitMb(store.diagnosticLogLimitMb())
                 }
             }
             refresh()
-            val missingPasswords = added.count { it.config.password.isEmpty() }
-            transferMessage = buildString {
-                append("Imported ${added.size} profile(s) from JSON.")
-                if (configuration.skippedProfiles > 0) append(" Skipped ${configuration.skippedProfiles} invalid profile(s).")
-                if (missingPasswords > 0) append(" $missingPasswords profile(s) require a password.")
-                if (ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning) append(" Reconnect the VPN to apply the imported Always-on profile selection.")
+            val imported = result.added + result.updated + result.unchanged
+            val missingPasswords = imported.count { it.config.password.isEmpty() }
+            val summary = listOfNotNull(
+                activity.getString(R.string.config_import_summary, result.added.size, result.updated.size, result.unchanged.size),
+                activity.getString(R.string.config_import_skipped, configuration.skippedProfiles)
+                    .takeIf { configuration.skippedProfiles > 0 },
+                activity.getString(R.string.config_import_missing_passwords, missingPasswords)
+                    .takeIf { missingPasswords > 0 },
+                activity.getString(R.string.config_import_always_on_reconnect)
+                    .takeIf { ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning },
+            ).joinToString(" ")
+            if (result.missing.isEmpty()) {
+                transferMessage = summary
+            } else {
+                selectedMissingProfileIds.clear()
+                missingProfilesReview = MissingProfilesReview(result.missing, summary)
             }
             importedProfileCount = 0
+        }
+    }
+    fun prepareJsonImport(configuration: PortableConfiguration) {
+        scope.launch {
+            val review = withContext(ConfigIoDispatcher) {
+                val existing = store.profiles().associateBy(ProxyProfile::id)
+                val profileReviews = configuration.profiles.mapNotNull { imported ->
+                    val current = existing[imported.id] ?: return@mapNotNull null
+                    profileOptionGroups(current, imported)
+                        .takeIf(List<Int>::isNotEmpty)
+                        ?.let { ProfileOptionsReview(imported, it) }
+                }
+                val importedGlobal = configuration.globalConnectionSettings
+                val globalChanged = importedGlobal != null && (
+                    importedGlobal != store.globalConnectionSettings() ||
+                        configuration.diagnosticLogLimitMb != store.diagnosticLogLimitMb() ||
+                        configuration.activeProfileId?.let { it != store.activeProfileId() } == true ||
+                        configuration.alwaysOnProfileId?.let { it != store.alwaysOnProfileId() } == true
+                    )
+                ImportOptionsReview(
+                    configuration = configuration,
+                    existingProfiles = existing,
+                    profiles = profileReviews,
+                    globalChanged = globalChanged,
+                    currentDiagnosticLogLimitMb = store.diagnosticLogLimitMb(),
+                )
+            }
+            if (review.profiles.isEmpty() && !review.globalChanged) {
+                applyJsonImport(configuration)
+            } else {
+                selectedImportOptionKeys.clear()
+                applyImportedGlobalOptions = false
+                importOptionsReview = review
+            }
         }
     }
 
@@ -212,14 +363,14 @@ private fun SettingsScreen(activity: Activity) {
                     text.trimStart().startsWith('{')
                 if (isJson) {
                     val isMegaProxy = runCatching {
-                        org.json.JSONObject(text).optString("schema") == "dev.megaproxy.config"
+                        ConfigTransfer.isSupportedSchema(org.json.JSONObject(text).optString("schema"))
                     }.getOrDefault(false)
                     if (isMegaProxy) {
                         val configuration = ConfigTransfer.importJson(text)
                         if (configuration.profiles.any { it.config.allowInvalidProxyCertificate || it.config.acceptAnyHostKey || it.config.jumpAcceptAnyHostKey }) {
                             pendingUnsafeImport = configuration
                         } else {
-                            applyJsonImport(configuration)
+                            prepareJsonImport(configuration)
                         }
                     } else {
                         val imported = FoxyProxyParser.parse(text).getOrThrow()
@@ -229,7 +380,7 @@ private fun SettingsScreen(activity: Activity) {
                         skippedNonHttps = imported.skippedNonHttps
                         showImportFilterNotice = imported.skippedNonHttps > 0
                         if (imported.skippedNonHttps == 0) {
-                            transferMessage = "Imported ${added.size} HTTPS proxy profile(s) from FoxyProxy."
+                            transferMessage = activity.getString(R.string.imported_foxyproxy, added.size)
                         }
                     }
                 } else {
@@ -246,14 +397,19 @@ private fun SettingsScreen(activity: Activity) {
                     showImportFilterNotice = imported.skippedNonHttps > 0
                     if (imported.skippedNonHttps == 0) {
                         transferMessage = if (isSuperProxy) {
-                            "Imported ${added.size} HTTPS proxy profile(s) from Super Proxy. Certificate pins were not imported."
+                            activity.getString(R.string.imported_super_proxy, added.size)
                         } else {
-                            "Imported ${added.size} HTTPS proxy profile(s)."
+                            activity.getString(R.string.imported_https_profiles, added.size)
                         }
                     }
                 }
                 importError = null
-            }.onFailure { importError = it.message ?: "Could not import the configuration" }
+            }.onFailure {
+                importError = activity.getString(
+                    R.string.configuration_import_failed,
+                    it.message ?: activity.getString(R.string.unknown_error),
+                )
+            }
         }
     }
 
@@ -263,7 +419,7 @@ private fun SettingsScreen(activity: Activity) {
             title = { Text(stringResource(R.string.profiles)) },
             navigationIcon = {
                 IconButton(onClick = { activity.finish() }) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
             },
             actions = {
@@ -282,7 +438,7 @@ private fun SettingsScreen(activity: Activity) {
                     edit(profile)
                 }
             }) {
-                Icon(Icons.Default.Add, contentDescription = "Add profile")
+                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_profile))
             }
         },
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -298,7 +454,7 @@ private fun SettingsScreen(activity: Activity) {
             ) {
                 item {
                     Text(
-                        "Long press and drag a profile to reorder it.",
+                        stringResource(R.string.profile_reorder_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(top = 4.dp),
@@ -350,10 +506,10 @@ private fun SettingsScreen(activity: Activity) {
                         .semantics {
                             customActions = buildList {
                                 if (profiles.firstOrNull()?.id != profile.id) {
-                                    add(CustomAccessibilityAction("Move up") { moveProfile(profile.id, -1) })
+                                    add(CustomAccessibilityAction(activity.getString(R.string.move_up)) { moveProfile(profile.id, -1) })
                                 }
                                 if (profiles.lastOrNull()?.id != profile.id) {
-                                    add(CustomAccessibilityAction("Move down") { moveProfile(profile.id, 1) })
+                                    add(CustomAccessibilityAction(activity.getString(R.string.move_down)) { moveProfile(profile.id, 1) })
                                 }
                             }
                         },
@@ -376,8 +532,8 @@ private fun SettingsScreen(activity: Activity) {
     deleteProfile?.let { profile ->
         AlertDialog(
             onDismissRequest = { deleteProfile = null },
-            title = { Text("Delete ${profile.displayName}?") },
-            text = { Text("The profile and its encrypted credentials will be removed.") },
+            title = { Text(stringResource(R.string.delete_profile_title, profile.displayName)) },
+            text = { Text(stringResource(R.string.delete_profile_message)) },
             confirmButton = { TextButton(onClick = {
                 deleteProfile = null
                 scope.launch {
@@ -389,84 +545,230 @@ private fun SettingsScreen(activity: Activity) {
                     refresh()
                     if (reconnect) ProxyVpnService.reconnect(activity)
                 }
-            }, enabled = profiles.size > 1) { Text("Delete") } },
-            dismissButton = { TextButton(onClick = { deleteProfile = null }) { Text("Cancel") } },
+            }, enabled = profiles.size > 1) { Text(stringResource(R.string.delete)) } },
+            dismissButton = { TextButton(onClick = { deleteProfile = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (showImportFilterNotice) {
         AlertDialog(
             onDismissRequest = { showImportFilterNotice = false },
-            title = { Text("Only HTTPS proxies were imported") },
-            text = { Text("Imported $importedProfileCount HTTPS proxy profile(s). Skipped $skippedNonHttps non-HTTPS URL(s).") },
-            confirmButton = { TextButton(onClick = { showImportFilterNotice = false }) { Text("Continue") } },
+            title = { Text(stringResource(R.string.only_https_imported_title)) },
+            text = { Text(stringResource(R.string.only_https_imported_message, importedProfileCount, skippedNonHttps)) },
+            confirmButton = { TextButton(onClick = { showImportFilterNotice = false }) { Text(stringResource(R.string.continue_action)) } },
         )
     }
     if (showExportDialog) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            title = { Text("Export configuration") },
+            title = { Text(stringResource(R.string.export_configuration_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Format")
+                    Text(stringResource(R.string.format))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(exportFormat == ConfigExportFormat.JSON, { exportFormat = ConfigExportFormat.JSON })
-                        Text("JSON · all MegaProxy settings")
+                        Text(stringResource(R.string.export_json_description))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(exportFormat == ConfigExportFormat.PROXY_LIST, { exportFormat = ConfigExportFormat.PROXY_LIST })
-                        Text("ProxyList.txt · compatible proxy fields only")
+                        Text(stringResource(R.string.export_proxy_list_description))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(includePasswords, { includePasswords = it })
-                        Text("Include passwords")
+                        Text(stringResource(R.string.include_passwords))
                     }
                     if (!includePasswords) {
-                        Text("Passwords will be left empty and must be entered after import.", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.passwords_omitted_message), style = MaterialTheme.typography.bodySmall)
                     }
                     if (exportFormat == ConfigExportFormat.JSON) Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(includePrivateKeys, { includePrivateKeys = it })
-                        Text("Include SSH private keys")
+                        Text(stringResource(R.string.include_private_keys))
                     }
-                    if (includePrivateKeys) Text("Private keys will be exported in plain text.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                    if (includePrivateKeys) Text(stringResource(R.string.private_keys_plaintext_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = { TextButton(onClick = {
                 showExportDialog = false
                 if (includePasswords || includePrivateKeys) showPasswordExportWarning = true else launchExport()
-            }) { Text("Export") } },
-            dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text("Cancel") } },
+            }) { Text(stringResource(R.string.export_action)) } },
+            dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (showPasswordExportWarning) {
         AlertDialog(
             onDismissRequest = { showPasswordExportWarning = false },
-            title = { Text("Export secrets in plain text?") },
-            text = { Text("Anyone with access to the exported file will be able to read the selected passwords or SSH private keys. Store and transfer it securely.") },
+            title = { Text(stringResource(R.string.export_secrets_title)) },
+            text = { Text(stringResource(R.string.export_secrets_message)) },
             confirmButton = { TextButton(onClick = {
                 showPasswordExportWarning = false
                 launchExport()
-            }) { Text("Export anyway") } },
-            dismissButton = { TextButton(onClick = { showPasswordExportWarning = false }) { Text("Cancel") } },
+            }) { Text(stringResource(R.string.export_anyway)) } },
+            dismissButton = { TextButton(onClick = { showPasswordExportWarning = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     transferMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { transferMessage = null },
-            title = { Text("Configuration transfer") },
+            title = { Text(stringResource(R.string.configuration_transfer)) },
             text = { Text(message) },
-            confirmButton = { TextButton(onClick = { transferMessage = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { transferMessage = null }) { Text(stringResource(R.string.ok)) } },
         )
     }
     pendingUnsafeImport?.let { configuration ->
         AlertDialog(
             onDismissRequest = { pendingUnsafeImport = null },
-            title = { Text("Import insecure verification settings?") },
-            text = { Text("One or more profiles disable HTTPS certificate or SSH host-key verification. This permits server impersonation and should only be used for servers you control.") },
+            title = { Text(stringResource(R.string.unsafe_import_title)) },
+            text = { Text(stringResource(R.string.unsafe_import_message)) },
             confirmButton = { TextButton(onClick = {
                 pendingUnsafeImport = null
-                applyJsonImport(configuration)
-            }) { Text("Import anyway") } },
-            dismissButton = { TextButton(onClick = { pendingUnsafeImport = null }) { Text("Cancel") } },
+                prepareJsonImport(configuration)
+            }) { Text(stringResource(R.string.import_anyway)) } },
+            dismissButton = { TextButton(onClick = { pendingUnsafeImport = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
+    importOptionsReview?.let { review ->
+        AlertDialog(
+            onDismissRequest = {
+                importOptionsReview = null
+                selectedImportOptionKeys.clear()
+                applyImportedGlobalOptions = false
+            },
+            title = { Text(stringResource(R.string.import_options_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.import_options_message))
+                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
+                        items(review.profiles, key = { it.profile.id }) { item ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.Top,
+                            ) {
+                                Column(Modifier.padding(top = 10.dp)) {
+                                    Text(item.profile.displayName, style = MaterialTheme.typography.titleSmall)
+                                    item.changedGroups.forEach { group ->
+                                        val key = importOptionKey(item.profile.id, group)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Checkbox(
+                                                checked = key in selectedImportOptionKeys,
+                                                onCheckedChange = { checked ->
+                                                    if (checked) selectedImportOptionKeys.add(key)
+                                                    else selectedImportOptionKeys.remove(key)
+                                                },
+                                            )
+                                            Text(stringResource(group))
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        if (review.globalChanged) item {
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = applyImportedGlobalOptions,
+                                    onCheckedChange = { applyImportedGlobalOptions = it },
+                                )
+                                Text(stringResource(R.string.import_global_options))
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val selectedOptions = selectedImportOptionKeys.toSet()
+                    val applyGlobals = !review.globalChanged || applyImportedGlobalOptions
+                    val resolved = review.configuration.copy(
+                        profiles = review.configuration.profiles.map { imported ->
+                            val current = review.existingProfiles[imported.id]
+                            if (current != null) applySelectedProfileOptions(current, imported, selectedOptions)
+                            else imported
+                        },
+                        activeProfileId = review.configuration.activeProfileId.takeIf { applyGlobals },
+                        alwaysOnProfileId = review.configuration.alwaysOnProfileId.takeIf { applyGlobals },
+                        diagnosticLogLimitMb = if (applyGlobals) {
+                            review.configuration.diagnosticLogLimitMb
+                        } else review.currentDiagnosticLogLimitMb,
+                        globalConnectionSettings = review.configuration.globalConnectionSettings.takeIf { applyGlobals },
+                    )
+                    importOptionsReview = null
+                    selectedImportOptionKeys.clear()
+                    applyImportedGlobalOptions = false
+                    applyJsonImport(resolved)
+                }) { Text(stringResource(R.string.apply_import)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    importOptionsReview = null
+                    selectedImportOptionKeys.clear()
+                    applyImportedGlobalOptions = false
+                }) { Text(stringResource(R.string.cancel)) }
+            },
+        )
+    }
+    missingProfilesReview?.let { review ->
+        AlertDialog(
+            onDismissRequest = {
+                missingProfilesReview = null
+                selectedMissingProfileIds.clear()
+                transferMessage = review.importSummary
+            },
+            title = { Text(stringResource(R.string.remove_missing_profiles_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.remove_missing_profiles_message))
+                    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
+                        items(review.profiles, key = { it.id }) { profile ->
+                            Row(
+                                Modifier.fillMaxWidth().padding(vertical = 4.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                            ) {
+                                Checkbox(
+                                    checked = profile.id in selectedMissingProfileIds,
+                                    onCheckedChange = { checked ->
+                                        if (checked) selectedMissingProfileIds.add(profile.id)
+                                        else selectedMissingProfileIds.remove(profile.id)
+                                    },
+                                )
+                                Column {
+                                    Text(profile.displayName)
+                                    Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = selectedMissingProfileIds.isNotEmpty(),
+                    onClick = {
+                        val selected = selectedMissingProfileIds.toSet()
+                        missingProfilesReview = null
+                        selectedMissingProfileIds.clear()
+                        scope.launch {
+                            val reconnect = withContext(ConfigIoDispatcher) {
+                                val desired = store.isConnectionDesired()
+                                store.deleteProfiles(selected).also {
+                                    if (ProxyVpnService.isRunning) store.markPendingReconnect()
+                                } && desired
+                            }
+                            refresh()
+                            if (reconnect) ProxyVpnService.reconnect(activity)
+                            transferMessage = review.importSummary + " " +
+                                activity.getString(R.string.config_import_removed, selected.size)
+                        }
+                    },
+                ) { Text(stringResource(R.string.remove_selected)) }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    missingProfilesReview = null
+                    selectedMissingProfileIds.clear()
+                    transferMessage = review.importSummary
+                }) { Text(stringResource(R.string.keep_all)) }
+            },
         )
     }
 }
@@ -516,9 +818,9 @@ private fun ProfileCard(
                 }
             }
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onConfigure) { Text("Configure", color = foreground) }
-                TextButton(onClick = onClone) { Text("Clone", color = foreground) }
-                TextButton(onClick = onDelete) { Text("Delete", color = foreground) }
+                TextButton(onClick = onConfigure) { Text(stringResource(R.string.configure), color = foreground) }
+                TextButton(onClick = onClone) { Text(stringResource(R.string.clone), color = foreground) }
+                TextButton(onClick = onDelete) { Text(stringResource(R.string.delete), color = foreground) }
             }
         }
     }
