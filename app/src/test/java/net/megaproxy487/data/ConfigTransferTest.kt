@@ -39,7 +39,7 @@ class ConfigTransferTest {
         val imported = ConfigTransfer.importJson(
             """
             {
-              "schema":"dev.megaproxy.config",
+              "schema":"net.megaproxy487.config",
               "version":1,
               "activeProfileId":"source",
               "alwaysOnProfileId":"source",
@@ -71,7 +71,7 @@ class ConfigTransferTest {
         val imported = ConfigTransfer.importJson(
             """
             {
-              "schema":"dev.megaproxy.config",
+              "schema":"net.megaproxy487.config",
               "version":2,
               "tls":{"fingerprint":"SAMSUNG_INTERNET","customJa3":"ignored"},
               "routing":{"selectedPackages":["com.example.missing"],"routeAllApps":false},
@@ -90,7 +90,7 @@ class ConfigTransferTest {
     @Test
     fun `version one keeps per-profile IPv6 setting`() {
         val imported = ConfigTransfer.importJson(
-            """{"schema":"dev.megaproxy.config","version":1,"profiles":[{
+            """{"schema":"net.megaproxy487.config","version":1,"profiles":[{
               "id":"one","proxy":{"host":"proxy.example"},"routing":{"allowIpv6":true}
             }]}""",
         )
@@ -101,7 +101,7 @@ class ConfigTransferTest {
     @Test
     fun `legacy global IPv6 setting migrates to every profile`() {
         val imported = ConfigTransfer.importJson(
-            """{"schema":"dev.megaproxy.config","version":5,
+            """{"schema":"net.megaproxy487.config","version":5,
               "routing":{"allowIpv6":true},"profiles":[
                 {"id":"one","proxy":{"host":"one.example"}},
                 {"id":"two","proxy":{"host":"two.example"}}
@@ -109,5 +109,41 @@ class ConfigTransferTest {
         )
 
         assertTrue(imported.profiles.all { it.config.allowIpv6 })
+    }
+
+    @Test
+    fun `json profile id is stable and secret presence is recorded`() {
+        val imported = ConfigTransfer.importJson(
+            """{"schema":"net.megaproxy487.config","version":7,"profiles":[
+              {"id":"generated-server-1","proxy":{"host":"one.example","password":""}},
+              {"id":"generated-server-2","proxy":{"host":"two.example","privateKey":"key"}}
+            ]}""",
+        )
+
+        assertEquals(listOf("generated-server-1", "generated-server-2"), imported.profiles.map { it.id })
+        assertTrue(imported.secretPresence.getValue("generated-server-1").password)
+        assertFalse(imported.secretPresence.getValue("generated-server-1").privateKey)
+        assertTrue(imported.secretPresence.getValue("generated-server-2").privateKey)
+    }
+
+    @Test(expected = IllegalArgumentException::class)
+    fun `json import rejects duplicate profile ids`() {
+        ConfigTransfer.importJson(
+            """{"schema":"net.megaproxy487.config","version":7,"profiles":[
+              {"id":"same","proxy":{"host":"one.example"}},
+              {"id":"same","proxy":{"host":"two.example"}}
+            ]}""",
+        )
+    }
+
+    @Test
+    fun `legacy schema id remains importable`() {
+        val imported = ConfigTransfer.importJson(
+            """{"schema":"dev.megaproxy.config","version":6,"profiles":[
+              {"id":"legacy","proxy":{"host":"legacy.example"}}
+            ]}""",
+        )
+
+        assertEquals("legacy", imported.profiles.single().id)
     }
 }

@@ -1,0 +1,3 @@
+Import generated configurations without duplicating profiles.
+
+Stable profile IDs now update existing profiles, while a review wizard protects local connection, security, DNS and routing options. Missing profiles can be selected for optional removal.

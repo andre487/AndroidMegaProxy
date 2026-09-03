@@ -26,10 +26,22 @@ data class PortableConfiguration(
     val diagnosticLogLimitMb: Int = 3,
     val globalConnectionSettings: GlobalConnectionSettings? = null,
     val skippedProfiles: Int = 0,
+    val secretPresence: Map<String, ProfileSecretPresence> = emptyMap(),
+)
+
+data class ProfileSecretPresence(
+    val password: Boolean = false,
+    val privateKey: Boolean = false,
+    val jumpPassword: Boolean = false,
+    val jumpPrivateKey: Boolean = false,
 )
 
 object ConfigTransfer {
-    const val SCHEMA_VERSION = 6
+    const val SCHEMA_ID = "net.megaproxy487.config"
+    const val LEGACY_SCHEMA_ID = "dev.megaproxy.config"
+    const val SCHEMA_VERSION = 7
+
+    fun isSupportedSchema(value: String): Boolean = value == SCHEMA_ID || value == LEGACY_SCHEMA_ID
 
     fun exportProxyList(profiles: List<ProxyProfile>, includePasswords: Boolean): String =
         profiles.filter { it.config.type == ProxyType.HTTPS }.joinToString("\n", postfix = "\n") { profile ->
@@ -48,7 +60,7 @@ object ConfigTransfer {
         }
 
     fun exportJson(store: ConfigStore, includePasswords: Boolean, includePrivateKeys: Boolean = false): String = JSONObject().apply {
-        put("schema", "dev.megaproxy.config")
+        put("schema", SCHEMA_ID)
         put("version", SCHEMA_VERSION)
         put("passwordsIncluded", includePasswords)
         put("privateKeysIncluded", includePrivateKeys)
@@ -84,16 +96,22 @@ object ConfigTransfer {
 
     fun importJson(text: String): PortableConfiguration {
         val root = JSONObject(text)
-        require(root.optString("schema") == "dev.megaproxy.config") { "This is not a MegaProxy configuration file" }
+        require(isSupportedSchema(root.optString("schema"))) { "This is not a MegaProxy configuration file" }
         val version = root.optInt("version", 0)
         require(version in 1..SCHEMA_VERSION) { "Unsupported MegaProxy configuration version: $version" }
         val array = root.optJSONArray("profiles") ?: error("The configuration has no profiles")
         require(array.length() <= MAX_IMPORTED_PROFILES) { "The configuration contains more than $MAX_IMPORTED_PROFILES profiles" }
+        if (version >= 7) require((0 until array.length()).all { index ->
+            array.optJSONObject(index)?.optString("id")?.let { it.isNotBlank() && it.length <= 256 } == true
+        }) { "Every profile in version 7 or newer must have a stable ID" }
         val decoded = (0 until array.length()).map { index ->
             runCatching { decodeProfile(array.getJSONObject(index), index) }
         }
         val decodedProfiles = decoded.mapNotNull(Result<ProxyProfile>::getOrNull)
         require(decodedProfiles.isNotEmpty()) { "The configuration contains no usable profiles" }
+        require(decodedProfiles.map(ProxyProfile::id).distinct().size == decodedProfiles.size) {
+            "The configuration contains duplicate profile IDs"
+        }
         val legacyIpv6 = root.optJSONObject("routing")?.optBoolean("allowIpv6", false) ?: false
         val profiles = if (version in 2..5) decodedProfiles.map {
             it.copy(config = it.config.copy(allowIpv6 = legacyIpv6))
@@ -109,6 +127,18 @@ object ConfigTransfer {
                 }
             } else null,
             skippedProfiles = decoded.count(Result<ProxyProfile>::isFailure),
+            secretPresence = (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                val id = item.optString("id").ifBlank { "import-$index" }
+                val proxy = item.optJSONObject("proxy") ?: JSONObject()
+                val jump = proxy.optJSONObject("jump")
+                id to ProfileSecretPresence(
+                    password = proxy.has("password"),
+                    privateKey = proxy.has("privateKey"),
+                    jumpPassword = jump?.has("password") == true,
+                    jumpPrivateKey = jump?.has("privateKey") == true,
+                )
+            }.toMap(),
         )
     }
 

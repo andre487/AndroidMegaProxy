@@ -186,6 +186,15 @@ After installation:
 Server configurations and setup instructions are maintained separately in
 [MegaProxyServer](https://github.com/andre487/MegaProxyServer).
 
+### Generated configuration imports
+
+External generators can produce MegaProxy JSON files using schema `net.megaproxy487.config`, version
+7. Every profile must have a stable, generator-controlled `id`. Reimporting a file updates profiles
+with matching IDs and adds only new IDs; it does not create duplicates. Omitted password and SSH
+private-key fields preserve credentials already stored on the device, while explicit empty values
+clear them. After import, MegaProxy offers an unselected list of local profiles absent from the file
+so the user can optionally remove specific obsolete profiles.
+
 ## Current limitations
 
 - Only TCP application traffic is forwarded. General SOCKS5 UDP and QUIC forwarding are not

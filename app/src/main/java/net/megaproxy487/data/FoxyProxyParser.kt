@@ -6,7 +6,7 @@ import org.json.JSONObject
 object FoxyProxyParser {
     fun parse(text: String): Result<ProxyListImportResult> = runCatching {
         val root = JSONObject(text)
-        require(root.optString("schema") != "dev.megaproxy.config") {
+        require(!ConfigTransfer.isSupportedSchema(root.optString("schema"))) {
             "This is a MegaProxy configuration, not a FoxyProxy configuration"
         }
         val data = root.optJSONArray("data")

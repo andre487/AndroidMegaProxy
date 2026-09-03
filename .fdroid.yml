@@ -12,9 +12,9 @@ RepoType: git
 Repo: https://github.com/andre487/AndroidMegaProxy.git
 
 Builds:
-  - versionName: 0.0.10
-    versionCode: 10001
-    commit: v0.0.10
+  - versionName: 0.0.11
+    versionCode: 11001
+    commit: v0.0.11
     subdir: app
     ndk: 29.0.14206865
     sudo:
@@ -39,9 +39,9 @@ Builds:
       - export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
       - MEGAPROXY_ANDROID_ABI=armeabi-v7a ../scripts/build-fdroid-native.sh
 
-  - versionName: 0.0.10
-    versionCode: 10002
-    commit: v0.0.10
+  - versionName: 0.0.11
+    versionCode: 11002
+    commit: v0.0.11
     subdir: app
     ndk: 29.0.14206865
     sudo:
@@ -66,9 +66,9 @@ Builds:
       - export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
       - MEGAPROXY_ANDROID_ABI=arm64-v8a ../scripts/build-fdroid-native.sh
 
-  - versionName: 0.0.10
-    versionCode: 10003
-    commit: v0.0.10
+  - versionName: 0.0.11
+    versionCode: 11003
+    commit: v0.0.11
     subdir: app
     ndk: 29.0.14206865
     sudo:
@@ -93,9 +93,9 @@ Builds:
       - export PATH=$GOROOT/bin:$GOPATH/bin:$PATH
       - MEGAPROXY_ANDROID_ABI=x86 ../scripts/build-fdroid-native.sh
 
-  - versionName: 0.0.10
-    versionCode: 10004
-    commit: v0.0.10
+  - versionName: 0.0.11
+    versionCode: 11004
+    commit: v0.0.11
     subdir: app
     ndk: 29.0.14206865
     sudo:
@@ -129,5 +129,5 @@ VercodeOperation:
 AutoUpdateMode: Version
 UpdateCheckMode: Tags
 UpdateCheckData: app/build.gradle.kts|versionCodeBase = (\d+)|.|versionName = "([^"]+)"
-CurrentVersion: 0.0.10
-CurrentVersionCode: 10004
+CurrentVersion: 0.0.11
+CurrentVersionCode: 11004
