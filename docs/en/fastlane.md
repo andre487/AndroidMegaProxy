@@ -54,8 +54,10 @@ it does not use the MegaProxy release identity.
 
 For pull requests, GitHub Actions uploads the debug and unsigned release APKs as two separately
 named workflow artifacts. Direct download links are shown in the Android check's job summary, and
-the files are retained for 14 days. These are test artifacts only: neither APK is signed with the
-MegaProxy release key, and neither is published as a GitHub Release or sent to an app store.
+the files are retained for 14 days. After successful CI, a separate trusted `workflow_run` workflow
+creates or updates one APK-links comment on the pull request. It does not check out, download, or
+execute pull-request code or artifacts. These are test artifacts only: neither APK is signed with
+the MegaProxy release key, and neither is published as a GitHub Release or sent to an app store.
 
 ## Updating Fastlane
 

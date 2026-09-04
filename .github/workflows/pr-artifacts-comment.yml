@@ -1,0 +1,101 @@
+name: PR artifact links
+
+on:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
+
+permissions:
+  actions: read
+  contents: read
+  pull-requests: write
+
+jobs:
+  comment:
+    name: Add APK links to the pull request
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Create or update the APK artifact comment
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const pullRequests = run.pull_requests || [];
+
+            if (pullRequests.length !== 1) {
+              core.notice(`Expected one pull request for workflow run ${run.id}, found ${pullRequests.length}`);
+              return;
+            }
+
+            const pullNumber = pullRequests[0].number;
+            const expectedArtifacts = {
+              debug: `megaproxy-pr-${pullNumber}-debug-apk`,
+              release: `megaproxy-pr-${pullNumber}-unsigned-release-apk`,
+            };
+            const artifacts = await github.paginate(
+              github.rest.actions.listWorkflowRunArtifacts,
+              {
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                run_id: run.id,
+                per_page: 100,
+              }
+            );
+
+            const findArtifact = (name) => artifacts.find(
+              (artifact) => artifact.name === name && !artifact.expired
+            );
+            const debugArtifact = findArtifact(expectedArtifacts.debug);
+            const releaseArtifact = findArtifact(expectedArtifacts.release);
+
+            if (!debugArtifact || !releaseArtifact) {
+              core.setFailed(`Expected APK artifacts were not found for workflow run ${run.id}`);
+              return;
+            }
+
+            const artifactUrl = (artifact) =>
+              `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}` +
+              `/actions/runs/${run.id}/artifacts/${artifact.id}`;
+            const marker = '<!-- megaproxy-pr-apks -->';
+            const body = [
+              marker,
+              '## APK artifacts',
+              '',
+              `- [Download debug APK](${artifactUrl(debugArtifact)}) — signed with the disposable Android debug key`,
+              `- [Download unsigned release APK](${artifactUrl(releaseArtifact)}) — verified unsigned`,
+              '',
+              `Built from commit \`${run.head_sha.slice(0, 8)}\` by [CI run #${run.run_number}](${run.html_url}).`,
+              'Artifacts expire after 14 days. Neither APK uses the MegaProxy release key.',
+            ].join('\n');
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pullNumber,
+              per_page: 100,
+            });
+            const previousComment = comments.find(
+              (comment) => comment.user.type === 'Bot' && comment.body.includes(marker)
+            );
+
+            if (previousComment) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: previousComment.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pullNumber,
+                body,
+              });
+            }
