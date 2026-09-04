@@ -5,5 +5,9 @@
   "java.jdt.ls.androidSupport.enabled": true,
   "java.gradle.buildServer.enabled": "on",
   "kotlin.compiler.jvm.target": "17",
-  "kotlin.scripts.buildScriptsEnabled": false
+  "kotlin.scripts.buildScriptsEnabled": false,
+  "files.associations": {
+    "*.gradle.kts": "gradle-build",
+    "settings.gradle.kts": "gradle-build"
+  }
 }
