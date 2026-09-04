@@ -28,9 +28,14 @@ jobs:
           go-version-file: native/go.mod
           cache-dependency-path: native/go.sum
 
+      - name: Set up Ruby and Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+
       - name: Run native tests with the race detector
-        working-directory: native
-        run: go test -race ./...
+        run: bundle exec fastlane android native_tests
 
   android-tests:
     name: Android tests and checks
@@ -53,6 +58,12 @@ jobs:
           go-version-file: native/go.mod
           cache-dependency-path: native/go.sum
 
+      - name: Set up Ruby and Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+
       - name: Install Android SDK components
         run: |
           sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
@@ -67,8 +78,42 @@ jobs:
             "ndk;29.0.14206865"
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
 
-      - name: Build native library using the F-Droid recipe
-        run: ./scripts/build-fdroid-native.sh
+      - name: Run Android checks and verify the unsigned APK
+        run: bundle exec fastlane android android_checks
 
-      - name: Run Android tests, checks, and clean-store builds
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleDebug assembleRelease
+      - name: Publish PR debug APK
+        if: github.event_name == 'pull_request'
+        id: debug_apk_upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: megaproxy-pr-${{ github.event.pull_request.number }}-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Publish PR unsigned release APK
+        if: github.event_name == 'pull_request'
+        id: unsigned_release_apk_upload
+        uses: actions/upload-artifact@v7
+        with:
+          name: megaproxy-pr-${{ github.event.pull_request.number }}-unsigned-release-apk
+          path: app/build/outputs/apk/release/app-release-unsigned.apk
+          if-no-files-found: error
+          compression-level: 0
+          retention-days: 14
+
+      - name: Add APK download links to the job summary
+        if: github.event_name == 'pull_request'
+        env:
+          DEBUG_APK_URL: ${{ steps.debug_apk_upload.outputs.artifact-url }}
+          UNSIGNED_RELEASE_APK_URL: ${{ steps.unsigned_release_apk_upload.outputs.artifact-url }}
+        run: |
+          {
+            echo "## APK artifacts"
+            echo
+            echo "- [Download debug APK]($DEBUG_APK_URL) — signed with the disposable Android debug key"
+            echo "- [Download unsigned release APK]($UNSIGNED_RELEASE_APK_URL) — verified unsigned"
+            echo
+            echo "Artifacts expire after 14 days. Neither APK uses the MegaProxy release key."
+          } >> "$GITHUB_STEP_SUMMARY"

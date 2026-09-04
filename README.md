@@ -227,20 +227,19 @@ export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
 export PATH="$JAVA_HOME/bin:$HOME/go/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
 ```
 
-Build the Go core and Android AAR:
+Install Ruby 3.4 and the pinned Fastlane dependencies, then build and test the application through
+the project's supported automation entry point:
 
 ```shell
-cd native
-go test ./...
-gomobile bind -target=android -androidapi 26 -o ../app/libs/megaproxy.aar ./mobile
-cd ..
+bundle install
+bundle exec fastlane android test
 ```
 
-Build and test the Android application:
-
-```shell
-./gradlew testDebugUnitTest assembleDebug
-```
+For a debug APK without the complete check suite, run
+`bundle exec fastlane android debug_artifact`. The APK is written to
+`app/build/outputs/apk/debug/app-debug.apk`. Gradle and the scripts under `scripts/` remain the
+low-level implementation used by the Fastlane lanes. Installation details and the complete command
+reference are in the [Fastlane workflow documentation](docs/en/fastlane.md) ([по-русски](docs/ru/fastlane.md)).
 
 Install the debug APK on a connected device:
 
@@ -280,11 +279,10 @@ emulator, building, installing, viewing app-specific Logcat output, running test
 JDWP debugger. Select **Run MegaProxy on Emulator** for `Ctrl+F5` or **Attach MegaProxy (JDWP)** for
 `F5`.
 
-Run all native and Android unit tests from VS Code with **Tasks: Run Test Task**, or from a shell:
+Run all native and Android checks from VS Code with **Tasks: Run Test Task**, or from a shell:
 
 ```shell
-(cd native && go test ./...)
-./gradlew testDebugUnitTest
+bundle exec fastlane android test
 ```
 
 JDWP covers Kotlin and Java code only. Debug the Go core with its tests and privacy-safe diagnostic
@@ -296,8 +294,7 @@ Build optimized and signed APKs for `arm64-v8a`, `armeabi-v7a`, `x86_64`, and `x
 universal APK used for reproducible F-Droid verification:
 
 ```shell
-./scripts/build-release-apks.sh
-./scripts/build-release-bundle.sh
+bundle exec fastlane android release_artifacts
 ```
 
 The scripts read the default signing key from `$HOME/AndroidApkKey` and its password from
@@ -308,8 +305,9 @@ and `SHA256SUMS` are written to `dist/release`. The App Bundle contains every su
 stores generate and serve optimized device-specific APK splits from it. Go native symbols are
 provided as `mega-proxy-native-debug-symbols.zip` for upload in Play Console.
 
-Pushing a version tag runs the GitHub release workflow, builds and verifies every APK and the App
-Bundle, and attaches the artifacts to a GitHub Release. The tag must match `versionName` exactly:
+Pushing a version tag runs the same Fastlane release lane in GitHub Actions, builds and verifies
+every APK and the App Bundle, and attaches the artifacts to a GitHub Release. The tag must match
+`versionName` exactly:
 
 ```shell
 git tag v0.0.4
