@@ -12,6 +12,9 @@ class TrafficFormattingTest {
         assertEquals("1.0 KiB", formatTrafficBytes(1_024, locale = Locale.US))
         assertEquals("1.5 MiB", formatTrafficBytes(1_572_864, locale = Locale.US))
         assertEquals("2.5 GiB", formatTrafficBytes(2_684_354_560, locale = Locale.US))
+        assertEquals("1.0 TiB", formatTrafficBytes(1L shl 40, locale = Locale.US))
+        assertEquals("1.0 PiB", formatTrafficBytes(1L shl 50, locale = Locale.US))
+        assertEquals("1.0 EiB", formatTrafficBytes(1L shl 60, locale = Locale.US))
     }
 
     @Test
