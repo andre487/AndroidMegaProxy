@@ -178,13 +178,7 @@ jobs:
           disable-linux-hw-accel: ${{ steps.kvm.outputs.available != 'true' }}
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: |
-            if [[ "$KVM_AVAILABLE" == "true" ]]; then
-              "$ANDROID_HOME/emulator/emulator" -accel-check
-            fi
-            bundle exec fastlane android ui_tests
-        env:
-          KVM_AVAILABLE: ${{ steps.kvm.outputs.available }}
+          script: bundle exec fastlane android ui_tests
 
       - name: Verify UI tests actually ran
         run: |
