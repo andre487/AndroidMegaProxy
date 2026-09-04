@@ -2,10 +2,7 @@
   "recommendations": [
     "vscjava.vscode-java-pack",
     "vscjava.vscode-gradle",
-    "jetbrains.kotlin-server",
+    "fwcd.kotlin",
     "golang.go"
-  ],
-  "unwantedRecommendations": [
-    "fwcd.kotlin"
   ]
 }

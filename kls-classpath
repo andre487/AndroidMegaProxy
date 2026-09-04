@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [[ -f "$HOME/.zshrc.extra" ]]; then
+    # VS Code launched from Finder may not inherit JAVA_HOME or Android SDK variables.
+    source "$HOME/.zshrc.extra"
+fi
+
+if [[ -z "${JAVA_HOME:-}" && -d /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ]]; then
+    export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
+fi
+
+exec "$project_dir/gradlew" -q :app:kotlinLanguageServerClasspath --no-daemon
