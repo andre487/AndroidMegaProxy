@@ -86,7 +86,7 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
                             PersistentDiagnosticLog.copyTo(it)
                         } ?: error("Could not open the export file")
                     }
-                }.onSuccess { message = "Diagnostic log exported." }
+                }.onSuccess { message = activity.getString(R.string.diagnostic_log_exported) }
                     .onFailure { message = it.message ?: "Could not export the diagnostic log" }
             }
         }
@@ -119,7 +119,7 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
                 title = { Text(stringResource(R.string.diagnostic_log)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -146,8 +146,8 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
                         }
                     }
                 },
-                label = { Text("Rotated log limit (MB)") },
-                supportingText = { Text("Total size across both log segments; 1–100 MB.") },
+                label = { Text(stringResource(R.string.rotated_log_limit)) },
+                supportingText = { Text(stringResource(R.string.rotated_log_limit_description)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -171,7 +171,7 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
                 state = listState,
                 modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
-                if (lines.isEmpty()) item { Text("No diagnostic events yet.") }
+                if (lines.isEmpty()) item { Text(stringResource(R.string.no_diagnostic_events)) }
                 itemsIndexed(lines, key = { index, _ -> index }) { _, line ->
                     Text(line, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
                 }
@@ -182,20 +182,20 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
     if (showClearConfirmation) {
         AlertDialog(
             onDismissRequest = { showClearConfirmation = false },
-            title = { Text("Clear diagnostic log?") },
-            text = { Text("Both rotated log segments will be deleted.") },
+            title = { Text(stringResource(R.string.clear_diagnostic_log_title)) },
+            text = { Text(stringResource(R.string.clear_diagnostic_log_message)) },
             confirmButton = { TextButton(onClick = {
                 showClearConfirmation = false
                 PersistentDiagnosticLog.clear()
-            }) { Text("Clear") } },
-            dismissButton = { TextButton(onClick = { showClearConfirmation = false }) { Text("Cancel") } },
+            }) { Text(stringResource(R.string.clear_action)) } },
+            dismissButton = { TextButton(onClick = { showClearConfirmation = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     message?.let {
         AlertDialog(
             onDismissRequest = { message = null },
             text = { Text(it) },
-            confirmButton = { TextButton(onClick = { message = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { message = null }) { Text(stringResource(R.string.ok)) } },
         )
     }
 }

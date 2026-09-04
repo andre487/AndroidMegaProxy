@@ -763,12 +763,12 @@ class ProxyVpnService : VpnService() {
 
     private fun notification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(net.megaproxy487.R.drawable.ic_vpn_notification)
-        .setContentTitle("MegaProxy is active")
+        .setContentTitle(getString(net.megaproxy487.R.string.megaproxy_active))
         .setContentText(text)
         .setOngoing(true)
         .setCategory(NotificationCompat.CATEGORY_SERVICE)
         .setContentIntent(hostKeyPrompt ?: PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
-        .also { builder -> hostKeyPrompt?.let { builder.addAction(0, "Review SSH key", it) } }
+        .also { builder -> hostKeyPrompt?.let { builder.addAction(0, getString(net.megaproxy487.R.string.review_ssh_key), it) } }
         .build()
 
     companion object {

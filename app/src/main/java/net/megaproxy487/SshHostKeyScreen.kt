@@ -6,6 +6,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.res.stringResource
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.PendingSshHostKey
 import net.megaproxy487.vpn.ProxyVpnService
@@ -20,18 +21,17 @@ internal fun SshHostKeyScreen(activity: Activity, prompt: PendingSshHostKey, onD
     }
     AlertDialog(
         onDismissRequest = ::reject,
-        title = { Text(if (prompt.changed) "SSH host key changed" else "Trust SSH host key?") },
+        title = { Text(stringResource(if (prompt.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
         text = { Text(buildString {
-            if (prompt.changed) append("Warning: the previously trusted key for the ${prompt.hop} host has changed. This can indicate a server reinstall or a man-in-the-middle attack. Verify the fingerprint through a trusted channel before replacing it.\n\n")
-            else append("This is the first connection to the ${prompt.hop} SSH host. Verify its fingerprint through a trusted channel.\n\n")
-            append("Algorithm: ${prompt.algorithm}\nFingerprint: ${prompt.fingerprint}")
+            append(activity.getString(if (prompt.changed) R.string.ssh_changed_key_warning else R.string.ssh_first_connection_warning, prompt.hop))
+            append(activity.getString(R.string.ssh_key_details, prompt.algorithm, prompt.fingerprint))
         }) },
         confirmButton = { TextButton(onClick = {
             if (ConfigStore(activity).trustSshHostKey(prompt.profileId, prompt.hop, prompt.fingerprint)) {
                 if (prompt.testOnly) ProxyVpnService.test(activity) else ProxyVpnService.reconnect(activity)
             }
             onDismiss()
-        }) { Text(if (prompt.changed) "Replace trusted key" else "Trust and connect") } },
-        dismissButton = { TextButton(onClick = ::reject) { Text("Cancel") } },
+        }) { Text(stringResource(if (prompt.changed) R.string.replace_trusted_key else R.string.trust_and_connect)) } },
+        dismissButton = { TextButton(onClick = ::reject) { Text(stringResource(R.string.cancel)) } },
     )
 }

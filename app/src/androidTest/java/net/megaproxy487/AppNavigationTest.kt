@@ -75,4 +75,17 @@ class AppNavigationTest {
             compose.onNodeWithTag("screen-settings").assertIsDisplayed()
         }
     }
+
+    @Test
+    fun russianLocaleIsAppliedAcrossNavigation() {
+        scenario.close()
+        InstrumentationRegistry.getInstrumentation().targetContext
+            .getSharedPreferences("app_language", Context.MODE_PRIVATE)
+            .edit().putString("language", "ru").commit()
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+
+        compose.onNodeWithText("Настройки").performClick()
+        compose.onNodeWithText("Профили").assertIsDisplayed()
+        compose.onNodeWithText("Диагностический журнал").performScrollTo().assertIsDisplayed()
+    }
 }

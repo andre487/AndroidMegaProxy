@@ -119,7 +119,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                 title = { Text(stringResource(R.string.connection_test)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -154,14 +154,14 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                     if (state == TestState.RUNNING) {
                         CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
                     }
-                    exitIp?.let { Text("Proxy exit IP: $it") }
+                    exitIp?.let { Text(stringResource(R.string.proxy_exit_ip, it)) }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Button(onClick = runTest, enabled = state != TestState.RUNNING) { Text(stringResource(R.string.run_again)) }
                 Button(onClick = {
                     val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("MegaProxy connection test", TestDiagnosticLog.entries.joinToString("\n")))
+                    clipboard.setPrimaryClip(ClipData.newPlainText(activity.getString(R.string.connection_test_clipboard_label), TestDiagnosticLog.entries.joinToString("\n")))
                 }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.copy_log)) }
             }
             Text(
@@ -185,16 +185,16 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
     if (showAlwaysOnConflict) {
         AlertDialog(
             onDismissRequest = { showAlwaysOnConflict = false },
-            title = { Text("Always-on VPN is already in use") },
+            title = { Text(stringResource(R.string.always_on_conflict_title)) },
             text = { Text(OTHER_ALWAYS_ON_VPN_MESSAGE) },
             confirmButton = {
                 TextButton(onClick = {
                     showAlwaysOnConflict = false
                     openAndroidVpnSettings(activity)
-                }) { Text("Change settings") }
+                }) { Text(stringResource(R.string.change_settings)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAlwaysOnConflict = false }) { Text("Cancel") }
+                TextButton(onClick = { showAlwaysOnConflict = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -204,14 +204,14 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                 SshHostKeyPromptState.clear()
                 ProxyVpnService.dismissHostKeyPrompt(activity)
             },
-            title = { Text(if (pending.changed) "SSH host key changed" else "Trust SSH host key?") },
+            title = { Text(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
             text = { Text(buildString {
                 if (pending.changed) {
-                    append("Warning: the previously trusted key for the ${pending.hop} host has changed. This may indicate a server reinstall or a man-in-the-middle attack. Verify it through a trusted channel before replacing it.\n\n")
+                    append(activity.getString(R.string.ssh_changed_key_warning, pending.hop))
                 } else {
-                    append("This is the first connection to the ${pending.hop} SSH host. Verify its fingerprint through a trusted channel.\n\n")
+                    append(activity.getString(R.string.ssh_first_connection_warning, pending.hop))
                 }
-                append("Algorithm: ${pending.algorithm}\nFingerprint: ${pending.fingerprint}")
+                append(activity.getString(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
             }) },
             confirmButton = {
                 TextButton(onClick = {
@@ -227,13 +227,13 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                     } else {
                         TestDiagnosticLog.fail("The SSH host key could not be saved to the tested profile")
                     }
-                }) { Text(if (pending.changed) "Replace and test" else "Trust and test") }
+                }) { Text(stringResource(if (pending.changed) R.string.replace_and_test else R.string.trust_and_test)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     SshHostKeyPromptState.clear()
                     ProxyVpnService.dismissHostKeyPrompt(activity)
-                }) { Text("Cancel") }
+                }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }

@@ -47,10 +47,10 @@ import net.megaproxy487.ui.theme.MegaProxyTheme
 import net.megaproxy487.data.ConfigStore
 import java.net.NetworkInterface
 
-private enum class VisibilityState(val label: String) {
-    DETECTED("Detected"),
-    SELECTED_APPS_ONLY("Selected apps only"),
-    NOT_DETECTED("Not detected"),
+private enum class VisibilityState(val labelResource: Int) {
+    DETECTED(R.string.detected),
+    SELECTED_APPS_ONLY(R.string.selected_apps_only),
+    NOT_DETECTED(R.string.not_detected),
 }
 
 private data class VisibilityCheck(
@@ -75,7 +75,7 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
                 title = { Text(stringResource(R.string.visibility)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -87,25 +87,25 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                "Local checks show signals that another Android app may observe. No network request, location lookup, or external reputation service is used.",
+                stringResource(R.string.visibility_intro),
                 style = MaterialTheme.typography.bodyMedium,
             )
             Button(onClick = { report = buildVisibilityReport(activity) }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.run_checks_again))
             }
-            VisibilitySection("Globally observable signals", report.global)
+            VisibilitySection(stringResource(R.string.globally_observable_signals), report.global)
             if (report.splitTunneling) {
                 Text(
-                    "The signals below belong to the VPN network. With split tunneling, Android exposes that network to selected apps; excluded apps use the underlying network instead.",
+                    stringResource(R.string.split_visibility_explanation),
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
             VisibilitySection(
-                if (report.splitTunneling) "Visible to selected apps" else "VPN network signals",
+                stringResource(if (report.splitTunneling) R.string.visible_to_selected_apps else R.string.vpn_network_signals),
                 report.selectedApps,
             )
             Text(
-                "A detected signal is not proof by itself. Android VPN APIs intentionally expose some VPN state, and legitimate security or filtering apps can produce the same signals.",
+                stringResource(R.string.visibility_disclaimer),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(bottom = 16.dp),
             )
@@ -138,7 +138,7 @@ private fun VisibilityBadge(state: VisibilityState) {
     }
     val foreground = if (state == VisibilityState.SELECTED_APPS_ONLY) Color.Black else Color.White
     Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(12.dp)) {
-        Text(state.label, style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
+        Text(stringResource(state.labelResource), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
     }
 }
 
@@ -192,23 +192,23 @@ private fun buildVisibilityReport(context: Context): VisibilityReport {
             splitTunneling -> VisibilityState.SELECTED_APPS_ONLY
             else -> VisibilityState.DETECTED
         },
-        if (detected && splitTunneling) "$yes Excluded apps use their underlying network." else if (detected) yes else no,
+        if (detected && splitTunneling) context.getString(R.string.excluded_apps_underlying_network, yes) else if (detected) yes else no,
     )
 
     return VisibilityReport(
         global = listOf(
-            check("System proxy properties", systemProxyVisible, "A process-wide proxy property is visible.", "No process-wide proxy property is visible."),
-            check("VPN-like interface name", vpnInterfaces.isNotEmpty(), "An active interface has a tun, tap, wg, ppp, or ipsec-style name.", "No active interface has a common VPN-style name."),
-            check("Unusual VPN MTU", unusualMtu.isNotEmpty(), "A VPN-style interface uses an MTU other than 1280 or 1500.", "No unusual MTU was found on VPN-style interfaces."),
-            VisibilityCheck("Local MITM certificate", VisibilityState.NOT_DETECTED, "MegaProxy installs no CA certificate and performs no TLS interception."),
+            check(context.getString(R.string.system_proxy_properties), systemProxyVisible, context.getString(R.string.system_proxy_yes), context.getString(R.string.system_proxy_no)),
+            check(context.getString(R.string.vpn_interface_name), vpnInterfaces.isNotEmpty(), context.getString(R.string.vpn_interface_yes), context.getString(R.string.vpn_interface_no)),
+            check(context.getString(R.string.unusual_vpn_mtu), unusualMtu.isNotEmpty(), context.getString(R.string.unusual_vpn_mtu_yes), context.getString(R.string.unusual_vpn_mtu_no)),
+            VisibilityCheck(context.getString(R.string.local_mitm_certificate), VisibilityState.NOT_DETECTED, context.getString(R.string.local_mitm_certificate_detail)),
         ),
         selectedApps = listOf(
-            vpnCheck("VPN transport", vpnTransportVisible, "Android exposes a network with TRANSPORT_VPN.", "No VPN transport is currently exposed."),
-            vpnCheck("VPN transport information", vpnInfoVisible, "Android exposes VpnTransportInfo for the VPN network.", "VpnTransportInfo is not exposed on the currently visible networks."),
-            vpnCheck("NOT_VPN capability", vpnWithoutNotVpn, "The VPN network does not have NET_CAPABILITY_NOT_VPN.", "No visible network is identified by this capability check as a VPN."),
-            vpnCheck("VPN link proxy", linkProxyVisible, "A proxy setting is attached to the VPN network.", "No proxy setting is attached to the VPN network."),
-            vpnCheck("Virtual default route", virtualDefaultRoute, "A visible default route uses a VPN-style interface.", "No visible default route uses a VPN-style interface."),
-            vpnCheck("Virtual DNS address", virtualDns, "The VPN network exposes a private, link-local, or loopback DNS address.", "The VPN network does not expose a local DNS address."),
+            vpnCheck(context.getString(R.string.vpn_transport), vpnTransportVisible, context.getString(R.string.vpn_transport_yes), context.getString(R.string.vpn_transport_no)),
+            vpnCheck(context.getString(R.string.vpn_transport_information), vpnInfoVisible, context.getString(R.string.vpn_info_yes), context.getString(R.string.vpn_info_no)),
+            vpnCheck(context.getString(R.string.not_vpn_capability), vpnWithoutNotVpn, context.getString(R.string.not_vpn_yes), context.getString(R.string.not_vpn_no)),
+            vpnCheck(context.getString(R.string.vpn_link_proxy), linkProxyVisible, context.getString(R.string.vpn_link_proxy_yes), context.getString(R.string.vpn_link_proxy_no)),
+            vpnCheck(context.getString(R.string.virtual_default_route), virtualDefaultRoute, context.getString(R.string.virtual_route_yes), context.getString(R.string.virtual_route_no)),
+            vpnCheck(context.getString(R.string.virtual_dns_address), virtualDns, context.getString(R.string.virtual_dns_yes), context.getString(R.string.virtual_dns_no)),
         ),
         splitTunneling = splitTunneling,
     )

@@ -311,7 +311,7 @@ internal fun MainScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("MegaProxy") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
@@ -402,7 +402,7 @@ internal fun MainScreen(
                     ),
                 ) {
                     Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    Text("Profile", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.profile), style = MaterialTheme.typography.labelMedium)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -420,10 +420,10 @@ internal fun MainScreen(
                         }
                         Text(activeProfile.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                         ProfileTypeBadge(activeProfile.config.type, onProfileColor)
-                        Icon(Icons.Filled.ArrowDropDown, contentDescription = "Select profile", tint = onProfileColor)
+                        Icon(Icons.Filled.ArrowDropDown, contentDescription = stringResource(R.string.select_profile), tint = onProfileColor)
                     }
                     if (actualProfile != null && actualProfile.id != activeProfile.id && connection != VpnConnectionState.DISCONNECTED) {
-                        Text("Connected through: ${actualProfile.displayNameWithFlag}", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.connected_through, actualProfile.displayNameWithFlag), style = MaterialTheme.typography.bodySmall)
                     }
                         DropdownMenu(profileMenuExpanded, { profileMenuExpanded = false }) {
                             profiles.forEach { profile ->
@@ -560,8 +560,8 @@ internal fun MainScreen(
     if (showCrashReport) {
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("MegaProxy stopped unexpectedly") },
-            text = { Text("A privacy-filtered crash report was saved. You can send it to help diagnose the problem.") },
+            title = { Text(stringResource(R.string.unexpected_stop_title)) },
+            text = { Text(stringResource(R.string.crash_report_saved)) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -582,13 +582,13 @@ internal fun MainScreen(
                             error = "Could not open an email client: ${it.message ?: "unknown error"}"
                         }
                     }
-                }) { Text("Report") }
+                }) { Text(stringResource(R.string.report)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     CrashHandler.markReportHandled()
                     showCrashReport = false
-                }) { Text("Close") }
+                }) { Text(stringResource(R.string.close)) }
             },
         )
     }
@@ -596,16 +596,16 @@ internal fun MainScreen(
     if (showAlwaysOnConflict) {
         AlertDialog(
             onDismissRequest = { showAlwaysOnConflict = false },
-            title = { Text("Always-on VPN is already in use") },
+            title = { Text(stringResource(R.string.always_on_conflict_title)) },
             text = { Text(OTHER_ALWAYS_ON_VPN_MESSAGE) },
             confirmButton = {
                 TextButton(onClick = {
                     showAlwaysOnConflict = false
                     openAndroidVpnSettings(activity)
-                }) { Text("Change settings") }
+                }) { Text(stringResource(R.string.change_settings)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAlwaysOnConflict = false }) { Text("Cancel") }
+                TextButton(onClick = { showAlwaysOnConflict = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -617,14 +617,14 @@ internal fun MainScreen(
         }
         AlertDialog(
             onDismissRequest = ::dismissHostKeyPrompt,
-            title = { Text(if (pending.changed) "SSH host key changed" else "Trust SSH host key?") },
+            title = { Text(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
             text = { Text(buildString {
                 if (pending.changed) {
-                    append("Warning: the previously trusted key for the ${pending.hop} host has changed. This may indicate a server reinstall or a man-in-the-middle attack. Verify it through a trusted channel before replacing it.\n\n")
+                    append(activity.getString(R.string.ssh_changed_key_warning, pending.hop))
                 } else {
-                    append("This is the first connection to the ${pending.hop} SSH host. Verify its fingerprint through a trusted channel.\n\n")
+                    append(activity.getString(R.string.ssh_first_connection_warning, pending.hop))
                 }
-                append("Algorithm: ${pending.algorithm}\nFingerprint: ${pending.fingerprint}")
+                append(activity.getString(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
             }) },
             confirmButton = {
                 TextButton(onClick = {
@@ -632,12 +632,12 @@ internal fun MainScreen(
                         SshHostKeyPromptState.clear()
                         ProxyVpnService.reconnect(activity)
                     } else {
-                        error = "The SSH host key could not be saved to this profile"
+                        error = activity.getString(R.string.ssh_key_save_failed)
                     }
-                }) { Text(if (pending.changed) "Replace trusted key" else "Trust and connect") }
+                }) { Text(stringResource(if (pending.changed) R.string.replace_trusted_key else R.string.trust_and_connect)) }
             },
             dismissButton = {
-                TextButton(onClick = ::dismissHostKeyPrompt) { Text("Cancel") }
+                TextButton(onClick = ::dismissHostKeyPrompt) { Text(stringResource(R.string.cancel)) }
             },
         )
     }

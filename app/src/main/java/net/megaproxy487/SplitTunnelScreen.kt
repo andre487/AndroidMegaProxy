@@ -116,7 +116,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                 title = { Text(stringResource(R.string.split_tunneling)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -137,13 +137,13 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                                 showReconnectPrompt = false
                                 showAlwaysOnDeferredNotice = false
                                 deferChangesUntilNextConnection = true
-                            }) { Text(if (showAlwaysOnDeferredNotice) "Dismiss" else "Next connection") }
+                            }) { Text(stringResource(if (showAlwaysOnDeferredNotice) R.string.dismiss else R.string.next_connection)) }
                             if (showReconnectPrompt) {
                                 TextButton(onClick = {
                                     showReconnectPrompt = false
                                     deferChangesUntilNextConnection = true
                                     ProxyVpnService.reconnect(activity)
-                                }) { Text("Reconnect now") }
+                                }) { Text(stringResource(R.string.reconnect_now)) }
                             }
                         }
                     }
@@ -175,7 +175,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                         RadioButton(!settings.routeAllApps, null)
                         Column(Modifier.weight(1f)) {
                             Text(stringResource(R.string.split_tunneling))
-                            Text("Only selected applications use the proxy.", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.selected_apps_routing_description), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                     Row(
@@ -188,13 +188,13 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                     ) {
                         RadioButton(settings.routeAllApps, null)
                         Column(Modifier.weight(1f)) {
-                            Text("Global VPN")
-                            Text("All applications use the proxy. This is the default mode.", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.global_vpn))
+                            Text(stringResource(R.string.global_vpn_description), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
             }
-            item { Text("UDP and QUIC are blocked; DNS uses the profile's configured DoH endpoint.", style = MaterialTheme.typography.bodySmall) }
+            item { Text(stringResource(R.string.udp_quic_blocked_description), style = MaterialTheme.typography.bodySmall) }
             item {
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
@@ -206,8 +206,8 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("Bypass local networks")
-                        Text("Direct TCP access to private and link-local IP addresses.", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.bypass_local_networks))
+                        Text(stringResource(R.string.bypass_local_networks_description), style = MaterialTheme.typography.bodySmall)
                     }
                     Checkbox(settings.bypassLocalNetworks, null)
                 }
@@ -223,7 +223,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                     OutlinedTextField(
                         value = appSearch,
                         onValueChange = { appSearch = it },
-                        label = { Text("Search applications") },
+                        label = { Text(stringResource(R.string.search_applications)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )
