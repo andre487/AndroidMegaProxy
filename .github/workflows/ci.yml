@@ -126,23 +126,24 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Detect and enable KVM device access
-        id: kvm
+      - name: Enable KVM device access
         run: |
-          if [[ -e /dev/kvm ]]; then
-            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-              | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-            sudo udevadm control --reload-rules
-            sudo udevadm trigger --name-match=kvm
+          if [[ ! -e /dev/kvm ]]; then
+            echo "::error::KVM is unavailable on this runner"
+            exit 1
           fi
 
-          if [[ -r /dev/kvm && -w /dev/kvm ]]; then
-            echo "available=true" >> "$GITHUB_OUTPUT"
-            echo "KVM is available; the emulator will use hardware acceleration"
-          else
-            echo "available=false" >> "$GITHUB_OUTPUT"
-            echo "::warning::KVM is unavailable; falling back to software acceleration"
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+          if [[ ! -r /dev/kvm || ! -w /dev/kvm ]]; then
+            echo "::error::The runner cannot access /dev/kvm"
+            ls -l /dev/kvm
+            exit 1
           fi
+          echo "KVM is available; the emulator will use hardware acceleration"
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -173,9 +174,10 @@ jobs:
       - name: Run Compose UI tests on an emulator
         uses: reactivecircus/android-emulator-runner@v2.38.0
         with:
-          api-level: 35
+          api-level: 30
+          target: aosp_atd
           arch: x86_64
-          disable-linux-hw-accel: ${{ steps.kvm.outputs.available != 'true' }}
+          disable-linux-hw-accel: false
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bundle exec fastlane android ui_tests
