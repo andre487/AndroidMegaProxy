@@ -29,6 +29,8 @@ class AppNavigationTest {
         val context = InstrumentationRegistry.getInstrumentation().targetContext
         context.getSharedPreferences("app_language", Context.MODE_PRIVATE)
             .edit().putString("language", "en").commit()
+        context.getSharedPreferences("display_preferences", Context.MODE_PRIVATE)
+            .edit().clear().commit()
         context.getSharedPreferences("battery_optimization_reminder", Context.MODE_PRIVATE)
             .edit().putLong("last_request_at", System.currentTimeMillis()).commit()
         scenario = ActivityScenario.launch(MainActivity::class.java)
@@ -87,5 +89,23 @@ class AppNavigationTest {
         compose.onNodeWithText("Настройки").performClick()
         compose.onNodeWithText("Профили").assertIsDisplayed()
         compose.onNodeWithText("Диагностический журнал").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun trafficUnitsDefaultToIecAndPersistSiSelection() {
+        compose.onNodeWithText("Settings").performClick()
+        compose.onNodeWithText("Traffic units").performScrollTo().performClick()
+        compose.onNodeWithText("IEC binary (KiB, MiB, GiB · 1024)").assertIsDisplayed()
+        compose.onNodeWithText("SI decimal (KB, MB, GB · 1000)").performClick()
+        compose.onNodeWithText(
+            "Units used for speed and total traffic · SI decimal (KB, MB, GB · 1000)",
+        ).assertIsDisplayed()
+
+        scenario.recreate()
+
+        compose.onNodeWithTag("screen-settings").assertIsDisplayed()
+        compose.onNodeWithText(
+            "Units used for speed and total traffic · SI decimal (KB, MB, GB · 1000)",
+        ).performScrollTo().assertIsDisplayed()
     }
 }
