@@ -161,8 +161,8 @@
     <string name="bypass_local_networks">Обходить локальные сети</string>
     <string name="bypass_local_networks_description">Прямой TCP-доступ к частным и локальным IP-адресам.</string>
     <string name="search_applications">Поиск приложений</string>
-    <string name="rotated_log_limit">Размер журнала с ротацией (МБ)</string>
-    <string name="rotated_log_limit_description">Общий размер двух сегментов журнала: 1–100 МБ.</string>
+    <string name="rotated_log_limit">Размер журнала с ротацией (МиБ)</string>
+    <string name="rotated_log_limit_description">Общий размер двух сегментов журнала: 1–100 МиБ.</string>
     <string name="no_diagnostic_events">Диагностических событий пока нет.</string>
     <string name="clear_diagnostic_log_title">Очистить диагностический журнал?</string>
     <string name="clear_diagnostic_log_message">Оба сегмента журнала будут удалены.</string>
@@ -216,11 +216,15 @@
     <string name="megaproxy_active">MegaProxy активен</string><string name="review_ssh_key">Проверить ключ SSH</string>
     <string name="always_on_all_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. Каждое переключение отображается в постоянном уведомлении и на главном экране.</string>
     <string name="always_on_selected_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. В уведомлении и на главном экране отображается фактически используемый профиль.</string>
-    <string name="ssh_keepalive">Интервал keepalive SSH, секунд (0 — отключено)</string><string name="ssh_max_channels">Максимум параллельных каналов SSH</string><string name="ssh_rotation_minutes">Сменить SSH-сессию через минут (0 — отключено)</string><string name="ssh_rotation_mb">Сменить SSH-сессию после МБ (0 — отключено)</string>
+    <string name="ssh_keepalive">Интервал keepalive SSH, секунд (0 — отключено)</string><string name="ssh_max_channels">Максимум параллельных каналов SSH</string><string name="ssh_rotation_minutes">Сменить SSH-сессию через минут (0 — отключено)</string><string name="ssh_rotation_mb">Сменить SSH-сессию после МиБ (0 — отключено)</string>
     <string name="could_not_open_email">Не удалось открыть почтовое приложение</string><string name="invalid_ja3">JA3 должен содержать пять полей: версия,шифры,расширения,группы,точки</string>
     <string name="traffic_download">Получено</string>
     <string name="traffic_upload">Отправлено</string>
     <string name="traffic_total">Всего: %1$s</string>
+    <string name="traffic_units">Единицы трафика</string>
+    <string name="traffic_units_description">Единицы скорости и суммарного трафика · %1$s</string>
+    <string name="traffic_units_iec">Двоичные IEC (КиБ, МиБ, ГиБ · 1024)</string>
+    <string name="traffic_units_si">Десятичные SI (КБ, МБ, ГБ · 1000)</string>
     <string name="proxy_latency">Задержка прокси</string>
     <string name="latency_milliseconds">%1$d мс%2$s</string>
     <string name="connection_errors_no_samples">Ошибки соединения: нет данных</string>

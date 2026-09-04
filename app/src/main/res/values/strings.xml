@@ -162,8 +162,8 @@
     <string name="bypass_local_networks">Bypass local networks</string>
     <string name="bypass_local_networks_description">Direct TCP access to private and link-local IP addresses.</string>
     <string name="search_applications">Search applications</string>
-    <string name="rotated_log_limit">Rotated log limit (MB)</string>
-    <string name="rotated_log_limit_description">Total size across both log segments; 1–100 MB.</string>
+    <string name="rotated_log_limit">Rotated log limit (MiB)</string>
+    <string name="rotated_log_limit_description">Total size across both log segments; 1–100 MiB.</string>
     <string name="no_diagnostic_events">No diagnostic events yet.</string>
     <string name="clear_diagnostic_log_title">Clear diagnostic log?</string>
     <string name="clear_diagnostic_log_message">Both rotated log segments will be deleted.</string>
@@ -217,11 +217,15 @@
     <string name="megaproxy_active">MegaProxy is active</string><string name="review_ssh_key">Review SSH key</string>
     <string name="always_on_all_failover_status">Always-on VPN remains active during automatic switching. Every switch is reported in the persistent notification and on the main screen.</string>
     <string name="always_on_selected_failover_status">Always-on VPN remains active during automatic switching. The persistent notification and the main screen show the profile actually in use.</string>
-    <string name="ssh_keepalive">SSH keepalive, seconds (0 = disabled)</string><string name="ssh_max_channels">Maximum parallel SSH channels</string><string name="ssh_rotation_minutes">Rotate SSH session after minutes (0 = disabled)</string><string name="ssh_rotation_mb">Rotate SSH session after MB (0 = disabled)</string>
+    <string name="ssh_keepalive">SSH keepalive, seconds (0 = disabled)</string><string name="ssh_max_channels">Maximum parallel SSH channels</string><string name="ssh_rotation_minutes">Rotate SSH session after minutes (0 = disabled)</string><string name="ssh_rotation_mb">Rotate SSH session after MiB (0 = disabled)</string>
     <string name="could_not_open_email">Could not open an email client</string><string name="invalid_ja3">JA3 must contain five fields: version,ciphers,extensions,groups,points</string>
     <string name="traffic_download">Download</string>
     <string name="traffic_upload">Upload</string>
     <string name="traffic_total">Total: %1$s</string>
+    <string name="traffic_units">Traffic units</string>
+    <string name="traffic_units_description">Units used for speed and total traffic · %1$s</string>
+    <string name="traffic_units_iec">IEC binary (KiB, MiB, GiB · 1024)</string>
+    <string name="traffic_units_si">SI decimal (KB, MB, GB · 1000)</string>
     <string name="proxy_latency">Proxy latency</string>
     <string name="latency_milliseconds">%1$d ms%2$s</string>
     <string name="connection_errors_no_samples">Connection errors: no samples</string>

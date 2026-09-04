@@ -665,6 +665,8 @@ private data class RefreshedMainConfig(
 
 @Composable
 private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val unitSystem = TrafficUnitPreferences.current(context)
     Card(Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(14.dp),
@@ -672,19 +674,19 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
         ) {
             StatValue(
                 label = stringResource(R.string.traffic_download),
-                value = "↓ ${formatTrafficRate(stats.downloadBytesPerSecond)}",
+                value = "↓ ${formatTrafficRate(stats.downloadBytesPerSecond, unitSystem)}",
                 supportingValue = stringResource(
                     R.string.traffic_total,
-                    formatTrafficBytes(stats.native.downloadBytes),
+                    formatTrafficBytes(stats.native.downloadBytes, unitSystem),
                 ),
                 modifier = Modifier.weight(1f),
             )
             StatValue(
                 label = stringResource(R.string.traffic_upload),
-                value = "↑ ${formatTrafficRate(stats.uploadBytesPerSecond)}",
+                value = "↑ ${formatTrafficRate(stats.uploadBytesPerSecond, unitSystem)}",
                 supportingValue = stringResource(
                     R.string.traffic_total,
-                    formatTrafficBytes(stats.native.uploadBytes),
+                    formatTrafficBytes(stats.native.uploadBytes, unitSystem),
                 ),
                 modifier = Modifier.weight(1f),
             )
