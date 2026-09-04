@@ -228,7 +228,7 @@
     <string name="traffic_units_iec">IEC binary (KiB, MiB, GiB · 1024)</string>
     <string name="traffic_units_si">SI decimal (KB, MB, GB · 1000)</string>
     <string name="proxy_latency">Proxy latency</string>
-    <string name="latency_milliseconds">%1$d ms%2$s</string>
+    <string name="latency_milliseconds">%1$d ms</string>
     <string name="connection_errors_no_samples">Connection errors: no samples</string>
     <string name="connection_errors">Connection errors: %1$.1f%% · %2$s</string>
     <plurals name="connection_samples">
@@ -236,11 +236,11 @@
         <item quantity="other">%1$d samples</item>
     </plurals>
     <plurals name="latency_seconds_ago">
-        <item quantity="one"> · %1$d sec ago</item>
-        <item quantity="other"> · %1$d sec ago</item>
+        <item quantity="one">%1$d sec ago</item>
+        <item quantity="other">%1$d sec ago</item>
     </plurals>
     <plurals name="latency_minutes_ago">
-        <item quantity="one"> · %1$d min ago</item>
-        <item quantity="other"> · %1$d min ago</item>
+        <item quantity="one">%1$d min ago</item>
+        <item quantity="other">%1$d min ago</item>
     </plurals>
 </resources>
