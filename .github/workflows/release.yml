@@ -36,6 +36,12 @@ jobs:
           go-version-file: native/go.mod
           cache-dependency-path: native/go.sum
 
+      - name: Set up Ruby and Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+
       - name: Install Android SDK components
         run: |
           sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
@@ -81,19 +87,12 @@ jobs:
           echo "MEGAPROXY_KEYSTORE_PATH=$keystore" >> "$GITHUB_ENV"
           echo "MEGAPROXY_KEY_PASSWORD_FILE=$password_file" >> "$GITHUB_ENV"
 
-      - name: Build optimized signed APKs
+      - name: Build and verify signed release artifacts
         env:
           MEGAPROXY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           MEGAPROXY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           MEGAPROXY_GIT_COMMIT: ${{ github.sha }}
-        run: ./scripts/build-release-apks.sh
-
-      - name: Build signed App Bundle
-        env:
-          MEGAPROXY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          MEGAPROXY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-          MEGAPROXY_GIT_COMMIT: ${{ github.sha }}
-        run: ./scripts/build-release-bundle.sh
+        run: bundle exec fastlane android release_artifacts
 
       - name: Publish GitHub Release
         env:

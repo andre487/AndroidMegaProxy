@@ -1,0 +1,90 @@
+default_platform(:android)
+
+opt_out_usage
+ensure_bundle_exec
+ruby_version("3.4.0")
+
+project_root = File.expand_path("..", __dir__)
+
+platform :android do
+  desc "Run the native Go tests with the race detector"
+  lane :native_tests do
+    Dir.chdir(File.join(project_root, "native")) do
+      sh("go test -race ./...")
+    end
+  end
+
+  desc "Build the native AAR used by Android builds"
+  private_lane :native_library do
+    sh(File.join(project_root, "scripts", "build-fdroid-native.sh"))
+  end
+
+  desc "Run Android checks, build a debug APK, and verify that the CI release APK is unsigned"
+  lane :android_checks do
+    signing_variables = %w[
+      MEGAPROXY_KEYSTORE_PATH
+      MEGAPROXY_KEYSTORE_PASSWORD
+      MEGAPROXY_KEY_ALIAS
+      MEGAPROXY_KEY_PASSWORD
+      MEGAPROXY_KEY_PASSWORD_FILE
+    ]
+    configured_signing_variables = signing_variables.select do |name|
+      !ENV.fetch(name, "").empty?
+    end
+    unless configured_signing_variables.empty?
+      UI.user_error!(
+        "Signing configuration must not be available to android_checks: " \
+        "#{configured_signing_variables.join(', ')}"
+      )
+    end
+
+    native_library
+    gradle(
+      tasks: %w[testDebugUnitTest lintDebug assembleDebug assembleRelease],
+      flags: "--no-daemon",
+      project_dir: project_root
+    )
+
+    unsigned_apk = File.join(
+      project_root,
+      "app/build/outputs/apk/release/app-release-unsigned.apk"
+    )
+    UI.user_error!("Expected unsigned release APK was not produced") unless File.file?(unsigned_apk)
+
+    android_home = ENV.fetch("ANDROID_HOME") do
+      UI.user_error!("ANDROID_HOME is required to verify the release APK")
+    end
+    apksigner = File.join(android_home, "build-tools", "36.0.0", "apksigner")
+    UI.user_error!("Android apksigner is unavailable: #{apksigner}") unless File.executable?(apksigner)
+
+    if system(apksigner, "verify", unsigned_apk, out: File::NULL, err: File::NULL)
+      UI.user_error!("CI release APK is unexpectedly signed: #{unsigned_apk}")
+    end
+    UI.success("Debug APK: app/build/outputs/apk/debug/app-debug.apk")
+    UI.success("Verified unsigned release APK: app/build/outputs/apk/release/app-release-unsigned.apk")
+  end
+
+  desc "Run every native and Android test and check"
+  lane :test do
+    native_tests
+    android_checks
+  end
+
+  desc "Build a debug APK after preparing the native library"
+  lane :debug_artifact do
+    native_library
+    gradle(
+      task: "assembleDebug",
+      flags: "--no-daemon",
+      project_dir: project_root
+    )
+    UI.success("Debug APK: app/build/outputs/apk/debug/app-debug.apk")
+  end
+
+  desc "Build and verify all signed release APK, AAB, symbols, and checksum artifacts"
+  lane :release_artifacts do
+    sh(File.join(project_root, "scripts", "build-release-apks.sh"))
+    sh(File.join(project_root, "scripts", "build-release-bundle.sh"))
+    UI.success("Release artifacts: dist/release")
+  end
+end

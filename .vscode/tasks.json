@@ -46,27 +46,21 @@
     {
       "label": "Test: Go core",
       "type": "shell",
-      "command": "source \"$HOME/.zshrc.extra\"; go test ./...",
-      "options": {
-        "cwd": "${workspaceFolder}/native"
-      },
+      "command": "source \"$HOME/.zshrc.extra\"; bundle exec fastlane android native_tests",
       "group": "test",
       "problemMatcher": []
     },
     {
-      "label": "Test: Android unit tests",
+      "label": "Test: Android checks",
       "type": "shell",
-      "command": "source \"$HOME/.zshrc.extra\"; ./gradlew testDebugUnitTest",
+      "command": "source \"$HOME/.zshrc.extra\"; bundle exec fastlane android android_checks",
       "group": "test",
       "problemMatcher": []
     },
     {
       "label": "Test: All",
-      "dependsOn": [
-        "Test: Go core",
-        "Test: Android unit tests"
-      ],
-      "dependsOrder": "parallel",
+      "type": "shell",
+      "command": "source \"$HOME/.zshrc.extra\"; bundle exec fastlane android test",
       "group": {
         "kind": "test",
         "isDefault": true
@@ -76,9 +70,7 @@
     {
       "label": "Android: Build debug APK",
       "type": "shell",
-      "command": "source \"$HOME/.zshrc.extra\"; ./gradlew assembleDebug",
-      "dependsOn": ["Android: Build native AAR"],
-      "dependsOrder": "sequence",
+      "command": "source \"$HOME/.zshrc.extra\"; bundle exec fastlane android debug_artifact",
       "group": {
         "kind": "build",
         "isDefault": true
