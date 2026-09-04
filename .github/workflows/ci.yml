@@ -126,7 +126,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Enable KVM acceleration
+      - name: Enable and verify KVM device access
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
             | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -134,7 +134,6 @@ jobs:
           sudo udevadm trigger --name-match=kvm
           test -r /dev/kvm
           test -w /dev/kvm
-          "$ANDROID_HOME/emulator/emulator" -accel-check
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -170,7 +169,9 @@ jobs:
           disable-linux-hw-accel: false
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: bundle exec fastlane android ui_tests
+          script: |
+            "$ANDROID_HOME/emulator/emulator" -accel-check
+            bundle exec fastlane android ui_tests
 
       - name: Verify UI tests actually ran
         run: |
@@ -221,7 +222,7 @@ jobs:
           echo "Verified Android UI test results: tests=$tests failures=0 errors=0 skipped=0"
 
       - name: Publish UI test report
-        if: always()
+        if: ${{ always() && hashFiles('app/build/outputs/androidTest-results/connected/debug/TEST-*.xml') != '' }}
         uses: actions/upload-artifact@v7
         with:
           name: android-ui-test-report
