@@ -218,4 +218,29 @@
     <string name="always_on_selected_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. В уведомлении и на главном экране отображается фактически используемый профиль.</string>
     <string name="ssh_keepalive">Интервал keepalive SSH, секунд (0 — отключено)</string><string name="ssh_max_channels">Максимум параллельных каналов SSH</string><string name="ssh_rotation_minutes">Сменить SSH-сессию через минут (0 — отключено)</string><string name="ssh_rotation_mb">Сменить SSH-сессию после МБ (0 — отключено)</string>
     <string name="could_not_open_email">Не удалось открыть почтовое приложение</string><string name="invalid_ja3">JA3 должен содержать пять полей: версия,шифры,расширения,группы,точки</string>
+    <string name="traffic_download">Получено</string>
+    <string name="traffic_upload">Отправлено</string>
+    <string name="traffic_total">Всего: %1$s</string>
+    <string name="proxy_latency">Задержка прокси</string>
+    <string name="latency_milliseconds">%1$d мс%2$s</string>
+    <string name="connection_errors_no_samples">Ошибки соединения: нет данных</string>
+    <string name="connection_errors">Ошибки соединения: %1$.1f%% · %2$s</string>
+    <plurals name="connection_samples">
+        <item quantity="one">%1$d попытка</item>
+        <item quantity="few">%1$d попытки</item>
+        <item quantity="many">%1$d попыток</item>
+        <item quantity="other">%1$d попытки</item>
+    </plurals>
+    <plurals name="latency_seconds_ago">
+        <item quantity="one"> · %1$d секунду назад</item>
+        <item quantity="few"> · %1$d секунды назад</item>
+        <item quantity="many"> · %1$d секунд назад</item>
+        <item quantity="other"> · %1$d секунды назад</item>
+    </plurals>
+    <plurals name="latency_minutes_ago">
+        <item quantity="one"> · %1$d минуту назад</item>
+        <item quantity="few"> · %1$d минуты назад</item>
+        <item quantity="many"> · %1$d минут назад</item>
+        <item quantity="other"> · %1$d минуты назад</item>
+    </plurals>
 </resources>

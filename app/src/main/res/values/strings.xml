@@ -219,4 +219,23 @@
     <string name="always_on_selected_failover_status">Always-on VPN remains active during automatic switching. The persistent notification and the main screen show the profile actually in use.</string>
     <string name="ssh_keepalive">SSH keepalive, seconds (0 = disabled)</string><string name="ssh_max_channels">Maximum parallel SSH channels</string><string name="ssh_rotation_minutes">Rotate SSH session after minutes (0 = disabled)</string><string name="ssh_rotation_mb">Rotate SSH session after MB (0 = disabled)</string>
     <string name="could_not_open_email">Could not open an email client</string><string name="invalid_ja3">JA3 must contain five fields: version,ciphers,extensions,groups,points</string>
+    <string name="traffic_download">Download</string>
+    <string name="traffic_upload">Upload</string>
+    <string name="traffic_total">Total: %1$s</string>
+    <string name="proxy_latency">Proxy latency</string>
+    <string name="latency_milliseconds">%1$d ms%2$s</string>
+    <string name="connection_errors_no_samples">Connection errors: no samples</string>
+    <string name="connection_errors">Connection errors: %1$.1f%% · %2$s</string>
+    <plurals name="connection_samples">
+        <item quantity="one">%1$d sample</item>
+        <item quantity="other">%1$d samples</item>
+    </plurals>
+    <plurals name="latency_seconds_ago">
+        <item quantity="one"> · %1$d sec ago</item>
+        <item quantity="other"> · %1$d sec ago</item>
+    </plurals>
+    <plurals name="latency_minutes_ago">
+        <item quantity="one"> · %1$d min ago</item>
+        <item quantity="other"> · %1$d min ago</item>
+    </plurals>
 </resources>

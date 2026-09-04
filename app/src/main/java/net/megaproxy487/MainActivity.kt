@@ -61,6 +61,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
@@ -666,20 +668,46 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
     Card(Modifier.fillMaxWidth()) {
         Row(
             Modifier.fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            StatValue("Download", "↓ ${formatRate(stats.downloadBytesPerSecond)}")
-            StatValue("Upload", "↑ ${formatRate(stats.uploadBytesPerSecond)}")
+            StatValue(
+                label = stringResource(R.string.traffic_download),
+                value = "↓ ${formatTrafficRate(stats.downloadBytesPerSecond)}",
+                supportingValue = stringResource(
+                    R.string.traffic_total,
+                    formatTrafficBytes(stats.native.downloadBytes),
+                ),
+                modifier = Modifier.weight(1f),
+            )
+            StatValue(
+                label = stringResource(R.string.traffic_upload),
+                value = "↑ ${formatTrafficRate(stats.uploadBytesPerSecond)}",
+                supportingValue = stringResource(
+                    R.string.traffic_total,
+                    formatTrafficBytes(stats.native.uploadBytes),
+                ),
+                modifier = Modifier.weight(1f),
+            )
             val latency = stats.native.proxyLatencyMillis
             val ageMillis = System.currentTimeMillis() - stats.native.proxyLatencyAtMillis
             StatValue(
-                "Proxy latency",
-                if (latency <= 0) "—" else "${latency.toInt()} ms${formatAge(ageMillis)}",
+                label = stringResource(R.string.proxy_latency),
+                value = if (latency <= 0) "—" else stringResource(
+                    R.string.latency_milliseconds,
+                    latency.toInt(),
+                    formatAge(ageMillis),
+                ),
+                modifier = Modifier.weight(1f),
             )
         }
+        val samples = stats.native.connectionSamples
         Text(
-            if (stats.native.connectionSamples == 0) "Connection errors: no samples"
-            else "Connection errors: ${"%.1f".format(stats.native.connectionErrorRate * 100)}% · ${stats.native.connectionSamples} samples",
+            if (samples == 0) stringResource(R.string.connection_errors_no_samples)
+            else stringResource(
+                R.string.connection_errors,
+                stats.native.connectionErrorRate * 100,
+                pluralStringResource(R.plurals.connection_samples, samples, samples),
+            ),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
@@ -688,21 +716,42 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
 }
 
 @Composable
-private fun StatValue(label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        Text(value, style = MaterialTheme.typography.titleSmall)
-        Text(label, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+private fun StatValue(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    supportingValue: String? = null,
+) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = MaterialTheme.typography.titleSmall, textAlign = TextAlign.Center)
+        Text(
+            label,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        supportingValue?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
     }
 }
 
-private fun formatRate(bytesPerSecond: Double): String = when {
-    bytesPerSecond >= 1_000_000 -> "%.1f MB/s".format(bytesPerSecond / 1_000_000)
-    bytesPerSecond >= 1_000 -> "%.1f KB/s".format(bytesPerSecond / 1_000)
-    else -> "${bytesPerSecond.toInt()} B/s"
-}
-
+@Composable
 private fun formatAge(ageMillis: Long): String = when {
     ageMillis < 30_000 -> ""
-    ageMillis < 120_000 -> " · ${ageMillis / 1_000}s ago"
-    else -> " · ${ageMillis / 60_000}m ago"
+    ageMillis < 120_000 -> pluralStringResource(
+        R.plurals.latency_seconds_ago,
+        (ageMillis / 1_000).toInt(),
+        (ageMillis / 1_000).toInt(),
+    )
+    else -> pluralStringResource(
+        R.plurals.latency_minutes_ago,
+        (ageMillis / 60_000).toInt(),
+        (ageMillis / 60_000).toInt(),
+    )
 }
