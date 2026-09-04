@@ -28,8 +28,10 @@ object TestDiagnosticLog {
     val entries = mutableStateListOf<String>()
     private val mutableState = androidx.compose.runtime.mutableStateOf(TestState.IDLE)
     private val mutableExitIp = androidx.compose.runtime.mutableStateOf<String?>(null)
+    private val mutableCountryCode = androidx.compose.runtime.mutableStateOf<String?>(null)
     val state: androidx.compose.runtime.State<TestState> = mutableState
     val exitIp: androidx.compose.runtime.State<String?> = mutableExitIp
+    val countryCode: androidx.compose.runtime.State<String?> = mutableCountryCode
 
     private fun onMain(action: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) action()
@@ -43,12 +45,14 @@ object TestDiagnosticLog {
     fun reset() = onMain {
         entries.clear()
         mutableExitIp.value = null
+        mutableCountryCode.value = null
         mutableState.value = TestState.IDLE
     }
 
     fun begin() = onMain {
         entries.clear()
         mutableExitIp.value = null
+        mutableCountryCode.value = null
         mutableState.value = TestState.RUNNING
     }
 
@@ -61,8 +65,9 @@ object TestDiagnosticLog {
         }
     }
 
-    fun succeed(ip: String) = onMain {
+    fun succeed(ip: String, countryCode: String?) = onMain {
         mutableExitIp.value = ip
+        mutableCountryCode.value = countryCode
         mutableState.value = TestState.SUCCEEDED
     }
 

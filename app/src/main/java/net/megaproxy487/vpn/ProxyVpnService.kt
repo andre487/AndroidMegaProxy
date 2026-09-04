@@ -259,11 +259,11 @@ class ProxyVpnService : VpnService() {
             TestDiagnosticLog.fail("Connection test failed: active VPN configuration is unavailable")
             return
         }
-        val exitIp = NativeProxyCore(this, TestDiagnosticLog::add).test(config) { message ->
+        val result = NativeProxyCore(this, TestDiagnosticLog::add).test(config) { message ->
             configureHostKeyPrompt(message, ConfigStore(this).activeProfileId(), true)
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
         }
-        if (exitIp != null) TestDiagnosticLog.succeed(exitIp) else TestDiagnosticLog.fail()
+        if (result != null) TestDiagnosticLog.succeed(result.exitIp, result.countryCode) else TestDiagnosticLog.fail()
         if (temporaryVpn) {
             stopTunnel()
             stopSelf()
