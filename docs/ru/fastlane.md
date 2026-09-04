@@ -54,9 +54,10 @@ bundle exec fastlane lanes
 официального релиза MegaProxy при этом не используется.
 
 Для pull request GitHub Actions загружает debug APK и unsigned release APK как два отдельных
-workflow artifact с понятными именами. Их можно скачать со страницы PR check в течение 14 дней.
-Это только тестовые артефакты: ни один из APK не подписан официальным release-ключом MegaProxy, не
-публикуется в GitHub Releases и не отправляется в магазин приложений.
+workflow artifact с понятными именами. Прямые ссылки на скачивание выводятся в job summary проверки
+Android, а сами файлы хранятся 14 дней. Это только тестовые артефакты: ни один из APK не подписан
+официальным release-ключом MegaProxy, не публикуется в GitHub Releases и не отправляется в магазин
+приложений.
 
 ## Обновление Fastlane
 

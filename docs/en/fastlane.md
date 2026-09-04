@@ -53,9 +53,9 @@ rejects signing configuration if one is accidentally supplied, and verifies with
 it does not use the MegaProxy release identity.
 
 For pull requests, GitHub Actions uploads the debug and unsigned release APKs as two separately
-named workflow artifacts. They can be downloaded from the PR check run for 14 days. These are test
-artifacts only: neither APK is signed with the MegaProxy release key, and neither is published as a
-GitHub Release or sent to an app store.
+named workflow artifacts. Direct download links are shown in the Android check's job summary, and
+the files are retained for 14 days. These are test artifacts only: neither APK is signed with the
+MegaProxy release key, and neither is published as a GitHub Release or sent to an app store.
 
 ## Updating Fastlane
 

@@ -83,6 +83,7 @@ jobs:
 
       - name: Publish PR debug APK
         if: github.event_name == 'pull_request'
+        id: debug_apk_upload
         uses: actions/upload-artifact@v7
         with:
           name: megaproxy-pr-${{ github.event.pull_request.number }}-debug-apk
@@ -93,6 +94,7 @@ jobs:
 
       - name: Publish PR unsigned release APK
         if: github.event_name == 'pull_request'
+        id: unsigned_release_apk_upload
         uses: actions/upload-artifact@v7
         with:
           name: megaproxy-pr-${{ github.event.pull_request.number }}-unsigned-release-apk
@@ -100,3 +102,18 @@ jobs:
           if-no-files-found: error
           compression-level: 0
           retention-days: 14
+
+      - name: Add APK download links to the job summary
+        if: github.event_name == 'pull_request'
+        env:
+          DEBUG_APK_URL: ${{ steps.debug_apk_upload.outputs.artifact-url }}
+          UNSIGNED_RELEASE_APK_URL: ${{ steps.unsigned_release_apk_upload.outputs.artifact-url }}
+        run: |
+          {
+            echo "## APK artifacts"
+            echo
+            echo "- [Download debug APK]($DEBUG_APK_URL) — signed with the disposable Android debug key"
+            echo "- [Download unsigned release APK]($UNSIGNED_RELEASE_APK_URL) — verified unsigned"
+            echo
+            echo "Artifacts expire after 14 days. Neither APK uses the MegaProxy release key."
+          } >> "$GITHUB_STEP_SUMMARY"
