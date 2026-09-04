@@ -126,14 +126,23 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@v6
 
-      - name: Enable and verify KVM device access
+      - name: Detect and enable KVM device access
+        id: kvm
         run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
-            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-          test -r /dev/kvm
-          test -w /dev/kvm
+          if [[ -e /dev/kvm ]]; then
+            echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+              | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+            sudo udevadm control --reload-rules
+            sudo udevadm trigger --name-match=kvm
+          fi
+
+          if [[ -r /dev/kvm && -w /dev/kvm ]]; then
+            echo "available=true" >> "$GITHUB_OUTPUT"
+            echo "KVM is available; the emulator will use hardware acceleration"
+          else
+            echo "available=false" >> "$GITHUB_OUTPUT"
+            echo "::warning::KVM is unavailable; falling back to software acceleration"
+          fi
 
       - name: Set up JDK 21
         uses: actions/setup-java@v5
@@ -166,12 +175,10 @@ jobs:
         with:
           api-level: 35
           arch: x86_64
-          disable-linux-hw-accel: false
+          disable-linux-hw-accel: ${{ steps.kvm.outputs.available != 'true' }}
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: |
-            "$ANDROID_HOME/emulator/emulator" -accel-check
-            bundle exec fastlane android ui_tests
+          script: bundle exec fastlane android ui_tests
 
       - name: Verify UI tests actually ran
         run: |

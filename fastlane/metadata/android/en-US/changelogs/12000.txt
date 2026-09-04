@@ -1,0 +1,3 @@
+Improved navigation, connection diagnostics and traffic statistics.
+
+Added total session traffic with selectable IEC/SI units, exit IP and country checks with fallback services, broader UI test coverage, and safe APK artifacts for pull requests.
