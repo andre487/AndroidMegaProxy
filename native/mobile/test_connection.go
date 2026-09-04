@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	stdtls "crypto/tls"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -11,6 +12,29 @@ import (
 	"strings"
 	"time"
 )
+
+type testEndpoint struct {
+	host  string
+	path  string
+	parse func(string) (string, bool)
+}
+
+var publicIPEndpoints = []testEndpoint{
+	{host: "ifconfig.me", path: "/ip", parse: parseIPAddress},
+	{host: "api.ipify.org", path: "/", parse: parseIPAddress},
+	{host: "icanhazip.com", path: "/", parse: parseIPAddress},
+}
+
+var countryEndpoints = []testEndpoint{
+	{host: "ifconfig.co", path: "/country-iso", parse: parseCountryCode},
+	{host: "ipapi.co", path: "/country_code/", parse: parseCountryCode},
+	{host: "api.country.is", path: "/", parse: parseCountryJSON},
+}
+
+type connectionTestResult struct {
+	ExitIP      string `json:"exitIp"`
+	CountryCode string `json:"countryCode,omitempty"`
+}
 
 // TestConnection verifies the configured proxy path without starting a TUN device.
 func TestConnection(rawConfig string, protector Protector, reporter Reporter) (string, error) {
@@ -37,16 +61,68 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	}
 	report(reporter, "event=connection_test stage=https_check result=success")
 
-	ip, err := testHTTPSGet(ctx, connect, testReporter, "ifconfig.me", "/ip", true)
+	ip, err := lookupTestValue(ctx, connect, testReporter, "exit_ip", publicIPEndpoints)
 	if err != nil {
 		return "", fmt.Errorf("public IP check: %w", err)
 	}
-	ip = strings.TrimSpace(ip)
-	if ip == "" || len(ip) > 128 {
-		return "", fmt.Errorf("public IP check returned an invalid response")
-	}
 	report(reporter, "event=connection_test stage=exit_ip result=success family=%s", ipFamily(ip))
-	return ip, nil
+
+	countryCode, countryErr := lookupTestValue(ctx, connect, testReporter, "exit_country", countryEndpoints)
+	if countryErr != nil {
+		report(reporter, "event=connection_test stage=exit_country result=unavailable")
+	} else {
+		report(reporter, "event=connection_test stage=exit_country result=success country=%s", countryCode)
+	}
+	encoded, err := json.Marshal(connectionTestResult{ExitIP: ip, CountryCode: countryCode})
+	if err != nil {
+		return "", fmt.Errorf("encode connection test result: %w", err)
+	}
+	return string(encoded), nil
+}
+
+func lookupTestValue(ctx context.Context, connect func(context.Context, string) (net.Conn, error), reporter Reporter, stage string, endpoints []testEndpoint) (string, error) {
+	return lookupEndpointValue(ctx, reporter, stage, endpoints, func(attemptCtx context.Context, endpoint testEndpoint) (string, error) {
+		return testHTTPSGet(attemptCtx, connect, reporter, endpoint.host, endpoint.path, true)
+	})
+}
+
+func lookupEndpointValue(ctx context.Context, reporter Reporter, stage string, endpoints []testEndpoint, fetch func(context.Context, testEndpoint) (string, error)) (string, error) {
+	var lastErr error
+	for index, endpoint := range endpoints {
+		attemptCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		body, err := fetch(attemptCtx, endpoint)
+		cancel()
+		if err == nil {
+			if value, valid := endpoint.parse(body); valid {
+				report(reporter, "event=connection_test stage=%s_provider result=success attempt=%d provider=%s", stage, index+1, endpoint.host)
+				return value, nil
+			}
+			err = fmt.Errorf("invalid response")
+		}
+		lastErr = err
+		report(reporter, "event=connection_test stage=%s_provider result=failed attempt=%d provider=%s", stage, index+1, endpoint.host)
+	}
+	return "", fmt.Errorf("all %d providers failed: %w", len(endpoints), lastErr)
+}
+
+func parseIPAddress(body string) (string, bool) {
+	value := strings.TrimSpace(body)
+	return value, len(value) <= 128 && net.ParseIP(value) != nil
+}
+
+func parseCountryCode(body string) (string, bool) {
+	value := strings.ToUpper(strings.TrimSpace(body))
+	return value, len(value) == 2 && value[0] >= 'A' && value[0] <= 'Z' && value[1] >= 'A' && value[1] <= 'Z'
+}
+
+func parseCountryJSON(body string) (string, bool) {
+	var response struct {
+		Country string `json:"country"`
+	}
+	if err := json.Unmarshal([]byte(body), &response); err != nil {
+		return "", false
+	}
+	return parseCountryCode(response.Country)
 }
 
 func ipFamily(value string) string {

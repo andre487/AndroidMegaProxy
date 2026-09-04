@@ -10,8 +10,18 @@ import java.lang.reflect.Proxy
 interface ProxyCore {
     fun resolveProxy(host: String, status: (String) -> Unit): String?
     fun start(tunFd: Int, config: ProxyConfig, status: (String) -> Unit): Boolean
-    fun test(config: ProxyConfig, status: (String) -> Unit): String?
+    fun test(config: ProxyConfig, status: (String) -> Unit): ConnectionTestResult?
     fun stop()
+}
+
+data class ConnectionTestResult(val exitIp: String, val countryCode: String?)
+
+internal fun parseConnectionTestResult(raw: String): ConnectionTestResult {
+    val result = JSONObject(raw)
+    return ConnectionTestResult(
+        exitIp = result.getString("exitIp"),
+        countryCode = result.optString("countryCode").takeIf(String::isNotBlank),
+    )
 }
 
 data class NativeConnectionStats(
@@ -130,7 +140,7 @@ class NativeProxyCore(
         }
     }
 
-    override fun test(config: ProxyConfig, status: (String) -> Unit): String? = runCatching {
+    override fun test(config: ProxyConfig, status: (String) -> Unit): ConnectionTestResult? = runCatching {
         val mobile = Class.forName("mobile.Mobile")
         val protectorType = Class.forName("mobile.Protector")
         val reporterType = Class.forName("mobile.Reporter")
@@ -141,10 +151,11 @@ class NativeProxyCore(
             if ("SSH_HOST_KEY_" in message) status(message)
             null
         }
-        mobile.getMethod("testConnection", String::class.java, protectorType, reporterType)
+        val raw = mobile.getMethod("testConnection", String::class.java, protectorType, reporterType)
             .invoke(null, configJson(config), protector, reporter) as String
+        parseConnectionTestResult(raw)
     }.onSuccess {
-        status("Test passed: exit IP $it")
+        status("Test passed: exit IP ${it.exitIp}")
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
         diagnostics("event=connection_test result=failed detail=$message")

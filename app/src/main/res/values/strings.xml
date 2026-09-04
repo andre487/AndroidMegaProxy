@@ -155,6 +155,7 @@
     <string name="always_on_conflict_title">Always-on VPN is already in use</string>
     <string name="change_settings">Change settings</string>
     <string name="proxy_exit_ip">Proxy exit IP: %1$s</string>
+    <string name="proxy_exit_country">Proxy exit country: %1$s</string>
     <string name="global_vpn">Global VPN</string>
     <string name="selected_apps_routing_description">Only selected applications use the proxy.</string>
     <string name="global_vpn_description">All applications use the proxy. This is the default mode.</string>

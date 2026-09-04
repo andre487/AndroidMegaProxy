@@ -67,6 +67,7 @@ import net.megaproxy487.ui.theme.MegaProxyTheme
 internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack: () -> Unit) {
     val state by TestDiagnosticLog.state
     val exitIp by TestDiagnosticLog.exitIp
+    val countryCode by TestDiagnosticLog.countryCode
     val pendingHostKey by SshHostKeyPromptState.pending
     var vpnPermissionRequestedAt by remember { mutableStateOf(0L) }
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
@@ -155,6 +156,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                         CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
                     }
                     exitIp?.let { Text(stringResource(R.string.proxy_exit_ip, it)) }
+                    countryCode?.let { Text(stringResource(R.string.proxy_exit_country, formatCountry(it))) }
                 }
             }
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
