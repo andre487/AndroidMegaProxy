@@ -87,6 +87,8 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
         mutableStateOf(powerManager.isIgnoringBatteryOptimizations(activity.packageName))
     }
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showTrafficUnitsDialog by remember { mutableStateOf(false) }
+    var trafficUnitSystem by remember { mutableStateOf(TrafficUnitPreferences.current(activity)) }
     var supportError by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
@@ -122,6 +124,16 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
             stringResource(R.string.language),
             "${stringResource(R.string.language_description)} · ${if (AppLanguageManager.current(activity) == AppLanguage.RUSSIAN) stringResource(R.string.language_russian) else stringResource(R.string.language_english)}",
         ) { showLanguageDialog = true }
+        SettingsButton(
+            stringResource(R.string.traffic_units),
+            stringResource(
+                R.string.traffic_units_description,
+                stringResource(
+                    if (trafficUnitSystem == TrafficUnitSystem.IEC) R.string.traffic_units_iec
+                    else R.string.traffic_units_si,
+                ),
+            ),
+        ) { showTrafficUnitsDialog = true }
         Text(stringResource(R.string.support), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
         SettingsButton(stringResource(R.string.feedback), stringResource(R.string.feedback_description)) {
             scope.launch {
@@ -186,6 +198,44 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
             },
             confirmButton = {},
             dismissButton = { TextButton(onClick = { showLanguageDialog = false }) { Text(stringResource(android.R.string.cancel)) } },
+        )
+    }
+
+    if (showTrafficUnitsDialog) {
+        AlertDialog(
+            onDismissRequest = { showTrafficUnitsDialog = false },
+            title = { Text(stringResource(R.string.traffic_units)) },
+            text = {
+                Column {
+                    TrafficUnitSystem.entries.forEach { unitSystem ->
+                        val label = stringResource(
+                            if (unitSystem == TrafficUnitSystem.IEC) R.string.traffic_units_iec
+                            else R.string.traffic_units_si,
+                        )
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                                value = trafficUnitSystem == unitSystem,
+                                role = Role.RadioButton,
+                                onValueChange = {
+                                    trafficUnitSystem = unitSystem
+                                    TrafficUnitPreferences.set(activity, unitSystem)
+                                    showTrafficUnitsDialog = false
+                                },
+                            ),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            androidx.compose.material3.RadioButton(trafficUnitSystem == unitSystem, null)
+                            Text(label)
+                        }
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showTrafficUnitsDialog = false }) {
+                    Text(stringResource(android.R.string.cancel))
+                }
+            },
         )
     }
 }
