@@ -120,7 +120,9 @@ jobs:
 
   android-ui-tests:
     name: Android UI tests
-    runs-on: ubuntu-latest
+    # GitHub's Linux runner does not currently expose /dev/kvm consistently;
+    # without acceleration the API 35 x86_64 emulator can crash before instrumentation starts.
+    runs-on: macos-15-intel
     timeout-minutes: 45
     steps:
       - name: Check out repository
@@ -160,3 +162,14 @@ jobs:
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: bundle exec fastlane android ui_tests
+
+      - name: Publish UI test report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-ui-test-report
+          path: |
+            app/build/reports/androidTests/connected/debug
+            app/build/outputs/androidTest-results/connected/debug
+          if-no-files-found: ignore
+          retention-days: 14
