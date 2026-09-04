@@ -8,18 +8,33 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 avd_processes() {
     ps ax -o pid=,command= | awk -v avd="@$avd_name" '
-        index($0, avd) && ($0 ~ /\/emulator / || $0 ~ /qemu-system/) { print $1 }
+        index($0, avd) && ($0 ~ /\/emulator / || $0 ~ /qemu-system/) { print $1; next }
+        index($0, "-avd " substr(avd, 2)) && ($0 ~ /\/emulator / || $0 ~ /qemu-system/) { print $1 }
+    '
+}
+
+headless_avd_processes() {
+    ps ax -o pid=,command= | awk -v avd="$avd_name" '
+        (index($0, "@" avd) || index($0, "-avd " avd)) &&
+        ($0 ~ /\/emulator / || $0 ~ /qemu-system/) &&
+        ($0 ~ /-no-window/ || $0 ~ /qemu-system-[^ ]*-headless/) { print $1 }
     '
 }
 
 emulator_serial="$(adb devices | awk 'NR > 1 && $1 ~ /^emulator-/ { print $1; exit }')"
 emulator_state=""
+restart_for_window=false
 
 if [[ -n "$emulator_serial" ]]; then
     emulator_state="$(adb -s "$emulator_serial" get-state 2>/dev/null || true)"
 fi
 
-if [[ -n "$emulator_serial" && "$emulator_state" != "device" ]]; then
+if [[ "$emulator_state" == "device" && -n "$(headless_avd_processes)" ]]; then
+    echo "A headless Android emulator is running; restarting it with a window"
+    restart_for_window=true
+fi
+
+if [[ "$restart_for_window" != "true" && -n "$emulator_serial" && "$emulator_state" != "device" ]]; then
     echo "Android emulator is $emulator_state; attempting ADB reconnect"
     adb reconnect offline >/dev/null 2>&1 || true
     for _ in {1..20}; do
@@ -29,10 +44,11 @@ if [[ -n "$emulator_serial" && "$emulator_state" != "device" ]]; then
     done
 fi
 
-if { [[ -n "$emulator_serial" && "$emulator_state" != "device" ]] ||
+if { [[ "$restart_for_window" == "true" ]] ||
+     [[ -n "$emulator_serial" && "$emulator_state" != "device" ]] ||
      { [[ -z "$emulator_serial" ]] && [[ -n "$(avd_processes)" ]]; }; }; then
     if [[ -n "$emulator_serial" ]]; then
-        echo "Stopping unresponsive emulator: $emulator_serial"
+        echo "Stopping non-windowed or unresponsive emulator: $emulator_serial"
         adb -s "$emulator_serial" emu kill >/dev/null 2>&1 || true
     else
         echo "Stopping orphaned emulator process for: $avd_name"
