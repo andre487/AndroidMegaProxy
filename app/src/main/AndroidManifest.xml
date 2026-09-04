@@ -27,6 +27,7 @@
         android:theme="@style/Theme.MegaProxy">
         <activity
             android:name=".MainActivity"
+            android:launchMode="singleTop"
             android:windowSoftInputMode="adjustResize"
             android:exported="true">
             <intent-filter>
@@ -34,18 +35,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity android:name=".ProxySettingsActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ProfilesActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".AlwaysOnSettingsActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".TlsFingerprintActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".FailoverSettingsActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".VisibilityActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ProfileEditorActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".SplitTunnelActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".ConnectionTestActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-        <activity android:name=".SshHostKeyActivity" android:exported="false" />
-        <activity android:name=".DiagnosticLogActivity" android:exported="false" android:windowSoftInputMode="adjustResize" />
-
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.fileprovider"

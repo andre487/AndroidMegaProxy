@@ -82,6 +82,7 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.SshHostKeyPromptState
+import net.megaproxy487.vpn.PendingSshHostKey
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.VpnTransportProtocol
@@ -98,9 +99,30 @@ import net.megaproxy487.ui.theme.MegaProxyTheme
 class MainActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        restoreHostKeyPrompt(intent)
         enableEdgeToEdge()
         BatteryOptimizationReminder.maybeRequest(this)
-        setContent { MegaProxyTheme { MainScreen(this) } }
+        setContent { MegaProxyTheme { MegaProxyNavHost(this) } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        restoreHostKeyPrompt(intent)
+    }
+
+    private fun restoreHostKeyPrompt(intent: Intent?) {
+        if (intent?.action != ACTION_REVIEW_SSH_HOST_KEY) return
+        SshHostKeyPromptState.show(
+            PendingSshHostKey(
+                profileId = intent.getStringExtra(EXTRA_PROFILE_ID).orEmpty(),
+                hop = intent.getStringExtra(EXTRA_HOP).orEmpty(),
+                algorithm = intent.getStringExtra(EXTRA_ALGORITHM).orEmpty(),
+                fingerprint = intent.getStringExtra(EXTRA_FINGERPRINT).orEmpty(),
+                changed = intent.getBooleanExtra(EXTRA_CHANGED, false),
+                testOnly = intent.getBooleanExtra(EXTRA_TEST_ONLY, false),
+            ),
+        )
     }
 
     override fun onResume() {
@@ -110,6 +132,16 @@ class MainActivity : LocalizedActivity() {
         val store = ConfigStore(this)
         val profileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id
         VpnRuntimeState.updateSystem(status.enabled, status.lockdown, profileId)
+    }
+
+    companion object {
+        const val ACTION_REVIEW_SSH_HOST_KEY = "net.megaproxy487.REVIEW_SSH_HOST_KEY"
+        const val EXTRA_PROFILE_ID = "profile_id"
+        const val EXTRA_HOP = "hop"
+        const val EXTRA_ALGORITHM = "algorithm"
+        const val EXTRA_FINGERPRINT = "fingerprint"
+        const val EXTRA_CHANGED = "changed"
+        const val EXTRA_TEST_ONLY = "test_only"
     }
 }
 
@@ -135,7 +167,12 @@ private fun ProfileTypeBadge(type: ProxyType, foreground: Color) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainScreen(activity: Activity) {
+internal fun MainScreen(
+    activity: Activity,
+    onOpenSettings: () -> Unit,
+    onOpenConnectionTest: () -> Unit,
+    onEditProfile: (String) -> Unit,
+) {
     val connection by VpnRuntimeState.connection
     val runtimeAlwaysOn by VpnRuntimeState.alwaysOn
     val runtimeLockdown by VpnRuntimeState.lockdown
@@ -429,9 +466,7 @@ private fun MainScreen(activity: Activity) {
                     ) {
                         Text(activeProfileError, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer)
                         TextButton(onClick = {
-                            activity.startActivity(Intent(activity, ProfileEditorActivity::class.java).apply {
-                                putExtra(ProfileEditorActivity.EXTRA_PROFILE_ID, activeProfile.id)
-                            })
+                            onEditProfile(activeProfile.id)
                         }) { Text(stringResource(R.string.configure)) }
                     }
                 }
@@ -485,11 +520,11 @@ private fun MainScreen(activity: Activity) {
                 }
             }
             FilledTonalButton(
-                onClick = { activity.startActivity(Intent(activity, ConnectionTestActivity::class.java)) },
+                onClick = onOpenConnectionTest,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.test_connection)) }
             FilledTonalButton(
-                onClick = { activity.startActivity(Intent(activity, ProxySettingsActivity::class.java)) },
+                onClick = onOpenSettings,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.settings)) }
             FilledTonalButton(

@@ -37,9 +37,13 @@ That command lists the lanes available in the checked-out version of the project
 | --- | --- |
 | `bundle exec fastlane android native_tests` | Runs all Go tests with the race detector. |
 | `bundle exec fastlane android android_checks` | Builds the native AAR, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
+| `bundle exec fastlane android ui_tests` | Builds the native AAR and runs the instrumented Compose UI tests on a connected Android device or emulator. This lane runs in pull-request CI. |
 | `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
 | `bundle exec fastlane android debug_artifact` | Builds `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_artifacts` | Builds and verifies the signed release APKs, AAB, native debug symbols, and `SHA256SUMS` in `dist/release`. |
+
+`ui_tests` requires a running Android device or emulator visible to `adb`. The other lanes do not
+start an emulator automatically.
 
 The release lane requires the signing configuration described in
 [Signed release builds](../../README.md#signed-release-builds). It builds artifacts but does not

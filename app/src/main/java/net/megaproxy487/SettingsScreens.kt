@@ -78,41 +78,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class ProxySettingsActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { SettingsHomeScreen(this) } }
-    }
-}
-
-class AlwaysOnSettingsActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { AlwaysOnSettingsScreen(this) } }
-    }
-}
-
-class TlsFingerprintActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { TlsFingerprintScreen(this) } }
-    }
-}
-
-class FailoverSettingsActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { FailoverSettingsScreen(this) } }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsHomeScreen(activity: Activity) {
+internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNavigate: (String) -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val powerManager = remember { activity.getSystemService(PowerManager::class.java) }
     var batteryOptimizationDisabled by remember {
@@ -132,15 +100,15 @@ private fun SettingsHomeScreen(activity: Activity) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    SettingsScaffold(activity, stringResource(R.string.settings)) {
+    SettingsScaffold(onBack, stringResource(R.string.settings)) {
         Text(stringResource(R.string.connection), style = MaterialTheme.typography.titleMedium)
-        SettingsButton(stringResource(R.string.profiles), stringResource(R.string.profiles_description)) { activity.startActivity(Intent(activity, ProfilesActivity::class.java)) }
-        SettingsButton(stringResource(R.string.always_on_vpn), stringResource(R.string.always_on_description)) { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
-        SettingsButton(stringResource(R.string.fingerprints), stringResource(R.string.fingerprints_description)) { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
-        SettingsButton(stringResource(R.string.split_tunneling), stringResource(R.string.split_tunneling_description)) { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
-        SettingsButton(stringResource(R.string.failover), stringResource(R.string.failover_description)) { activity.startActivity(Intent(activity, FailoverSettingsActivity::class.java)) }
+        SettingsButton(stringResource(R.string.profiles), stringResource(R.string.profiles_description)) { onNavigate(AppRoute.PROFILES) }
+        SettingsButton(stringResource(R.string.always_on_vpn), stringResource(R.string.always_on_description)) { onNavigate(AppRoute.ALWAYS_ON) }
+        SettingsButton(stringResource(R.string.fingerprints), stringResource(R.string.fingerprints_description)) { onNavigate(AppRoute.FINGERPRINTS) }
+        SettingsButton(stringResource(R.string.split_tunneling), stringResource(R.string.split_tunneling_description)) { onNavigate(AppRoute.SPLIT_TUNNEL) }
+        SettingsButton(stringResource(R.string.failover), stringResource(R.string.failover_description)) { onNavigate(AppRoute.FAILOVER) }
         Text(stringResource(R.string.diagnostics), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
-        SettingsButton(stringResource(R.string.visibility), stringResource(R.string.visibility_description)) { activity.startActivity(Intent(activity, VisibilityActivity::class.java)) }
+        SettingsButton(stringResource(R.string.visibility), stringResource(R.string.visibility_description)) { onNavigate(AppRoute.VISIBILITY) }
         if (!batteryOptimizationDisabled) {
             SettingsButton(stringResource(R.string.battery_settings), stringResource(R.string.battery_settings_description)) {
                 activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -148,7 +116,7 @@ private fun SettingsHomeScreen(activity: Activity) {
                 })
             }
         }
-        SettingsButton(stringResource(R.string.diagnostic_log), stringResource(R.string.diagnostic_log_description)) { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) }
+        SettingsButton(stringResource(R.string.diagnostic_log), stringResource(R.string.diagnostic_log_description)) { onNavigate(AppRoute.DIAGNOSTIC_LOG) }
         Text(stringResource(R.string.appearance_and_language), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
         SettingsButton(
             stringResource(R.string.language),
@@ -224,7 +192,7 @@ private fun SettingsHomeScreen(activity: Activity) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FailoverSettingsScreen(activity: Activity) {
+internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
@@ -236,7 +204,7 @@ private fun FailoverSettingsScreen(activity: Activity) {
         val snapshot = settings
         scope.launch(ConfigIoDispatcher) { store.saveGlobalConnectionSettings(snapshot) }
     }
-    SettingsScaffold(activity, "Failover") {
+    SettingsScaffold(onBack, "Failover") {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(settings.failoverMode.title, {}, readOnly = true, label = { Text("Failover mode") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
             DropdownMenu(expanded, { expanded = false }) {
@@ -299,13 +267,13 @@ private fun FailoverSettingsScreen(activity: Activity) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AlwaysOnSettingsScreen(activity: Activity) {
+internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(store.alwaysOnProfile()) }
     val alwaysOnActive = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
-    SettingsScaffold(activity, "Always-on VPN") {
+    SettingsScaffold(onBack, "Always-on VPN") {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
                 selected.displayNameWithFlag, {}, readOnly = true,
@@ -338,7 +306,7 @@ private fun AlwaysOnSettingsScreen(activity: Activity) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TlsFingerprintScreen(activity: Activity) {
+internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
@@ -375,7 +343,7 @@ private fun TlsFingerprintScreen(activity: Activity) {
         } else null
     }
 
-    SettingsScaffold(activity, "Fingerprints") {
+    SettingsScaffold(onBack, "Fingerprints") {
         Text("HTTPS fingerprint", style = MaterialTheme.typography.titleMedium)
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
@@ -496,13 +464,13 @@ private fun IntegerSettingField(initialValue: Int, range: IntRange, label: Strin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScaffold(activity: Activity, title: String, content: @Composable ColumnScope.() -> Unit) {
+private fun SettingsScaffold(onBack: () -> Unit, title: String, content: @Composable ColumnScope.() -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(title) },
                 navigationIcon = {
-                    IconButton(onClick = { activity.finish() }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },

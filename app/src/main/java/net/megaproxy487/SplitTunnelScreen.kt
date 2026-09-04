@@ -1,5 +1,6 @@
 package net.megaproxy487
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -58,19 +59,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class SplitTunnelActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { SplitTunnelScreen(this) } }
-    }
-}
-
 private data class AppItem(val packageName: String, val label: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
+internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
     var appSearch by remember { mutableStateOf("") }
@@ -122,7 +115,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
             TopAppBar(
                 title = { Text(stringResource(R.string.split_tunneling)) },
                 navigationIcon = {
-                    IconButton(onClick = { activity.finish() }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },

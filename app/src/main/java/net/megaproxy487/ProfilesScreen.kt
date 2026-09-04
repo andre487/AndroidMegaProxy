@@ -96,14 +96,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class ProfilesActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { SettingsScreen(this) } }
-    }
-}
-
 private data class MissingProfilesReview(
     val profiles: List<ProxyProfile>,
     val importSummary: String,
@@ -202,7 +194,7 @@ private fun applySelectedProfileOptions(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScreen(activity: Activity) {
+internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfile: (String) -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
     val profiles = remember { mutableStateListOf<ProxyProfile>() }
@@ -246,9 +238,7 @@ private fun SettingsScreen(activity: Activity) {
         return true
     }
     fun edit(profile: ProxyProfile) {
-        activity.startActivity(Intent(activity, ProfileEditorActivity::class.java).apply {
-            putExtra(ProfileEditorActivity.EXTRA_PROFILE_ID, profile.id)
-        })
+        onEditProfile(profile.id)
     }
     fun writeExport(uri: Uri?) {
         if (uri == null) return
@@ -418,7 +408,7 @@ private fun SettingsScreen(activity: Activity) {
         TopAppBar(
             title = { Text(stringResource(R.string.profiles)) },
             navigationIcon = {
-                IconButton(onClick = { activity.finish() }) {
+                IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
             },

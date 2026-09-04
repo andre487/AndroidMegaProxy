@@ -47,14 +47,6 @@ import net.megaproxy487.ui.theme.MegaProxyTheme
 import net.megaproxy487.data.ConfigStore
 import java.net.NetworkInterface
 
-class VisibilityActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { VisibilityScreen(this) } }
-    }
-}
-
 private enum class VisibilityState(val label: String) {
     DETECTED("Detected"),
     SELECTED_APPS_ONLY("Selected apps only"),
@@ -75,14 +67,14 @@ private data class VisibilityReport(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun VisibilityScreen(activity: Activity) {
+internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
     var report by remember { mutableStateOf(buildVisibilityReport(activity)) }
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.visibility)) },
                 navigationIcon = {
-                    IconButton(onClick = activity::finish) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },

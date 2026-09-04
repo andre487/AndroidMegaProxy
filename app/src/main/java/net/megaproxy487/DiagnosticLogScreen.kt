@@ -58,17 +58,9 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
-class DiagnosticLogActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { DiagnosticLogScreen(this) } }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DiagnosticLogScreen(activity: Activity) {
+internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
     val viewerWindowBytes = 512 * 1024
     val store = remember { ConfigStore(activity) }
     val listState = rememberLazyListState()
@@ -126,7 +118,7 @@ private fun DiagnosticLogScreen(activity: Activity) {
             TopAppBar(
                 title = { Text(stringResource(R.string.diagnostic_log)) },
                 navigationIcon = {
-                    IconButton(onClick = { activity.finish() }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },

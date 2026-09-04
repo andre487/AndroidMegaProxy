@@ -46,6 +46,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -73,25 +74,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class ProfileEditorActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        setContent { MegaProxyTheme { ProfileEditorScreen(this) } }
-    }
-
-    companion object {
-        const val EXTRA_PROFILE_ID = "profile_id"
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ProfileEditorScreen(activity: Activity) {
+internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val coroutineScope = rememberCoroutineScope()
-    val profileId = remember { activity.intent.getStringExtra(ProfileEditorActivity.EXTRA_PROFILE_ID) }
+    DisposableEffect(activity) {
+        activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        onDispose { activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
+    }
     var profile by remember { mutableStateOf(store.profile(profileId.orEmpty()) ?: store.activeProfile()) }
     var config by remember { mutableStateOf(profile.config) }
     var portText by remember { mutableStateOf(config.port.toString()) }
@@ -166,7 +157,7 @@ private fun ProfileEditorScreen(activity: Activity) {
             TopAppBar(
                 title = { Text(profile.displayName) },
                 navigationIcon = {
-                    IconButton(onClick = { activity.finish() }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },

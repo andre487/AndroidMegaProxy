@@ -62,19 +62,9 @@ import net.megaproxy487.vpn.openAndroidVpnSettings
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
-class ConnectionTestActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        val autoStart = savedInstanceState == null
-        if (autoStart) TestDiagnosticLog.reset()
-        setContent { MegaProxyTheme { ConnectionTestScreen(this, autoStart) } }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
+internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack: () -> Unit) {
     val state by TestDiagnosticLog.state
     val exitIp by TestDiagnosticLog.exitIp
     val pendingHostKey by SshHostKeyPromptState.pending
@@ -116,14 +106,19 @@ private fun ConnectionTestScreen(activity: Activity, autoStart: Boolean) {
             }
         }
     }
-    LaunchedEffect(autoStart) { if (autoStart) runTest() }
+    LaunchedEffect(Unit) {
+        if (autoStart) {
+            TestDiagnosticLog.reset()
+            runTest()
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.connection_test)) },
                 navigationIcon = {
-                    IconButton(onClick = { activity.finish() }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
                     }
                 },
