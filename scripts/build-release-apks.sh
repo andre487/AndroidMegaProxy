@@ -206,7 +206,7 @@ done
 
 # F-Droid verifies this universal APK against a clean source build before
 # publishing it with the upstream signature. Keep its gomobile and Gradle
-# inputs identical to the F-Droid recipe in .fdroid.yml.
+# inputs compatible with the recipe maintained in fdroiddata.
 echo "Building optimized native AAR for the universal APK"
 (
     cd "$project_dir/native"
