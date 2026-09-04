@@ -38,9 +38,13 @@ bundle exec fastlane lanes
 | --- | --- |
 | `bundle exec fastlane android native_tests` | Запускает все Go-тесты с race detector. |
 | `bundle exec fastlane android android_checks` | Собирает native AAR, запускает Android unit-тесты и lint, собирает debug APK, затем собирает и проверяет unsigned release APK. Команда отклоняет переменные release-подписи. |
+| `bundle exec fastlane android ui_tests` | Собирает native AAR и запускает инструментальные Compose UI-тесты на подключённом Android-устройстве или эмуляторе. Этот lane выполняется в CI каждого pull request. |
 | `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_artifacts` | Собирает и проверяет подписанные APK, AAB, native debug symbols и `SHA256SUMS` в `dist/release`. |
+
+Для `ui_tests` нужен запущенный Android-девайс или эмулятор, видимый через `adb`. Остальные lane
+не запускают эмулятор автоматически.
 
 Для release lane нужна конфигурация подписи из раздела
 [Signed release builds](../../README.md#signed-release-builds). Lane только собирает артефакты: он

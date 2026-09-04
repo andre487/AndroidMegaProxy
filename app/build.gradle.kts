@@ -1,3 +1,6 @@
+import java.io.File
+import org.gradle.api.attributes.Attribute
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -113,7 +116,35 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    implementation("androidx.navigation:navigation-compose:2.9.5")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250107")
+    androidTestImplementation(platform("androidx.compose:compose-bom:2025.01.01"))
+    androidTestImplementation("androidx.compose.ui:ui-test-junit4")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
+    androidTestImplementation("androidx.test.espresso:espresso-core:3.6.1")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
     runtimeOnly(files("libs/megaproxy.aar"))
+}
+
+// fwcd.kotlin does not understand Android Gradle Plugin variants reliably. Its language server
+// invokes the repository's kls-classpath script, which uses this task to expose the same classpath
+// as the debug Kotlin compiler, including Android's boot classes and generated R/BuildConfig code.
+tasks.register("kotlinLanguageServerClasspath") {
+    dependsOn("processDebugResources")
+    doLast {
+        val generatedEntries = listOf(
+            layout.buildDirectory.file("intermediates/compile_and_runtime_not_namespaced_r_class_jar/debug/processDebugResources/R.jar").get().asFile,
+            layout.buildDirectory.dir("intermediates/javac/debug/compileDebugJavaWithJavac/classes").get().asFile,
+        )
+        val compileJars = configurations.getByName("debugCompileClasspath").incoming.artifactView {
+            attributes.attribute(Attribute.of("artifactType", String::class.java), "android-classes-jar")
+        }.files.files
+        val entries = (
+            compileJars +
+                android.bootClasspath +
+                generatedEntries.filter { it.exists() }
+            ).map { it.absolutePath }.distinct()
+        println(entries.joinToString(File.pathSeparator))
+    }
 }

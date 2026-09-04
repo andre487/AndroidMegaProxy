@@ -82,6 +82,7 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.SshHostKeyPromptState
+import net.megaproxy487.vpn.PendingSshHostKey
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.VpnTransportProtocol
@@ -98,9 +99,30 @@ import net.megaproxy487.ui.theme.MegaProxyTheme
 class MainActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        restoreHostKeyPrompt(intent)
         enableEdgeToEdge()
         BatteryOptimizationReminder.maybeRequest(this)
-        setContent { MegaProxyTheme { MainScreen(this) } }
+        setContent { MegaProxyTheme { MegaProxyNavHost(this) } }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        restoreHostKeyPrompt(intent)
+    }
+
+    private fun restoreHostKeyPrompt(intent: Intent?) {
+        if (intent?.action != ACTION_REVIEW_SSH_HOST_KEY) return
+        SshHostKeyPromptState.show(
+            PendingSshHostKey(
+                profileId = intent.getStringExtra(EXTRA_PROFILE_ID).orEmpty(),
+                hop = intent.getStringExtra(EXTRA_HOP).orEmpty(),
+                algorithm = intent.getStringExtra(EXTRA_ALGORITHM).orEmpty(),
+                fingerprint = intent.getStringExtra(EXTRA_FINGERPRINT).orEmpty(),
+                changed = intent.getBooleanExtra(EXTRA_CHANGED, false),
+                testOnly = intent.getBooleanExtra(EXTRA_TEST_ONLY, false),
+            ),
+        )
     }
 
     override fun onResume() {
@@ -110,6 +132,16 @@ class MainActivity : LocalizedActivity() {
         val store = ConfigStore(this)
         val profileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id
         VpnRuntimeState.updateSystem(status.enabled, status.lockdown, profileId)
+    }
+
+    companion object {
+        const val ACTION_REVIEW_SSH_HOST_KEY = "net.megaproxy487.REVIEW_SSH_HOST_KEY"
+        const val EXTRA_PROFILE_ID = "profile_id"
+        const val EXTRA_HOP = "hop"
+        const val EXTRA_ALGORITHM = "algorithm"
+        const val EXTRA_FINGERPRINT = "fingerprint"
+        const val EXTRA_CHANGED = "changed"
+        const val EXTRA_TEST_ONLY = "test_only"
     }
 }
 
@@ -135,7 +167,12 @@ private fun ProfileTypeBadge(type: ProxyType, foreground: Color) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun MainScreen(activity: Activity) {
+internal fun MainScreen(
+    activity: Activity,
+    onOpenSettings: () -> Unit,
+    onOpenConnectionTest: () -> Unit,
+    onEditProfile: (String) -> Unit,
+) {
     val connection by VpnRuntimeState.connection
     val runtimeAlwaysOn by VpnRuntimeState.alwaysOn
     val runtimeLockdown by VpnRuntimeState.lockdown
@@ -274,7 +311,7 @@ private fun MainScreen(activity: Activity) {
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("MegaProxy") }) },
+        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
@@ -365,7 +402,7 @@ private fun MainScreen(activity: Activity) {
                     ),
                 ) {
                     Column(Modifier.fillMaxWidth().padding(14.dp)) {
-                    Text("Profile", style = MaterialTheme.typography.labelMedium)
+                    Text(stringResource(R.string.profile), style = MaterialTheme.typography.labelMedium)
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
@@ -383,10 +420,10 @@ private fun MainScreen(activity: Activity) {
                         }
                         Text(activeProfile.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
                         ProfileTypeBadge(activeProfile.config.type, onProfileColor)
-                        Icon(Icons.Filled.ArrowDropDown, contentDescription = "Select profile", tint = onProfileColor)
+                        Icon(Icons.Filled.ArrowDropDown, contentDescription = stringResource(R.string.select_profile), tint = onProfileColor)
                     }
                     if (actualProfile != null && actualProfile.id != activeProfile.id && connection != VpnConnectionState.DISCONNECTED) {
-                        Text("Connected through: ${actualProfile.displayNameWithFlag}", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.connected_through, actualProfile.displayNameWithFlag), style = MaterialTheme.typography.bodySmall)
                     }
                         DropdownMenu(profileMenuExpanded, { profileMenuExpanded = false }) {
                             profiles.forEach { profile ->
@@ -429,9 +466,7 @@ private fun MainScreen(activity: Activity) {
                     ) {
                         Text(activeProfileError, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer)
                         TextButton(onClick = {
-                            activity.startActivity(Intent(activity, ProfileEditorActivity::class.java).apply {
-                                putExtra(ProfileEditorActivity.EXTRA_PROFILE_ID, activeProfile.id)
-                            })
+                            onEditProfile(activeProfile.id)
                         }) { Text(stringResource(R.string.configure)) }
                     }
                 }
@@ -485,11 +520,11 @@ private fun MainScreen(activity: Activity) {
                 }
             }
             FilledTonalButton(
-                onClick = { activity.startActivity(Intent(activity, ConnectionTestActivity::class.java)) },
+                onClick = onOpenConnectionTest,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.test_connection)) }
             FilledTonalButton(
-                onClick = { activity.startActivity(Intent(activity, ProxySettingsActivity::class.java)) },
+                onClick = onOpenSettings,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.settings)) }
             FilledTonalButton(
@@ -525,8 +560,8 @@ private fun MainScreen(activity: Activity) {
     if (showCrashReport) {
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("MegaProxy stopped unexpectedly") },
-            text = { Text("A privacy-filtered crash report was saved. You can send it to help diagnose the problem.") },
+            title = { Text(stringResource(R.string.unexpected_stop_title)) },
+            text = { Text(stringResource(R.string.crash_report_saved)) },
             confirmButton = {
                 TextButton(onClick = {
                     scope.launch {
@@ -547,13 +582,13 @@ private fun MainScreen(activity: Activity) {
                             error = "Could not open an email client: ${it.message ?: "unknown error"}"
                         }
                     }
-                }) { Text("Report") }
+                }) { Text(stringResource(R.string.report)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     CrashHandler.markReportHandled()
                     showCrashReport = false
-                }) { Text("Close") }
+                }) { Text(stringResource(R.string.close)) }
             },
         )
     }
@@ -561,16 +596,16 @@ private fun MainScreen(activity: Activity) {
     if (showAlwaysOnConflict) {
         AlertDialog(
             onDismissRequest = { showAlwaysOnConflict = false },
-            title = { Text("Always-on VPN is already in use") },
+            title = { Text(stringResource(R.string.always_on_conflict_title)) },
             text = { Text(OTHER_ALWAYS_ON_VPN_MESSAGE) },
             confirmButton = {
                 TextButton(onClick = {
                     showAlwaysOnConflict = false
                     openAndroidVpnSettings(activity)
-                }) { Text("Change settings") }
+                }) { Text(stringResource(R.string.change_settings)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAlwaysOnConflict = false }) { Text("Cancel") }
+                TextButton(onClick = { showAlwaysOnConflict = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -582,14 +617,14 @@ private fun MainScreen(activity: Activity) {
         }
         AlertDialog(
             onDismissRequest = ::dismissHostKeyPrompt,
-            title = { Text(if (pending.changed) "SSH host key changed" else "Trust SSH host key?") },
+            title = { Text(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
             text = { Text(buildString {
                 if (pending.changed) {
-                    append("Warning: the previously trusted key for the ${pending.hop} host has changed. This may indicate a server reinstall or a man-in-the-middle attack. Verify it through a trusted channel before replacing it.\n\n")
+                    append(activity.getString(R.string.ssh_changed_key_warning, pending.hop))
                 } else {
-                    append("This is the first connection to the ${pending.hop} SSH host. Verify its fingerprint through a trusted channel.\n\n")
+                    append(activity.getString(R.string.ssh_first_connection_warning, pending.hop))
                 }
-                append("Algorithm: ${pending.algorithm}\nFingerprint: ${pending.fingerprint}")
+                append(activity.getString(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
             }) },
             confirmButton = {
                 TextButton(onClick = {
@@ -597,12 +632,12 @@ private fun MainScreen(activity: Activity) {
                         SshHostKeyPromptState.clear()
                         ProxyVpnService.reconnect(activity)
                     } else {
-                        error = "The SSH host key could not be saved to this profile"
+                        error = activity.getString(R.string.ssh_key_save_failed)
                     }
-                }) { Text(if (pending.changed) "Replace trusted key" else "Trust and connect") }
+                }) { Text(stringResource(if (pending.changed) R.string.replace_trusted_key else R.string.trust_and_connect)) }
             },
             dismissButton = {
-                TextButton(onClick = ::dismissHostKeyPrompt) { Text("Cancel") }
+                TextButton(onClick = ::dismissHostKeyPrompt) { Text(stringResource(R.string.cancel)) }
             },
         )
     }

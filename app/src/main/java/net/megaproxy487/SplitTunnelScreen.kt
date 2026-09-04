@@ -1,5 +1,6 @@
 package net.megaproxy487
 
+import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -58,19 +59,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class SplitTunnelActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { SplitTunnelScreen(this) } }
-    }
-}
-
 private data class AppItem(val packageName: String, val label: String)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
+internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
     var appSearch by remember { mutableStateOf("") }
@@ -122,8 +115,8 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
             TopAppBar(
                 title = { Text(stringResource(R.string.split_tunneling)) },
                 navigationIcon = {
-                    IconButton(onClick = { activity.finish() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -144,13 +137,13 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                                 showReconnectPrompt = false
                                 showAlwaysOnDeferredNotice = false
                                 deferChangesUntilNextConnection = true
-                            }) { Text(if (showAlwaysOnDeferredNotice) "Dismiss" else "Next connection") }
+                            }) { Text(stringResource(if (showAlwaysOnDeferredNotice) R.string.dismiss else R.string.next_connection)) }
                             if (showReconnectPrompt) {
                                 TextButton(onClick = {
                                     showReconnectPrompt = false
                                     deferChangesUntilNextConnection = true
                                     ProxyVpnService.reconnect(activity)
-                                }) { Text("Reconnect now") }
+                                }) { Text(stringResource(R.string.reconnect_now)) }
                             }
                         }
                     }
@@ -182,7 +175,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                         RadioButton(!settings.routeAllApps, null)
                         Column(Modifier.weight(1f)) {
                             Text(stringResource(R.string.split_tunneling))
-                            Text("Only selected applications use the proxy.", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.selected_apps_routing_description), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                     Row(
@@ -195,13 +188,13 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                     ) {
                         RadioButton(settings.routeAllApps, null)
                         Column(Modifier.weight(1f)) {
-                            Text("Global VPN")
-                            Text("All applications use the proxy. This is the default mode.", style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.global_vpn))
+                            Text(stringResource(R.string.global_vpn_description), style = MaterialTheme.typography.bodySmall)
                         }
                     }
                 }
             }
-            item { Text("UDP and QUIC are blocked; DNS uses the profile's configured DoH endpoint.", style = MaterialTheme.typography.bodySmall) }
+            item { Text(stringResource(R.string.udp_quic_blocked_description), style = MaterialTheme.typography.bodySmall) }
             item {
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
@@ -213,8 +206,8 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                 ) {
                     Column(Modifier.weight(1f)) {
-                        Text("Bypass local networks")
-                        Text("Direct TCP access to private and link-local IP addresses.", style = MaterialTheme.typography.bodySmall)
+                        Text(stringResource(R.string.bypass_local_networks))
+                        Text(stringResource(R.string.bypass_local_networks_description), style = MaterialTheme.typography.bodySmall)
                     }
                     Checkbox(settings.bypassLocalNetworks, null)
                 }
@@ -230,7 +223,7 @@ private fun SplitTunnelScreen(activity: SplitTunnelActivity) {
                     OutlinedTextField(
                         value = appSearch,
                         onValueChange = { appSearch = it },
-                        label = { Text("Search applications") },
+                        label = { Text(stringResource(R.string.search_applications)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )

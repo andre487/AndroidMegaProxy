@@ -58,17 +58,9 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
-class DiagnosticLogActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { DiagnosticLogScreen(this) } }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun DiagnosticLogScreen(activity: Activity) {
+internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
     val viewerWindowBytes = 512 * 1024
     val store = remember { ConfigStore(activity) }
     val listState = rememberLazyListState()
@@ -94,7 +86,7 @@ private fun DiagnosticLogScreen(activity: Activity) {
                             PersistentDiagnosticLog.copyTo(it)
                         } ?: error("Could not open the export file")
                     }
-                }.onSuccess { message = "Diagnostic log exported." }
+                }.onSuccess { message = activity.getString(R.string.diagnostic_log_exported) }
                     .onFailure { message = it.message ?: "Could not export the diagnostic log" }
             }
         }
@@ -126,8 +118,8 @@ private fun DiagnosticLogScreen(activity: Activity) {
             TopAppBar(
                 title = { Text(stringResource(R.string.diagnostic_log)) },
                 navigationIcon = {
-                    IconButton(onClick = { activity.finish() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back")
+                    IconButton(onClick = onBack) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
             )
@@ -154,8 +146,8 @@ private fun DiagnosticLogScreen(activity: Activity) {
                         }
                     }
                 },
-                label = { Text("Rotated log limit (MB)") },
-                supportingText = { Text("Total size across both log segments; 1–100 MB.") },
+                label = { Text(stringResource(R.string.rotated_log_limit)) },
+                supportingText = { Text(stringResource(R.string.rotated_log_limit_description)) },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -179,7 +171,7 @@ private fun DiagnosticLogScreen(activity: Activity) {
                 state = listState,
                 modifier = Modifier.fillMaxWidth().weight(1f),
             ) {
-                if (lines.isEmpty()) item { Text("No diagnostic events yet.") }
+                if (lines.isEmpty()) item { Text(stringResource(R.string.no_diagnostic_events)) }
                 itemsIndexed(lines, key = { index, _ -> index }) { _, line ->
                     Text(line, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
                 }
@@ -190,20 +182,20 @@ private fun DiagnosticLogScreen(activity: Activity) {
     if (showClearConfirmation) {
         AlertDialog(
             onDismissRequest = { showClearConfirmation = false },
-            title = { Text("Clear diagnostic log?") },
-            text = { Text("Both rotated log segments will be deleted.") },
+            title = { Text(stringResource(R.string.clear_diagnostic_log_title)) },
+            text = { Text(stringResource(R.string.clear_diagnostic_log_message)) },
             confirmButton = { TextButton(onClick = {
                 showClearConfirmation = false
                 PersistentDiagnosticLog.clear()
-            }) { Text("Clear") } },
-            dismissButton = { TextButton(onClick = { showClearConfirmation = false }) { Text("Cancel") } },
+            }) { Text(stringResource(R.string.clear_action)) } },
+            dismissButton = { TextButton(onClick = { showClearConfirmation = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     message?.let {
         AlertDialog(
             onDismissRequest = { message = null },
             text = { Text(it) },
-            confirmButton = { TextButton(onClick = { message = null }) { Text("OK") } },
+            confirmButton = { TextButton(onClick = { message = null }) { Text(stringResource(R.string.ok)) } },
         )
     }
 }

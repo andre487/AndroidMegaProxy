@@ -112,4 +112,111 @@
     <string name="transport_ssh_multiplexed">SSH multiplexed</string>
     <string name="import_destination_key">Import destination key from file</string>
     <string name="import_jump_key">Import jump key from file</string>
+    <string name="profile_name_optional">Profile name (optional)</string>
+    <string name="defaults_to_proxy_host">Defaults to the proxy host</string>
+    <string name="country_flag">Country flag</string>
+    <string name="no_flag">No flag</string>
+    <string name="profile_type">Profile type</string>
+    <string name="https_proxy_hostname">HTTPS proxy hostname</string>
+    <string name="destination_ssh_hostname">Destination SSH hostname</string>
+    <string name="port">Port</string>
+    <string name="basic_auth_username">Basic Auth username</string>
+    <string name="ssh_username">SSH username</string>
+    <string name="password">Password</string>
+    <string name="ssh_password_optional">SSH password (optional)</string>
+    <string name="private_key_optional">Private key (optional)</string>
+    <string name="private_key_format_hint">PEM or OpenSSH format. Passphrase-protected keys are not supported.</string>
+    <string name="trusted_destination_key">Trusted destination key: %1$s</string>
+    <string name="jump_host">Jump host</string>
+    <string name="jump_ssh_hostname">Jump SSH hostname</string>
+    <string name="jump_port">Jump port</string>
+    <string name="jump_ssh_username">Jump SSH username</string>
+    <string name="jump_ssh_password_optional">Jump SSH password (optional)</string>
+    <string name="jump_private_key_optional">Jump private key (optional)</string>
+    <string name="trusted_jump_key">Trusted jump key: %1$s</string>
+    <string name="dns_over_https">DNS over HTTPS</string>
+    <string name="custom_doh_url">Custom DoH URL</string>
+    <string name="reconnect_apply_changes">Reconnect to apply these changes to the active VPN.</string>
+    <string name="always_on_changes_next_connection">Always-on is active. Changes apply on the next connection.</string>
+    <string name="allow_untrusted_certificate_title">Allow an untrusted proxy certificate?</string>
+    <string name="allow_untrusted_certificate_message">This disables certificate-chain and hostname verification between your phone and the HTTPS proxy. An attacker could impersonate the proxy and obtain its Basic Auth credentials. Destination HTTPS certificates remain verified.</string>
+    <string name="accept_any_ssh_key_title">Accept any SSH host key?</string>
+    <string name="accept_any_ssh_key_message">This disables identity verification for the %1$s SSH host and permits man-in-the-middle attacks. Credentials and tunneled traffic could be intercepted.</string>
+    <string name="accept_any_key">Accept any key</string>
+    <string name="ssh_host_key_changed">SSH host key changed</string>
+    <string name="trust_ssh_host_key">Trust SSH host key?</string>
+    <string name="ssh_changed_key_warning">Warning: the previously trusted key for the %1$s host has changed. This can indicate a server reinstall or a man-in-the-middle attack. Verify the fingerprint through a trusted channel before replacing it.\n\n</string>
+    <string name="ssh_first_connection_warning">This is the first connection to the %1$s SSH host. Verify its fingerprint through a trusted channel.\n\n</string>
+    <string name="ssh_key_details">Algorithm: %1$s\nFingerprint: %2$s</string>
+    <string name="replace_trusted_key">Replace trusted key</string>
+    <string name="trust_and_connect">Trust and connect</string>
+    <string name="replace_and_test">Replace and test</string>
+    <string name="trust_and_test">Trust and test</string>
+    <string name="always_on_conflict_title">Always-on VPN is already in use</string>
+    <string name="change_settings">Change settings</string>
+    <string name="proxy_exit_ip">Proxy exit IP: %1$s</string>
+    <string name="global_vpn">Global VPN</string>
+    <string name="selected_apps_routing_description">Only selected applications use the proxy.</string>
+    <string name="global_vpn_description">All applications use the proxy. This is the default mode.</string>
+    <string name="udp_quic_blocked_description">UDP and QUIC are blocked; DNS uses the profile\'s configured DoH endpoint.</string>
+    <string name="bypass_local_networks">Bypass local networks</string>
+    <string name="bypass_local_networks_description">Direct TCP access to private and link-local IP addresses.</string>
+    <string name="search_applications">Search applications</string>
+    <string name="rotated_log_limit">Rotated log limit (MB)</string>
+    <string name="rotated_log_limit_description">Total size across both log segments; 1–100 MB.</string>
+    <string name="no_diagnostic_events">No diagnostic events yet.</string>
+    <string name="clear_diagnostic_log_title">Clear diagnostic log?</string>
+    <string name="clear_diagnostic_log_message">Both rotated log segments will be deleted.</string>
+    <string name="diagnostic_log_exported">Diagnostic log exported.</string>
+    <string name="failover_mode">Failover mode</string>
+    <string name="failover_trigger_description">Failover is only triggered after repeated timeout, reset or silent-drop signals. Authentication, host-key, certificate and configuration errors never trigger it.</string>
+    <string name="fallback_profiles">Fallback profiles</string>
+    <string name="fallback_profiles_order">Profiles are tried in the same order as the Profiles screen.</string>
+    <string name="failover_profiles_warning">Select at least two profiles. With fewer profiles, failover may have nowhere to switch.</string>
+    <string name="failover_location_warning">Warning: switching profiles may change the apparent country and public exit IP.</string>
+    <string name="enable_global_failover_title">Enable global failover?</string>
+    <string name="enable_global_failover_message">MegaProxy will automatically try any configured profile when blocking is suspected. This can change your location and public exit IP. Individual switches will not require confirmation.</string>
+    <string name="enable">Enable</string>
+    <string name="always_on_profile">Profile for Always-on VPN</string>
+    <string name="always_on_profile_description">This profile is used when Android starts MegaProxy as an Always-on VPN.</string>
+    <string name="always_on_profile_reconnect">Always-on is active. Selecting another profile reconnects immediately.</string>
+    <string name="open_always_on_settings">Open Android Always-on VPN settings</string>
+    <string name="https_fingerprint">HTTPS fingerprint</string>
+    <string name="https_tls_ja3_profile">HTTPS TLS / JA3 profile</string>
+    <string name="default_fingerprint_description">Default currently uses the Chrome Android fingerprint and may change in a future MegaProxy update.</string>
+    <string name="ja3_format">JA3: version,ciphers,extensions,groups,points</string>
+    <string name="ssh_fingerprint">SSH fingerprint</string>
+    <string name="ssh_client_profile">SSH client profile</string>
+    <string name="ssh_authentication">SSH authentication</string>
+    <string name="ssh_profile_description">The SSH profile controls the client banner and preferred KEX, cipher and MAC ordering.</string>
+    <string name="global_changes_saved">Changes are saved automatically and apply to every profile.</string>
+    <string name="allowed_range">Allowed range: %1$d–%2$d</string>
+    <string name="connected_through">Connected through: %1$s</string>
+    <string name="unexpected_stop_title">MegaProxy stopped unexpectedly</string>
+    <string name="crash_report_saved">A privacy-filtered crash report was saved. You can send it to help diagnose the problem.</string>
+    <string name="report">Report</string>
+    <string name="close">Close</string>
+    <string name="connection_test_clipboard_label">MegaProxy connection test</string>
+    <string name="detected">Detected</string><string name="selected_apps_only">Selected apps only</string><string name="not_detected">Not detected</string>
+    <string name="visibility_intro">Local checks show signals that another Android app may observe. No network request, location lookup, or external reputation service is used.</string>
+    <string name="globally_observable_signals">Globally observable signals</string><string name="visible_to_selected_apps">Visible to selected apps</string><string name="vpn_network_signals">VPN network signals</string>
+    <string name="split_visibility_explanation">The signals below belong to the VPN network. With split tunneling, Android exposes that network to selected apps; excluded apps use the underlying network instead.</string>
+    <string name="visibility_disclaimer">A detected signal is not proof by itself. Android VPN APIs intentionally expose some VPN state, and legitimate security or filtering apps can produce the same signals.</string>
+    <string name="excluded_apps_underlying_network">%1$s Excluded apps use their underlying network.</string>
+    <string name="system_proxy_properties">System proxy properties</string><string name="system_proxy_yes">A process-wide proxy property is visible.</string><string name="system_proxy_no">No process-wide proxy property is visible.</string>
+    <string name="vpn_interface_name">VPN-like interface name</string><string name="vpn_interface_yes">An active interface has a tun, tap, wg, ppp, or ipsec-style name.</string><string name="vpn_interface_no">No active interface has a common VPN-style name.</string>
+    <string name="unusual_vpn_mtu">Unusual VPN MTU</string><string name="unusual_vpn_mtu_yes">A VPN-style interface uses an MTU other than 1280 or 1500.</string><string name="unusual_vpn_mtu_no">No unusual MTU was found on VPN-style interfaces.</string>
+    <string name="local_mitm_certificate">Local MITM certificate</string><string name="local_mitm_certificate_detail">MegaProxy installs no CA certificate and performs no TLS interception.</string>
+    <string name="vpn_transport">VPN transport</string><string name="vpn_transport_yes">Android exposes a network with TRANSPORT_VPN.</string><string name="vpn_transport_no">No VPN transport is currently exposed.</string>
+    <string name="vpn_transport_information">VPN transport information</string><string name="vpn_info_yes">Android exposes VpnTransportInfo for the VPN network.</string><string name="vpn_info_no">VpnTransportInfo is not exposed on the currently visible networks.</string>
+    <string name="not_vpn_capability">NOT_VPN capability</string><string name="not_vpn_yes">The VPN network does not have NET_CAPABILITY_NOT_VPN.</string><string name="not_vpn_no">No visible network is identified by this capability check as a VPN.</string>
+    <string name="vpn_link_proxy">VPN link proxy</string><string name="vpn_link_proxy_yes">A proxy setting is attached to the VPN network.</string><string name="vpn_link_proxy_no">No proxy setting is attached to the VPN network.</string>
+    <string name="virtual_default_route">Virtual default route</string><string name="virtual_route_yes">A visible default route uses a VPN-style interface.</string><string name="virtual_route_no">No visible default route uses a VPN-style interface.</string>
+    <string name="virtual_dns_address">Virtual DNS address</string><string name="virtual_dns_yes">The VPN network exposes a private, link-local, or loopback DNS address.</string><string name="virtual_dns_no">The VPN network does not expose a local DNS address.</string>
+    <string name="select_profile">Select profile</string><string name="ssh_key_save_failed">The SSH host key could not be saved to this profile</string>
+    <string name="megaproxy_active">MegaProxy is active</string><string name="review_ssh_key">Review SSH key</string>
+    <string name="always_on_all_failover_status">Always-on VPN remains active during automatic switching. Every switch is reported in the persistent notification and on the main screen.</string>
+    <string name="always_on_selected_failover_status">Always-on VPN remains active during automatic switching. The persistent notification and the main screen show the profile actually in use.</string>
+    <string name="ssh_keepalive">SSH keepalive, seconds (0 = disabled)</string><string name="ssh_max_channels">Maximum parallel SSH channels</string><string name="ssh_rotation_minutes">Rotate SSH session after minutes (0 = disabled)</string><string name="ssh_rotation_mb">Rotate SSH session after MB (0 = disabled)</string>
+    <string name="could_not_open_email">Could not open an email client</string><string name="invalid_ja3">JA3 must contain five fields: version,ciphers,extensions,groups,points</string>
 </resources>

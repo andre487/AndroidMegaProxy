@@ -64,6 +64,16 @@ platform :android do
     UI.success("Verified unsigned release APK: app/build/outputs/apk/release/app-release-unsigned.apk")
   end
 
+  desc "Run instrumented Compose UI tests on a connected Android device or emulator"
+  lane :ui_tests do
+    native_library
+    gradle(
+      task: "connectedDebugAndroidTest",
+      flags: "--no-daemon",
+      project_dir: project_root
+    )
+  end
+
   desc "Run every native and Android test and check"
   lane :test do
     native_tests

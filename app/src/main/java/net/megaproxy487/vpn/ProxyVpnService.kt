@@ -18,7 +18,6 @@ import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import net.megaproxy487.MainActivity
-import net.megaproxy487.SshHostKeyActivity
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.model.FailoverMode
@@ -745,13 +744,14 @@ class ProxyVpnService : VpnService() {
         val changed = marker.startsWith("SSH_HOST_KEY_CHANGED")
         val fingerprint = if (changed) parts.getOrNull(3) else parts.getOrNull(2)
         if (fingerprint == null || !fingerprint.startsWith("SHA256:")) return
-        val intent = Intent(this, SshHostKeyActivity::class.java)
-            .putExtra(SshHostKeyActivity.EXTRA_PROFILE_ID, profileId)
-            .putExtra(SshHostKeyActivity.EXTRA_HOP, parts[0])
-            .putExtra(SshHostKeyActivity.EXTRA_ALGORITHM, parts[1])
-            .putExtra(SshHostKeyActivity.EXTRA_FINGERPRINT, fingerprint)
-            .putExtra(SshHostKeyActivity.EXTRA_CHANGED, changed)
-            .putExtra(SshHostKeyActivity.EXTRA_TEST_ONLY, testOnly)
+        val intent = Intent(this, MainActivity::class.java)
+            .setAction(MainActivity.ACTION_REVIEW_SSH_HOST_KEY)
+            .putExtra(MainActivity.EXTRA_PROFILE_ID, profileId)
+            .putExtra(MainActivity.EXTRA_HOP, parts[0])
+            .putExtra(MainActivity.EXTRA_ALGORITHM, parts[1])
+            .putExtra(MainActivity.EXTRA_FINGERPRINT, fingerprint)
+            .putExtra(MainActivity.EXTRA_CHANGED, changed)
+            .putExtra(MainActivity.EXTRA_TEST_ONLY, testOnly)
         SshHostKeyPromptState.show(
             PendingSshHostKey(profileId, parts[0], parts[1], fingerprint, changed, testOnly),
         )
@@ -763,12 +763,12 @@ class ProxyVpnService : VpnService() {
 
     private fun notification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(net.megaproxy487.R.drawable.ic_vpn_notification)
-        .setContentTitle("MegaProxy is active")
+        .setContentTitle(getString(net.megaproxy487.R.string.megaproxy_active))
         .setContentText(text)
         .setOngoing(true)
         .setCategory(NotificationCompat.CATEGORY_SERVICE)
         .setContentIntent(hostKeyPrompt ?: PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
-        .also { builder -> hostKeyPrompt?.let { builder.addAction(0, "Review SSH key", it) } }
+        .also { builder -> hostKeyPrompt?.let { builder.addAction(0, getString(net.megaproxy487.R.string.review_ssh_key), it) } }
         .build()
 
     companion object {

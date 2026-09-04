@@ -279,6 +279,13 @@ emulator, building, installing, viewing app-specific Logcat output, running test
 JDWP debugger. Select **Run MegaProxy on Emulator** for `Ctrl+F5` or **Attach MegaProxy (JDWP)** for
 `F5`.
 
+For Kotlin editing, install the workspace recommendations, including `fwcd.kotlin` and Gradle for
+Java. The repository's `kls-classpath` helper supplies the language server with the Android SDK,
+Compose dependencies, and generated `R` classes that it cannot discover from Android Gradle Plugin
+variants by itself. After installing or updating the extensions, run **Kotlin: Restart the Language
+Server** (or **Developer: Reload Window**) once. Run `./kls-classpath` directly to diagnose
+classpath resolution.
+
 Run all native and Android checks from VS Code with **Tasks: Run Test Task**, or from a shell:
 
 ```shell

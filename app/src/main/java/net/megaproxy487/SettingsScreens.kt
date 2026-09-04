@@ -78,41 +78,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
-class ProxySettingsActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { SettingsHomeScreen(this) } }
-    }
-}
-
-class AlwaysOnSettingsActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { AlwaysOnSettingsScreen(this) } }
-    }
-}
-
-class TlsFingerprintActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { TlsFingerprintScreen(this) } }
-    }
-}
-
-class FailoverSettingsActivity : LocalizedActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
-        setContent { MegaProxyTheme { FailoverSettingsScreen(this) } }
-    }
-}
-
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsHomeScreen(activity: Activity) {
+internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNavigate: (String) -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val powerManager = remember { activity.getSystemService(PowerManager::class.java) }
     var batteryOptimizationDisabled by remember {
@@ -132,15 +100,15 @@ private fun SettingsHomeScreen(activity: Activity) {
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    SettingsScaffold(activity, stringResource(R.string.settings)) {
+    SettingsScaffold(onBack, stringResource(R.string.settings)) {
         Text(stringResource(R.string.connection), style = MaterialTheme.typography.titleMedium)
-        SettingsButton(stringResource(R.string.profiles), stringResource(R.string.profiles_description)) { activity.startActivity(Intent(activity, ProfilesActivity::class.java)) }
-        SettingsButton(stringResource(R.string.always_on_vpn), stringResource(R.string.always_on_description)) { activity.startActivity(Intent(activity, AlwaysOnSettingsActivity::class.java)) }
-        SettingsButton(stringResource(R.string.fingerprints), stringResource(R.string.fingerprints_description)) { activity.startActivity(Intent(activity, TlsFingerprintActivity::class.java)) }
-        SettingsButton(stringResource(R.string.split_tunneling), stringResource(R.string.split_tunneling_description)) { activity.startActivity(Intent(activity, SplitTunnelActivity::class.java)) }
-        SettingsButton(stringResource(R.string.failover), stringResource(R.string.failover_description)) { activity.startActivity(Intent(activity, FailoverSettingsActivity::class.java)) }
+        SettingsButton(stringResource(R.string.profiles), stringResource(R.string.profiles_description)) { onNavigate(AppRoute.PROFILES) }
+        SettingsButton(stringResource(R.string.always_on_vpn), stringResource(R.string.always_on_description)) { onNavigate(AppRoute.ALWAYS_ON) }
+        SettingsButton(stringResource(R.string.fingerprints), stringResource(R.string.fingerprints_description)) { onNavigate(AppRoute.FINGERPRINTS) }
+        SettingsButton(stringResource(R.string.split_tunneling), stringResource(R.string.split_tunneling_description)) { onNavigate(AppRoute.SPLIT_TUNNEL) }
+        SettingsButton(stringResource(R.string.failover), stringResource(R.string.failover_description)) { onNavigate(AppRoute.FAILOVER) }
         Text(stringResource(R.string.diagnostics), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
-        SettingsButton(stringResource(R.string.visibility), stringResource(R.string.visibility_description)) { activity.startActivity(Intent(activity, VisibilityActivity::class.java)) }
+        SettingsButton(stringResource(R.string.visibility), stringResource(R.string.visibility_description)) { onNavigate(AppRoute.VISIBILITY) }
         if (!batteryOptimizationDisabled) {
             SettingsButton(stringResource(R.string.battery_settings), stringResource(R.string.battery_settings_description)) {
                 activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -148,7 +116,7 @@ private fun SettingsHomeScreen(activity: Activity) {
                 })
             }
         }
-        SettingsButton(stringResource(R.string.diagnostic_log), stringResource(R.string.diagnostic_log_description)) { activity.startActivity(Intent(activity, DiagnosticLogActivity::class.java)) }
+        SettingsButton(stringResource(R.string.diagnostic_log), stringResource(R.string.diagnostic_log_description)) { onNavigate(AppRoute.DIAGNOSTIC_LOG) }
         Text(stringResource(R.string.appearance_and_language), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
         SettingsButton(
             stringResource(R.string.language),
@@ -168,7 +136,7 @@ private fun SettingsHomeScreen(activity: Activity) {
                         )
                     }
                     activity.startActivity(intent)
-                }.onFailure { supportError = it.message ?: "Could not open an email client" }
+                }.onFailure { supportError = it.message ?: activity.getString(R.string.could_not_open_email) }
             }
         }
         SettingsButton(stringResource(R.string.github_issues), stringResource(R.string.github_issues_description)) {
@@ -224,7 +192,7 @@ private fun SettingsHomeScreen(activity: Activity) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun FailoverSettingsScreen(activity: Activity) {
+internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
@@ -236,9 +204,9 @@ private fun FailoverSettingsScreen(activity: Activity) {
         val snapshot = settings
         scope.launch(ConfigIoDispatcher) { store.saveGlobalConnectionSettings(snapshot) }
     }
-    SettingsScaffold(activity, "Failover") {
+    SettingsScaffold(onBack, stringResource(R.string.failover)) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
-            OutlinedTextField(settings.failoverMode.title, {}, readOnly = true, label = { Text("Failover mode") }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+            OutlinedTextField(settings.failoverMode.title, {}, readOnly = true, label = { Text(stringResource(R.string.failover_mode)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
             DropdownMenu(expanded, { expanded = false }) {
                 FailoverMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(mode.title) }, onClick = {
                     expanded = false
@@ -246,10 +214,10 @@ private fun FailoverSettingsScreen(activity: Activity) {
                 }) }
             }
         }
-        Text("Failover is only triggered after repeated timeout, reset or silent-drop signals. Authentication, host-key, certificate and configuration errors never trigger it.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.failover_trigger_description), style = MaterialTheme.typography.bodySmall)
         if (settings.failoverMode == FailoverMode.SELECTED) {
-            Text("Fallback profiles", style = MaterialTheme.typography.titleMedium)
-            Text("Profiles are tried in the same order as the Profiles screen.", style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.fallback_profiles), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.fallback_profiles_order), style = MaterialTheme.typography.bodySmall)
             store.sortedProfiles().forEach { profile ->
                 val checked = profile.id in settings.failoverProfileIds
                 Row(
@@ -270,19 +238,19 @@ private fun FailoverSettingsScreen(activity: Activity) {
             val usableFallbacks = store.sortedProfiles().count { it.id in settings.failoverProfileIds }
             if (usableFallbacks < 2) {
                 Text(
-                    "Select at least two profiles. With fewer profiles, failover may have nowhere to switch.",
+                    stringResource(R.string.failover_profiles_warning),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodySmall,
                 )
             }
         }
         if (settings.failoverMode != FailoverMode.DISABLED) {
-            Text("Warning: switching profiles may change the apparent country and public exit IP.", color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.failover_location_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             if (alwaysOn) Text(
                 if (settings.failoverMode == FailoverMode.ALL)
-                    "Always-on VPN remains active during automatic switching. Every switch is reported in the persistent notification and on the main screen."
+                    stringResource(R.string.always_on_all_failover_status)
                 else
-                    "Always-on VPN remains active during automatic switching. The persistent notification and the main screen show the profile actually in use.",
+                    stringResource(R.string.always_on_selected_failover_status),
                 color = MaterialTheme.colorScheme.tertiary,
                 style = MaterialTheme.typography.bodySmall,
             )
@@ -290,26 +258,26 @@ private fun FailoverSettingsScreen(activity: Activity) {
     }
     if (pendingAll) AlertDialog(
         onDismissRequest = { pendingAll = false },
-        title = { Text("Enable global failover?") },
-        text = { Text("MegaProxy will automatically try any configured profile when blocking is suspected. This can change your location and public exit IP. Individual switches will not require confirmation.") },
-        confirmButton = { TextButton(onClick = { pendingAll = false; save(mode = FailoverMode.ALL) }) { Text("Enable") } },
-        dismissButton = { TextButton(onClick = { pendingAll = false }) { Text("Cancel") } },
+        title = { Text(stringResource(R.string.enable_global_failover_title)) },
+        text = { Text(stringResource(R.string.enable_global_failover_message)) },
+        confirmButton = { TextButton(onClick = { pendingAll = false; save(mode = FailoverMode.ALL) }) { Text(stringResource(R.string.enable)) } },
+        dismissButton = { TextButton(onClick = { pendingAll = false }) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun AlwaysOnSettingsScreen(activity: Activity) {
+internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(store.alwaysOnProfile()) }
     val alwaysOnActive = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
-    SettingsScaffold(activity, "Always-on VPN") {
+    SettingsScaffold(onBack, stringResource(R.string.always_on_vpn)) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
                 selected.displayNameWithFlag, {}, readOnly = true,
-                label = { Text("Profile for Always-on VPN") },
+                label = { Text(stringResource(R.string.always_on_profile)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
@@ -326,11 +294,11 @@ private fun AlwaysOnSettingsScreen(activity: Activity) {
                 }
             }
         }
-        Text("This profile is used when Android starts MegaProxy as an Always-on VPN.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.always_on_profile_description), style = MaterialTheme.typography.bodySmall)
         if (alwaysOnActive) {
-            Text("Always-on is active. Selecting another profile reconnects immediately.", color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(R.string.always_on_profile_reconnect), color = MaterialTheme.colorScheme.tertiary, style = MaterialTheme.typography.bodySmall)
         }
-        SettingsButton("Open Android Always-on VPN settings") {
+        SettingsButton(stringResource(R.string.open_always_on_settings)) {
             activity.startActivity(Intent(Settings.ACTION_VPN_SETTINGS))
         }
     }
@@ -338,7 +306,7 @@ private fun AlwaysOnSettingsScreen(activity: Activity) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun TlsFingerprintScreen(activity: Activity) {
+internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
@@ -371,16 +339,16 @@ private fun TlsFingerprintScreen(activity: Activity) {
     ) {
         saveSettings(settings.copy(tlsProfile = profile, customJa3 = customJa3, sshProfile = sshProfile))
         error = if (profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null) {
-            "JA3 must contain five fields: version,ciphers,extensions,groups,points"
+            activity.getString(R.string.invalid_ja3)
         } else null
     }
 
-    SettingsScaffold(activity, "Fingerprints") {
-        Text("HTTPS fingerprint", style = MaterialTheme.typography.titleMedium)
+    SettingsScaffold(onBack, stringResource(R.string.fingerprints)) {
+        Text(stringResource(R.string.https_fingerprint), style = MaterialTheme.typography.titleMedium)
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
                 settings.tlsProfile.title, {}, readOnly = true,
-                label = { Text("HTTPS TLS / JA3 profile") },
+                label = { Text(stringResource(R.string.https_tls_ja3_profile)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
@@ -390,22 +358,22 @@ private fun TlsFingerprintScreen(activity: Activity) {
                 }
             }
         }
-        Text("Default currently uses the Chrome Android fingerprint and may change in a future MegaProxy update.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.default_fingerprint_description), style = MaterialTheme.typography.bodySmall)
         if (settings.tlsProfile == TlsProfile.CUSTOM) {
             OutlinedTextField(
                 settings.customJa3,
                 { if (it.length <= 8 * 1024) save(customJa3 = it) },
-                label = { Text("JA3: version,ciphers,extensions,groups,points") },
+                label = { Text(stringResource(R.string.ja3_format)) },
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth(),
             )
         }
         error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
-        Text("SSH fingerprint", style = MaterialTheme.typography.titleMedium)
+        Text(stringResource(R.string.ssh_fingerprint), style = MaterialTheme.typography.titleMedium)
         ExposedDropdownMenuBox(sshExpanded, { sshExpanded = it }) {
             OutlinedTextField(
                 settings.sshProfile.title, {}, readOnly = true,
-                label = { Text("SSH client profile") },
+                label = { Text(stringResource(R.string.ssh_client_profile)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
@@ -421,7 +389,7 @@ private fun TlsFingerprintScreen(activity: Activity) {
         ExposedDropdownMenuBox(sshAuthExpanded, { sshAuthExpanded = it }) {
             OutlinedTextField(
                 settings.sshAuthMode.title, {}, readOnly = true,
-                label = { Text("SSH authentication") },
+                label = { Text(stringResource(R.string.ssh_authentication)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshAuthExpanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
@@ -432,30 +400,30 @@ private fun TlsFingerprintScreen(activity: Activity) {
                 }) }
             }
         }
-        IntegerSettingField(settings.sshKeepaliveSeconds, 0..3600, "SSH keepalive, seconds (0 = disabled)") {
+        IntegerSettingField(settings.sshKeepaliveSeconds, 0..3600, stringResource(R.string.ssh_keepalive)) {
             saveSettings(settings.copy(sshKeepaliveSeconds = it))
         }
-        IntegerSettingField(settings.sshMaxChannels, 1..256, "Maximum parallel SSH channels") {
+        IntegerSettingField(settings.sshMaxChannels, 1..256, stringResource(R.string.ssh_max_channels)) {
             saveSettings(settings.copy(sshMaxChannels = it))
         }
-        IntegerSettingField(settings.sshRotationMinutes, 0..1440, "Rotate SSH session after minutes (0 = disabled)") {
+        IntegerSettingField(settings.sshRotationMinutes, 0..1440, stringResource(R.string.ssh_rotation_minutes)) {
             saveSettings(settings.copy(sshRotationMinutes = it))
         }
-        IntegerSettingField(settings.sshRotationMb, 0..10240, "Rotate SSH session after MB (0 = disabled)") {
+        IntegerSettingField(settings.sshRotationMb, 0..10240, stringResource(R.string.ssh_rotation_mb)) {
             saveSettings(settings.copy(sshRotationMb = it))
         }
-        Text("The SSH profile controls the client banner and preferred KEX, cipher and MAC ordering.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.ssh_profile_description), style = MaterialTheme.typography.bodySmall)
         if (showReconnectPrompt) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                    Text("Reconnect to apply these changes to the active VPN.")
+                    Text(stringResource(R.string.reconnect_apply_changes))
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { showReconnectPrompt = false; deferred = true }) { Text("Next connection") }
+                        TextButton(onClick = { showReconnectPrompt = false; deferred = true }) { Text(stringResource(R.string.next_connection)) }
                         TextButton(onClick = {
                             showReconnectPrompt = false
                             deferred = true
                             ProxyVpnService.reconnect(activity)
-                        }) { Text("Reconnect now") }
+                        }) { Text(stringResource(R.string.reconnect_now)) }
                     }
                 }
             }
@@ -463,12 +431,12 @@ private fun TlsFingerprintScreen(activity: Activity) {
         if (showAlwaysOnNotice) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                 Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text("Always-on is active. Changes apply on the next connection.", modifier = Modifier.weight(1f))
-                    TextButton(onClick = { showAlwaysOnNotice = false }) { Text("Dismiss") }
+                    Text(stringResource(R.string.always_on_changes_next_connection), modifier = Modifier.weight(1f))
+                    TextButton(onClick = { showAlwaysOnNotice = false }) { Text(stringResource(R.string.dismiss)) }
                 }
             }
         }
-        Text("Changes are saved automatically and apply to every profile.", style = MaterialTheme.typography.bodySmall)
+        Text(stringResource(R.string.global_changes_saved), style = MaterialTheme.typography.bodySmall)
     }
 }
 
@@ -486,7 +454,7 @@ private fun IntegerSettingField(initialValue: Int, range: IntRange, label: Strin
         },
         label = { Text(label) },
         supportingText = if (text.isNotEmpty() && parsed !in range) {
-            { Text("Allowed range: ${range.first}–${range.last}") }
+            { Text(stringResource(R.string.allowed_range, range.first, range.last)) }
         } else null,
         isError = text.isNotEmpty() && parsed !in range,
         singleLine = true,
@@ -496,13 +464,13 @@ private fun IntegerSettingField(initialValue: Int, range: IntRange, label: Strin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScaffold(activity: Activity, title: String, content: @Composable ColumnScope.() -> Unit) {
+private fun SettingsScaffold(onBack: () -> Unit, title: String, content: @Composable ColumnScope.() -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text(title) },
                 navigationIcon = {
-                    IconButton(onClick = { activity.finish() }) {
+                    IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },

@@ -111,4 +111,111 @@
     <string name="transport_ssh_multiplexed">SSH, мультиплексирование</string>
     <string name="import_destination_key">Импортировать ключ назначения из файла</string>
     <string name="import_jump_key">Импортировать ключ jump host из файла</string>
+    <string name="profile_name_optional">Название профиля (необязательно)</string>
+    <string name="defaults_to_proxy_host">По умолчанию используется адрес прокси</string>
+    <string name="country_flag">Флаг страны</string>
+    <string name="no_flag">Без флага</string>
+    <string name="profile_type">Тип профиля</string>
+    <string name="https_proxy_hostname">Адрес HTTPS-прокси</string>
+    <string name="destination_ssh_hostname">Адрес конечного SSH-сервера</string>
+    <string name="port">Порт</string>
+    <string name="basic_auth_username">Логин Basic Auth</string>
+    <string name="ssh_username">Логин SSH</string>
+    <string name="password">Пароль</string>
+    <string name="ssh_password_optional">Пароль SSH (необязательно)</string>
+    <string name="private_key_optional">Закрытый ключ (необязательно)</string>
+    <string name="private_key_format_hint">Формат PEM или OpenSSH. Ключи с парольной фразой не поддерживаются.</string>
+    <string name="trusted_destination_key">Доверенный ключ назначения: %1$s</string>
+    <string name="jump_host">Промежуточный сервер</string>
+    <string name="jump_ssh_hostname">Адрес промежуточного SSH-сервера</string>
+    <string name="jump_port">Порт промежуточного сервера</string>
+    <string name="jump_ssh_username">Логин промежуточного SSH-сервера</string>
+    <string name="jump_ssh_password_optional">Пароль промежуточного SSH-сервера (необязательно)</string>
+    <string name="jump_private_key_optional">Закрытый ключ промежуточного сервера (необязательно)</string>
+    <string name="trusted_jump_key">Доверенный ключ промежуточного сервера: %1$s</string>
+    <string name="dns_over_https">DNS через HTTPS</string>
+    <string name="custom_doh_url">Собственный URL DoH</string>
+    <string name="reconnect_apply_changes">Переподключитесь, чтобы применить изменения к активному VPN.</string>
+    <string name="always_on_changes_next_connection">Постоянный VPN активен. Изменения применятся при следующем подключении.</string>
+    <string name="allow_untrusted_certificate_title">Разрешить недоверенный сертификат прокси?</string>
+    <string name="allow_untrusted_certificate_message">Проверка цепочки сертификатов и имени HTTPS-прокси будет отключена. Злоумышленник сможет выдать себя за прокси и получить данные Basic Auth. Сертификаты конечных HTTPS-сайтов по-прежнему проверяются.</string>
+    <string name="accept_any_ssh_key_title">Принимать любой ключ SSH-сервера?</string>
+    <string name="accept_any_ssh_key_message">Проверка подлинности SSH-сервера %1$s будет отключена, что допускает атаку посредника. Учётные данные и туннелируемый трафик могут быть перехвачены.</string>
+    <string name="accept_any_key">Принять любой ключ</string>
+    <string name="ssh_host_key_changed">Ключ SSH-сервера изменился</string>
+    <string name="trust_ssh_host_key">Доверять ключу SSH-сервера?</string>
+    <string name="ssh_changed_key_warning">Ранее доверенный ключ сервера %1$s изменился. Это может означать переустановку сервера или атаку посредника. Перед заменой сверьте отпечаток по доверенному каналу.\n\n</string>
+    <string name="ssh_first_connection_warning">Это первое подключение к SSH-серверу %1$s. Сверьте отпечаток по доверенному каналу.\n\n</string>
+    <string name="ssh_key_details">Алгоритм: %1$s\nОтпечаток: %2$s</string>
+    <string name="replace_trusted_key">Заменить доверенный ключ</string>
+    <string name="trust_and_connect">Доверять и подключиться</string>
+    <string name="replace_and_test">Заменить и проверить</string>
+    <string name="trust_and_test">Доверять и проверить</string>
+    <string name="always_on_conflict_title">Постоянный VPN уже используется</string>
+    <string name="change_settings">Изменить настройки</string>
+    <string name="proxy_exit_ip">Выходной IP прокси: %1$s</string>
+    <string name="global_vpn">Глобальный VPN</string>
+    <string name="selected_apps_routing_description">Только выбранные приложения используют прокси.</string>
+    <string name="global_vpn_description">Все приложения используют прокси. Это режим по умолчанию.</string>
+    <string name="udp_quic_blocked_description">UDP и QUIC блокируются; DNS использует настроенный в профиле DoH-сервер.</string>
+    <string name="bypass_local_networks">Обходить локальные сети</string>
+    <string name="bypass_local_networks_description">Прямой TCP-доступ к частным и локальным IP-адресам.</string>
+    <string name="search_applications">Поиск приложений</string>
+    <string name="rotated_log_limit">Размер журнала с ротацией (МБ)</string>
+    <string name="rotated_log_limit_description">Общий размер двух сегментов журнала: 1–100 МБ.</string>
+    <string name="no_diagnostic_events">Диагностических событий пока нет.</string>
+    <string name="clear_diagnostic_log_title">Очистить диагностический журнал?</string>
+    <string name="clear_diagnostic_log_message">Оба сегмента журнала будут удалены.</string>
+    <string name="diagnostic_log_exported">Диагностический журнал экспортирован.</string>
+    <string name="failover_mode">Режим переключения</string>
+    <string name="failover_trigger_description">Переключение срабатывает только после повторных тайм-аутов, сбросов или отсутствия ответа. Ошибки аутентификации, ключей, сертификатов и конфигурации его не запускают.</string>
+    <string name="fallback_profiles">Резервные профили</string>
+    <string name="fallback_profiles_order">Профили перебираются в том же порядке, что и на экране профилей.</string>
+    <string name="failover_profiles_warning">Выберите хотя бы два профиля, иначе переключаться может быть некуда.</string>
+    <string name="failover_location_warning">Внимание: переключение профиля может изменить видимую страну и публичный IP.</string>
+    <string name="enable_global_failover_title">Включить глобальное переключение?</string>
+    <string name="enable_global_failover_message">При вероятной блокировке MegaProxy автоматически попробует любой настроенный профиль. Это может изменить местоположение и публичный IP. Отдельные переключения подтверждать не потребуется.</string>
+    <string name="enable">Включить</string>
+    <string name="always_on_profile">Профиль постоянного VPN</string>
+    <string name="always_on_profile_description">Этот профиль используется, когда Android запускает MegaProxy как постоянный VPN.</string>
+    <string name="always_on_profile_reconnect">Постоянный VPN активен. Выбор другого профиля сразу переподключит VPN.</string>
+    <string name="open_always_on_settings">Открыть системные настройки постоянного VPN</string>
+    <string name="https_fingerprint">Отпечаток HTTPS</string>
+    <string name="https_tls_ja3_profile">Профиль HTTPS TLS / JA3</string>
+    <string name="default_fingerprint_description">Сейчас по умолчанию используется отпечаток Chrome для Android; он может измениться в будущей версии MegaProxy.</string>
+    <string name="ja3_format">JA3: версия,шифры,расширения,группы,точки</string>
+    <string name="ssh_fingerprint">Отпечаток SSH</string>
+    <string name="ssh_client_profile">Профиль SSH-клиента</string>
+    <string name="ssh_authentication">Аутентификация SSH</string>
+    <string name="ssh_profile_description">Профиль SSH задаёт приветствие клиента и предпочтительный порядок KEX, шифров и MAC.</string>
+    <string name="global_changes_saved">Изменения сохраняются автоматически и применяются ко всем профилям.</string>
+    <string name="allowed_range">Допустимый диапазон: %1$d–%2$d</string>
+    <string name="connected_through">Подключено через: %1$s</string>
+    <string name="unexpected_stop_title">MegaProxy неожиданно остановился</string>
+    <string name="crash_report_saved">Сохранён обезличенный отчёт о сбое. Его можно отправить, чтобы помочь с диагностикой.</string>
+    <string name="report">Отправить отчёт</string>
+    <string name="close">Закрыть</string>
+    <string name="connection_test_clipboard_label">Проверка подключения MegaProxy</string>
+    <string name="detected">Обнаружено</string><string name="selected_apps_only">Только выбранные приложения</string><string name="not_detected">Не обнаружено</string>
+    <string name="visibility_intro">Локальные проверки показывают признаки, доступные другому Android-приложению. Сетевые запросы, геолокация и внешние сервисы репутации не используются.</string>
+    <string name="globally_observable_signals">Глобально видимые признаки</string><string name="visible_to_selected_apps">Видно выбранным приложениям</string><string name="vpn_network_signals">Признаки VPN-сети</string>
+    <string name="split_visibility_explanation">Признаки ниже относятся к VPN-сети. При раздельном туннелировании Android показывает её выбранным приложениям, а исключённые используют основную сеть.</string>
+    <string name="visibility_disclaimer">Обнаруженный признак сам по себе ничего не доказывает. Android намеренно раскрывает часть состояния VPN; такие же признаки создают обычные приложения безопасности и фильтрации.</string>
+    <string name="excluded_apps_underlying_network">%1$s Исключённые приложения используют основную сеть.</string>
+    <string name="system_proxy_properties">Системные параметры прокси</string><string name="system_proxy_yes">Видно глобальное свойство прокси процесса.</string><string name="system_proxy_no">Глобальное свойство прокси процесса не видно.</string>
+    <string name="vpn_interface_name">Имя VPN-интерфейса</string><string name="vpn_interface_yes">Имя активного интерфейса похоже на tun, tap, wg, ppp или ipsec.</string><string name="vpn_interface_no">Активных интерфейсов с типичным VPN-именем нет.</string>
+    <string name="unusual_vpn_mtu">Необычный MTU VPN</string><string name="unusual_vpn_mtu_yes">VPN-интерфейс использует MTU, отличный от 1280 и 1500.</string><string name="unusual_vpn_mtu_no">Необычный MTU у VPN-интерфейсов не найден.</string>
+    <string name="local_mitm_certificate">Локальный MITM-сертификат</string><string name="local_mitm_certificate_detail">MegaProxy не устанавливает CA-сертификаты и не перехватывает TLS.</string>
+    <string name="vpn_transport">Транспорт VPN</string><string name="vpn_transport_yes">Android показывает сеть с TRANSPORT_VPN.</string><string name="vpn_transport_no">Транспорт VPN сейчас не виден.</string>
+    <string name="vpn_transport_information">Информация о транспорте VPN</string><string name="vpn_info_yes">Android показывает VpnTransportInfo для VPN-сети.</string><string name="vpn_info_no">VpnTransportInfo не виден в доступных сетях.</string>
+    <string name="not_vpn_capability">Возможность NOT_VPN</string><string name="not_vpn_yes">У VPN-сети нет NET_CAPABILITY_NOT_VPN.</string><string name="not_vpn_no">По этой проверке ни одна видимая сеть не определена как VPN.</string>
+    <string name="vpn_link_proxy">Прокси VPN-сети</string><string name="vpn_link_proxy_yes">К VPN-сети привязана настройка прокси.</string><string name="vpn_link_proxy_no">К VPN-сети не привязана настройка прокси.</string>
+    <string name="virtual_default_route">Виртуальный маршрут по умолчанию</string><string name="virtual_route_yes">Видимый маршрут по умолчанию использует VPN-интерфейс.</string><string name="virtual_route_no">Маршрут по умолчанию через VPN-интерфейс не виден.</string>
+    <string name="virtual_dns_address">Виртуальный адрес DNS</string><string name="virtual_dns_yes">VPN-сеть показывает частный, link-local или loopback-адрес DNS.</string><string name="virtual_dns_no">VPN-сеть не показывает локальный адрес DNS.</string>
+    <string name="select_profile">Выбрать профиль</string><string name="ssh_key_save_failed">Не удалось сохранить ключ SSH-сервера в этом профиле</string>
+    <string name="megaproxy_active">MegaProxy активен</string><string name="review_ssh_key">Проверить ключ SSH</string>
+    <string name="always_on_all_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. Каждое переключение отображается в постоянном уведомлении и на главном экране.</string>
+    <string name="always_on_selected_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. В уведомлении и на главном экране отображается фактически используемый профиль.</string>
+    <string name="ssh_keepalive">Интервал keepalive SSH, секунд (0 — отключено)</string><string name="ssh_max_channels">Максимум параллельных каналов SSH</string><string name="ssh_rotation_minutes">Сменить SSH-сессию через минут (0 — отключено)</string><string name="ssh_rotation_mb">Сменить SSH-сессию после МБ (0 — отключено)</string>
+    <string name="could_not_open_email">Не удалось открыть почтовое приложение</string><string name="invalid_ja3">JA3 должен содержать пять полей: версия,шифры,расширения,группы,точки</string>
 </resources>
