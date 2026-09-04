@@ -697,8 +697,8 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
                 value = if (latency <= 0) "—" else stringResource(
                     R.string.latency_milliseconds,
                     latency.toInt(),
-                    formatAge(ageMillis),
                 ),
+                supportingValue = if (latency <= 0) null else formatAge(ageMillis).ifEmpty { null },
                 modifier = Modifier.weight(1f),
             )
         }

@@ -227,25 +227,25 @@
     <string name="traffic_units_iec">Двоичные IEC (KiB, MiB, GiB · 1024)</string>
     <string name="traffic_units_si">Десятичные SI (KB, MB, GB · 1000)</string>
     <string name="proxy_latency">Задержка прокси</string>
-    <string name="latency_milliseconds">%1$d мс%2$s</string>
+    <string name="latency_milliseconds">%1$d мс</string>
     <string name="connection_errors_no_samples">Ошибки соединения: нет данных</string>
     <string name="connection_errors">Ошибки соединения: %1$.1f%% · %2$s</string>
     <plurals name="connection_samples">
-        <item quantity="one">%1$d попытка</item>
-        <item quantity="few">%1$d попытки</item>
-        <item quantity="many">%1$d попыток</item>
-        <item quantity="other">%1$d попытки</item>
+        <item quantity="one">%1$d сэмпл</item>
+        <item quantity="few">%1$d сэмпла</item>
+        <item quantity="many">%1$d сэмплов</item>
+        <item quantity="other">%1$d сэмпла</item>
     </plurals>
     <plurals name="latency_seconds_ago">
-        <item quantity="one"> · %1$d секунду назад</item>
-        <item quantity="few"> · %1$d секунды назад</item>
-        <item quantity="many"> · %1$d секунд назад</item>
-        <item quantity="other"> · %1$d секунды назад</item>
+        <item quantity="one">%1$d секунду назад</item>
+        <item quantity="few">%1$d секунды назад</item>
+        <item quantity="many">%1$d секунд назад</item>
+        <item quantity="other">%1$d секунды назад</item>
     </plurals>
     <plurals name="latency_minutes_ago">
-        <item quantity="one"> · %1$d минуту назад</item>
-        <item quantity="few"> · %1$d минуты назад</item>
-        <item quantity="many"> · %1$d минут назад</item>
-        <item quantity="other"> · %1$d минуты назад</item>
+        <item quantity="one">%1$d минуту назад</item>
+        <item quantity="few">%1$d минуты назад</item>
+        <item quantity="many">%1$d минут назад</item>
+        <item quantity="other">%1$d минуты назад</item>
     </plurals>
 </resources>

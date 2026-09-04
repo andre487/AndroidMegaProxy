@@ -67,11 +67,35 @@ platform :android do
   desc "Run instrumented Compose UI tests on a connected Android device or emulator"
   lane :ui_tests do
     native_library
-    gradle(
-      task: "connectedDebugAndroidTest",
-      flags: "--no-daemon",
-      project_dir: project_root
+    report_pattern = File.join(
+      project_root,
+      "app/build/outputs/androidTest-results/connected/debug/TEST-*.xml"
     )
+    Dir.glob(report_pattern).each { |report| File.delete(report) }
+    attempts = 0
+    begin
+      attempts += 1
+      gradle(
+        task: "connectedDebugAndroidTest",
+        flags: "--no-daemon",
+        project_dir: project_root
+      )
+    rescue
+      reports = Dir.glob(report_pattern)
+      executed_tests = reports.sum do |report|
+        (File.read(report).match(/tests="(\d+)"/)&.captures&.first || "0").to_i
+      end
+
+      # A software-emulated Android process can occasionally die before the
+      # instrumentation runner starts. Retry that infrastructure failure once,
+      # but never hide an assertion failure from a test that actually ran.
+      raise if attempts >= 2 || reports.empty? || executed_tests.positive?
+
+      UI.important("Instrumentation exited before running a test; retrying once")
+      reports.each { |report| File.delete(report) }
+      sh("adb wait-for-device")
+      retry
+    end
   end
 
   desc "Run every native and Android test and check"
