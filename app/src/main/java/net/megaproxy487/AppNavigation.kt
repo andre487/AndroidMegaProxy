@@ -29,8 +29,47 @@ internal object AppRoute {
     const val DIAGNOSTIC_LOG = "diagnostic-log"
     const val SSH_HOST_KEY = "ssh-host-key"
 
+    val registeredStaticRoutes = setOf(
+        MAIN,
+        SETTINGS,
+        PROFILES,
+        ALWAYS_ON,
+        FINGERPRINTS,
+        SPLIT_TUNNEL,
+        FAILOVER,
+        VISIBILITY,
+        CONNECTION_TEST,
+        DIAGNOSTIC_LOG,
+        SSH_HOST_KEY,
+    )
+
     fun profileEditor(profileId: String) = "profile/${Uri.encode(profileId)}"
 }
+
+internal data class SettingsDestination(
+    val titleRes: Int,
+    val descriptionRes: Int,
+    val route: String,
+)
+
+internal val connectionSettingsDestinations = listOf(
+    SettingsDestination(R.string.profiles, R.string.profiles_description, AppRoute.PROFILES),
+    SettingsDestination(R.string.always_on_vpn, R.string.always_on_description, AppRoute.ALWAYS_ON),
+    SettingsDestination(R.string.fingerprints, R.string.fingerprints_description, AppRoute.FINGERPRINTS),
+    SettingsDestination(R.string.split_tunneling, R.string.split_tunneling_description, AppRoute.SPLIT_TUNNEL),
+    SettingsDestination(R.string.failover, R.string.failover_description, AppRoute.FAILOVER),
+)
+
+internal val visibilitySettingsDestination =
+    SettingsDestination(R.string.visibility, R.string.visibility_description, AppRoute.VISIBILITY)
+
+internal val diagnosticLogSettingsDestination =
+    SettingsDestination(R.string.diagnostic_log, R.string.diagnostic_log_description, AppRoute.DIAGNOSTIC_LOG)
+
+internal val settingsDestinations = connectionSettingsDestinations + listOf(
+    visibilitySettingsDestination,
+    diagnosticLogSettingsDestination,
+)
 
 @Composable
 internal fun MegaProxyNavHost(activity: Activity) {

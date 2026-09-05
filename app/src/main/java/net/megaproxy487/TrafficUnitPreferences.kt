@@ -9,13 +9,18 @@ internal object TrafficUnitPreferences {
     fun current(context: Context): TrafficUnitSystem {
         val stored = context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
             .getString(KEY_TRAFFIC_UNITS, null)
-        return TrafficUnitSystem.entries.firstOrNull { it.name == stored } ?: TrafficUnitSystem.IEC
+        return fromStoredValue(stored)
     }
 
     fun set(context: Context, unitSystem: TrafficUnitSystem) {
         context.getSharedPreferences(PREFERENCES, Context.MODE_PRIVATE)
             .edit()
-            .putString(KEY_TRAFFIC_UNITS, unitSystem.name)
+            .putString(KEY_TRAFFIC_UNITS, toStoredValue(unitSystem))
             .apply()
     }
+
+    internal fun fromStoredValue(stored: String?): TrafficUnitSystem =
+        TrafficUnitSystem.entries.firstOrNull { it.name == stored } ?: TrafficUnitSystem.IEC
+
+    internal fun toStoredValue(unitSystem: TrafficUnitSystem): String = unitSystem.name
 }
