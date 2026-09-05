@@ -18,18 +18,19 @@ branch names, credentials, signing material, or other secrets.
 
 ## CI and artifacts
 
-- Pull requests must run native tests, Android unit/lint/build checks, and instrumented Compose UI
-  tests.
+- Pull requests must run native tests and Android JVM unit/lint/build checks. Do not require an
+  Android emulator in GitHub Actions: hosted-runner KVM availability proved too unreliable for a
+  trustworthy required check.
 - PR builds may publish debug and unsigned APK artifacts. They must never have access to release
   signing material and must never produce or publish a signed release APK.
 - Surface downloadable APK artifacts in the GitHub Actions job summary in addition to uploading
   them through `actions/upload-artifact`.
-- UI tests use the lightweight API 30 `aosp_atd` x86_64 image. KVM acceleration is required: fail
-  quickly with a clear diagnostic when `/dev/kvm` is unavailable instead of falling back to the
-  unstable software emulator. An infrastructure retry should use a fresh job/runner rather than
-  repeatedly invoking instrumentation in the same crashed emulator.
-- Treat `Starting 0 tests`, missing XML reports, or fewer than the expected tests as a CI failure;
-  a green Gradle process alone is not proof that instrumentation tests ran.
+- Prefer extracting UI-facing decisions into small production contracts and testing those with
+  deterministic JVM unit tests. Resource parity, navigation destination wiring, preference
+  serialization/defaults, formatting, and state transitions should not require a device.
+- Keep device-only tests out of required GitHub CI unless the project later adopts a dependable
+  device farm or controlled self-hosted runner. Do not reintroduce a software-emulated Android
+  fallback.
 
 ## Releases and distribution
 
@@ -52,21 +53,22 @@ branch names, credentials, signing material, or other secrets.
 - In Russian UI, translate “samples” as “сэмплы”, not “попытки”. Relative latency timestamps belong
   on a separate line in smaller text.
 - Connection diagnostics include exit IP and country, with fallback providers so one unavailable
-  external service does not make the whole check fail. UI tests should assert that country is
-  actually presented, not merely fetched internally.
+  external service does not make the whole check fail. Keep presentation inputs and formatting
+  covered by JVM tests.
 
 ## Architecture landmarks
 
 - `ProxyVpnService` extends Android's standard `android.net.VpnService`. It owns VPN lifecycle,
   creates the TUN interface, coordinates profiles/reconnects/status, and hands the TUN file
   descriptor to the native networking layer. Native code performs the actual proxy forwarding.
-- Navigation uses a single activity/back stack. Navigation, localization, settings persistence,
-  and cross-screen behavior should be covered by Compose instrumentation tests.
+- Navigation uses a single activity/back stack. Keep route and settings-destination definitions in
+  shared production contracts whose completeness and uniqueness can be checked by JVM tests.
 
 ## Collaboration workflow
 
 - Put each new change on a branch based on the current `main` and normally deliver it as one focused
   GitHub pull request. After a PR is merged, start subsequent work from the updated `main` instead of
   continuing on the merged branch.
-- Before changing CI after a failure, inspect the full job log and distinguish application test
-  failures from runner/emulator infrastructure failures.
+- Keep required CI deterministic. If a check depends on unreliable hosted-runner capabilities,
+  replace it with JVM coverage where practical or move it to purpose-built infrastructure rather
+  than normalizing repeated reruns.

@@ -104,13 +104,17 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
 
     SettingsScaffold(onBack, stringResource(R.string.settings)) {
         Text(stringResource(R.string.connection), style = MaterialTheme.typography.titleMedium)
-        SettingsButton(stringResource(R.string.profiles), stringResource(R.string.profiles_description)) { onNavigate(AppRoute.PROFILES) }
-        SettingsButton(stringResource(R.string.always_on_vpn), stringResource(R.string.always_on_description)) { onNavigate(AppRoute.ALWAYS_ON) }
-        SettingsButton(stringResource(R.string.fingerprints), stringResource(R.string.fingerprints_description)) { onNavigate(AppRoute.FINGERPRINTS) }
-        SettingsButton(stringResource(R.string.split_tunneling), stringResource(R.string.split_tunneling_description)) { onNavigate(AppRoute.SPLIT_TUNNEL) }
-        SettingsButton(stringResource(R.string.failover), stringResource(R.string.failover_description)) { onNavigate(AppRoute.FAILOVER) }
+        connectionSettingsDestinations.forEach { destination ->
+            SettingsButton(stringResource(destination.titleRes), stringResource(destination.descriptionRes)) {
+                onNavigate(destination.route)
+            }
+        }
         Text(stringResource(R.string.diagnostics), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
-        SettingsButton(stringResource(R.string.visibility), stringResource(R.string.visibility_description)) { onNavigate(AppRoute.VISIBILITY) }
+        visibilitySettingsDestination.let { destination ->
+            SettingsButton(stringResource(destination.titleRes), stringResource(destination.descriptionRes)) {
+                onNavigate(destination.route)
+            }
+        }
         if (!batteryOptimizationDisabled) {
             SettingsButton(stringResource(R.string.battery_settings), stringResource(R.string.battery_settings_description)) {
                 activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
@@ -118,7 +122,11 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
                 })
             }
         }
-        SettingsButton(stringResource(R.string.diagnostic_log), stringResource(R.string.diagnostic_log_description)) { onNavigate(AppRoute.DIAGNOSTIC_LOG) }
+        diagnosticLogSettingsDestination.let { destination ->
+            SettingsButton(stringResource(destination.titleRes), stringResource(destination.descriptionRes)) {
+                onNavigate(destination.route)
+            }
+        }
         Text(stringResource(R.string.appearance_and_language), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
         SettingsButton(
             stringResource(R.string.language),
