@@ -43,7 +43,7 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android release_artifacts` | Собирает и проверяет подписанные APK, AAB, native debug symbols и `SHA256SUMS` в `dist/release`. |
 | `bundle exec fastlane android selectel_contract_tests` | Проверяет освобождение аренды и разбор результатов без аренды устройства. |
 | `bundle exec fastlane android ui_test_artifacts` | Запускает контрактные тесты Selectel и собирает debug APK приложения и UI-тестов. |
-| `bundle exec fastlane android ui_test_artifacts profile:all` | Собирает универсальный APK для всех зафиксированных конфигураций. |
+| `bundle exec fastlane android ui_test_artifacts profile:all` | Собирает APK для всех зафиксированных конфигураций. |
 | `bundle exec fastlane android selectel_probe` | Проверяет доступ и наличие устройств без аренды. |
 | `bundle exec fastlane android selectel_acquire` | Арендует одно устройство и сохраняет журнал; APK должны быть собраны заранее. |
 | `bundle exec fastlane android selectel_run` | Запускает тесты на устройстве из журнала аренды. |

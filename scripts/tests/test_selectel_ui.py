@@ -97,6 +97,20 @@ class LeaseTest(unittest.TestCase):
         self.assertTrue(m.instrumentation_report(output, Path(self.temp.name) / 'junit.xml'))
 
 
+class AdbConnectionTest(unittest.TestCase):
+    def test_offline_transport_is_reconnected_without_renting_again(self):
+        with patch.object(m, 'adb', side_effect=['connected', 'error: device offline', '',
+                                                'connected', 'device']) as adb, \
+                patch.object(m.time, 'sleep'), patch.object(m, 'Client', side_effect=AssertionError):
+            m.connect_device(Path('/tmp/test-lease.json'), 'example.test:1234')
+        commands = [call.args[1:] for call in adb.call_args_list]
+        self.assertEqual([('connect', 'example.test:1234'),
+                          ('-s', 'example.test:1234', 'get-state'),
+                          ('disconnect', 'example.test:1234'),
+                          ('connect', 'example.test:1234'),
+                          ('-s', 'example.test:1234', 'get-state')], commands)
+
+
 class MatrixTest(unittest.TestCase):
     def test_fixed_catalog_needs_no_credentials_or_api(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(m, 'Client', side_effect=AssertionError):
@@ -106,7 +120,8 @@ class MatrixTest(unittest.TestCase):
         self.assertEqual('Galaxy A14', single[0]['model'])
         self.assertIn(single[0], devices)
         self.assertEqual(len(devices), len({d['id'] for d in devices}))
-        self.assertEqual({'arm64-v8a', 'armeabi-v7a'}, {d['abi'] for d in devices})
+        self.assertEqual({'arm64-v8a'}, {d['abi'] for d in devices})
+        self.assertEqual(['30', '33', '35', '36', '37'], sorted(d['api'] for d in devices))
 
     def test_selection_does_not_substitute_another_configuration(self):
         device = m.device_matrix('single')[0]

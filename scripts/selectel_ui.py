@@ -116,6 +116,9 @@ def connect_device(path, endpoint):
             if status == 'device':
                 return
             diagnostic = (connected + ' ' + status).replace(endpoint, '<device>').replace('\n', ' ')[:240]
+            # An offline transport makes repeated connect calls return 'already connected'.
+            # Drop only this leased endpoint so the next attempt performs a new handshake.
+            adb(path, 'disconnect', endpoint, timeout=10, check=False)
         except subprocess.TimeoutExpired:
             pass
         time.sleep(3)

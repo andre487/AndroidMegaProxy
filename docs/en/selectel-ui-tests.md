@@ -6,11 +6,11 @@ Run workflow. Select `single` or `all`. Pushes do not rent devices. The aggregat
 requires a new manual run. Native/JVM/lint checks still run automatically. The required check fails
 if the build or any selected device fails, including unavailable configurations.
 
-The fixed snapshot in `config/selectel-devices.json`, captured on 2026-09-07, contains **67 Android
-model/API/ABI configurations** (65 ARM64 and two ARM32). `single` selects Galaxy A14 / API 35 / ARM64;
+The fixed snapshot in `config/selectel-devices.json`, captured on 2026-09-07, contains **five ARM64 configurations**: Android 11 (Galaxy A03), 13 (Galaxy A14),
+15 (Galaxy A14), 16 (Galaxy A35) and 17 (Pixel 8). `single` selects Galaxy A14 / API 35 / ARM64;
 `all` runs one device per configuration, at most two simultaneously in GitHub. This is not runtime
 discovery and does not rent every physical copy of a model. Update the snapshot explicitly in a PR.
-The full matrix performs 804 test cases and costs more than a single-device run. Availability and
+The full matrix performs 60 test cases and costs more than a single-device run. Availability and
 compatibility of every catalog entry are not guaranteed; there is no substitution on failure.
 
 ```sh
@@ -56,7 +56,8 @@ bundle exec fastlane android ui_test_artifacts profile:all
 bundle exec fastlane android selectel_ui_tests profile:all
 ```
 
-Use `profile:all` for both commands: its universal APK supports ARM32 as well as ARM64. Locally,
+Use `profile:all` for both commands. The selected catalog uses ARM64; if ARM32 is explicitly added
+to the snapshot later, the build switches to a universal APK. Locally,
 devices run sequentially with independent lease journals and report directories named by catalog ID.
 Test failures do not stop remaining configurations; cleanup failures stop new rentals immediately.
 The summary is `app/build/reports/selectel/matrix.json`. `selectel_release` retries all journals

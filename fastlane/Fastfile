@@ -83,7 +83,10 @@ platform :android do
   lane :ui_test_artifacts do |options|
     profile = options[:profile] || "single"
     UI.user_error!("profile must be single or all") unless %w[single all].include?(profile)
-    variant = profile == "all" ? "universal" : "arm64-v8a"
+    require "json"
+    devices = JSON.parse(File.read(File.join(project_root, "config", "selectel-devices.json"))).fetch("devices")
+    needs_arm32 = profile == "all" && devices.any? { |device| device.fetch("abi") == "armeabi-v7a" }
+    variant = needs_arm32 ? "universal" : "arm64-v8a"
     ensure_no_release_signing
     selectel_contract_tests
     native_library
