@@ -1,0 +1,474 @@
+{
+  "captured_on": "2026-09-07",
+  "devices": [
+    {
+      "id": "google-pixel-7-33-arm64-v8a",
+      "manufacturer": "GOOGLE",
+      "model": "Pixel 7",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "google-pixel-7-37-arm64-v8a",
+      "manufacturer": "GOOGLE",
+      "model": "Pixel 7",
+      "api": "37",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "google-pixel-8-36-arm64-v8a",
+      "manufacturer": "GOOGLE",
+      "model": "Pixel 8",
+      "api": "36",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "google-pixel-8-37-arm64-v8a",
+      "manufacturer": "GOOGLE",
+      "model": "Pixel 8",
+      "api": "37",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "google-pixel-9-37-arm64-v8a",
+      "manufacturer": "GOOGLE",
+      "model": "Pixel 9",
+      "api": "37",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "google-pixel-9a-36-arm64-v8a",
+      "manufacturer": "GOOGLE",
+      "model": "Pixel 9a",
+      "api": "36",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "google-pixel-9a-37-arm64-v8a",
+      "manufacturer": "GOOGLE",
+      "model": "Pixel 9a",
+      "api": "37",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "honor-90-33-arm64-v8a",
+      "manufacturer": "HONOR",
+      "model": "90",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "honor-90-34-arm64-v8a",
+      "manufacturer": "HONOR",
+      "model": "90",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "honor-pad-x8a-34-arm64-v8a",
+      "manufacturer": "HONOR",
+      "model": "Pad X8a",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "honor-x6c-35-arm64-v8a",
+      "manufacturer": "HONOR",
+      "model": "X6c",
+      "api": "35",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "honor-x7c-34-arm64-v8a",
+      "manufacturer": "HONOR",
+      "model": "X7c",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "honor-x8c-35-arm64-v8a",
+      "manufacturer": "HONOR",
+      "model": "X8c",
+      "api": "35",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "honor-x9c-smart-34-arm64-v8a",
+      "manufacturer": "HONOR",
+      "model": "X9c Smart",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "huawei-nova-11-31-arm64-v8a",
+      "manufacturer": "HUAWEI",
+      "model": "Nova 11",
+      "api": "31",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "huawei-nova-13-31-arm64-v8a",
+      "manufacturer": "HUAWEI",
+      "model": "Nova 13",
+      "api": "31",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "huawei-nova-y63-31-arm64-v8a",
+      "manufacturer": "HUAWEI",
+      "model": "Nova Y63",
+      "api": "31",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "huawei-pura-80-31-arm64-v8a",
+      "manufacturer": "HUAWEI",
+      "model": "Pura 80",
+      "api": "31",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "infinix-hot-30-play-33-arm64-v8a",
+      "manufacturer": "INFINIX",
+      "model": "Hot 30 Play",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "infinix-hot-30i-31-arm64-v8a",
+      "manufacturer": "INFINIX",
+      "model": "Hot 30i",
+      "api": "31",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "infinix-note-30-33-arm64-v8a",
+      "manufacturer": "INFINIX",
+      "model": "Note 30",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "infinix-note-30i-33-arm64-v8a",
+      "manufacturer": "INFINIX",
+      "model": "Note 30i",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "infinix-zero-40-34-arm64-v8a",
+      "manufacturer": "INFINIX",
+      "model": "Zero 40",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-11-33-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "11",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-11-pro-33-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "11 Pro+",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-11-pro-35-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "11 Pro+",
+      "api": "35",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-c30s-31-armeabi-v7a",
+      "manufacturer": "REALME",
+      "model": "C30s",
+      "api": "31",
+      "abi": "armeabi-v7a"
+    },
+    {
+      "id": "realme-c53-33-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "C53",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-c53-35-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "C53",
+      "api": "35",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-c55-33-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "C55",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-c55-35-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "C55",
+      "api": "35",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-gt3-34-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "GT3",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-pad-10-4-30-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "Pad 10.4",
+      "api": "30",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "realme-re58bc-33-arm64-v8a",
+      "manufacturer": "REALME",
+      "model": "RE58BC",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a03-30-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A03",
+      "api": "30",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a03-31-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A03",
+      "api": "31",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a03-33-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A03",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a05-34-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A05",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a13-34-armeabi-v7a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A13",
+      "api": "34",
+      "abi": "armeabi-v7a"
+    },
+    {
+      "id": "samsung-galaxy-a14-33-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A14",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a14-35-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A14",
+      "api": "35",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a15-34-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A15",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a24-33-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A24",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a24-34-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A24",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a34-5g-33-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A34 5G",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a34-5g-36-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A34 5G",
+      "api": "36",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a35-34-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A35",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a35-36-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A35",
+      "api": "36",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-a51-33-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy A51",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-s23-34-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy S23",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-s23-36-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy S23",
+      "api": "36",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-s24-34-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy S24",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-s24-36-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy S24",
+      "api": "36",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-s25-fe-36-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy S25 FE",
+      "api": "36",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "samsung-galaxy-tab-a9-34-arm64-v8a",
+      "manufacturer": "SAMSUNG",
+      "model": "Galaxy Tab A9",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-camon-20-pro-33-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Camon 20 Pro",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-camon-20-pro-34-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Camon 20 Pro",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-phantom-v-fold-33-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "PHANTOM V  Fold",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-phantom-x2-5g-31-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Phantom X2 5G",
+      "api": "31",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-pova-5-33-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Pova 5",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-pova-neo-3-33-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Pova Neo 3",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-spark-10c-31-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Spark 10C",
+      "api": "31",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-spark-20-pro-33-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Spark 20 Pro",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-spark-20c-33-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Spark 20c",
+      "api": "33",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-spark-30c-34-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Spark 30C",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-spark-go-1-34-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Spark Go 1",
+      "api": "34",
+      "abi": "arm64-v8a"
+    },
+    {
+      "id": "tecno-spark-go-2024-33-arm64-v8a",
+      "manufacturer": "TECNO",
+      "model": "Spark Go 2024",
+      "api": "33",
+      "abi": "arm64-v8a"
+    }
+  ]
+}

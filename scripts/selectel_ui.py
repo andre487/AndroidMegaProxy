@@ -122,14 +122,85 @@ def connect_device(path, endpoint):
     raise RuntimeError('Remote ADB did not connect within 90 seconds: ' + diagnostic)
 
 
+def device_matrix(profile):
+    if profile not in ('single', 'all'):
+        raise RuntimeError('Device profile must be single or all')
+    devices = json.loads((ROOT / 'config/selectel-devices.json').read_text())['devices']
+    if not devices:
+        raise RuntimeError('The fixed device catalog is empty')
+    ids = set()
+    for device in devices:
+        if not re.fullmatch(r'[a-z0-9-]+', device['id']) or device['id'] in ids:
+            raise RuntimeError('Invalid or duplicate device matrix ID')
+        if device['abi'] not in ('arm64-v8a', 'armeabi-v7a') or not str(device['api']).isdigit():
+            raise RuntimeError('Unsupported device matrix entry')
+        ids.add(device['id'])
+    if profile == 'single':
+        devices = [d for d in devices if d['manufacturer'] == 'SAMSUNG' and d['model'] == 'Galaxy A14'
+                   and d['api'] == '35' and d['abi'] == 'arm64-v8a']
+        if len(devices) != 1:
+            raise RuntimeError('The default device must occur exactly once in the fixed catalog')
+    return devices
+
+
+def select_configuration(device):
+    for name, key in [('SELECTEL_DEVICE_MODEL', 'model'), ('SELECTEL_ANDROID_API', 'api'),
+                      ('SELECTEL_DEVICE_ABI', 'abi'), ('SELECTEL_DEVICE_MANUFACTURER', 'manufacturer')]:
+        os.environ[name] = str(device[key])
+
+
+def release_all(client, root):
+    errors = []
+    for path in sorted(root.rglob('lease.json')):
+        try:
+            release(client, path)
+        except Exception as error:
+            errors.append(f'{path}: {error}')
+    if errors:
+        raise RuntimeError('; '.join(errors))
+
+
+def run_matrix(client, state_path, profile):
+    outcomes = []
+    for device in device_matrix(profile):
+        select_configuration(device)
+        os.environ['SELECTEL_RESULT_ID'] = device['id']
+        path = state_path.parent / device['id'] / 'lease.json'
+        print('Configuration: ' + device['id'], flush=True)
+        outcome = {'device': device['id'], 'status': 'passed'}
+        try:
+            acquire(client, path)
+            run_tests(path)
+        except Exception as error:
+            outcome.update(status='failed', error=str(error) if isinstance(error, RuntimeError) else type(error).__name__)
+        finally:
+            cleanup_error = None
+            try:
+                release(client, path)
+            except Exception as error:
+                cleanup_error = error
+                outcome.update(status='failed', cleanup_error=type(error).__name__)
+        outcomes.append(outcome)
+        report = ROOT / 'app/build/reports/selectel/matrix.json'
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(json.dumps(outcomes, indent=2))
+        if cleanup_error is not None:
+            raise RuntimeError('Matrix stopped after cleanup failed; run selectel_release') from cleanup_error
+    if any(result['status'] != 'passed' for result in outcomes):
+        raise RuntimeError('Some fixed device configurations failed; see matrix.json')
+
+
 def choose_device(available):
     sdk = os.environ.get('SELECTEL_ANDROID_API', '35')
     model = os.environ.get('SELECTEL_DEVICE_MODEL', 'Galaxy A14')
+    abi = os.environ.get('SELECTEL_DEVICE_ABI', 'arm64-v8a')
+    manufacturer = os.environ.get('SELECTEL_DEVICE_MANUFACTURER', '')
     choices = [d for d in available if d.get('platform') == 'Android'
-               and str(d.get('sdk')) == sdk and d.get('abi') == 'arm64-v8a'
+               and str(d.get('sdk')) == sdk and d.get('abi') == abi
+               and (not manufacturer or d.get('manufacturer') == manufacturer)
                and d.get('count', 0) > 0 and (not model or d.get('marketName') == model)]
     if not choices:
-        raise RuntimeError(f'No available arm64 Android API {sdk} device; no lease created')
+        raise RuntimeError(f'Unavailable configuration: {manufacturer} {model}, API {sdk}, {abi}; no lease created')
     return sorted(choices, key=lambda d: d['marketName'])[0]
 
 
@@ -289,6 +360,11 @@ def run_tests(path):
         raise RuntimeError('Device lease is already released')
     endpoint = state['endpoint']
     reports = ROOT / 'app/build/reports/selectel'
+    result_id = os.environ.get('SELECTEL_RESULT_ID', '')
+    if result_id:
+        if not re.fullmatch(r'[a-z0-9-]+', result_id):
+            raise RuntimeError('Invalid SELECTEL_RESULT_ID')
+        reports = reports / result_id
     shutil.rmtree(reports, ignore_errors=True)
     reports.mkdir(parents=True, exist_ok=True)
     # Install only on the newly leased device, never a local emulator or personal phone.
@@ -323,19 +399,26 @@ def run_tests(path):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['probe', 'acquire', 'run', 'release', 'test'])
+    parser.add_argument('action', choices=['probe', 'acquire', 'run', 'release', 'release-all', 'test', 'matrix', 'matrix-test'])
     parser.add_argument('--state', type=Path, default=ROOT / '.selectel/lease.json')
+    parser.add_argument('--profile', choices=['single', 'all'], default='single')
     args = parser.parse_args()
     args.state = args.state.resolve()
     def interrupted(signum, frame):
         raise KeyboardInterrupt
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        if args.action == 'run':
+        if args.action == 'matrix':
+            print(json.dumps({'include': device_matrix(args.profile)}))
+        elif args.action == 'run':
             run_tests(args.state)
         else:
             client = Client()
-            if args.action == 'probe':
+            if args.action == 'release-all':
+                release_all(client, args.state.parent)
+            elif args.action == 'matrix-test':
+                run_matrix(client, args.state, args.profile)
+            elif args.action == 'probe':
                 existing = client.request('GET', '/v3/devices')
                 model = choose_device(client.request('GET', '/v3/devices/available'))
                 print(f"Access OK; {len(existing)} existing devices untouched; candidate {model['marketName']} API {model['sdk']}")

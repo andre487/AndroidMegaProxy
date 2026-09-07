@@ -80,12 +80,15 @@ platform :android do
   end
 
   desc "Build debug application and instrumentation APKs before renting a device"
-  lane :ui_test_artifacts do
+  lane :ui_test_artifacts do |options|
+    profile = options[:profile] || "single"
+    UI.user_error!("profile must be single or all") unless %w[single all].include?(profile)
+    variant = profile == "all" ? "universal" : "arm64-v8a"
     ensure_no_release_signing
     selectel_contract_tests
     native_library
     gradle(tasks: %w[assembleDebug assembleDebugAndroidTest],
-           flags: "--no-daemon -PmegaproxyVersionVariant=arm64-v8a", project_dir: project_root)
+           flags: "--no-daemon -PmegaproxyVersionVariant=#{variant}", project_dir: project_root)
   end
 
   desc "Check Selectel access and device availability without renting"
@@ -103,14 +106,20 @@ platform :android do
     sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "run")
   end
 
-  desc "Release the Selectel lease recorded by this checkout (safe to repeat)"
+  desc "Release all Selectel leases recorded by this checkout (safe to repeat)"
   lane :selectel_release do
-    sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "release")
+    sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "release-all")
   end
 
   desc "Rent, run prebuilt UI tests, and release a Selectel Android device"
-  lane :selectel_ui_tests do
-    sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "test")
+  lane :selectel_ui_tests do |options|
+    profile = options[:profile] || "single"
+    UI.user_error!("profile must be single or all") unless %w[single all].include?(profile)
+    if profile == "all"
+      sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "matrix-test", "--profile", profile)
+    else
+      sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "test")
+    end
   end
 
   desc "Build a debug APK after preparing the native library"

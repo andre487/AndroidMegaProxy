@@ -42,11 +42,13 @@ That command lists the lanes available in the checked-out version of the project
 | `bundle exec fastlane android release_artifacts` | Builds and verifies the signed release APKs, AAB, native debug symbols, and `SHA256SUMS` in `dist/release`. |
 | `bundle exec fastlane android selectel_contract_tests` | Tests lease cleanup and instrumentation parsing without renting a device. |
 | `bundle exec fastlane android ui_test_artifacts` | Runs Selectel contract tests and builds debug application and instrumentation APKs. |
+| `bundle exec fastlane android ui_test_artifacts profile:all` | Builds a universal APK for every fixed device configuration. |
 | `bundle exec fastlane android selectel_probe` | Checks access and availability without renting. |
 | `bundle exec fastlane android selectel_acquire` | Rents one device and records its lease; requires prebuilt APKs. |
 | `bundle exec fastlane android selectel_run` | Runs tests on the device from the lease journal. |
 | `bundle exec fastlane android selectel_release` | Releases the recorded lease and temporary ADB key; safe to repeat. |
 | `bundle exec fastlane android selectel_ui_tests` | Rents, runs prebuilt tests, and releases the device in a finally block. |
+| `bundle exec fastlane android selectel_ui_tests profile:all` | Runs the fixed catalog sequentially, releasing each lease and collecting separate reports. |
 
 The release lane requires the signing configuration described in
 [Signed release builds](../../README.md#signed-release-builds). It builds artifacts but does not

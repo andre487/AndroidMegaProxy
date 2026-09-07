@@ -14,7 +14,7 @@ jobs:
     # Only our own branches can create leases. Do not run fork-provided code.
     if: github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     steps:
       - name: Check out trusted default branch cleanup code
         uses: actions/checkout@v6
@@ -35,14 +35,14 @@ jobs:
               ...context.repo, run_id: run.id
             });
             const expected = `selectel-lease-${run.id}-${run.run_attempt}`;
-            const journal = artifacts.find(a => a.name === expected && !a.expired);
-            core.setOutput('found', Boolean(journal));
-            core.setOutput('name', expected);
+            const journals = artifacts.filter(a => !a.expired && (a.name === expected || a.name.startsWith(expected + '-')));
+            core.setOutput('found', journals.length > 0);
+            core.setOutput('ids', journals.map(a => a.id).join(','));
       - name: Download only the lease data
         if: steps.journal.outputs.found == 'true'
         uses: actions/download-artifact@v8
         with:
-          name: ${{ steps.journal.outputs.name }}
+          artifact-ids: ${{ steps.journal.outputs.ids }}
           path: .selectel
           run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ github.token }}

@@ -1,9 +1,27 @@
 # Selectel UI tests
 
-The `Selectel UI` workflow runs on real Android devices for same-repository PRs and manual
-`workflow_dispatch` runs. Fork PRs are skipped; neither `pull_request_target` nor fork code receives
-credentials. Keep this job optional in branch protection until the farm's reliability is established.
-The existing native/JVM/lint checks remain required. No hosted emulator or release signing is used.
+The `Selectel UI` workflow runs **manually**, on the PR branch selected in Actions → Selectel UI →
+Run workflow. Select `single` or `all`. Pushes do not rent devices. The aggregate
+`Selectel UI required` check must succeed for the current PR commit before merging; a new commit
+requires a new manual run. Native/JVM/lint checks still run automatically. The required check fails
+if the build or any selected device fails, including unavailable configurations.
+
+The fixed snapshot in `config/selectel-devices.json`, captured on 2026-09-07, contains **67 Android
+model/API/ABI configurations** (65 ARM64 and two ARM32). `single` selects Galaxy A14 / API 35 / ARM64;
+`all` runs one device per configuration, at most two simultaneously in GitHub. This is not runtime
+discovery and does not rent every physical copy of a model. Update the snapshot explicitly in a PR.
+The full matrix performs 804 test cases and costs more than a single-device run. Availability and
+compatibility of every catalog entry are not guaranteed; there is no substitution on failure.
+
+```sh
+gh workflow run selectel-ui.yml --ref YOUR_PR_BRANCH -f devices=single
+# Or: -f devices=all
+```
+
+Only repository branches can be selected; fork code is not automatically tested with secrets.
+No hosted emulator or release signing is used. The ruleset for `main` requires `Selectel UI required`
+from GitHub Actions alongside the existing native/Android checks. Workflow dispatch becomes available
+in the Actions UI after the workflow is merged into the default branch.
 
 ## Setup
 
@@ -30,6 +48,19 @@ Galaxy A14, Android API 35, arm64. Override with `SELECTEL_ANDROID_API` and
 availability and the actual tariff depend on the provider. The UI build includes only ARM64 to reduce upload time. Build before renting to avoid paying for
 compilation. ADB uses its own key directory and server port 5038 (`SELECTEL_ADB_PORT` overrides it),
 so local phones and emulators are not targeted.
+
+## Local full matrix
+
+```sh
+bundle exec fastlane android ui_test_artifacts profile:all
+bundle exec fastlane android selectel_ui_tests profile:all
+```
+
+Use `profile:all` for both commands: its universal APK supports ARM32 as well as ARM64. Locally,
+devices run sequentially with independent lease journals and report directories named by catalog ID.
+Test failures do not stop remaining configurations; cleanup failures stop new rentals immediately.
+The summary is `app/build/reports/selectel/matrix.json`. `selectel_release` retries all journals
+under `.selectel/`, including journals downloaded into separate artifact subdirectories.
 
 ## Coverage and results
 

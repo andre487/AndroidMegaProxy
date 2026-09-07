@@ -279,7 +279,8 @@ copy, logs, and tooling.
 
 ### Real-device UI tests
 
-UI tests run on Selectel through Fastlane without a GitHub-hosted emulator. See the
+UI tests run manually on Selectel before merging, with a required check for the current PR commit.
+Choose one device or the fixed full catalog; pushes only trigger native/JVM/lint checks. See the
 [English setup](docs/en/selectel-ui-tests.md) or [Russian setup](docs/ru/selectel-ui-tests.md)
 for local credentials, PR integration, reports, and paid-device cleanup.
 

@@ -1,5 +1,6 @@
 import importlib.util
 import json
+import os
 from pathlib import Path
 import tempfile
 import unittest
@@ -94,6 +95,58 @@ class LeaseTest(unittest.TestCase):
         output = ('INSTRUMENTATION_STATUS: class=Test\nINSTRUMENTATION_STATUS: test=works\n'
                   'INSTRUMENTATION_STATUS_CODE: 0\nOK (1 test)\nINSTRUMENTATION_CODE: -1')
         self.assertTrue(m.instrumentation_report(output, Path(self.temp.name) / 'junit.xml'))
+
+
+class MatrixTest(unittest.TestCase):
+    def test_fixed_catalog_needs_no_credentials_or_api(self):
+        with patch.dict(os.environ, {}, clear=True), patch.object(m, 'Client', side_effect=AssertionError):
+            devices = m.device_matrix('all')
+            single = m.device_matrix('single')
+        self.assertEqual(1, len(single))
+        self.assertEqual('Galaxy A14', single[0]['model'])
+        self.assertIn(single[0], devices)
+        self.assertEqual(len(devices), len({d['id'] for d in devices}))
+        self.assertEqual({'arm64-v8a', 'armeabi-v7a'}, {d['abi'] for d in devices})
+
+    def test_selection_does_not_substitute_another_configuration(self):
+        device = m.device_matrix('single')[0]
+        with patch.dict(os.environ):
+            m.select_configuration(device)
+            candidate = dict(platform='Android', sdk='35', marketName='Galaxy A14',
+                             manufacturer='SAMSUNG', abi='arm64-v8a', count=1)
+            self.assertEqual(candidate, m.choose_device([candidate]))
+            for field, value in [('sdk', '33'), ('abi', 'armeabi-v7a'),
+                                 ('manufacturer', 'OTHER'), ('count', 0)]:
+                with self.assertRaisesRegex(RuntimeError, 'Unavailable configuration'):
+                    m.choose_device([dict(candidate, **{field: value})])
+
+    def test_cleanup_attempts_every_journal_after_failure(self):
+        with tempfile.TemporaryDirectory() as root:
+            paths = [Path(root) / name / 'lease.json' for name in ['a', 'b']]
+            for path in paths:
+                m.write_state(path, {})
+            with patch.object(m, 'release', side_effect=[RuntimeError('offline'), None]) as release:
+                with self.assertRaisesRegex(RuntimeError, 'offline'):
+                    m.release_all(None, Path(root))
+            self.assertEqual(paths, [call.args[1] for call in release.call_args_list])
+
+    def test_matrix_continues_test_failures_but_stops_cleanup_failures(self):
+        devices = m.device_matrix('all')[:2]
+        for cleanup_fails in [False, True]:
+            with tempfile.TemporaryDirectory() as root, patch.dict(os.environ), \
+                    patch.object(m, 'ROOT', Path(root)), \
+                    patch.object(m, 'device_matrix', return_value=devices), \
+                    patch.object(m, 'acquire') as acquire, \
+                    patch.object(m, 'run_tests', side_effect=[RuntimeError('test failed'), None]), \
+                    patch.object(m, 'release', side_effect=RuntimeError('cleanup failed') if cleanup_fails else None):
+                with self.assertRaises(RuntimeError):
+                    m.run_matrix(None, Path(root) / '.selectel/lease.json', 'all')
+                self.assertEqual(1 if cleanup_fails else 2, acquire.call_count)
+                report = json.loads((Path(root) / 'app/build/reports/selectel/matrix.json').read_text())
+                self.assertEqual('failed', report[0]['status'])
+                if not cleanup_fails:
+                    self.assertEqual('passed', report[1]['status'])
+                    self.assertNotEqual(acquire.call_args_list[0].args[1], acquire.call_args_list[1].args[1])
 
 
 if __name__ == '__main__':
