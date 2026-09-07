@@ -21,7 +21,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 ## Why MegaProxy
 
 - **Private by design.** No account, ads, analytics, tracking identifiers, or background telemetry.
-- **Your infrastructure.** Connect to HTTPS, SSH, or SSH-with-jump servers that you configure.
+- **Your infrastructure.** Connect to your HTTPS or SSH servers, directly or through a jump server.
 - **End-to-end application encryption.** HTTPS proxying uses CONNECT without intercepting or
   decrypting application traffic.
 - **Flexible routing.** Route the whole device or only selected applications through the VPN.
@@ -35,7 +35,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 ### Connection profiles
 
 - Multiple named, colored, reorderable profiles.
-- HTTPS proxies over TLS with Basic authentication.
+- HTTPS proxies over TLS with Basic authentication, including two-proxy HTTPS with Jump chains.
 - HTTP/2 CONNECT multiplexing when supported by the proxy, with automatic HTTP/1.1 fallback.
 - SSH `direct-tcpip` transport and SSH through a jump host.
 - SSH password and unencrypted private-key authentication.
@@ -189,11 +189,32 @@ Server configurations and setup instructions are maintained separately in
 ### Generated configuration imports
 
 External generators can produce MegaProxy JSON files using schema `net.megaproxy487.config`, version
-7. Every profile must have a stable, generator-controlled `id`. Reimporting a file updates profiles
+8. Every profile must have a stable, generator-controlled `id`. Reimporting a file updates profiles
 with matching IDs and adds only new IDs; it does not create duplicates. Omitted password and SSH
 private-key fields preserve credentials already stored on the device, while explicit empty values
 clear them. After import, MegaProxy offers an unselected list of local profiles absent from the file
 so the user can optionally remove specific obsolete profiles.
+
+### HTTPS with Jump
+
+Select **HTTPS with Jump** to use two HTTPS CONNECT proxies in sequence:
+phone → jump proxy → destination proxy → website. Enter the destination proxy in the main
+connection fields and the first hop in **Jump HTTPS proxy**. Both ports default to 443.
+The jump proxy must allow CONNECT to the destination proxy hostname and port; it resolves that
+hostname. Only the jump proxy is bootstrapped on the phone. Both hops use the selected TLS
+fingerprint and support HTTP/1.1 and HTTP/2 CONNECT independently.
+
+Each hop verifies its own TLS certificate and can use separate Basic Auth credentials. The
+optional shared-authentication setting reuses the destination username and password. Certificate
+verification exceptions apply only to the selected hop. Connection tests and DoH use the chain;
+local-network destinations still follow the existing bypass setting. A failed hop never causes
+fallback to a direct connection to the destination proxy.
+
+JSON schema version 8 stores this mode as `proxy.type: "HTTPS_JUMP"`, with first-hop settings in
+`proxy.jump`: `host`, `port`, `sameAuthentication`, `username`, `password`, and
+`allowInvalidProxyCertificate`. Export passwords only when needed. Older application versions
+reject version 8 files, preventing a chain from being imported as a single proxy. ProxyList
+exports support single HTTPS proxies only and omit chain profiles.
 
 ## Current limitations
 

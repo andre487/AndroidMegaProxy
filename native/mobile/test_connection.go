@@ -44,9 +44,10 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	}
 	var connect func(context.Context, string) (net.Conn, error)
 	var testReporter Reporter
-	if c.Type == "HTTPS" {
+	if c.isHTTPS() {
 		dialer := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
 		connect, testReporter = dialer.connectTarget, dialer.reporter
+		defer dialer.Close()
 	} else {
 		dialer := &sshDialer{config: c, protector: protector, reporter: reporter}
 		connect, testReporter = dialer.connectTarget, dialer.reporter

@@ -39,7 +39,7 @@ data class ProfileSecretPresence(
 object ConfigTransfer {
     const val SCHEMA_ID = "net.megaproxy487.config"
     const val LEGACY_SCHEMA_ID = "dev.megaproxy.config"
-    const val SCHEMA_VERSION = 7
+    const val SCHEMA_VERSION = 8
 
     fun isSupportedSchema(value: String): Boolean = value == SCHEMA_ID || value == LEGACY_SCHEMA_ID
 
@@ -177,7 +177,7 @@ object ConfigTransfer {
         )
     }
 
-    private fun encodeProfile(profile: ProxyProfile, includePasswords: Boolean, includePrivateKeys: Boolean) = JSONObject().apply {
+    internal fun encodeProfile(profile: ProxyProfile, includePasswords: Boolean, includePrivateKeys: Boolean) = JSONObject().apply {
         put("id", profile.id)
         put("name", profile.name.trim())
         put("color", profile.colorIndex)
@@ -193,7 +193,7 @@ object ConfigTransfer {
             put("sshProfile", profile.config.sshProfile.name)
             put("trustedHostKey", profile.config.trustedHostKey)
             put("acceptAnyHostKey", profile.config.acceptAnyHostKey)
-            if (profile.config.type == ProxyType.SSH_JUMP) put("jump", JSONObject().apply {
+            if (profile.config.type.hasJump) put("jump", JSONObject().apply {
                 put("host", profile.config.jumpHost)
                 put("port", profile.config.jumpPort)
                 put("sameAuthentication", profile.config.sameJumpAuthentication)
@@ -204,6 +204,7 @@ object ConfigTransfer {
                 }
                 put("trustedHostKey", profile.config.jumpTrustedHostKey)
                 put("acceptAnyHostKey", profile.config.jumpAcceptAnyHostKey)
+                put("allowInvalidProxyCertificate", profile.config.jumpAllowInvalidProxyCertificate)
             })
         })
         put("tls", JSONObject().apply {
@@ -229,6 +230,7 @@ object ConfigTransfer {
         val routing = item.optJSONObject("routing") ?: JSONObject()
         val host = proxy.limitedString("host", 253).trim()
         require(host.isNotEmpty() && !host.contains(Regex("[/:\\s]")))
+        val type = enumValue(proxy.optString("type"), ProxyType.HTTPS)
         val jump = proxy.optJSONObject("jump")
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
             require(array.length() <= MAX_IMPORTED_PACKAGES) { "A profile contains too many application package names" }
@@ -244,7 +246,7 @@ object ConfigTransfer {
             countryCode = item.limitedString("countryCode", 2).uppercase()
                 .takeIf { it.matches(Regex("[A-Z]{2}")) }.orEmpty(),
             config = ProxyConfig(
-                type = enumValue(proxy.optString("type"), ProxyType.HTTPS),
+                type = type,
                 host = host,
                 port = proxy.optInt("port", 443).takeIf { it in 1..65535 } ?: 443,
                 username = proxy.limitedString("username", 4_096),
@@ -254,12 +256,13 @@ object ConfigTransfer {
                 trustedHostKey = proxy.limitedString("trustedHostKey", 256),
                 acceptAnyHostKey = proxy.optBoolean("acceptAnyHostKey", false),
                 jumpHost = jump?.limitedString("host", 253).orEmpty(),
-                jumpPort = jump?.optInt("port", 22) ?: 22,
+                jumpPort = jump?.optInt("port", type.defaultPort) ?: type.defaultPort,
                 sameJumpAuthentication = jump?.optBoolean("sameAuthentication", true) ?: true,
                 jumpUsername = jump?.limitedString("username", 4_096).orEmpty(),
                 jumpPassword = jump?.limitedString("password", 16_384).orEmpty(),
                 jumpPrivateKey = jump?.limitedString("privateKey", 64 * 1024).orEmpty(),
                 jumpTrustedHostKey = jump?.limitedString("trustedHostKey", 256).orEmpty(),
+                jumpAllowInvalidProxyCertificate = jump?.optBoolean("allowInvalidProxyCertificate", false) ?: false,
                 jumpAcceptAnyHostKey = jump?.optBoolean("acceptAnyHostKey", false) ?: false,
                 allowInvalidProxyCertificate = proxy.optBoolean("allowInvalidProxyCertificate", false),
                 profile = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT),

@@ -1,5 +1,8 @@
 package net.megaproxy487.model
 
+import androidx.annotation.StringRes
+import net.megaproxy487.R
+
 data class ProxyConfig(
     val type: ProxyType = ProxyType.HTTPS,
     val host: String = "",
@@ -21,11 +24,12 @@ data class ProxyConfig(
     val trustedHostKey: String = "",
     val acceptAnyHostKey: Boolean = false,
     val jumpHost: String = "",
-    val jumpPort: Int = 22,
+    val jumpPort: Int = type.defaultPort,
     val jumpUsername: String = "",
     val jumpPassword: String = "",
     val jumpPrivateKey: String = "",
     val jumpTrustedHostKey: String = "",
+    val jumpAllowInvalidProxyCertificate: Boolean = false,
     val jumpAcceptAnyHostKey: Boolean = false,
     val sameJumpAuthentication: Boolean = true,
     val resolvedJumpIp: String = "",
@@ -35,31 +39,39 @@ data class ProxyConfig(
     val sshRotationMinutes: Int = 0,
     val sshRotationMb: Int = 0,
 ) {
-    fun connectionValidationError(): String? = when {
-        host.isBlank() -> if (type == ProxyType.HTTPS) "Enter the proxy hostname" else "Enter the SSH hostname"
-        host.contains(Regex("[/:\\s]")) -> "Enter a hostname without a scheme or path"
-        port !in 1..65535 -> "Port must be between 1 and 65535"
-        type == ProxyType.HTTPS && username.isBlank() -> "Enter the Basic Auth username"
-        type == ProxyType.HTTPS && password.isBlank() -> "Enter the Basic Auth password"
-        type != ProxyType.HTTPS && username.isBlank() -> "Enter the SSH username"
-        type == ProxyType.SSH_JUMP && jumpHost.isBlank() -> "Enter the jump host"
-        type == ProxyType.SSH_JUMP && jumpHost.contains(Regex("[/:\\s]")) -> "Enter a jump hostname without a scheme or path"
-        type == ProxyType.SSH_JUMP && jumpPort !in 1..65535 -> "Jump port must be between 1 and 65535"
-        type == ProxyType.SSH_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> "Enter the jump SSH username"
-        type == ProxyType.HTTPS && profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
-            "JA3 must contain five fields: version,ciphers,extensions,groups,points"
+    @StringRes
+    fun connectionValidationError(): Int? = when {
+        host.isBlank() -> if (type.isHttps) R.string.validation_proxy_host else R.string.validation_ssh_host
+        host.contains(Regex("[/:\\s]")) -> R.string.validation_host_format
+        port !in 1..65535 -> R.string.validation_port
+        type.isHttps && username.isBlank() -> R.string.validation_basic_username
+        type.isHttps && password.isBlank() -> R.string.validation_basic_password
+        !type.isHttps && username.isBlank() -> R.string.validation_ssh_username
+        type.hasJump && jumpHost.isBlank() -> R.string.validation_jump_host
+        type.hasJump && jumpHost.contains(Regex("[/:\\s]")) -> R.string.validation_jump_host_format
+        type.hasJump && jumpPort !in 1..65535 -> R.string.validation_jump_port
+        type == ProxyType.SSH_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> R.string.validation_jump_ssh_username
+        type == ProxyType.HTTPS_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> R.string.validation_jump_basic_username
+        type == ProxyType.HTTPS_JUMP && !sameJumpAuthentication && jumpPassword.isBlank() -> R.string.validation_jump_basic_password
+        type.isHttps && profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
+            R.string.validation_ja3
         dnsProvider == DnsProvider.CUSTOM && !customDohUrl.matches(Regex("https://[^/\\s]+/.+")) ->
-            "The custom DoH URL must start with https://"
+            R.string.validation_doh_url
         else -> null
     }
 
-    fun validationError(): String? = connectionValidationError()
+    @StringRes
+    fun validationError(): Int? = connectionValidationError()
 }
 
 enum class ProxyType(val title: String, val defaultPort: Int) {
     HTTPS("HTTPS", 443),
+    HTTPS_JUMP("HTTPS with Jump", 443),
     SSH("SSH", 22),
-    SSH_JUMP("SSH with Jump", 22),
+    SSH_JUMP("SSH with Jump", 22);
+
+    val isHttps: Boolean get() = this == HTTPS || this == HTTPS_JUMP
+    val hasJump: Boolean get() = this == HTTPS_JUMP || this == SSH_JUMP
 }
 
 enum class SshProfile(val title: String) {

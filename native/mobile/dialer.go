@@ -25,6 +25,8 @@ var errUDPBlocked = errors.New("UDP is intentionally blocked")
 type Protector interface{ Protect(fd int) bool }
 
 type httpsConnectDialer struct {
+	jump         *httpsConnectDialer
+	intermediate bool
 	config       config
 	protector    Protector
 	reporter     Reporter
@@ -40,6 +42,9 @@ type httpsConnectDialer struct {
 func (d *httpsConnectDialer) Close() error {
 	d.cacheMu.Lock()
 	defer d.cacheMu.Unlock()
+	if d.jump != nil {
+		_ = d.jump.Close()
+	}
 	if d.dohClient != nil {
 		d.dohClient.CloseIdleConnections()
 		d.dohClient = nil
@@ -111,14 +116,14 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	}
 	report(d.reporter, "event=connection conn=%d mode=proxy stage=tcp_connect result=started fingerprint=%s", connectionID, d.config.Profile)
 	dialStarted := time.Now()
-	raw, err := d.protectedDialer().DialContext(ctx, "tcp", d.config.address())
+	raw, err := d.dialProxy(ctx)
 	if err != nil {
-		recordConnectionOutcome(false)
+		d.recordOutcome(false)
 		err = fmt.Errorf("dial HTTPS proxy: %w", err)
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=tcp_connect result=failed reason=%s elapsed_ms=%d", connectionID, errorClass(err), time.Since(dialStarted).Milliseconds())
 		return nil, err
 	}
-	recordProxyLatency(time.Since(dialStarted))
+	d.recordLatency(time.Since(dialStarted))
 	report(d.reporter, "event=connection conn=%d mode=proxy stage=tcp_connect result=success elapsed_ms=%d", connectionID, time.Since(dialStarted).Milliseconds())
 	closeOnError := true
 	defer func() {
@@ -129,7 +134,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 
 	hello, err := d.config.helloID()
 	if err != nil {
-		recordConnectionOutcome(false)
+		d.recordOutcome(false)
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=fingerprint result=failed reason=invalid_configuration", connectionID)
 		return nil, err
 	}
@@ -141,14 +146,14 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	}, hello)
 	if hello == tls.HelloCustom {
 		if err := applyJA3(uconn, d.config.CustomJA3, d.config.Host); err != nil {
-			recordConnectionOutcome(false)
+			d.recordOutcome(false)
 			report(d.reporter, "event=connection conn=%d mode=proxy stage=fingerprint result=failed reason=invalid_ja3", connectionID)
 			return nil, err
 		}
 	}
 	if d.isHTTP2Disabled() {
 		if err := forceHTTP11ALPN(uconn); err != nil {
-			recordConnectionOutcome(false)
+			d.recordOutcome(false)
 			return nil, fmt.Errorf("configure HTTP/1.1 ALPN fallback: %w", err)
 		}
 	}
@@ -157,7 +162,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	err = uconn.HandshakeContext(handshakeContext)
 	cancelHandshake()
 	if err != nil {
-		recordConnectionOutcome(false)
+		d.recordOutcome(false)
 		reason := errorClass(err)
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=tls_handshake result=failed reason=%s elapsed_ms=%d dpi_hint=%s fingerprint=%s", connectionID, reason, time.Since(tlsStarted).Milliseconds(), tlsInterferenceHint(reason), d.config.Profile)
 		err = fmt.Errorf("TLS handshake with proxy: %w", err)
@@ -170,7 +175,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	if h2Negotiated {
 		session, sessionErr := newHTTP2ConnectSession(uconn)
 		if sessionErr != nil {
-			recordConnectionOutcome(false)
+			d.recordOutcome(false)
 			return nil, fmt.Errorf("initialize HTTP/2 proxy session: %w", sessionErr)
 		}
 		closeOnError = false // The HTTP/2 session now owns the outer TLS connection.
@@ -193,7 +198,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 
 	auth := base64.StdEncoding.EncodeToString([]byte(d.config.Username + ":" + d.config.Password))
 	if _, err := fmt.Fprintf(uconn, "CONNECT %s HTTP/1.1\r\nHost: %s\r\nProxy-Authorization: Basic %s\r\nProxy-Connection: Keep-Alive\r\n\r\n", target, target, auth); err != nil {
-		recordConnectionOutcome(false)
+		d.recordOutcome(false)
 		err = fmt.Errorf("write CONNECT: %w", err)
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_write result=failed reason=%s", connectionID, errorClass(err))
 		return nil, err
@@ -203,14 +208,14 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	reader := bufio.NewReader(&limitedHeaderReader{reader: uconn, remaining: 64 * 1024})
 	response, err := http.ReadResponse(reader, &http.Request{Method: http.MethodConnect})
 	if err != nil {
-		recordConnectionOutcome(false)
+		d.recordOutcome(false)
 		err = fmt.Errorf("read CONNECT response: %w", err)
 		reason := errorClass(err)
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_response result=failed reason=%s dpi_hint=%s", connectionID, reason, tlsInterferenceHint(reason))
 		return nil, err
 	}
 	if response.StatusCode != http.StatusOK {
-		recordConnectionOutcome(false)
+		d.recordOutcome(false)
 		_ = response.Body.Close()
 		err = fmt.Errorf("proxy CONNECT returned %s", response.Status)
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_response result=rejected status=%d status_class=%dxx", connectionID, response.StatusCode, response.StatusCode/100)
@@ -219,14 +224,61 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	if err := uconn.SetDeadline(time.Time{}); err != nil {
 		return nil, fmt.Errorf("clear CONNECT deadline: %w", err)
 	}
-	recordConnectionOutcome(true)
+	d.recordOutcome(true)
 	report(d.reporter, "event=connection conn=%d mode=proxy stage=tunnel result=established total_ms=%d", connectionID, time.Since(totalStarted).Milliseconds())
 	closeOnError = false
 	var connection net.Conn = uconn
 	if reader.Buffered() > 0 {
 		connection = &bufferedConn{Conn: uconn, reader: reader}
 	}
-	return &diagnosticConn{Conn: connection, connectionID: connectionID, reporter: d.reporter}, nil
+	return d.trackConnection(connection, connectionID), nil
+}
+
+// dialProxy resolves the destination proxy at the jump hop. It must never apply
+// local-network bypass to this transport connection or fall back to a direct dial.
+func (d *httpsConnectDialer) dialProxy(ctx context.Context) (net.Conn, error) {
+	if d.config.Type != "HTTPS_JUMP" {
+		return d.protectedDialer().DialContext(ctx, "tcp", d.config.address())
+	}
+	d.cacheMu.Lock()
+	if d.jump == nil {
+		c := d.config
+		c.Type = "HTTPS"
+		c.Host, c.DialHost, c.Port = c.JumpHost, c.JumpDialHost, c.JumpPort
+		c.Username, c.Password = c.JumpUsername, c.JumpPassword
+		if c.SameJumpAuthentication {
+			c.Username, c.Password = d.config.Username, d.config.Password
+		}
+		c.AllowInvalidProxyCertificate = c.JumpAllowInvalidProxyCertificate
+		c.BypassLocalNetworks = false
+		d.jump = &httpsConnectDialer{config: c, protector: d.protector, reporter: d.reporter, intermediate: true}
+	}
+	jump := d.jump
+	d.cacheMu.Unlock()
+	conn, err := jump.connectTarget(ctx, d.config.displayAddress())
+	if err != nil {
+		return nil, fmt.Errorf("HTTPS jump: %w", err)
+	}
+	return conn, nil
+}
+
+func (d *httpsConnectDialer) recordOutcome(success bool) {
+	if !d.intermediate {
+		recordConnectionOutcome(success)
+	}
+}
+
+func (d *httpsConnectDialer) recordLatency(elapsed time.Duration) {
+	if !d.intermediate {
+		recordProxyLatency(elapsed)
+	}
+}
+
+func (d *httpsConnectDialer) trackConnection(conn net.Conn, id uint64) net.Conn {
+	if d.intermediate {
+		return conn
+	}
+	return &diagnosticConn{Conn: conn, connectionID: id, reporter: d.reporter}
 }
 
 type http2ConnectStatusError struct{ status int }
@@ -301,7 +353,7 @@ func (d *httpsConnectDialer) openHTTP2Tunnel(ctx context.Context, session *http2
 	started := time.Now()
 	tunnel, status, err := session.openTunnel(ctx, target, auth)
 	if err != nil {
-		recordConnectionOutcome(false)
+		d.recordOutcome(false)
 		if status != 0 {
 			report(d.reporter, "event=connection conn=%d mode=proxy protocol=http2 stage=connect_response result=rejected status=%d status_class=%dxx reused_session=%t", connectionID, status, status/100, reused)
 			return nil, &http2ConnectStatusError{status: status}
@@ -309,10 +361,10 @@ func (d *httpsConnectDialer) openHTTP2Tunnel(ctx context.Context, session *http2
 		report(d.reporter, "event=connection conn=%d mode=proxy protocol=http2 stage=connect_response result=failed reason=%s reused_session=%t", connectionID, errorClass(err), reused)
 		return nil, fmt.Errorf("HTTP/2 proxy CONNECT: %w", err)
 	}
-	recordProxyLatency(time.Since(started))
-	recordConnectionOutcome(true)
+	d.recordLatency(time.Since(started))
+	d.recordOutcome(true)
 	report(d.reporter, "event=connection conn=%d mode=proxy protocol=http2 stage=tunnel result=established stream_multiplexed=true reused_session=%t total_ms=%d", connectionID, reused, time.Since(totalStarted).Milliseconds())
-	return &diagnosticConn{Conn: tunnel, connectionID: connectionID, reporter: d.reporter}, nil
+	return d.trackConnection(tunnel, connectionID), nil
 }
 
 func normalizedALPN(value string) string {

@@ -158,6 +158,7 @@ private fun ProfileTypeBadge(type: ProxyType, foreground: Color) {
         Text(
             when (type) {
                 ProxyType.HTTPS -> "HTTPS"
+                ProxyType.HTTPS_JUMP -> stringResource(R.string.https_with_jump)
                 ProxyType.SSH -> "SSH"
                 ProxyType.SSH_JUMP -> "SSH + Jump"
             },
@@ -297,7 +298,7 @@ internal fun MainScreen(
             systemVpnStatus = readAlwaysOnVpnStatus(activity)
             error = null
         } else {
-            error = globalSettings.applyTo(store.activeProfile().config).validationError()
+            error = globalSettings.applyTo(store.activeProfile().config).validationError()?.let { activity.getString(it) }
         }
         if (error == null && !isAlwaysOnVpnActive(activity)) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
@@ -390,7 +391,7 @@ internal fun MainScreen(
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
             val activeProfile = profiles.firstOrNull { it.id == displayedProfileId } ?: profiles.first()
             val actualProfile = profiles.firstOrNull { it.id == runtimeProfileId }
-            val activeProfileError = globalSettings.applyTo(activeProfile.config).connectionValidationError()
+            val activeProfileError = globalSettings.applyTo(activeProfile.config).connectionValidationError()?.let { activity.getString(it) }
             val profileColor = Color(ProfileColors.argb[Math.floorMod(activeProfile.colorIndex, ProfileColors.argb.size)])
             val onProfileColor = if (profileColor.luminance() > 0.45f) Color.Black else Color.White
             Box(Modifier.fillMaxWidth()) {

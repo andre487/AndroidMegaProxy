@@ -75,6 +75,7 @@ class NativeProxyCore(
         .put("jumpPassword", config.jumpPassword)
         .put("jumpPrivateKey", config.jumpPrivateKey)
         .put("jumpTrustedHostKey", config.jumpTrustedHostKey)
+        .put("jumpAllowInvalidProxyCertificate", config.jumpAllowInvalidProxyCertificate)
         .put("jumpAcceptAnyHostKey", config.jumpAcceptAnyHostKey)
         .put("sameJumpAuthentication", config.sameJumpAuthentication)
         .put("sshAuthMode", config.sshAuthMode.name)

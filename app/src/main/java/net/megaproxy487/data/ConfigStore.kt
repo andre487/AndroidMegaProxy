@@ -465,6 +465,7 @@ class ConfigStore(context: Context) {
         put("jumpPassword", encrypt(config.jumpPassword))
         put("jumpPrivateKey", encrypt(config.jumpPrivateKey))
         put("jumpTrustedHostKey", config.jumpTrustedHostKey)
+        put("jumpAllowInvalidProxyCertificate", config.jumpAllowInvalidProxyCertificate)
         put("jumpAcceptAnyHostKey", config.jumpAcceptAnyHostKey)
         put("sameJumpAuthentication", config.sameJumpAuthentication)
         put("allowInvalidProxyCertificate", config.allowInvalidProxyCertificate)
@@ -503,11 +504,12 @@ class ConfigStore(context: Context) {
         trustedHostKey = item.optString("trustedHostKey"),
         acceptAnyHostKey = item.optBoolean("acceptAnyHostKey", false),
         jumpHost = item.optString("jumpHost"),
-        jumpPort = item.optInt("jumpPort", 22),
+        jumpPort = item.optInt("jumpPort", enumValue(item.optString("type"), ProxyType.HTTPS).defaultPort),
         jumpUsername = item.optString("jumpUsername"),
         jumpPassword = decrypt(item.optString("jumpPassword").ifEmpty { null }),
         jumpPrivateKey = decrypt(item.optString("jumpPrivateKey").ifEmpty { null }),
         jumpTrustedHostKey = item.optString("jumpTrustedHostKey"),
+        jumpAllowInvalidProxyCertificate = item.optBoolean("jumpAllowInvalidProxyCertificate", false),
         jumpAcceptAnyHostKey = item.optBoolean("jumpAcceptAnyHostKey", false),
         sameJumpAuthentication = item.optBoolean("sameJumpAuthentication", true),
         allowInvalidProxyCertificate = item.optBoolean("allowInvalidProxyCertificate", false),
