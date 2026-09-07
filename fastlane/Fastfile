@@ -36,7 +36,6 @@ platform :android do
         "#{configured_signing_variables.join(', ')}"
       )
     end
-
   end
 
   desc "Run Android checks, build a debug APK, and verify that the CI release APK is unsigned"
@@ -85,7 +84,8 @@ platform :android do
     ensure_no_release_signing
     selectel_contract_tests
     native_library
-    gradle(tasks: %w[assembleDebug assembleDebugAndroidTest], flags: "--no-daemon", project_dir: project_root)
+    gradle(tasks: %w[assembleDebug assembleDebugAndroidTest],
+           flags: "--no-daemon -PmegaproxyVersionVariant=arm64-v8a", project_dir: project_root)
   end
 
   desc "Check Selectel access and device availability without renting"
