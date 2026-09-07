@@ -284,4 +284,5 @@
     <string name="connection_duration_minutes">%1$d мин</string>
     <string name="connection_duration_hours_minutes">%1$d ч %2$d мин</string>
     <string name="connection_duration_days_hours">%1$d д %2$d ч</string>
+    <string name="delete_profile_confirmation">Удалить профиль?</string>
 </resources>

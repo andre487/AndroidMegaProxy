@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import android.app.Activity
 import android.net.Uri
 import android.os.Bundle
@@ -156,7 +158,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(profile.displayName) },
+                title = { ScreenTitle(profile.displayName) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -177,7 +179,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             OutlinedTextField(profile.name, { name -> acceptText(name, 256) {
                 profile = profile.copy(name = name)
                 saveProfile()
-            } }, label = { Text(stringResource(R.string.profile_name_optional)) }, supportingText = { Text(stringResource(R.string.defaults_to_proxy_host)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            } }, label = { FieldLabel(stringResource(R.string.profile_name_optional)) }, supportingText = { Text(stringResource(R.string.defaults_to_proxy_host)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
             ExposedDropdownMenuBox(countryExpanded, { countryExpanded = it }) {
@@ -185,7 +187,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                     profile.countryCode.takeIf(String::isNotEmpty)?.let { code ->
                         "${profile.flagEmoji} ${countries.firstOrNull { it.first == code }?.second ?: code}"
                     } ?: "No flag",
-                    {}, readOnly = true, label = { Text(stringResource(R.string.country_flag)) },
+                    {}, readOnly = true, label = { FieldLabel(stringResource(R.string.country_flag)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(countryExpanded) },
                     modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                 )
@@ -215,7 +217,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
           }
           item {
             ExposedDropdownMenuBox(typeExpanded, { typeExpanded = it }) {
-                OutlinedTextField(if (config.type == ProxyType.HTTPS_JUMP) stringResource(R.string.https_with_jump) else config.type.title, {}, readOnly = true, label = { Text(stringResource(R.string.profile_type)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                OutlinedTextField(if (config.type == ProxyType.HTTPS_JUMP) stringResource(R.string.https_with_jump) else config.type.title, {}, readOnly = true, label = { FieldLabel(stringResource(R.string.profile_type)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
                 DropdownMenu(typeExpanded, { typeExpanded = false }) {
                     ProxyType.entries.forEach { type -> DropdownMenuItem(text = { Text(if (type == ProxyType.HTTPS_JUMP) stringResource(R.string.https_with_jump) else type.title) }, onClick = {
                         updateConfig(config.copy(type = type, port = type.defaultPort, jumpPort = if (type.hasJump && (!config.type.hasJump || type.isHttps != config.type.isHttps)) type.defaultPort else config.jumpPort))
@@ -227,7 +229,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             }
           }
           item {
-            OutlinedTextField(config.host, { value -> acceptText(value, 253) { updateConfig(config.copy(host = it)) } }, label = { Text(stringResource(if (config.type == ProxyType.HTTPS_JUMP) R.string.destination_https_proxy_hostname else if (config.type.isHttps) R.string.https_proxy_hostname else R.string.destination_ssh_hostname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(config.host, { value -> acceptText(value, 253) { updateConfig(config.copy(host = it)) } }, label = { FieldLabel(stringResource(if (config.type == ProxyType.HTTPS_JUMP) R.string.destination_https_proxy_hostname else if (config.type.isHttps) R.string.https_proxy_hostname else R.string.destination_ssh_hostname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
             OutlinedTextField(portText, { value ->
@@ -235,13 +237,13 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 val port = value.toIntOrNull()
                 if (port == null) error = activity.getString(R.string.validation_port)
                 else updateConfig(config.copy(port = port))
-            }, label = { Text(stringResource(R.string.port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }, label = { FieldLabel(stringResource(R.string.port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
-            OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { Text(stringResource(if (config.type.isHttps) R.string.basic_auth_username else R.string.ssh_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { FieldLabel(stringResource(if (config.type.isHttps) R.string.basic_auth_username else R.string.ssh_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
-            OutlinedTextField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it)) } }, label = { Text(stringResource(if (config.type.isHttps) R.string.password else R.string.ssh_password_optional)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it)) } }, label = { FieldLabel(stringResource(if (config.type.isHttps) R.string.password else R.string.ssh_password_optional)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
           }
           if (config.type.isHttps) item { SettingCheckboxRow(
                 checked = config.allowInvalidProxyCertificate,
@@ -256,10 +258,10 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
 
             if (!config.type.isHttps) {
               item {
-                OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it)) } }, label = { Text(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it)) } }, label = { FieldLabel(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
               }
               item {
-                OutlinedButton(
+                OutlinedButton(shape = RoundedCornerShape(12.dp),
                     onClick = { destinationKeyPicker.launch(arrayOf("*/*")) },
                     modifier = Modifier.fillMaxWidth(),
                 ) { Text(stringResource(R.string.import_destination_key)) }
@@ -286,7 +288,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
               item { HorizontalDivider() }
               item { Text(stringResource(R.string.https_jump_proxy), style = MaterialTheme.typography.titleMedium) }
               item {
-                OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { Text(stringResource(R.string.https_jump_hostname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { FieldLabel(stringResource(R.string.https_jump_hostname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
               }
               item {
                 OutlinedTextField(jumpPortText, { value ->
@@ -294,7 +296,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                         jumpPortText = value
                         updateConfig(config.copy(jumpPort = value.toIntOrNull() ?: 0))
                     }
-                }, label = { Text(stringResource(R.string.jump_port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }, label = { FieldLabel(stringResource(R.string.jump_port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
               }
               item {
                 SettingCheckboxRow(config.sameJumpAuthentication, stringResource(R.string.https_jump_same_auth), stringResource(R.string.https_jump_same_auth_description)) {
@@ -303,10 +305,10 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
               }
               if (!config.sameJumpAuthentication) {
                 item {
-                    OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { Text(stringResource(R.string.https_jump_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { FieldLabel(stringResource(R.string.https_jump_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
                 item {
-                    OutlinedTextField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it)) } }, label = { Text(stringResource(R.string.https_jump_password)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it)) } }, label = { FieldLabel(stringResource(R.string.https_jump_password)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
                 }
               }
               item {
@@ -325,7 +327,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 Text(stringResource(R.string.jump_host), style = MaterialTheme.typography.titleMedium)
               }
               item {
-                OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { Text(stringResource(R.string.jump_ssh_hostname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { FieldLabel(stringResource(R.string.jump_ssh_hostname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
               }
               item {
                 OutlinedTextField(jumpPortText, { value ->
@@ -333,7 +335,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                         jumpPortText = value
                         value.toIntOrNull()?.let { updateConfig(config.copy(jumpPort = it)) }
                     }
-                }, label = { Text(stringResource(R.string.jump_port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }, label = { FieldLabel(stringResource(R.string.jump_port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
               }
               item {
                 SettingCheckboxRow(config.sameJumpAuthentication, "Use the same authentication", "Reuse destination username, password and private key.") {
@@ -342,16 +344,16 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
               }
                 if (!config.sameJumpAuthentication) {
                   item {
-                    OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { Text(stringResource(R.string.jump_ssh_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { FieldLabel(stringResource(R.string.jump_ssh_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
                   }
                   item {
-                    OutlinedTextField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it)) } }, label = { Text(stringResource(R.string.jump_ssh_password_optional)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it)) } }, label = { FieldLabel(stringResource(R.string.jump_ssh_password_optional)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
                   }
                   item {
-                    OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(jumpPrivateKey = it)) } }, label = { Text(stringResource(R.string.jump_private_key_optional)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(jumpPrivateKey = it)) } }, label = { FieldLabel(stringResource(R.string.jump_private_key_optional)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
                   }
                   item {
-                    OutlinedButton(
+                    OutlinedButton(shape = RoundedCornerShape(12.dp),
                         onClick = { jumpKeyPicker.launch(arrayOf("*/*")) },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.import_jump_key)) }
@@ -385,25 +387,25 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
           }
           item {
             ExposedDropdownMenuBox(dnsExpanded, { dnsExpanded = it }) {
-                OutlinedTextField(config.dnsProvider.title, {}, readOnly = true, label = { Text(stringResource(R.string.dns_over_https)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                OutlinedTextField(config.dnsProvider.title, {}, readOnly = true, label = { FieldLabel(stringResource(R.string.dns_over_https)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
                 DropdownMenu(dnsExpanded, { dnsExpanded = false }) {
                     DnsProvider.entries.forEach { provider -> DropdownMenuItem(text = { Text(provider.title) }, onClick = { updateConfig(config.copy(dnsProvider = provider)); dnsExpanded = false }) }
                 }
             }
           }
-            if (config.dnsProvider == DnsProvider.CUSTOM) item { OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } }, label = { Text(stringResource(R.string.custom_doh_url)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            if (config.dnsProvider == DnsProvider.CUSTOM) item { OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } }, label = { FieldLabel(stringResource(R.string.custom_doh_url)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
             error?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
             if (showReconnectPrompt) {
               item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                         Text(stringResource(R.string.reconnect_apply_changes), style = MaterialTheme.typography.bodyMedium)
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = {
+                        WrappingActions() {
+                            TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                                 showReconnectPrompt = false
                                 connectionChangeDeferred = true
                             }) { Text(stringResource(R.string.next_connection)) }
-                            TextButton(onClick = {
+                            TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                                 showReconnectPrompt = false
                                 connectionChangeDeferred = true
                                 ProxyVpnService.reconnect(activity)
@@ -416,9 +418,9 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             if (showAlwaysOnNotice) {
               item {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                    Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                        Text(stringResource(R.string.always_on_changes_next_connection), modifier = Modifier.weight(1f))
-                        TextButton(onClick = { showAlwaysOnNotice = false }) { Text(stringResource(R.string.dismiss)) }
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text(stringResource(R.string.always_on_changes_next_connection))
+                        TextButton(shape = RoundedCornerShape(12.dp), onClick = { showAlwaysOnNotice = false }) { Text(stringResource(R.string.dismiss)) }
                     }
                 }
               }
@@ -432,22 +434,22 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     if (showInvalidCertificateWarning) {
         AlertDialog(
             onDismissRequest = { showInvalidCertificateWarning = false },
-            title = { Text(stringResource(R.string.allow_untrusted_certificate_title)) },
-            text = { Text(stringResource(if (invalidCertificateIsJump) R.string.allow_untrusted_jump_certificate_message else R.string.allow_untrusted_certificate_message)) },
-            confirmButton = { TextButton(onClick = {
+            title = { DialogTitle(stringResource(R.string.allow_untrusted_certificate_title)) },
+            text = { ScrollableDialogText(stringResource(if (invalidCertificateIsJump) R.string.allow_untrusted_jump_certificate_message else R.string.allow_untrusted_certificate_message)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 updateConfig(if (invalidCertificateIsJump) config.copy(jumpAllowInvalidProxyCertificate = true) else config.copy(allowInvalidProxyCertificate = true))
                 showInvalidCertificateWarning = false
             }) { Text(stringResource(R.string.ok)) } },
-            dismissButton = { TextButton(onClick = { showInvalidCertificateWarning = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { showInvalidCertificateWarning = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     unsafeHostKeyHop?.let { hop ->
         AlertDialog(
             onDismissRequest = { unsafeHostKeyHop = null },
-            title = { Text(stringResource(R.string.accept_any_ssh_key_title)) },
-            text = { Text(stringResource(R.string.accept_any_ssh_key_message, hop)) },
-            confirmButton = { TextButton(onClick = { updateConfig(if (hop == "jump") config.copy(jumpAcceptAnyHostKey = true) else config.copy(acceptAnyHostKey = true)); unsafeHostKeyHop = null }) { Text(stringResource(R.string.accept_any_key)) } },
-            dismissButton = { TextButton(onClick = { unsafeHostKeyHop = null }) { Text(stringResource(R.string.cancel)) } },
+            title = { DialogTitle(stringResource(R.string.accept_any_ssh_key_title)) },
+            text = { ScrollableDialogText(stringResource(R.string.accept_any_ssh_key_message, hop)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { updateConfig(if (hop == "jump") config.copy(jumpAcceptAnyHostKey = true) else config.copy(acceptAnyHostKey = true)); unsafeHostKeyHop = null }) { Text(stringResource(R.string.accept_any_key)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { unsafeHostKeyHop = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
 }

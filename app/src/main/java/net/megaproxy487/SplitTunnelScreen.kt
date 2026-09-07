@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
@@ -113,7 +115,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.split_tunneling)) },
+                title = { ScreenTitle(stringResource(R.string.split_tunneling)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -132,14 +134,14 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                             if (showAlwaysOnDeferredNotice) "Always-on is active. Routing changes apply on the next connection."
                             else "Reconnect to apply routing changes to the active VPN.",
                         )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = {
+                        WrappingActions() {
+                            TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                                 showReconnectPrompt = false
                                 showAlwaysOnDeferredNotice = false
                                 deferChangesUntilNextConnection = true
                             }) { Text(stringResource(if (showAlwaysOnDeferredNotice) R.string.dismiss else R.string.next_connection)) }
                             if (showReconnectPrompt) {
-                                TextButton(onClick = {
+                                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                                     showReconnectPrompt = false
                                     deferChangesUntilNextConnection = true
                                     ProxyVpnService.reconnect(activity)
@@ -223,7 +225,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                     OutlinedTextField(
                         value = appSearch,
                         onValueChange = { appSearch = it },
-                        label = { Text(stringResource(R.string.search_applications)) },
+                        label = { FieldLabel(stringResource(R.string.search_applications)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )

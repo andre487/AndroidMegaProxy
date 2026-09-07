@@ -56,6 +56,10 @@ branch names, credentials, signing material, or other secrets.
   external service does not make the whole check fail. Keep presentation inputs and formatting
   covered by JVM tests.
 
+- Keep screens usable on narrow windows and with enlarged system fonts. Let actions and status
+  rows wrap or stack; constrain app-bar titles and field labels, and make long dialog content
+  scrollable. Verify visual changes locally without adding emulator requirements to GitHub CI.
+
 ## Architecture landmarks
 
 - `ProxyVpnService` extends Android's standard `android.net.VpnService`. It owns VPN lifecycle,

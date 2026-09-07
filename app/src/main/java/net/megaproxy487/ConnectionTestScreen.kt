@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
@@ -12,6 +14,8 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -117,7 +121,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.connection_test)) },
+                title = { ScreenTitle(stringResource(R.string.connection_test)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -127,58 +131,61 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
         },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            val statusLabel = when (state) {
-                TestState.IDLE -> "Ready"
-                TestState.RUNNING -> "Testing"
-                TestState.SUCCEEDED -> "Test passed"
-                TestState.FAILED -> "Test failed"
-            }
-            Card(Modifier.fillMaxWidth().semantics {
-                liveRegion = LiveRegionMode.Polite
-                stateDescription = statusLabel
-            }) {
-                Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    val statusColor = when (state) {
-                        TestState.SUCCEEDED -> MaterialTheme.colorScheme.primary
-                        TestState.FAILED -> MaterialTheme.colorScheme.error
-                        else -> MaterialTheme.colorScheme.onSurface
-                    }
-                    Text(
-                        if (state == TestState.RUNNING) "Testing…" else statusLabel,
-                        style = MaterialTheme.typography.titleLarge,
-                        color = statusColor,
-                    )
-                    if (state == TestState.RUNNING) {
-                        CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
-                    }
-                    exitIp?.let { Text(stringResource(R.string.proxy_exit_ip, it)) }
-                    countryCode?.let { Text(stringResource(R.string.proxy_exit_country, formatCountry(it))) }
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+            val logHeight = maxOf(160.dp, maxHeight * 0.55f)
+            Column(
+                Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                val statusLabel = when (state) {
+                    TestState.IDLE -> "Ready"
+                    TestState.RUNNING -> "Testing"
+                    TestState.SUCCEEDED -> "Test passed"
+                    TestState.FAILED -> "Test failed"
                 }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                Button(onClick = runTest, enabled = state != TestState.RUNNING) { Text(stringResource(R.string.run_again)) }
-                Button(onClick = {
-                    val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText(activity.getString(R.string.connection_test_clipboard_label), TestDiagnosticLog.entries.joinToString("\n")))
-                }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.copy_log)) }
-            }
-            Text(
-                "The test uses a temporary VPN when the main connection is inactive. Credentials and traffic content are not logged.",
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Box(Modifier.fillMaxWidth().weight(1f)) {
-                SelectionContainer {
-                    Text(
-                        TestDiagnosticLog.entries.joinToString("\n").ifEmpty {
-                            if (state == TestState.RUNNING) "Waiting for the first diagnostic event…" else "No test events yet."
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                    )
+                Card(Modifier.fillMaxWidth().semantics {
+                    liveRegion = LiveRegionMode.Polite
+                    stateDescription = statusLabel
+                }) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        val statusColor = when (state) {
+                            TestState.SUCCEEDED -> MaterialTheme.colorScheme.primary
+                            TestState.FAILED -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
+                        Text(
+                            if (state == TestState.RUNNING) "Testing…" else statusLabel,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = statusColor,
+                        )
+                        if (state == TestState.RUNNING) {
+                            CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+                        }
+                        exitIp?.let { Text(stringResource(R.string.proxy_exit_ip, it)) }
+                        countryCode?.let { Text(stringResource(R.string.proxy_exit_country, formatCountry(it))) }
+                    }
+                }
+                WrappingActions(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Button(shape = RoundedCornerShape(12.dp), onClick = runTest, enabled = state != TestState.RUNNING) { Text(stringResource(R.string.run_again)) }
+                    Button(shape = RoundedCornerShape(12.dp), onClick = {
+                        val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText(activity.getString(R.string.connection_test_clipboard_label), TestDiagnosticLog.entries.joinToString("\n")))
+                    }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.copy_log)) }
+                }
+                Text(
+                    "The test uses a temporary VPN when the main connection is inactive. Credentials and traffic content are not logged.",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                Box(Modifier.fillMaxWidth().heightIn(min = 160.dp, max = logHeight)) {
+                    SelectionContainer {
+                        Text(
+                            TestDiagnosticLog.entries.joinToString("\n").ifEmpty {
+                                if (state == TestState.RUNNING) "Waiting for the first diagnostic event…" else "No test events yet."
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                        )
+                    }
                 }
             }
         }
@@ -187,16 +194,16 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
     if (showAlwaysOnConflict) {
         AlertDialog(
             onDismissRequest = { showAlwaysOnConflict = false },
-            title = { Text(stringResource(R.string.always_on_conflict_title)) },
-            text = { Text(OTHER_ALWAYS_ON_VPN_MESSAGE) },
+            title = { DialogTitle(stringResource(R.string.always_on_conflict_title)) },
+            text = { ScrollableDialogText(OTHER_ALWAYS_ON_VPN_MESSAGE) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     showAlwaysOnConflict = false
                     openAndroidVpnSettings(activity)
                 }) { Text(stringResource(R.string.change_settings)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAlwaysOnConflict = false }) { Text(stringResource(R.string.cancel)) }
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = { showAlwaysOnConflict = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -206,8 +213,8 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                 SshHostKeyPromptState.clear()
                 ProxyVpnService.dismissHostKeyPrompt(activity)
             },
-            title = { Text(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
-            text = { Text(buildString {
+            title = { DialogTitle(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
+            text = { ScrollableDialogText(buildString {
                 if (pending.changed) {
                     append(activity.getString(R.string.ssh_changed_key_warning, pending.hop))
                 } else {
@@ -216,7 +223,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                 append(activity.getString(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
             }) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     val saved = ConfigStore(activity).trustSshHostKey(
                         pending.profileId, pending.hop, pending.fingerprint,
                     )
@@ -232,7 +239,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                 }) { Text(stringResource(if (pending.changed) R.string.replace_and_test else R.string.trust_and_test)) }
             },
             dismissButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     SshHostKeyPromptState.clear()
                     ProxyVpnService.dismissHostKeyPrompt(activity)
                 }) { Text(stringResource(R.string.cancel)) }

@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import android.app.Activity
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -9,6 +11,10 @@ import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -116,7 +122,7 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.diagnostic_log)) },
+                title = { ScreenTitle(stringResource(R.string.diagnostic_log)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -126,54 +132,54 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
         },
         contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
     ) { padding ->
-        Column(
-            Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp),
-        ) {
-            OutlinedTextField(
-                value = limitText,
-                onValueChange = { value ->
-                    if (value.all(Char::isDigit) && value.length <= 3) {
-                        limitText = value
-                        value.toIntOrNull()?.takeIf {
-                            it in PersistentDiagnosticLog.MIN_LIMIT_MB..PersistentDiagnosticLog.MAX_LIMIT_MB
-                        }?.let {
-                            store.setDiagnosticLogLimitMb(it)
-                            PersistentDiagnosticLog.setLimitMb(it)
-                        }
-                    }
-                },
-                label = { Text(stringResource(R.string.rotated_log_limit)) },
-                supportingText = { Text(stringResource(R.string.rotated_log_limit_description)) },
-                singleLine = true,
-                modifier = Modifier.fillMaxWidth(),
-            )
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { exportDocument.launch("MegaProxy-diagnostic.log") }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.export_action))
-                }
-                OutlinedButton(onClick = { showClearConfirmation = true }, modifier = Modifier.weight(1f)) {
-                    Text(stringResource(R.string.clear_action))
-                }
-            }
-            Text(
-                buildString {
-                    append(if (autoScroll) "Auto-scroll on" else "Auto-scroll paused · scroll to the bottom to resume")
-                    append(" · showing the latest 512 KB")
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            LazyColumn(
-                state = listState,
-                modifier = Modifier.fillMaxWidth().weight(1f),
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
+            val logHeight = maxOf(160.dp, maxHeight * 0.55f)
+            Column(
+                Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                if (lines.isEmpty()) item { Text(stringResource(R.string.no_diagnostic_events)) }
-                itemsIndexed(lines, key = { index, _ -> index }) { _, line ->
-                    Text(line, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                OutlinedTextField(
+                    value = limitText,
+                    onValueChange = { value ->
+                        if (value.all(Char::isDigit) && value.length <= 3) {
+                            limitText = value
+                            value.toIntOrNull()?.takeIf {
+                                it in PersistentDiagnosticLog.MIN_LIMIT_MB..PersistentDiagnosticLog.MAX_LIMIT_MB
+                            }?.let {
+                                store.setDiagnosticLogLimitMb(it)
+                                PersistentDiagnosticLog.setLimitMb(it)
+                            }
+                        }
+                    },
+                    label = { FieldLabel(stringResource(R.string.rotated_log_limit)) },
+                    supportingText = { Text(stringResource(R.string.rotated_log_limit_description)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                WrappingActions(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(shape = RoundedCornerShape(12.dp), onClick = { exportDocument.launch("MegaProxy-diagnostic.log") }) {
+                        Text(stringResource(R.string.export_action))
+                    }
+                    OutlinedButton(shape = RoundedCornerShape(12.dp), onClick = { showClearConfirmation = true }) {
+                        Text(stringResource(R.string.clear_action))
+                    }
+                }
+                Text(
+                    buildString {
+                        append(if (autoScroll) "Auto-scroll on" else "Auto-scroll paused · scroll to the bottom to resume")
+                        append(" · showing the latest 512 KB")
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxWidth().heightIn(min = 160.dp, max = logHeight),
+                ) {
+                    if (lines.isEmpty()) item { Text(stringResource(R.string.no_diagnostic_events)) }
+                    itemsIndexed(lines, key = { index, _ -> index }) { _, line ->
+                        Text(line, style = MaterialTheme.typography.bodySmall, fontFamily = FontFamily.Monospace)
+                    }
                 }
             }
         }
@@ -182,20 +188,20 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
     if (showClearConfirmation) {
         AlertDialog(
             onDismissRequest = { showClearConfirmation = false },
-            title = { Text(stringResource(R.string.clear_diagnostic_log_title)) },
-            text = { Text(stringResource(R.string.clear_diagnostic_log_message)) },
-            confirmButton = { TextButton(onClick = {
+            title = { DialogTitle(stringResource(R.string.clear_diagnostic_log_title)) },
+            text = { ScrollableDialogText(stringResource(R.string.clear_diagnostic_log_message)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 showClearConfirmation = false
                 PersistentDiagnosticLog.clear()
             }) { Text(stringResource(R.string.clear_action)) } },
-            dismissButton = { TextButton(onClick = { showClearConfirmation = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { showClearConfirmation = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     message?.let {
         AlertDialog(
             onDismissRequest = { message = null },
-            text = { Text(it) },
-            confirmButton = { TextButton(onClick = { message = null }) { Text(stringResource(R.string.ok)) } },
+            text = { ScrollableDialogText(it) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { message = null }) { Text(stringResource(R.string.ok)) } },
         )
     }
 }

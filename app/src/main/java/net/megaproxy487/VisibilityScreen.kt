@@ -72,7 +72,7 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.visibility)) },
+                title = { ScreenTitle(stringResource(R.string.visibility)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -90,7 +90,7 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
                 stringResource(R.string.visibility_intro),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Button(onClick = { report = buildVisibilityReport(activity) }, modifier = Modifier.fillMaxWidth()) {
+            Button(shape = RoundedCornerShape(12.dp), onClick = { report = buildVisibilityReport(activity) }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.run_checks_again))
             }
             VisibilitySection(stringResource(R.string.globally_observable_signals), report.global)
@@ -119,10 +119,10 @@ private fun VisibilitySection(title: String, checks: List<VisibilityCheck>) {
     checks.forEach { check ->
         Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text(check.title, style = MaterialTheme.typography.titleSmall, modifier = Modifier.weight(1f))
-                    VisibilityBadge(check.state)
-                }
+                AdaptiveLabelRow(
+                    label = { Text(check.title, style = MaterialTheme.typography.titleSmall, modifier = it) },
+                    trailing = { VisibilityBadge(check.state) },
+                )
                 Text(check.detail, style = MaterialTheme.typography.bodySmall)
             }
         }

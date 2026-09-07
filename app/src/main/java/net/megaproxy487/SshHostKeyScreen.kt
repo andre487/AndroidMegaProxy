@@ -1,5 +1,9 @@
 package net.megaproxy487
 
+import androidx.compose.ui.unit.dp
+
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import android.app.Activity
 import androidx.compose.runtime.Composable
 import androidx.compose.material3.AlertDialog
@@ -21,17 +25,17 @@ internal fun SshHostKeyScreen(activity: Activity, prompt: PendingSshHostKey, onD
     }
     AlertDialog(
         onDismissRequest = ::reject,
-        title = { Text(stringResource(if (prompt.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
-        text = { Text(buildString {
+        title = { DialogTitle(stringResource(if (prompt.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
+        text = { ScrollableDialogText(buildString {
             append(activity.getString(if (prompt.changed) R.string.ssh_changed_key_warning else R.string.ssh_first_connection_warning, prompt.hop))
             append(activity.getString(R.string.ssh_key_details, prompt.algorithm, prompt.fingerprint))
         }) },
-        confirmButton = { TextButton(onClick = {
+        confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
             if (ConfigStore(activity).trustSshHostKey(prompt.profileId, prompt.hop, prompt.fingerprint)) {
                 if (prompt.testOnly) ProxyVpnService.test(activity) else ProxyVpnService.reconnect(activity)
             }
             onDismiss()
         }) { Text(stringResource(if (prompt.changed) R.string.replace_trusted_key else R.string.trust_and_connect)) } },
-        dismissButton = { TextButton(onClick = ::reject) { Text(stringResource(R.string.cancel)) } },
+        dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = ::reject) { Text(stringResource(R.string.cancel)) } },
     )
 }

@@ -21,6 +21,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -163,7 +164,7 @@ class MainActivity : LocalizedActivity() {
 }
 
 @Composable
-private fun ProfileTypeBadge(type: ProxyType, foreground: Color, modifier: Modifier = Modifier) {
+internal fun ProfileTypeBadge(type: ProxyType, foreground: Color, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
         color = foreground.copy(alpha = 0.14f),
@@ -181,6 +182,7 @@ private fun ProfileTypeBadge(type: ProxyType, foreground: Color, modifier: Modif
             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp, letterSpacing = 0.sp),
             maxLines = 1,
             softWrap = false,
+            overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
         )
     }
@@ -196,36 +198,48 @@ private fun ProfileSelectorLabel(
     style: TextStyle = MaterialTheme.typography.bodyLarge,
 ) {
     var badgeWidth by remember { mutableStateOf(0) }
-    Box(modifier, contentAlignment = Alignment.CenterStart) {
-        Text(
-            name,
-            color = foreground,
-            style = style,
-            maxLines = 1,
-            softWrap = false,
-            overflow = TextOverflow.Clip,
-            modifier = Modifier.fillMaxWidth()
-                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
-                .drawWithContent {
-                    drawContent()
-                    // Mask only the name layer: the badge and its border stay crisp.
-                    val end = (size.width - badgeWidth - 6.dp.toPx()).coerceAtLeast(0f)
-                    val start = (end - 24.dp.toPx()).coerceAtLeast(0f)
-                    drawRect(
-                        brush = Brush.horizontalGradient(
-                            colors = listOf(Color.Black, Color.Transparent),
-                            startX = start,
-                            endX = end.coerceAtLeast(start + 1f),
-                        ),
-                        blendMode = BlendMode.DstIn,
-                    )
-                },
-        )
-        ProfileTypeBadge(
-            type,
-            foreground,
-            Modifier.align(Alignment.CenterEnd).onSizeChanged { badgeWidth = it.width },
-        )
+    var availableWidth by remember { mutableStateOf(Int.MAX_VALUE) }
+    val density = LocalDensity.current
+    Box(modifier.onSizeChanged { availableWidth = it.width }) {
+        val stacked = availableWidth < with(density) { (220.dp * fontScale).toPx() }
+        if (stacked) {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Text(name, color = foreground, style = style, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                ProfileTypeBadge(type, foreground)
+            }
+        } else {
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
+                Text(
+                    name,
+                    color = foreground,
+                    style = style,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Clip,
+                    modifier = Modifier.fillMaxWidth()
+                        .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                        .drawWithContent {
+                            drawContent()
+                            // Mask only the name layer: the badge and its border stay crisp.
+                            val end = (size.width - badgeWidth - 6.dp.toPx()).coerceAtLeast(0f)
+                            val start = (end - 24.dp.toPx()).coerceAtLeast(0f)
+                            drawRect(
+                                brush = Brush.horizontalGradient(
+                                    colors = listOf(Color.Black, Color.Transparent),
+                                    startX = start,
+                                    endX = end.coerceAtLeast(start + 1f),
+                                ),
+                                blendMode = BlendMode.DstIn,
+                            )
+                        },
+                )
+                ProfileTypeBadge(
+                    type,
+                    foreground,
+                    Modifier.align(Alignment.CenterEnd).onSizeChanged { badgeWidth = it.width },
+                )
+            }
+        }
     }
 }
 
@@ -375,7 +389,7 @@ internal fun MainScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text(stringResource(R.string.app_name)) }) },
+        topBar = { TopAppBar(title = { ScreenTitle(stringResource(R.string.app_name)) }) },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
@@ -427,7 +441,7 @@ internal fun MainScreen(
                         Surface(
                             color = MaterialTheme.colorScheme.secondaryContainer,
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            shape = RoundedCornerShape(999.dp),
+                            shape = RoundedCornerShape(12.dp),
                         ) {
                             Text(
                                 transportLabel,
@@ -534,19 +548,16 @@ internal fun MainScreen(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer),
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Row(
-                        Modifier.fillMaxWidth().padding(14.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        Text(activeProfileError, modifier = Modifier.weight(1f), color = MaterialTheme.colorScheme.onErrorContainer)
-                        TextButton(onClick = {
-                            onEditProfile(activeProfile.id)
-                        }) { Text(stringResource(R.string.configure)) }
-                    }
+                    AdaptiveLabelRow(
+                        modifier = Modifier.padding(14.dp),
+                        label = { Text(activeProfileError, modifier = it, color = MaterialTheme.colorScheme.onErrorContainer) },
+                        trailing = {
+                            TextButton(shape = RoundedCornerShape(12.dp), onClick = { onEditProfile(activeProfile.id) }) { Text(stringResource(R.string.configure)) }
+                        },
+                    )
                 }
             }
-            Button(
+            Button(shape = RoundedCornerShape(12.dp),
                 onClick = {
                     if (isAlwaysOnVpnActive(activity)) {
                         systemVpnStatus = readAlwaysOnVpnStatus(activity)
@@ -569,20 +580,17 @@ internal fun MainScreen(
                 )
             }
             if (connected) {
-                FilledTonalButton(
+                FilledTonalButton(shape = RoundedCornerShape(12.dp),
                     onClick = { ProxyVpnService.reconnect(activity) },
                     modifier = Modifier.fillMaxWidth(),
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
+                    WrappingActions(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {
                         Text(stringResource(R.string.reconnect))
                         if (pendingReconnect) {
                             Surface(
                                 color = MaterialTheme.colorScheme.tertiaryContainer,
                                 contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                shape = RoundedCornerShape(999.dp),
+                                shape = RoundedCornerShape(12.dp),
                             ) {
                                 Text(
                                     stringResource(R.string.apply_new_settings),
@@ -594,15 +602,15 @@ internal fun MainScreen(
                     }
                 }
             }
-            FilledTonalButton(
+            FilledTonalButton(shape = RoundedCornerShape(12.dp),
                 onClick = onOpenConnectionTest,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.test_connection)) }
-            FilledTonalButton(
+            FilledTonalButton(shape = RoundedCornerShape(12.dp),
                 onClick = onOpenSettings,
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.settings)) }
-            FilledTonalButton(
+            FilledTonalButton(shape = RoundedCornerShape(12.dp),
                 onClick = {
                     scope.launch {
                         runCatching {
@@ -635,10 +643,10 @@ internal fun MainScreen(
     if (showCrashReport) {
         AlertDialog(
             onDismissRequest = {},
-            title = { Text(stringResource(R.string.unexpected_stop_title)) },
-            text = { Text(stringResource(R.string.crash_report_saved)) },
+            title = { DialogTitle(stringResource(R.string.unexpected_stop_title)) },
+            text = { ScrollableDialogText(stringResource(R.string.crash_report_saved)) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     scope.launch {
                         runCatching {
                             val intent = withContext(Dispatchers.IO) {
@@ -660,7 +668,7 @@ internal fun MainScreen(
                 }) { Text(stringResource(R.string.report)) }
             },
             dismissButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     CrashHandler.markReportHandled()
                     showCrashReport = false
                 }) { Text(stringResource(R.string.close)) }
@@ -671,16 +679,16 @@ internal fun MainScreen(
     if (showAlwaysOnConflict) {
         AlertDialog(
             onDismissRequest = { showAlwaysOnConflict = false },
-            title = { Text(stringResource(R.string.always_on_conflict_title)) },
-            text = { Text(OTHER_ALWAYS_ON_VPN_MESSAGE) },
+            title = { DialogTitle(stringResource(R.string.always_on_conflict_title)) },
+            text = { ScrollableDialogText(OTHER_ALWAYS_ON_VPN_MESSAGE) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     showAlwaysOnConflict = false
                     openAndroidVpnSettings(activity)
                 }) { Text(stringResource(R.string.change_settings)) }
             },
             dismissButton = {
-                TextButton(onClick = { showAlwaysOnConflict = false }) { Text(stringResource(R.string.cancel)) }
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = { showAlwaysOnConflict = false }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -692,8 +700,8 @@ internal fun MainScreen(
         }
         AlertDialog(
             onDismissRequest = ::dismissHostKeyPrompt,
-            title = { Text(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
-            text = { Text(buildString {
+            title = { DialogTitle(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
+            text = { ScrollableDialogText(buildString {
                 if (pending.changed) {
                     append(activity.getString(R.string.ssh_changed_key_warning, pending.hop))
                 } else {
@@ -702,7 +710,7 @@ internal fun MainScreen(
                 append(activity.getString(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
             }) },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     if (store.trustSshHostKey(pending.profileId, pending.hop, pending.fingerprint)) {
                         SshHostKeyPromptState.clear()
                         ProxyVpnService.reconnect(activity)
@@ -712,7 +720,7 @@ internal fun MainScreen(
                 }) { Text(stringResource(if (pending.changed) R.string.replace_trusted_key else R.string.trust_and_connect)) }
             },
             dismissButton = {
-                TextButton(onClick = ::dismissHostKeyPrompt) { Text(stringResource(R.string.cancel)) }
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = ::dismissHostKeyPrompt) { Text(stringResource(R.string.cancel)) }
             },
         )
     }
@@ -741,10 +749,7 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val unitSystem = TrafficUnitPreferences.current(context)
     Card(Modifier.fillMaxWidth()) {
-        Row(
-            Modifier.fillMaxWidth().padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceEvenly,
-        ) {
+        AdaptiveStatColumns(Modifier.padding(14.dp)) { statModifier ->
             StatValue(
                 label = stringResource(R.string.traffic_download),
                 value = "↓ ${formatTrafficRate(stats.downloadBytesPerSecond, unitSystem)}",
@@ -752,7 +757,7 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
                     R.string.traffic_total,
                     formatTrafficBytes(stats.native.downloadBytes, unitSystem),
                 ),
-                modifier = Modifier.weight(1f),
+                modifier = statModifier,
             )
             StatValue(
                 label = stringResource(R.string.traffic_upload),
@@ -761,7 +766,7 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
                     R.string.traffic_total,
                     formatTrafficBytes(stats.native.uploadBytes, unitSystem),
                 ),
-                modifier = Modifier.weight(1f),
+                modifier = statModifier,
             )
             val latency = stats.native.proxyLatencyMillis
             val ageMillis = System.currentTimeMillis() - stats.native.proxyLatencyAtMillis
@@ -772,7 +777,7 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
                     latency.toInt(),
                 ),
                 supportingValue = if (latency <= 0) null else formatAge(ageMillis).ifEmpty { null },
-                modifier = Modifier.weight(1f),
+                modifier = statModifier,
             )
         }
         val samples = stats.native.connectionSamples

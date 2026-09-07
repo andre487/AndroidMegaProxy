@@ -31,6 +31,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,7 +43,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -408,29 +414,33 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
     Scaffold(
         topBar = {
         TopAppBar(
-            title = { Text(stringResource(R.string.profiles)) },
+            title = { ScreenTitle(stringResource(R.string.profiles)) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
             },
             actions = {
-                TextButton(onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
-                    Text(stringResource(R.string.import_action))
+                IconButton(onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
+                    Icon(Icons.Default.FileDownload, contentDescription = stringResource(R.string.import_action))
                 }
-                TextButton(onClick = { showExportDialog = true }) { Text(stringResource(R.string.export_action)) }
+                IconButton(onClick = { showExportDialog = true }) { Icon(Icons.Default.FileUpload, contentDescription = stringResource(R.string.export_action)) }
             },
         )
         },
-        floatingActionButton = {
-            FloatingActionButton(onClick = {
-                scope.launch {
-                    val profile = withContext(ConfigIoDispatcher) { store.addProfile() }
-                    refresh()
-                    edit(profile)
-                }
-            }) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_profile))
+        bottomBar = {
+            Surface(tonalElevation = 3.dp) {
+                Button(
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                    onClick = {
+                        scope.launch {
+                            val profile = withContext(ConfigIoDispatcher) { store.addProfile() }
+                            refresh()
+                            edit(profile)
+                        }
+                    },
+                ) { Text(stringResource(R.string.add_profile)) }
             }
         },
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -442,6 +452,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
             LazyColumn(
                 Modifier.fillMaxHeight().fillMaxWidth().widthIn(max = 840.dp).padding(horizontal = 16.dp),
                 state = listState,
+                contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
@@ -524,9 +535,9 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
     deleteProfile?.let { profile ->
         AlertDialog(
             onDismissRequest = { deleteProfile = null },
-            title = { Text(stringResource(R.string.delete_profile_title, profile.displayName)) },
-            text = { Text(stringResource(R.string.delete_profile_message)) },
-            confirmButton = { TextButton(onClick = {
+            title = { DialogTitle(stringResource(R.string.delete_profile_confirmation)) },
+            text = { ScrollableDialogText(profile.displayName + "\n\n" + stringResource(R.string.delete_profile_message)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 deleteProfile = null
                 scope.launch {
                     val reconnect = withContext(ConfigIoDispatcher) {
@@ -538,83 +549,83 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                     if (reconnect) ProxyVpnService.reconnect(activity)
                 }
             }, enabled = profiles.size > 1) { Text(stringResource(R.string.delete)) } },
-            dismissButton = { TextButton(onClick = { deleteProfile = null }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { deleteProfile = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (showImportFilterNotice) {
         AlertDialog(
             onDismissRequest = { showImportFilterNotice = false },
-            title = { Text(stringResource(R.string.only_https_imported_title)) },
-            text = { Text(stringResource(R.string.only_https_imported_message, importedProfileCount, skippedNonHttps)) },
-            confirmButton = { TextButton(onClick = { showImportFilterNotice = false }) { Text(stringResource(R.string.continue_action)) } },
+            title = { DialogTitle(stringResource(R.string.only_https_imported_title)) },
+            text = { ScrollableDialogText(stringResource(R.string.only_https_imported_message, importedProfileCount, skippedNonHttps)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { showImportFilterNotice = false }) { Text(stringResource(R.string.continue_action)) } },
         )
     }
     if (showExportDialog) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            title = { Text(stringResource(R.string.export_configuration_title)) },
+            title = { DialogTitle(stringResource(R.string.export_configuration_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.format))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(exportFormat == ConfigExportFormat.JSON, { exportFormat = ConfigExportFormat.JSON })
-                        Text(stringResource(R.string.export_json_description))
+                        Text(stringResource(R.string.export_json_description), modifier = Modifier.weight(1f))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(exportFormat == ConfigExportFormat.PROXY_LIST, { exportFormat = ConfigExportFormat.PROXY_LIST })
-                        Text(stringResource(R.string.export_proxy_list_description))
+                        Text(stringResource(R.string.export_proxy_list_description), modifier = Modifier.weight(1f))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(includePasswords, { includePasswords = it })
-                        Text(stringResource(R.string.include_passwords))
+                        Text(stringResource(R.string.include_passwords), modifier = Modifier.weight(1f))
                     }
                     if (!includePasswords) {
                         Text(stringResource(R.string.passwords_omitted_message), style = MaterialTheme.typography.bodySmall)
                     }
                     if (exportFormat == ConfigExportFormat.JSON) Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(includePrivateKeys, { includePrivateKeys = it })
-                        Text(stringResource(R.string.include_private_keys))
+                        Text(stringResource(R.string.include_private_keys), modifier = Modifier.weight(1f))
                     }
                     if (includePrivateKeys) Text(stringResource(R.string.private_keys_plaintext_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = { TextButton(onClick = {
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 showExportDialog = false
                 if (includePasswords || includePrivateKeys) showPasswordExportWarning = true else launchExport()
             }) { Text(stringResource(R.string.export_action)) } },
-            dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { showExportDialog = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (showPasswordExportWarning) {
         AlertDialog(
             onDismissRequest = { showPasswordExportWarning = false },
-            title = { Text(stringResource(R.string.export_secrets_title)) },
-            text = { Text(stringResource(R.string.export_secrets_message)) },
-            confirmButton = { TextButton(onClick = {
+            title = { DialogTitle(stringResource(R.string.export_secrets_title)) },
+            text = { ScrollableDialogText(stringResource(R.string.export_secrets_message)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 showPasswordExportWarning = false
                 launchExport()
             }) { Text(stringResource(R.string.export_anyway)) } },
-            dismissButton = { TextButton(onClick = { showPasswordExportWarning = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { showPasswordExportWarning = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     transferMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { transferMessage = null },
-            title = { Text(stringResource(R.string.configuration_transfer)) },
-            text = { Text(message) },
-            confirmButton = { TextButton(onClick = { transferMessage = null }) { Text(stringResource(R.string.ok)) } },
+            title = { DialogTitle(stringResource(R.string.configuration_transfer)) },
+            text = { ScrollableDialogText(message) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { transferMessage = null }) { Text(stringResource(R.string.ok)) } },
         )
     }
     pendingUnsafeImport?.let { configuration ->
         AlertDialog(
             onDismissRequest = { pendingUnsafeImport = null },
-            title = { Text(stringResource(R.string.unsafe_import_title)) },
-            text = { Text(stringResource(R.string.unsafe_import_message)) },
-            confirmButton = { TextButton(onClick = {
+            title = { DialogTitle(stringResource(R.string.unsafe_import_title)) },
+            text = { ScrollableDialogText(stringResource(R.string.unsafe_import_message)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 pendingUnsafeImport = null
                 prepareJsonImport(configuration)
             }) { Text(stringResource(R.string.import_anyway)) } },
-            dismissButton = { TextButton(onClick = { pendingUnsafeImport = null }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { pendingUnsafeImport = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     importOptionsReview?.let { review ->
@@ -624,10 +635,10 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 selectedImportOptionKeys.clear()
                 applyImportedGlobalOptions = false
             },
-            title = { Text(stringResource(R.string.import_options_title)) },
+            title = { DialogTitle(stringResource(R.string.import_options_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.import_options_message))
+                    Text(stringResource(R.string.import_options_message), modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()))
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
                         items(review.profiles, key = { it.profile.id }) { item ->
                             Row(
@@ -646,7 +657,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                                     else selectedImportOptionKeys.remove(key)
                                                 },
                                             )
-                                            Text(stringResource(group))
+                                            Text(stringResource(group), modifier = Modifier.weight(1f))
                                         }
                                     }
                                 }
@@ -661,14 +672,14 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                     checked = applyImportedGlobalOptions,
                                     onCheckedChange = { applyImportedGlobalOptions = it },
                                 )
-                                Text(stringResource(R.string.import_global_options))
+                                Text(stringResource(R.string.import_global_options), modifier = Modifier.weight(1f))
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     val selectedOptions = selectedImportOptionKeys.toSet()
                     val applyGlobals = !review.globalChanged || applyImportedGlobalOptions
                     val resolved = review.configuration.copy(
@@ -691,7 +702,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 }) { Text(stringResource(R.string.apply_import)) }
             },
             dismissButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     importOptionsReview = null
                     selectedImportOptionKeys.clear()
                     applyImportedGlobalOptions = false
@@ -706,10 +717,10 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 selectedMissingProfileIds.clear()
                 transferMessage = review.importSummary
             },
-            title = { Text(stringResource(R.string.remove_missing_profiles_title)) },
+            title = { DialogTitle(stringResource(R.string.remove_missing_profiles_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.remove_missing_profiles_message))
+                    Text(stringResource(R.string.remove_missing_profiles_message), modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()))
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                         items(review.profiles, key = { it.id }) { profile ->
                             Row(
@@ -723,7 +734,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                         else selectedMissingProfileIds.remove(profile.id)
                                     },
                                 )
-                                Column {
+                                Column(Modifier.weight(1f)) {
                                     Text(profile.displayName)
                                     Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
                                 }
@@ -733,7 +744,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 }
             },
             confirmButton = {
-                TextButton(
+                TextButton(shape = RoundedCornerShape(12.dp),
                     enabled = selectedMissingProfileIds.isNotEmpty(),
                     onClick = {
                         val selected = selectedMissingProfileIds.toSet()
@@ -755,7 +766,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 ) { Text(stringResource(R.string.remove_selected)) }
             },
             dismissButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     missingProfilesReview = null
                     selectedMissingProfileIds.clear()
                     transferMessage = review.importSummary
@@ -780,40 +791,28 @@ private fun ProfileCard(
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (profile.flagEmoji.isNotEmpty()) {
-                    Surface(
-                        color = Color.White, contentColor = Color.Black,
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.45f)),
-                    ) { Text(profile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(profile.displayName, style = MaterialTheme.typography.titleMedium)
-                    Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
-                }
-                Surface(
-                    color = foreground.copy(alpha = 0.16f),
-                    contentColor = foreground,
-                    shape = RoundedCornerShape(50),
-                    border = BorderStroke(1.dp, foreground.copy(alpha = 0.55f)),
-                ) {
-                    Text(
-                        when (profile.config.type) {
-                            ProxyType.HTTPS -> "HTTPS"
-                            ProxyType.HTTPS_JUMP -> stringResource(R.string.https_with_jump)
-                            ProxyType.SSH -> "SSH"
-                            ProxyType.SSH_JUMP -> "SSH + Jump"
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                    )
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onConfigure) { Text(stringResource(R.string.configure), color = foreground) }
-                TextButton(onClick = onClone) { Text(stringResource(R.string.clone), color = foreground) }
-                TextButton(onClick = onDelete) { Text(stringResource(R.string.delete), color = foreground) }
+            AdaptiveLabelRow(
+                label = { labelModifier ->
+                    Row(labelModifier, verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (profile.flagEmoji.isNotEmpty()) {
+                            Surface(
+                                color = Color.White, contentColor = Color.Black,
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.45f)),
+                            ) { Text(profile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(profile.displayName, style = MaterialTheme.typography.titleMedium)
+                            Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+                trailing = { ProfileTypeBadge(profile.config.type, foreground) },
+            )
+            WrappingActions() {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = onConfigure) { Text(stringResource(R.string.configure), color = foreground) }
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = onClone) { Text(stringResource(R.string.clone), color = foreground) }
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = onDelete) { Text(stringResource(R.string.delete), color = foreground) }
             }
         }
     }

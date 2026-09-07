@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -177,9 +179,9 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
         val selected = AppLanguageManager.current(activity)
         AlertDialog(
             onDismissRequest = { showLanguageDialog = false },
-            title = { Text(stringResource(R.string.language)) },
+            title = { DialogTitle(stringResource(R.string.language)) },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     AppLanguage.entries.forEach { language ->
                         val label = if (language == AppLanguage.RUSSIAN) {
                             stringResource(R.string.language_russian)
@@ -199,22 +201,22 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             androidx.compose.material3.RadioButton(selected == language, null)
-                            Text(label)
+                            Text(label, modifier = Modifier.weight(1f))
                         }
                     }
                 }
             },
             confirmButton = {},
-            dismissButton = { TextButton(onClick = { showLanguageDialog = false }) { Text(stringResource(android.R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { showLanguageDialog = false }) { Text(stringResource(android.R.string.cancel)) } },
         )
     }
 
     if (showTrafficUnitsDialog) {
         AlertDialog(
             onDismissRequest = { showTrafficUnitsDialog = false },
-            title = { Text(stringResource(R.string.traffic_units)) },
+            title = { DialogTitle(stringResource(R.string.traffic_units)) },
             text = {
-                Column {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
                     TrafficUnitSystem.entries.forEach { unitSystem ->
                         val label = stringResource(
                             if (unitSystem == TrafficUnitSystem.IEC) R.string.traffic_units_iec
@@ -233,14 +235,14 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             androidx.compose.material3.RadioButton(trafficUnitSystem == unitSystem, null)
-                            Text(label)
+                            Text(label, modifier = Modifier.weight(1f))
                         }
                     }
                 }
             },
             confirmButton = {},
             dismissButton = {
-                TextButton(onClick = { showTrafficUnitsDialog = false }) {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = { showTrafficUnitsDialog = false }) {
                     Text(stringResource(android.R.string.cancel))
                 }
             },
@@ -264,7 +266,7 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     }
     SettingsScaffold(onBack, stringResource(R.string.failover)) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
-            OutlinedTextField(settings.failoverMode.title, {}, readOnly = true, label = { Text(stringResource(R.string.failover_mode)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+            OutlinedTextField(settings.failoverMode.title, {}, readOnly = true, label = { FieldLabel(stringResource(R.string.failover_mode)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
             DropdownMenu(expanded, { expanded = false }) {
                 FailoverMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(mode.title) }, onClick = {
                     expanded = false
@@ -290,7 +292,7 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(checked, null)
-                    Text(profile.displayNameWithFlag)
+                    Text(profile.displayNameWithFlag, modifier = Modifier.weight(1f))
                 }
             }
             val usableFallbacks = store.sortedProfiles().count { it.id in settings.failoverProfileIds }
@@ -316,10 +318,10 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     }
     if (pendingAll) AlertDialog(
         onDismissRequest = { pendingAll = false },
-        title = { Text(stringResource(R.string.enable_global_failover_title)) },
-        text = { Text(stringResource(R.string.enable_global_failover_message)) },
-        confirmButton = { TextButton(onClick = { pendingAll = false; save(mode = FailoverMode.ALL) }) { Text(stringResource(R.string.enable)) } },
-        dismissButton = { TextButton(onClick = { pendingAll = false }) { Text(stringResource(R.string.cancel)) } },
+        title = { DialogTitle(stringResource(R.string.enable_global_failover_title)) },
+        text = { ScrollableDialogText(stringResource(R.string.enable_global_failover_message)) },
+        confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { pendingAll = false; save(mode = FailoverMode.ALL) }) { Text(stringResource(R.string.enable)) } },
+        dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { pendingAll = false }) { Text(stringResource(R.string.cancel)) } },
     )
 }
 
@@ -335,7 +337,7 @@ internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
                 selected.displayNameWithFlag, {}, readOnly = true,
-                label = { Text(stringResource(R.string.always_on_profile)) },
+                label = { FieldLabel(stringResource(R.string.always_on_profile)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
@@ -406,7 +408,7 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
                 settings.tlsProfile.title, {}, readOnly = true,
-                label = { Text(stringResource(R.string.https_tls_ja3_profile)) },
+                label = { FieldLabel(stringResource(R.string.https_tls_ja3_profile)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
@@ -421,7 +423,7 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
             OutlinedTextField(
                 settings.customJa3,
                 { if (it.length <= 8 * 1024) save(customJa3 = it) },
-                label = { Text(stringResource(R.string.ja3_format)) },
+                label = { FieldLabel(stringResource(R.string.ja3_format)) },
                 minLines = 2,
                 modifier = Modifier.fillMaxWidth(),
             )
@@ -431,7 +433,7 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
         ExposedDropdownMenuBox(sshExpanded, { sshExpanded = it }) {
             OutlinedTextField(
                 settings.sshProfile.title, {}, readOnly = true,
-                label = { Text(stringResource(R.string.ssh_client_profile)) },
+                label = { FieldLabel(stringResource(R.string.ssh_client_profile)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
@@ -447,7 +449,7 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
         ExposedDropdownMenuBox(sshAuthExpanded, { sshAuthExpanded = it }) {
             OutlinedTextField(
                 settings.sshAuthMode.title, {}, readOnly = true,
-                label = { Text(stringResource(R.string.ssh_authentication)) },
+                label = { FieldLabel(stringResource(R.string.ssh_authentication)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshAuthExpanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
@@ -475,9 +477,9 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
                 Column(Modifier.fillMaxWidth().padding(12.dp)) {
                     Text(stringResource(R.string.reconnect_apply_changes))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                        TextButton(onClick = { showReconnectPrompt = false; deferred = true }) { Text(stringResource(R.string.next_connection)) }
-                        TextButton(onClick = {
+                    WrappingActions() {
+                        TextButton(shape = RoundedCornerShape(12.dp), onClick = { showReconnectPrompt = false; deferred = true }) { Text(stringResource(R.string.next_connection)) }
+                        TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                             showReconnectPrompt = false
                             deferred = true
                             ProxyVpnService.reconnect(activity)
@@ -488,9 +490,9 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
         }
         if (showAlwaysOnNotice) {
             Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)) {
-                Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.always_on_changes_next_connection), modifier = Modifier.weight(1f))
-                    TextButton(onClick = { showAlwaysOnNotice = false }) { Text(stringResource(R.string.dismiss)) }
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text(stringResource(R.string.always_on_changes_next_connection))
+                    TextButton(shape = RoundedCornerShape(12.dp), onClick = { showAlwaysOnNotice = false }) { Text(stringResource(R.string.dismiss)) }
                 }
             }
         }
@@ -510,7 +512,7 @@ private fun IntegerSettingField(initialValue: Int, range: IntRange, label: Strin
                 value.toIntOrNull()?.takeIf { it in range }?.let(onValidValue)
             }
         },
-        label = { Text(label) },
+        label = { FieldLabel(label) },
         supportingText = if (text.isNotEmpty() && parsed !in range) {
             { Text(stringResource(R.string.allowed_range, range.first, range.last)) }
         } else null,
@@ -526,7 +528,7 @@ private fun SettingsScaffold(onBack: () -> Unit, title: String, content: @Compos
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(title) },
+                title = { ScreenTitle(title) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
