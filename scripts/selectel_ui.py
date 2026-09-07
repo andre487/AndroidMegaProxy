@@ -96,39 +96,41 @@ def adb_env(state_path):
     return env
 
 
-def adb(state_path, *args, timeout=30, check=True):
+def adb(state_path, *args, timeout=30, check=True, include_stderr=False):
     port = str(os.environ.get('SELECTEL_ADB_PORT', '5038'))
     result = subprocess.run([adb_path(), '-P', port, *args], env=adb_env(state_path),
                             capture_output=True, text=True, timeout=timeout)
     if check and result.returncode:
         raise RuntimeError(f'ADB command failed: {args[0]} (exit {result.returncode})')
-    return result.stdout
+    return result.stdout + (result.stderr if include_stderr else "")
 
 
 def connect_device(path, endpoint):
     print('Waiting for remote ADB (maximum 90 seconds)', flush=True)
     deadline = time.monotonic() + 90
+    diagnostic = 'no response'
     while time.monotonic() < deadline:
         try:
-            adb(path, 'connect', endpoint, timeout=10, check=False)
-            if adb(path, '-s', endpoint, 'get-state', timeout=10, check=False).strip() == 'device':
+            connected = adb(path, 'connect', endpoint, timeout=10, check=False, include_stderr=True)
+            status = adb(path, '-s', endpoint, 'get-state', timeout=10, check=False, include_stderr=True).strip()
+            if status == 'device':
                 return
+            diagnostic = (connected + ' ' + status).replace(endpoint, '<device>').replace('\n', ' ')[:240]
         except subprocess.TimeoutExpired:
             pass
         time.sleep(3)
-    raise RuntimeError('Remote ADB did not connect within 90 seconds; lease will be released')
+    raise RuntimeError('Remote ADB did not connect within 90 seconds: ' + diagnostic)
 
 
 def choose_device(available):
     sdk = os.environ.get('SELECTEL_ANDROID_API', '35')
-    model = os.environ.get('SELECTEL_DEVICE_MODEL', '')
+    model = os.environ.get('SELECTEL_DEVICE_MODEL', 'Galaxy A14')
     choices = [d for d in available if d.get('platform') == 'Android'
                and str(d.get('sdk')) == sdk and d.get('abi') == 'arm64-v8a'
                and d.get('count', 0) > 0 and (not model or d.get('marketName') == model)]
     if not choices:
         raise RuntimeError(f'No available arm64 Android API {sdk} device; no lease created')
-    # Prefer Pixel, then use another available vendor without changing API level.
-    return sorted(choices, key=lambda d: (not d.get('marketName', '').startswith('Pixel'), d['marketName']))[0]
+    return sorted(choices, key=lambda d: d['marketName'])[0]
 
 
 def acquire(client, path):

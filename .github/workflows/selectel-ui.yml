@@ -21,6 +21,7 @@ jobs:
     env:
       FASTLANE_SKIP_DOCS: "1"
       SELECTEL_ANDROID_API: "35"
+      SELECTEL_DEVICE_MODEL: "Galaxy A14"
     steps:
       - uses: actions/checkout@v6
       - uses: actions/setup-java@v5

@@ -25,8 +25,8 @@ bundle exec fastlane android selectel_ui_tests
 ```
 
 The first command is read-only. The last rents **one device with minute billing**. Default selection:
-Android API 35, arm64, preferring Pixel if available. Override with `SELECTEL_ANDROID_API` and
-optionally `SELECTEL_DEVICE_MODEL` (exact catalog name). No silent API-level fallback. Device
+Galaxy A14, Android API 35, arm64. Override with `SELECTEL_ANDROID_API` and
+`SELECTEL_DEVICE_MODEL` (exact catalog name). No silent model/API-level fallback. Device
 availability and the actual tariff depend on the provider. The UI build includes only ARM64 to reduce upload time. Build before renting to avoid paying for
 compilation. ADB uses its own key directory and server port 5038 (`SELECTEL_ADB_PORT` overrides it),
 so local phones and emulators are not targeted.
