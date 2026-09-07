@@ -43,6 +43,9 @@ branch names, credentials, signing material, or other secrets.
   Publish their distinct commit statuses so manual-run progress is visible on the PR; initialize
   required as pending for Android-impacting PR heads, preserving results on CI reruns. Both use `config/selectel-devices.json`; no runtime discovery.
   Do not reintroduce a software-emulated Android fallback.
+- Use Selectel v3 `/users/devices` and `/users/devices/{serial}/remote-connect` for sessions.
+  The remote-connect response contains `remoteConnectUrl`, not a `success` flag. Check actual
+  ADB device state after connecting; do not disconnect on each intermediate offline poll.
 - Selectel credentials live in GitHub Actions secrets or `~/.config/megaproxy/selectel.env`.
   Build APKs before renting; release only the recorded device/slot owned by the run, including
   after failures. Preserve the lease journal until cleanup succeeds. Never load release signing

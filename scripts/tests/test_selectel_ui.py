@@ -25,7 +25,7 @@ class FakeClient:
         self.calls.append((method, route, body))
         if method == "GET":
             return {"meta": {"slot": {"id": self.slot}}}
-        if self.fail_session and "/v1/" in route:
+        if self.fail_session and "/v3/users/devices/" in route:
             raise m.ApiError(method, route, 500)
 
 
@@ -127,34 +127,128 @@ class LeaseTest(unittest.TestCase):
 
 
 class AdbConnectionTest(unittest.TestCase):
-    def test_offline_transport_is_reconnected_without_renting_again(self):
+    def test_auth_warning_and_offline_can_become_ready_without_disconnect(self):
         with (
             patch.object(
                 m,
                 "adb",
                 side_effect=[
-                    "connected",
-                    "error: device offline",
-                    "",
-                    "connected",
-                    "device",
+                    "failed to authenticate to example.test:1234",
+                    "List of devices attached\nexample.test:1234 offline\n",
+                    "List of devices attached\nother.test:9999 device\nexample.test:1234 device model:X8c\n",
                 ],
             ) as adb,
             patch.object(m.time, "sleep"),
-            patch.object(m, "Client", side_effect=AssertionError),
         ):
             m.connect_device(Path("/tmp/test-lease.json"), "example.test:1234")
-        commands = [call.args[1:] for call in adb.call_args_list]
         self.assertEqual(
-            [
-                ("connect", "example.test:1234"),
-                ("-s", "example.test:1234", "get-state"),
-                ("disconnect", "example.test:1234"),
-                ("connect", "example.test:1234"),
-                ("-s", "example.test:1234", "get-state"),
-            ],
-            commands,
+            [("connect", "example.test:1234"), ("devices", "-l"), ("devices", "-l")],
+            [call.args[1:] for call in adb.call_args_list],
         )
+
+    def test_other_connected_device_does_not_satisfy_wait(self):
+        with (
+            patch.object(m, "adb", side_effect=["connected", "other.test:9999 device"]),
+            patch.object(m.time, "sleep"),
+            patch.object(m.time, "monotonic", side_effect=[0, 0, 91]),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "absent"):
+                m.connect_device(Path("/tmp/test-lease.json"), "example.test:1234")
+
+
+class AcquisitionTest(unittest.TestCase):
+    def test_v3_lifecycle_accepts_remote_url_without_success_flag(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            for name in [
+                "debug/app-debug.apk",
+                "androidTest/debug/app-debug-androidTest.apk",
+            ]:
+                apk = root / "app/build/outputs/apk" / name
+                apk.parent.mkdir(parents=True, exist_ok=True)
+                apk.touch()
+            path = root / ".selectel/lease.json"
+            client = Mock(project="ci")
+            requests = []
+            info = {
+                "status": 3,
+                "ready": True,
+                "present": True,
+                "meta": {"slot": {"id": "owned"}},
+                "serial": "device",
+            }
+
+            def request(method, route, body=None):
+                requests.append((method, route, body))
+                if (method, route) == ("GET", "/v3/devices"):
+                    return []
+                if (method, route) == ("POST", "/v3/devices"):
+                    return {"devices": [info]}
+                if method == "GET":
+                    return info
+                if route == "/v3/keys/adb":
+                    return {"fingerprint": "key"}
+                if route.endswith("/remote-connect") and method == "POST":
+                    return {"remoteConnectUrl": "example.test:1234"}
+                return None  # Assignment succeeds with an empty HTTP 200 response.
+
+            client.request.side_effect = request
+
+            def keygen(args, **kwargs):
+                key = Path(args[2])
+                key.write_text("test-private")
+                key.with_suffix(".pub").write_text("test-public")
+
+            with (
+                patch.object(m, "ROOT", root),
+                patch.object(
+                    m,
+                    "wait_for_device",
+                    return_value={
+                        "manufacturer": "HONOR",
+                        "marketName": "X8c",
+                        "sdk": "35",
+                        "platform": "Android",
+                        "abi": "arm64-v8a",
+                    },
+                ),
+                patch.object(m, "adb_path", return_value="adb"),
+                patch.object(m.subprocess, "run", side_effect=keygen),
+                patch.object(m, "connect_device") as connect,
+                patch.object(m, "adb"),
+            ):
+                m.acquire(client, path)
+                connect.assert_called_once_with(path, "example.test:1234")
+                m.release(client, path)
+            self.assertTrue(m.read_state(path)["released"])
+            self.assertIn(
+                ("POST", "/v3/users/devices", {"serial": "device", "timeout": 1200000}),
+                requests,
+            )
+            self.assertIn(
+                ("DELETE", "/v3/users/devices/device/remote-connect", None), requests
+            )
+            self.assertIn(("DELETE", "/v3/users/devices/device", None), requests)
+            self.assertEqual(
+                3,
+                sum(
+                    route == "/v3/devices/device" and method == "GET"
+                    for method, route, _ in requests
+                ),
+            )
+            self.assertFalse(any("/v1/" in route for _, route, _ in requests))
+
+    def test_ready_requires_operational_status_and_both_flags(self):
+        client = Mock()
+        client.request.side_effect = [
+            {"status": 1, "ready": True, "present": True},
+            {"status": 3, "ready": False, "present": True},
+            {"status": 3, "ready": True, "present": False},
+            {"status": 3, "ready": True, "present": True},
+        ]
+        with patch.object(m.time, "sleep") as sleep:
+            m.wait_until_ready(client, "device")
+        self.assertEqual(3, sleep.call_count)
 
 
 class AvailabilityTest(unittest.TestCase):

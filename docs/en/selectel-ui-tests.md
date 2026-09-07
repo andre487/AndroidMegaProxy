@@ -94,6 +94,18 @@ This wait creates no rental and incurs no device billing. API errors fail immedi
 rental POST is never retried. A device may still be taken between the availability check and rental.
 The device job has a 40-minute limit to leave time for tests and cleanup after waiting.
 
+The runner follows the [current Selectel API](https://docs.selectel.ru/api/mobile-farm/):
+register a public ADB key, assign the device with `POST /v3/users/devices`, then open
+`POST /v3/users/devices/{serial}/remote-connect`. Assignment accepts an empty successful response;
+remote connect supplies `remoteConnectUrl` without a `success` field. Check operational status 3,
+`ready` and `present` before and after assignment. This numeric status is separate from ownership.
+Following the [ADB instructions](https://docs.selectel.ru/mobile-farm/manage/connect-to-device-with-adb/),
+connect once, then poll `adb devices -l` for the exact endpoint to reach `device` (90 seconds maximum).
+An authentication warning from `connect` alone does not fail the run; intermediate `offline` states
+do not trigger repeated disconnects. Close remote connect and assignment through the matching v3
+DELETE methods, then remove the paid device with its slot ID. Session cleanup errors are reported
+without preventing rental removal. Existing lease journals remain compatible with recovery.
+
 ## Local additional devices
 
 ```sh

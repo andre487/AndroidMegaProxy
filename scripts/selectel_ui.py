@@ -134,37 +134,53 @@ def adb(state_path, *args, timeout=30, check=True, include_stderr=False):
 
 
 def connect_device(path, endpoint):
+    # Selectel documents that connect may report authentication failure even on
+    # success. Keep the transport alive and check its actual state afterwards.
     print("Waiting for remote ADB (maximum 90 seconds)", flush=True)
     deadline = time.monotonic() + 90
+    try:
+        adb(path, "connect", endpoint, timeout=30, check=False, include_stderr=True)
+    except subprocess.TimeoutExpired:
+        pass  # The server may still be establishing the transport.
     diagnostic = "no response"
     while time.monotonic() < deadline:
         try:
-            connected = adb(
-                path, "connect", endpoint, timeout=10, check=False, include_stderr=True
+            devices = adb(
+                path, "devices", "-l", timeout=10, check=False, include_stderr=True
             )
-            status = adb(
-                path,
-                "-s",
-                endpoint,
-                "get-state",
-                timeout=10,
-                check=False,
-                include_stderr=True,
-            ).strip()
-            if status == "device":
+            state = next(
+                (
+                    line.split()[1]
+                    for line in devices.splitlines()
+                    if len(line.split()) >= 2 and line.split()[0] == endpoint
+                ),
+                "absent",
+            )
+            if state == "device":
                 return
-            diagnostic = (
-                (connected + " " + status)
-                .replace(endpoint, "<device>")
-                .replace("\n", " ")[:240]
-            )
-            # An offline transport makes repeated connect calls return 'already connected'.
-            # Drop only this leased endpoint so the next attempt performs a new handshake.
-            adb(path, "disconnect", endpoint, timeout=10, check=False)
+            if state != diagnostic:
+                print(f"Remote ADB state: {state}", flush=True)
+            diagnostic = state
         except subprocess.TimeoutExpired:
-            pass
+            diagnostic = "state query timed out"
         time.sleep(3)
     raise RuntimeError("Remote ADB did not connect within 90 seconds: " + diagnostic)
+
+
+def wait_until_ready(client, serial):
+    deadline = time.monotonic() + 180
+    while time.monotonic() < deadline:
+        info = client.request("GET", "/v3/devices/" + serial)
+        # API status 3 is the operational device status; ownership is separate.
+        # See Selectel's device settings preconditions and live GET device format.
+        if (
+            info.get("status") == 3
+            and info.get("ready") is True
+            and info.get("present") is True
+        ):
+            return
+        time.sleep(5)
+    raise RuntimeError("Device did not become ready within 180 seconds")
 
 
 def device_matrix(profile):
@@ -366,14 +382,7 @@ def acquire(client, path):
         )
     device = state["devices"][0]
     serial = urllib.parse.quote(device["serial"], safe="")
-    deadline = time.monotonic() + 180
-    while time.monotonic() < deadline:
-        info = client.request("GET", "/v3/devices/" + serial)
-        if info.get("ready") and info.get("present"):
-            break
-        time.sleep(5)
-    else:
-        raise RuntimeError("Device did not become ready within 180 seconds")
+    wait_until_ready(client, serial)
     env = adb_env(path)
     key = Path(env["ADB_VENDOR_KEYS"])
     subprocess.run(
@@ -391,11 +400,12 @@ def acquire(client, path):
     state["fingerprint"] = key_info["fingerprint"]
     write_state(path, state)
     client.request(
-        "POST", "/v1/user/devices", {"serial": device["serial"], "timeout": 1200000}
+        "POST", "/v3/users/devices", {"serial": device["serial"], "timeout": 1200000}
     )
-    remote = client.request("POST", "/v1/user/devices/" + serial + "/remoteConnect")
-    endpoint = remote.get("remoteConnectUrl", "")
-    if not remote.get("success") or not re.fullmatch(
+    wait_until_ready(client, serial)
+    remote = client.request("POST", "/v3/users/devices/" + serial + "/remote-connect")
+    endpoint = remote.get("remoteConnectUrl", "") if isinstance(remote, dict) else ""
+    if not isinstance(endpoint, str) or not re.fullmatch(
         r"[A-Za-z0-9.-]+:[0-9]+", endpoint
     ):
         raise RuntimeError("Selectel did not return a valid ADB endpoint")
@@ -428,11 +438,20 @@ def release(client, path):
             current = client.request("GET", "/v3/devices/" + serial)
             if current["meta"]["slot"]["id"] != device["slot"]:
                 continue
-            for suffix in ["/remoteConnect", ""]:
+            for suffix in ["/remote-connect", ""]:
                 try:
-                    client.request("DELETE", "/v1/user/devices/" + serial + suffix)
-                except (ApiError, urllib.error.URLError):
-                    pass  # Still remove the paid lease, even if session teardown fails.
+                    client.request("DELETE", "/v3/users/devices/" + serial + suffix)
+                except (ApiError, urllib.error.URLError) as error:
+                    # Session failure must not prevent ending the paid rental.
+                    detail = (
+                        f"HTTP {error.status}"
+                        if isinstance(error, ApiError)
+                        else type(error).__name__
+                    )
+                    print(
+                        f"Session cleanup warning ({suffix or 'assignment'}): {detail}; continuing lease removal",
+                        flush=True,
+                    )
             client.request(
                 "DELETE", "/v3/devices/" + serial, {"slotID": device["slot"]}
             )
