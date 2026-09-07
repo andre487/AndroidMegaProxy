@@ -34,6 +34,23 @@ jobs:
           ruby-version: "3.4.10"
           bundler-cache: true
 
+      - name: Run native tests with the race detector
+        run: bundle exec fastlane android native_tests
+
+  python-tests:
+    name: Python tests and style
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Ruby and Fastlane
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+
       - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
@@ -45,9 +62,6 @@ jobs:
 
       - name: Check Python formatting and runner contracts without a device
         run: bundle exec fastlane android python_checks
-
-      - name: Run native tests with the race detector
-        run: bundle exec fastlane android native_tests
 
   android-tests:
     name: Android tests and checks

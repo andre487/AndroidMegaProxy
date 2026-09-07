@@ -18,7 +18,8 @@ branch names, credentials, signing material, or other secrets.
 
 - Python scripts use the standard library at runtime. Format them with pinned Black and isort
   (`requirements-dev.txt`, `pyproject.toml`) through the `python_format` Fastlane lane;
-  `python_checks` validates formatting and runner contracts in CI.
+  `python_checks` validates formatting and runner contracts in the separate required
+  `Python tests and style` CI job.
 
 ## CI and artifacts
 

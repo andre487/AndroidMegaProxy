@@ -92,7 +92,8 @@ bundle exec fastlane android test
 ## Инструменты разработки Python
 
 Сами скрипты используют стандартную библиотеку Python. Зафиксированные форматтеры нужны только для
-разработки; настройки Black и isort находятся в `pyproject.toml`, CI проверяет их в каждом PR.
+разработки; настройки Black и isort находятся в `pyproject.toml`. Отдельная обязательная проверка
+`Python tests and style` запускает проверку форматирования и Python-тесты в каждом PR.
 
 ```sh
 python3 -m venv .venv

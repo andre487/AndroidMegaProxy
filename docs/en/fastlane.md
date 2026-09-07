@@ -90,7 +90,8 @@ committing the lock file and using `bundle exec fastlane` locally and in CI.
 ## Python development tools
 
 The scripts themselves use Python's standard library. Install the pinned formatting tools only for
-development; Black and isort settings live in `pyproject.toml` and CI checks them on every PR.
+development; Black and isort settings live in `pyproject.toml`. The separate required
+`Python tests and style` job runs formatting checks and Python tests on every PR.
 
 ```sh
 python3 -m venv .venv
