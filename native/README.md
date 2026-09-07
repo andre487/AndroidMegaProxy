@@ -3,6 +3,9 @@
 This module is bound into `megaproxy.aar` with gomobile. It embeds tun2socks/gVisor,
 registers HTTPS CONNECT and SSH `direct-tcpip` transports, protects every upstream socket through Android
 `VpnService.protect`, verifies HTTPS proxy certificates and SSH host keys, and uses uTLS for HTTPS ClientHello control.
+HTTPS with Jump nests a second HTTPS CONNECT transport inside the first, with independent TLS
+verification, authentication and HTTP/2 sessions. Only the jump is dialed directly; it resolves
+the destination proxy hostname. Application traffic counters exclude the intermediate tunnel.
 SSH with Jump creates a nested SSH client through the jump session. SSH transports support TCP;
 DNS is carried over DoH, while arbitrary UDP (including QUIC) is intentionally blocked.
 `Start` always takes ownership of the passed duplicate TUN descriptor, including error paths.

@@ -1,6 +1,9 @@
 package net.megaproxy487.data
 
 import net.megaproxy487.model.ProxyConfig
+import net.megaproxy487.model.ProxyType
+import org.json.JSONArray
+import org.json.JSONObject
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.TlsProfile
 import org.junit.Assert.assertEquals
@@ -9,6 +12,42 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConfigTransferTest {
+    @Test
+    fun `HTTPS jump JSON round trip preserves both hops and certificate settings`() {
+        val profile = ProxyProfile(id = "chain", colorIndex = 0, config = ProxyConfig(
+            type = ProxyType.HTTPS_JUMP, host = "exit.example", username = "exit", password = "exit-secret",
+            jumpHost = "jump.example", jumpPort = 8443, sameJumpAuthentication = false,
+            jumpUsername = "jump", jumpPassword = "jump-secret", jumpAllowInvalidProxyCertificate = true,
+        ))
+        for (includePasswords in listOf(false, true)) {
+            val encoded = ConfigTransfer.encodeProfile(profile, includePasswords, false)
+            val raw = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID)
+                .put("version", ConfigTransfer.SCHEMA_VERSION).put("profiles", JSONArray().put(encoded)).toString()
+            val decoded = ConfigTransfer.importJson(raw)
+            assertEquals(profile.config.copy(
+                password = if (includePasswords) "exit-secret" else "",
+                jumpPassword = if (includePasswords) "jump-secret" else "",
+            ), decoded.profiles.single().config)
+            assertEquals(includePasswords, decoded.secretPresence.getValue("chain").jumpPassword)
+            assertEquals(includePasswords, raw.contains("jump-secret"))
+            assertEquals(includePasswords, raw.contains("exit-secret"))
+        }
+        assertTrue(ConfigTransfer.SCHEMA_VERSION > 7)
+        assertTrue(ConfigTransfer.exportProxyList(listOf(profile), true).isBlank())
+    }
+
+    @Test
+    fun `HTTPS jump import defaults to port 443 and verified certificates`() {
+        val raw = """{"schema":"net.megaproxy487.config","version":8,"profiles":[
+            {"id":"chain","proxy":{"type":"HTTPS_JUMP","host":"exit.example","jump":{"host":"jump.example"}}}
+        ]}"""
+        val config = ConfigTransfer.importJson(raw).profiles.single().config
+        assertEquals(443, config.jumpPort)
+        assertTrue(config.sameJumpAuthentication)
+        assertFalse(config.allowInvalidProxyCertificate)
+        assertFalse(config.jumpAllowInvalidProxyCertificate)
+    }
+
     @Test
     fun `proxy list omits passwords by default`() {
         val profile = ProxyProfile(

@@ -7,6 +7,12 @@ import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import java.text.DateFormat
+import java.util.Date
+import androidx.compose.ui.platform.LocalConfiguration
+import net.megaproxy487.vpn.ConnectionSession
+import net.megaproxy487.vpn.connectionDuration
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -58,6 +64,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.BlendMode
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.CompositingStrategy
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.res.stringResource
@@ -70,6 +84,7 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -148,8 +163,9 @@ class MainActivity : LocalizedActivity() {
 }
 
 @Composable
-private fun ProfileTypeBadge(type: ProxyType, foreground: Color) {
+private fun ProfileTypeBadge(type: ProxyType, foreground: Color, modifier: Modifier = Modifier) {
     Surface(
+        modifier = modifier,
         color = foreground.copy(alpha = 0.14f),
         contentColor = foreground,
         shape = RoundedCornerShape(50),
@@ -158,11 +174,57 @@ private fun ProfileTypeBadge(type: ProxyType, foreground: Color) {
         Text(
             when (type) {
                 ProxyType.HTTPS -> "HTTPS"
+                ProxyType.HTTPS_JUMP -> stringResource(R.string.https_with_jump)
                 ProxyType.SSH -> "SSH"
                 ProxyType.SSH_JUMP -> "SSH + Jump"
             },
-            style = MaterialTheme.typography.labelSmall,
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp, letterSpacing = 0.sp),
+            maxLines = 1,
+            softWrap = false,
+            modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
+        )
+    }
+}
+
+/** Keep the type readable while a long name fades beneath its trailing badge. */
+@Composable
+private fun ProfileSelectorLabel(
+    name: String,
+    type: ProxyType,
+    foreground: Color,
+    modifier: Modifier = Modifier,
+    style: TextStyle = MaterialTheme.typography.bodyLarge,
+) {
+    var badgeWidth by remember { mutableStateOf(0) }
+    Box(modifier, contentAlignment = Alignment.CenterStart) {
+        Text(
+            name,
+            color = foreground,
+            style = style,
+            maxLines = 1,
+            softWrap = false,
+            overflow = TextOverflow.Clip,
+            modifier = Modifier.fillMaxWidth()
+                .graphicsLayer { compositingStrategy = CompositingStrategy.Offscreen }
+                .drawWithContent {
+                    drawContent()
+                    // Mask only the name layer: the badge and its border stay crisp.
+                    val end = (size.width - badgeWidth - 6.dp.toPx()).coerceAtLeast(0f)
+                    val start = (end - 24.dp.toPx()).coerceAtLeast(0f)
+                    drawRect(
+                        brush = Brush.horizontalGradient(
+                            colors = listOf(Color.Black, Color.Transparent),
+                            startX = start,
+                            endX = end.coerceAtLeast(start + 1f),
+                        ),
+                        blendMode = BlendMode.DstIn,
+                    )
+                },
+        )
+        ProfileTypeBadge(
+            type,
+            foreground,
+            Modifier.align(Alignment.CenterEnd).onSizeChanged { badgeWidth = it.width },
         )
     }
 }
@@ -297,7 +359,7 @@ internal fun MainScreen(
             systemVpnStatus = readAlwaysOnVpnStatus(activity)
             error = null
         } else {
-            error = globalSettings.applyTo(store.activeProfile().config).validationError()
+            error = globalSettings.applyTo(store.activeProfile().config).validationError()?.let { activity.getString(it) }
         }
         if (error == null && !isAlwaysOnVpnActive(activity)) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
@@ -390,7 +452,7 @@ internal fun MainScreen(
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
             val activeProfile = profiles.firstOrNull { it.id == displayedProfileId } ?: profiles.first()
             val actualProfile = profiles.firstOrNull { it.id == runtimeProfileId }
-            val activeProfileError = globalSettings.applyTo(activeProfile.config).connectionValidationError()
+            val activeProfileError = globalSettings.applyTo(activeProfile.config).connectionValidationError()?.let { activity.getString(it) }
             val profileColor = Color(ProfileColors.argb[Math.floorMod(activeProfile.colorIndex, ProfileColors.argb.size)])
             val onProfileColor = if (profileColor.luminance() > 0.45f) Color.Black else Color.White
             Box(Modifier.fillMaxWidth()) {
@@ -420,21 +482,32 @@ internal fun MainScreen(
                                 Text(activeProfile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp))
                             }
                         }
-                        Text(activeProfile.displayName, style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-                        ProfileTypeBadge(activeProfile.config.type, onProfileColor)
+                        ProfileSelectorLabel(
+                            activeProfile.displayName,
+                            activeProfile.config.type,
+                            onProfileColor,
+                            modifier = Modifier.weight(1f),
+                            style = MaterialTheme.typography.titleMedium,
+                        )
                         Icon(Icons.Filled.ArrowDropDown, contentDescription = stringResource(R.string.select_profile), tint = onProfileColor)
                     }
                     if (actualProfile != null && actualProfile.id != activeProfile.id && connection != VpnConnectionState.DISCONNECTED) {
                         Text(stringResource(R.string.connected_through, actualProfile.displayNameWithFlag), style = MaterialTheme.typography.bodySmall)
                     }
-                        DropdownMenu(profileMenuExpanded, { profileMenuExpanded = false }) {
+                        DropdownMenu(
+                            profileMenuExpanded,
+                            { profileMenuExpanded = false },
+                            modifier = Modifier.widthIn(min = 280.dp),
+                        ) {
                             profiles.forEach { profile ->
                                 DropdownMenuItem(
                                     text = {
-                                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                                            Text(profile.displayNameWithFlag, modifier = Modifier.weight(1f))
-                                            ProfileTypeBadge(profile.config.type, MaterialTheme.colorScheme.onSurface)
-                                        }
+                                        ProfileSelectorLabel(
+                                            profile.displayNameWithFlag,
+                                            profile.config.type,
+                                            MaterialTheme.colorScheme.onSurface,
+                                            modifier = Modifier.fillMaxWidth(),
+                                        )
                                     },
                                     onClick = {
                                         val useAsAlwaysOn = isAlwaysOnVpnActive(activity)
@@ -713,6 +786,47 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+        )
+        val session by VpnRuntimeState.session
+        session?.let { ConnectionTimingDetails(it) }
+    }
+}
+
+@Composable
+private fun ConnectionTimingDetails(session: ConnectionSession) {
+    val lifecycleOwner = LocalLifecycleOwner.current
+    var duration by remember(session) {
+        mutableStateOf(connectionDuration(session.elapsedMillis(SystemClock.elapsedRealtime())))
+    }
+    LaunchedEffect(session, lifecycleOwner) {
+        lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                duration = connectionDuration(session.elapsedMillis(SystemClock.elapsedRealtime()))
+                delay(duration.nextUpdateDelayMillis)
+            }
+        }
+    }
+    val locale = LocalConfiguration.current.locales[0]
+    val startedAt = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.MEDIUM, locale)
+        .format(Date(session.startedAtMillis))
+    val seconds = duration.seconds
+    val elapsed = when {
+        seconds < 60 -> stringResource(R.string.connection_duration_seconds, seconds)
+        seconds < 600 -> stringResource(R.string.connection_duration_minutes_seconds, seconds / 60, seconds % 60)
+        seconds < 3_600 -> stringResource(R.string.connection_duration_minutes, seconds / 60)
+        seconds < 86_400 -> stringResource(R.string.connection_duration_hours_minutes, seconds / 3_600, seconds / 60 % 60)
+        else -> stringResource(R.string.connection_duration_days_hours, seconds / 86_400, seconds / 3_600 % 24)
+    }
+    Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp)) {
+        Text(
+            stringResource(R.string.connection_started_at, startedAt),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Text(
+            stringResource(R.string.connection_duration, elapsed),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }

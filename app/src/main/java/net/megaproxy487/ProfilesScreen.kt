@@ -120,6 +120,7 @@ private fun profileOptionGroups(current: ProxyProfile, imported: ProxyProfile): 
         current.config.sameJumpAuthentication != imported.config.sameJumpAuthentication
     ) add(R.string.import_option_connection)
     if (current.config.allowInvalidProxyCertificate != imported.config.allowInvalidProxyCertificate ||
+        current.config.jumpAllowInvalidProxyCertificate != imported.config.jumpAllowInvalidProxyCertificate ||
         current.config.profile != imported.config.profile || current.config.customJa3 != imported.config.customJa3 ||
         current.config.sshProfile != imported.config.sshProfile ||
         current.config.trustedHostKey != imported.config.trustedHostKey ||
@@ -171,6 +172,7 @@ private fun applySelectedProfileOptions(
     ))
     if (selected(R.string.import_option_security)) result = result.copy(config = result.config.copy(
         allowInvalidProxyCertificate = imported.config.allowInvalidProxyCertificate,
+        jumpAllowInvalidProxyCertificate = imported.config.jumpAllowInvalidProxyCertificate,
         profile = imported.config.profile,
         customJa3 = imported.config.customJa3,
         sshProfile = imported.config.sshProfile,
@@ -357,7 +359,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                     }.getOrDefault(false)
                     if (isMegaProxy) {
                         val configuration = ConfigTransfer.importJson(text)
-                        if (configuration.profiles.any { it.config.allowInvalidProxyCertificate || it.config.acceptAnyHostKey || it.config.jumpAcceptAnyHostKey }) {
+                        if (configuration.profiles.any { it.config.allowInvalidProxyCertificate || it.config.jumpAllowInvalidProxyCertificate || it.config.acceptAnyHostKey || it.config.jumpAcceptAnyHostKey }) {
                             pendingUnsafeImport = configuration
                         } else {
                             prepareJsonImport(configuration)
@@ -799,6 +801,7 @@ private fun ProfileCard(
                     Text(
                         when (profile.config.type) {
                             ProxyType.HTTPS -> "HTTPS"
+                            ProxyType.HTTPS_JUMP -> stringResource(R.string.https_with_jump)
                             ProxyType.SSH -> "SSH"
                             ProxyType.SSH_JUMP -> "SSH + Jump"
                         },

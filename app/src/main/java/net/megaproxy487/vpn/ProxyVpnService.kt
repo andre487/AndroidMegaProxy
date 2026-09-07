@@ -241,7 +241,7 @@ class ProxyVpnService : VpnService() {
 
     private fun testConnection() {
         val storedConfig = ConfigStore(this).globalConnectionSettings().applyTo(ConfigStore(this).activeProfile().config)
-        storedConfig.connectionValidationError()?.let {
+        storedConfig.connectionValidationError()?.let { getString(it) }?.let {
             TestDiagnosticLog.fail("Connection test cannot start: $it")
             if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
             return
@@ -287,7 +287,7 @@ class ProxyVpnService : VpnService() {
             else if (storedConfig.routeAllApps) "event=vpn_start mode=global"
             else "event=vpn_start mode=split selected_app_count=${storedConfig.selectedPackages.size}"
         )
-        val validationError = if (testOnly) storedConfig.connectionValidationError() else storedConfig.validationError()
+        val validationError = if (testOnly) storedConfig.connectionValidationError()?.let { getString(it) } else storedConfig.validationError()?.let { getString(it) }
         validationError?.let {
             if (testOnly) TestDiagnosticLog.fail(it) else {
                 val notice = if (isAlwaysOnMode)
@@ -353,13 +353,13 @@ class ProxyVpnService : VpnService() {
                 getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
             }?.also { addressCache.put(host, it) }
         }
-        val proxyIp = resolveHost(storedConfig.host, "proxy") ?: run {
+        val proxyIp = if (storedConfig.type == net.megaproxy487.model.ProxyType.HTTPS_JUMP) "" else resolveHost(storedConfig.host, "proxy") ?: run {
             establishedTunnel.close()
             if (!isStartCurrent(generation)) return false
             handleStartFailure(testOnly, "Proxy bootstrap DNS failed", failureDetail, promptProfileId)
             return false
         }
-        val jumpIp = if (storedConfig.type == net.megaproxy487.model.ProxyType.SSH_JUMP) {
+        val jumpIp = if (storedConfig.type.hasJump) {
             resolveHost(storedConfig.jumpHost, "jump") ?: run {
                 establishedTunnel.close()
                 if (!isStartCurrent(generation)) return false
@@ -525,7 +525,7 @@ class ProxyVpnService : VpnService() {
             store.profile(profileId)?.config?.let { profile ->
                 BootstrapAddressCache(this).apply {
                     remove(profile.host)
-                    if (profile.type == net.megaproxy487.model.ProxyType.SSH_JUMP) remove(profile.jumpHost)
+                    if (profile.type.hasJump) remove(profile.jumpHost)
                 }
             }
             val notice = "$warning Retrying this profile with fresh encrypted DNS before failover."

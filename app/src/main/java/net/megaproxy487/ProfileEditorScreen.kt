@@ -90,6 +90,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     var error by remember { mutableStateOf<String?>(null) }
     var countryExpanded by remember { mutableStateOf(false) }
     var dnsExpanded by remember { mutableStateOf(false) }
+    var invalidCertificateIsJump by remember { mutableStateOf(false) }
     var showInvalidCertificateWarning by remember { mutableStateOf(false) }
     var typeExpanded by remember { mutableStateOf(false) }
     var unsafeHostKeyHop by remember { mutableStateOf<String?>(null) }
@@ -116,7 +117,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
         config = updated
         profile = profile.copy(config = updated)
         saveProfile()
-        error = globalSettings.applyTo(updated).connectionValidationError()
+        error = globalSettings.applyTo(updated).connectionValidationError()?.let { activity.getString(it) }
         if (ProxyVpnService.isRunning && profile.id == editedConnectionProfileId) {
             coroutineScope.launch(ConfigIoDispatcher) { store.markPendingReconnect() }
         }
@@ -214,46 +215,46 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
           }
           item {
             ExposedDropdownMenuBox(typeExpanded, { typeExpanded = it }) {
-                OutlinedTextField(config.type.title, {}, readOnly = true, label = { Text(stringResource(R.string.profile_type)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                OutlinedTextField(if (config.type == ProxyType.HTTPS_JUMP) stringResource(R.string.https_with_jump) else config.type.title, {}, readOnly = true, label = { Text(stringResource(R.string.profile_type)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
                 DropdownMenu(typeExpanded, { typeExpanded = false }) {
-                    ProxyType.entries.forEach { type -> DropdownMenuItem(text = { Text(type.title) }, onClick = {
-                        updateConfig(config.copy(type = type, port = type.defaultPort))
+                    ProxyType.entries.forEach { type -> DropdownMenuItem(text = { Text(if (type == ProxyType.HTTPS_JUMP) stringResource(R.string.https_with_jump) else type.title) }, onClick = {
+                        updateConfig(config.copy(type = type, port = type.defaultPort, jumpPort = if (type.hasJump && (!config.type.hasJump || type.isHttps != config.type.isHttps)) type.defaultPort else config.jumpPort))
                         portText = type.defaultPort.toString()
-                        if (type == ProxyType.SSH_JUMP) jumpPortText = config.jumpPort.toString()
+                        if (type.hasJump) jumpPortText = config.jumpPort.toString()
                         typeExpanded = false
                     }) }
                 }
             }
           }
           item {
-            OutlinedTextField(config.host, { value -> acceptText(value, 253) { updateConfig(config.copy(host = it)) } }, label = { Text(stringResource(if (config.type == ProxyType.HTTPS) R.string.https_proxy_hostname else R.string.destination_ssh_hostname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(config.host, { value -> acceptText(value, 253) { updateConfig(config.copy(host = it)) } }, label = { Text(stringResource(if (config.type == ProxyType.HTTPS_JUMP) R.string.destination_https_proxy_hostname else if (config.type.isHttps) R.string.https_proxy_hostname else R.string.destination_ssh_hostname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
             OutlinedTextField(portText, { value ->
                 portText = value
                 val port = value.toIntOrNull()
-                if (port == null) error = "Port must be between 1 and 65535"
+                if (port == null) error = activity.getString(R.string.validation_port)
                 else updateConfig(config.copy(port = port))
             }, label = { Text(stringResource(R.string.port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
-            OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { Text(stringResource(if (config.type == ProxyType.HTTPS) R.string.basic_auth_username else R.string.ssh_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { Text(stringResource(if (config.type.isHttps) R.string.basic_auth_username else R.string.ssh_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
-            OutlinedTextField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it)) } }, label = { Text(stringResource(if (config.type == ProxyType.HTTPS) R.string.password else R.string.ssh_password_optional)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it)) } }, label = { Text(stringResource(if (config.type.isHttps) R.string.password else R.string.ssh_password_optional)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
           }
-          if (config.type == ProxyType.HTTPS) item { SettingCheckboxRow(
+          if (config.type.isHttps) item { SettingCheckboxRow(
                 checked = config.allowInvalidProxyCertificate,
-                title = "Allow self-signed proxy certificate",
-                description = "Disables certificate verification only for the HTTPS proxy.",
+                title = stringResource(R.string.allow_proxy_certificate),
+                description = stringResource(R.string.allow_proxy_certificate_description),
                 onCheckedChange = { checked ->
-                    if (checked) showInvalidCertificateWarning = true
+                    if (checked) { invalidCertificateIsJump = false; showInvalidCertificateWarning = true }
                     else updateConfig(config.copy(allowInvalidProxyCertificate = false))
                 },
             )
           }
 
-            if (config.type != ProxyType.HTTPS) {
+            if (!config.type.isHttps) {
               item {
                 OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it)) } }, label = { Text(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
               }
@@ -278,6 +279,42 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 }
               }
                 if (config.trustedHostKey.isNotBlank()) item { Text(stringResource(R.string.trusted_destination_key, config.trustedHostKey), style = MaterialTheme.typography.bodySmall) }
+            }
+
+            if (config.type == ProxyType.HTTPS_JUMP) {
+              item { Text(stringResource(R.string.https_jump_route), style = MaterialTheme.typography.bodySmall) }
+              item { HorizontalDivider() }
+              item { Text(stringResource(R.string.https_jump_proxy), style = MaterialTheme.typography.titleMedium) }
+              item {
+                OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { Text(stringResource(R.string.https_jump_hostname)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+              }
+              item {
+                OutlinedTextField(jumpPortText, { value ->
+                    if (value.length <= 5 && value.all(Char::isDigit)) {
+                        jumpPortText = value
+                        updateConfig(config.copy(jumpPort = value.toIntOrNull() ?: 0))
+                    }
+                }, label = { Text(stringResource(R.string.jump_port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+              }
+              item {
+                SettingCheckboxRow(config.sameJumpAuthentication, stringResource(R.string.https_jump_same_auth), stringResource(R.string.https_jump_same_auth_description)) {
+                    updateConfig(config.copy(sameJumpAuthentication = it))
+                }
+              }
+              if (!config.sameJumpAuthentication) {
+                item {
+                    OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { Text(stringResource(R.string.https_jump_username)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+                item {
+                    OutlinedTextField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it)) } }, label = { Text(stringResource(R.string.https_jump_password)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                }
+              }
+              item {
+                SettingCheckboxRow(config.jumpAllowInvalidProxyCertificate, stringResource(R.string.allow_jump_proxy_certificate), stringResource(R.string.allow_jump_proxy_certificate_description)) { checked ->
+                    if (checked) { invalidCertificateIsJump = true; showInvalidCertificateWarning = true }
+                    else updateConfig(config.copy(jumpAllowInvalidProxyCertificate = false))
+                }
+              }
             }
 
             if (config.type == ProxyType.SSH_JUMP) {
@@ -396,9 +433,9 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
         AlertDialog(
             onDismissRequest = { showInvalidCertificateWarning = false },
             title = { Text(stringResource(R.string.allow_untrusted_certificate_title)) },
-            text = { Text(stringResource(R.string.allow_untrusted_certificate_message)) },
+            text = { Text(stringResource(if (invalidCertificateIsJump) R.string.allow_untrusted_jump_certificate_message else R.string.allow_untrusted_certificate_message)) },
             confirmButton = { TextButton(onClick = {
-                updateConfig(config.copy(allowInvalidProxyCertificate = true))
+                updateConfig(if (invalidCertificateIsJump) config.copy(jumpAllowInvalidProxyCertificate = true) else config.copy(allowInvalidProxyCertificate = true))
                 showInvalidCertificateWarning = false
             }) { Text(stringResource(R.string.ok)) } },
             dismissButton = { TextButton(onClick = { showInvalidCertificateWarning = false }) { Text(stringResource(R.string.cancel)) } },

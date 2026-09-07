@@ -12,37 +12,38 @@ import (
 )
 
 type config struct {
-	Type                         string   `json:"type"`
-	Host                         string   `json:"host"`
-	DialHost                     string   `json:"dialHost"`
-	Port                         int      `json:"port"`
-	Username                     string   `json:"username"`
-	Password                     string   `json:"password"`
-	AllowInvalidProxyCertificate bool     `json:"allowInvalidProxyCertificate"`
-	Profile                      string   `json:"profile"`
-	CustomJA3                    string   `json:"customJa3"`
-	DoHURL                       string   `json:"dohUrl"`
-	DoHFallbackURLs              []string `json:"dohFallbackUrls"`
-	AllowIPv6                    bool     `json:"allowIpv6"`
-	BypassLocalNetworks          bool     `json:"bypassLocalNetworks"`
-	PrivateKey                   string   `json:"privateKey"`
-	SSHProfile                   string   `json:"sshProfile"`
-	TrustedHostKey               string   `json:"trustedHostKey"`
-	AcceptAnyHostKey             bool     `json:"acceptAnyHostKey"`
-	JumpHost                     string   `json:"jumpHost"`
-	JumpDialHost                 string   `json:"jumpDialHost"`
-	JumpPort                     int      `json:"jumpPort"`
-	JumpUsername                 string   `json:"jumpUsername"`
-	JumpPassword                 string   `json:"jumpPassword"`
-	JumpPrivateKey               string   `json:"jumpPrivateKey"`
-	JumpTrustedHostKey           string   `json:"jumpTrustedHostKey"`
-	JumpAcceptAnyHostKey         bool     `json:"jumpAcceptAnyHostKey"`
-	SameJumpAuthentication       bool     `json:"sameJumpAuthentication"`
-	SSHAuthMode                  string   `json:"sshAuthMode"`
-	SSHKeepaliveSeconds          int      `json:"sshKeepaliveSeconds"`
-	SSHMaxChannels               int      `json:"sshMaxChannels"`
-	SSHRotationMinutes           int      `json:"sshRotationMinutes"`
-	SSHRotationMB                int      `json:"sshRotationMb"`
+	Type                             string   `json:"type"`
+	Host                             string   `json:"host"`
+	DialHost                         string   `json:"dialHost"`
+	Port                             int      `json:"port"`
+	Username                         string   `json:"username"`
+	Password                         string   `json:"password"`
+	AllowInvalidProxyCertificate     bool     `json:"allowInvalidProxyCertificate"`
+	Profile                          string   `json:"profile"`
+	CustomJA3                        string   `json:"customJa3"`
+	DoHURL                           string   `json:"dohUrl"`
+	DoHFallbackURLs                  []string `json:"dohFallbackUrls"`
+	AllowIPv6                        bool     `json:"allowIpv6"`
+	BypassLocalNetworks              bool     `json:"bypassLocalNetworks"`
+	PrivateKey                       string   `json:"privateKey"`
+	SSHProfile                       string   `json:"sshProfile"`
+	TrustedHostKey                   string   `json:"trustedHostKey"`
+	AcceptAnyHostKey                 bool     `json:"acceptAnyHostKey"`
+	JumpHost                         string   `json:"jumpHost"`
+	JumpDialHost                     string   `json:"jumpDialHost"`
+	JumpPort                         int      `json:"jumpPort"`
+	JumpUsername                     string   `json:"jumpUsername"`
+	JumpPassword                     string   `json:"jumpPassword"`
+	JumpPrivateKey                   string   `json:"jumpPrivateKey"`
+	JumpTrustedHostKey               string   `json:"jumpTrustedHostKey"`
+	JumpAllowInvalidProxyCertificate bool     `json:"jumpAllowInvalidProxyCertificate"`
+	JumpAcceptAnyHostKey             bool     `json:"jumpAcceptAnyHostKey"`
+	SameJumpAuthentication           bool     `json:"sameJumpAuthentication"`
+	SSHAuthMode                      string   `json:"sshAuthMode"`
+	SSHKeepaliveSeconds              int      `json:"sshKeepaliveSeconds"`
+	SSHMaxChannels                   int      `json:"sshMaxChannels"`
+	SSHRotationMinutes               int      `json:"sshRotationMinutes"`
+	SSHRotationMB                    int      `json:"sshRotationMb"`
 }
 
 func parseConfig(raw string) (config, error) {
@@ -58,19 +59,19 @@ func parseConfig(raw string) (config, error) {
 	if c.Host == "" || strings.ContainsAny(c.Host, "/: \t\r\n") {
 		return c, errors.New("invalid proxy hostname")
 	}
-	if net.ParseIP(c.DialHost) == nil {
+	if c.Type != "HTTPS_JUMP" && net.ParseIP(c.DialHost) == nil {
 		return c, errors.New("proxy bootstrap IP is missing or invalid")
 	}
 	if c.Port < 1 || c.Port > 65535 {
 		return c, errors.New("invalid proxy port")
 	}
-	if c.Type == "HTTPS" && (c.Username == "" || c.Password == "") {
+	if c.isHTTPS() && (c.Username == "" || c.Password == "") {
 		return c, errors.New("basic auth credentials are required")
 	}
-	if c.Type != "HTTPS" && c.Username == "" {
+	if !c.isHTTPS() && c.Username == "" {
 		return c, errors.New("SSH username is required")
 	}
-	if c.Type == "SSH_JUMP" {
+	if c.Type == "SSH_JUMP" || c.Type == "HTTPS_JUMP" {
 		if c.JumpHost == "" || strings.ContainsAny(c.JumpHost, "/: \t\r\n") {
 			return c, errors.New("invalid jump hostname")
 		}
@@ -82,6 +83,9 @@ func parseConfig(raw string) (config, error) {
 		}
 		if c.SameJumpAuthentication {
 			c.JumpUsername, c.JumpPassword, c.JumpPrivateKey = c.Username, c.Password, c.PrivateKey
+		}
+		if c.Type == "HTTPS_JUMP" && (c.JumpUsername == "" || c.JumpPassword == "") {
+			return c, errors.New("jump basic auth credentials are required")
 		}
 		if c.JumpUsername == "" {
 			return c, errors.New("jump SSH username is required")
@@ -95,12 +99,12 @@ func parseConfig(raw string) (config, error) {
 			return c, fmt.Errorf("invalid fallback DoH URL: %w", err)
 		}
 	}
-	if c.Type == "HTTPS" {
+	if c.isHTTPS() {
 		if _, err := c.helloID(); err != nil {
 			return c, err
 		}
 	}
-	if c.Type != "HTTPS" && c.Type != "SSH" && c.Type != "SSH_JUMP" {
+	if !c.isHTTPS() && c.Type != "SSH" && c.Type != "SSH_JUMP" {
 		return c, fmt.Errorf("unsupported proxy type %q", c.Type)
 	}
 	if c.SSHAuthMode == "" {
@@ -117,6 +121,8 @@ func parseConfig(raw string) (config, error) {
 	}
 	return c, nil
 }
+
+func (c config) isHTTPS() bool { return c.Type == "HTTPS" || c.Type == "HTTPS_JUMP" }
 
 func (c config) address() string { return net.JoinHostPort(c.DialHost, strconv.Itoa(c.Port)) }
 
