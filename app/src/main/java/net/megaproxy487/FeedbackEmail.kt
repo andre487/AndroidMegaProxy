@@ -17,7 +17,6 @@ import java.util.UUID
 
 object FeedbackEmail {
     private const val ADDRESS = "megaproxy-feedback@hotmail.com"
-    private const val SUBJECT = "[MegaProxy] Feedback"
 
     fun createIntent(
         context: Context,
@@ -35,23 +34,23 @@ object FeedbackEmail {
         }
         val versionName = packageInfo.versionName ?: "unknown"
         val body = buildString {
-            appendLine(if (crashReport) "Please describe what happened before the crash above this line." else "Please write your comments above this line.")
+            appendLine(if (crashReport) context.uiText(R.string.crash_instructions) else context.uiText(R.string.feedback_instructions))
             appendLine()
-            appendLine("--- Diagnostic information ---")
-            appendLine("Device: ${Build.MANUFACTURER} ${Build.MODEL}")
-            appendLine("Android: ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT})")
-            if (Build.VERSION.SECURITY_PATCH.isNotBlank()) appendLine("Security patch: ${Build.VERSION.SECURITY_PATCH}")
-            appendLine("App: $versionName ($versionCode)")
+            appendLine(context.uiText(R.string.feedback_diagnostics))
+            appendLine(context.uiText(R.string.feedback_device, Build.MANUFACTURER, Build.MODEL))
+            appendLine(context.uiText(R.string.feedback_android, Build.VERSION.RELEASE, Build.VERSION.SDK_INT))
+            if (Build.VERSION.SECURITY_PATCH.isNotBlank()) appendLine(context.uiText(R.string.feedback_patch, Build.VERSION.SECURITY_PATCH))
+            appendLine(context.uiText(R.string.feedback_app, versionName, versionCode))
             appendLine("ABI: ${Build.SUPPORTED_ABIS.firstOrNull() ?: "unknown"}")
-            appendLine("Connection: ${connection.name.lowercase()}")
-            appendLine("Always-on: $alwaysOn; lockdown: $lockdown")
-            appendLine("Routing: ${if (config.routeAllApps) "global" else "split"}; selected app count: ${config.selectedPackages.size}")
-            appendLine("HTTPS fingerprint: ${config.profile.name}")
-            appendLine("SSH fingerprint: ${config.sshProfile.name}")
-            appendLine("DoH provider: ${config.dnsProvider.name}")
-            appendLine("IPv6: ${config.allowIpv6}; bypass local networks: ${config.bypassLocalNetworks}")
-            appendLine("Proxy certificate verification: ${!config.allowInvalidProxyCertificate}")
-            appendLine("Privacy-filtered logs are attached.")
+            appendLine(context.uiText(R.string.feedback_connection, connection.name.lowercase()))
+            appendLine(context.uiText(R.string.feedback_always_on, alwaysOn, lockdown))
+            appendLine(context.uiText(R.string.feedback_routing, context.uiText(if (config.routeAllApps) R.string.feedback_routing_global else R.string.feedback_routing_split), config.selectedPackages.size))
+            appendLine(context.uiText(R.string.feedback_https, config.profile.name))
+            appendLine(context.uiText(R.string.feedback_ssh, config.sshProfile.name))
+            appendLine(context.uiText(R.string.feedback_dns, config.dnsProvider.name))
+            appendLine(context.uiText(R.string.feedback_ipv6, config.allowIpv6, config.bypassLocalNetworks))
+            appendLine(context.uiText(R.string.feedback_certificate, !config.allowInvalidProxyCertificate))
+            appendLine(context.uiText(R.string.feedback_logs))
         }
 
         val directory = File(context.cacheDir, "feedback").also { it.mkdirs() }
@@ -74,10 +73,10 @@ object FeedbackEmail {
         val sendIntent = Intent(Intent.ACTION_SEND).apply {
             type = "application/zip"
             putExtra(Intent.EXTRA_EMAIL, arrayOf(ADDRESS))
-            putExtra(Intent.EXTRA_SUBJECT, if (crashReport) "[MegaProxy] Crash" else SUBJECT)
+            putExtra(Intent.EXTRA_SUBJECT, context.uiText(if (crashReport) R.string.feedback_crash_subject else R.string.feedback_subject))
             putExtra(Intent.EXTRA_TEXT, body)
             putExtra(Intent.EXTRA_STREAM, logUri)
-            clipData = ClipData.newUri(context.contentResolver, "MegaProxy diagnostic log archive", logUri)
+            clipData = ClipData.newUri(context.contentResolver, context.uiText(R.string.feedback_archive), logUri)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
         val emailPackages = context.packageManager
@@ -89,8 +88,8 @@ object FeedbackEmail {
                 it.resolveActivity(context.packageManager) != null
             }
         }
-        if (targeted.isEmpty()) return Intent.createChooser(sendIntent, "Send feedback")
-        return Intent.createChooser(targeted.first(), "Send feedback").apply {
+        if (targeted.isEmpty()) return Intent.createChooser(sendIntent, context.uiText(R.string.feedback_send))
+        return Intent.createChooser(targeted.first(), context.uiText(R.string.feedback_send)).apply {
             if (targeted.size > 1) {
                 putExtra(Intent.EXTRA_INITIAL_INTENTS, targeted.drop(1).toTypedArray())
             }

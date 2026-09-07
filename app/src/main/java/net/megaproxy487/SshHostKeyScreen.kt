@@ -10,7 +10,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.PendingSshHostKey
 import net.megaproxy487.vpn.ProxyVpnService
@@ -27,8 +27,8 @@ internal fun SshHostKeyScreen(activity: Activity, prompt: PendingSshHostKey, onD
         onDismissRequest = ::reject,
         title = { DialogTitle(stringResource(if (prompt.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
         text = { ScrollableDialogText(buildString {
-            append(activity.getString(if (prompt.changed) R.string.ssh_changed_key_warning else R.string.ssh_first_connection_warning, prompt.hop))
-            append(activity.getString(R.string.ssh_key_details, prompt.algorithm, prompt.fingerprint))
+            append(activity.uiText(if (prompt.changed) R.string.ssh_changed_key_warning else R.string.ssh_first_connection_warning, activity.sshHopLabel(prompt.hop)))
+            append(activity.uiText(R.string.ssh_key_details, prompt.algorithm, prompt.fingerprint))
         }) },
         confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
             if (ConfigStore(activity).trustSshHostKey(prompt.profileId, prompt.hop, prompt.fingerprint)) {

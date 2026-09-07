@@ -79,7 +79,7 @@ import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -255,14 +255,14 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { it.write(content) }
-                        ?: error("Could not open the export file")
+                        ?: throw UiException(R.string.error_open_export)
                 }
             }
-            result.onSuccess { transferMessage = activity.getString(R.string.configuration_exported) }
+            result.onSuccess { transferMessage = activity.uiText(R.string.configuration_exported) }
                 .onFailure {
-                    importError = activity.getString(
+                    importError = activity.uiText(
                         R.string.configuration_export_failed,
-                        it.message ?: activity.getString(R.string.unknown_error),
+                        it.userMessage(activity, R.string.unknown_error),
                     )
                 }
         }
@@ -279,12 +279,12 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
             val imported = result.added + result.updated + result.unchanged
             val missingPasswords = imported.count { it.config.password.isEmpty() }
             val summary = listOfNotNull(
-                activity.getString(R.string.config_import_summary, result.added.size, result.updated.size, result.unchanged.size),
-                activity.getString(R.string.config_import_skipped, configuration.skippedProfiles)
+                activity.uiText(R.string.config_import_summary, result.added.size, result.updated.size, result.unchanged.size),
+                activity.uiText(R.string.config_import_skipped, configuration.skippedProfiles)
                     .takeIf { configuration.skippedProfiles > 0 },
-                activity.getString(R.string.config_import_missing_passwords, missingPasswords)
+                activity.uiText(R.string.config_import_missing_passwords, missingPasswords)
                     .takeIf { missingPasswords > 0 },
-                activity.getString(R.string.config_import_always_on_reconnect)
+                activity.uiText(R.string.config_import_always_on_reconnect)
                     .takeIf { ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning },
             ).joinToString(" ")
             if (result.missing.isEmpty()) {
@@ -355,7 +355,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
         if (uri != null) {
             runCatching {
                 val text = activity.contentResolver.openInputStream(uri)?.buffered()?.use { it.readConfigText() }
-                    ?: error("Could not read the selected file")
+                    ?: throw UiException(R.string.error_read_file)
                 val isJson = activity.contentResolver.getType(uri) == "application/json" ||
                     uri.lastPathSegment.orEmpty().substringAfterLast('.', "").equals("json", true) ||
                     text.trimStart().startsWith('{')
@@ -378,7 +378,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                         skippedNonHttps = imported.skippedNonHttps
                         showImportFilterNotice = imported.skippedNonHttps > 0
                         if (imported.skippedNonHttps == 0) {
-                            transferMessage = activity.getString(R.string.imported_foxyproxy, added.size)
+                            transferMessage = activity.uiText(R.string.imported_foxyproxy, added.size)
                         }
                     }
                 } else {
@@ -395,17 +395,17 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                     showImportFilterNotice = imported.skippedNonHttps > 0
                     if (imported.skippedNonHttps == 0) {
                         transferMessage = if (isSuperProxy) {
-                            activity.getString(R.string.imported_super_proxy, added.size)
+                            activity.uiText(R.string.imported_super_proxy, added.size)
                         } else {
-                            activity.getString(R.string.imported_https_profiles, added.size)
+                            activity.uiText(R.string.imported_https_profiles, added.size)
                         }
                     }
                 }
                 importError = null
             }.onFailure {
-                importError = activity.getString(
+                importError = activity.uiText(
                     R.string.configuration_import_failed,
-                    it.message ?: activity.getString(R.string.unknown_error),
+                    it.userMessage(activity, R.string.error_invalid_input),
                 )
             }
         }
@@ -509,10 +509,10 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                         .semantics {
                             customActions = buildList {
                                 if (profiles.firstOrNull()?.id != profile.id) {
-                                    add(CustomAccessibilityAction(activity.getString(R.string.move_up)) { moveProfile(profile.id, -1) })
+                                    add(CustomAccessibilityAction(activity.uiText(R.string.move_up)) { moveProfile(profile.id, -1) })
                                 }
                                 if (profiles.lastOrNull()?.id != profile.id) {
-                                    add(CustomAccessibilityAction(activity.getString(R.string.move_down)) { moveProfile(profile.id, 1) })
+                                    add(CustomAccessibilityAction(activity.uiText(R.string.move_down)) { moveProfile(profile.id, 1) })
                                 }
                             }
                         },
@@ -536,7 +536,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
         AlertDialog(
             onDismissRequest = { deleteProfile = null },
             title = { DialogTitle(stringResource(R.string.delete_profile_confirmation)) },
-            text = { ScrollableDialogText(profile.displayName + "\n\n" + stringResource(R.string.delete_profile_message)) },
+            text = { ScrollableDialogText(profile.localizedName(activity) + "\n\n" + stringResource(R.string.delete_profile_message)) },
             confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 deleteProfile = null
                 scope.launch {
@@ -646,7 +646,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                 verticalAlignment = Alignment.Top,
                             ) {
                                 Column(Modifier.padding(top = 10.dp)) {
-                                    Text(item.profile.displayName, style = MaterialTheme.typography.titleSmall)
+                                    Text(item.profile.localizedName(activity), style = MaterialTheme.typography.titleSmall)
                                     item.changedGroups.forEach { group ->
                                         val key = importOptionKey(item.profile.id, group)
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -735,7 +735,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                     },
                                 )
                                 Column(Modifier.weight(1f)) {
-                                    Text(profile.displayName)
+                                    Text(profile.localizedName(activity))
                                     Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
@@ -760,7 +760,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                             refresh()
                             if (reconnect) ProxyVpnService.reconnect(activity)
                             transferMessage = review.importSummary + " " +
-                                activity.getString(R.string.config_import_removed, selected.size)
+                                activity.uiText(R.string.config_import_removed, selected.size)
                         }
                     },
                 ) { Text(stringResource(R.string.remove_selected)) }
@@ -784,6 +784,7 @@ private fun ProfileCard(
     onClone: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val activity = androidx.compose.ui.platform.LocalContext.current
     val background = Color(ProfileColors.argb[Math.floorMod(profile.colorIndex, ProfileColors.argb.size)])
     val foreground = if (background.luminance() > 0.45f) Color.Black else Color.White
     Card(
@@ -802,7 +803,7 @@ private fun ProfileCard(
                             ) { Text(profile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
                         }
                         Column(Modifier.weight(1f)) {
-                            Text(profile.displayName, style = MaterialTheme.typography.titleMedium)
+                            Text(profile.localizedName(activity), style = MaterialTheme.typography.titleMedium)
                             Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
                         }
                     }

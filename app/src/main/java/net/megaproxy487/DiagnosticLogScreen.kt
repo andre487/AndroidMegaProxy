@@ -52,7 +52,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
@@ -90,10 +90,10 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
                     withContext(Dispatchers.IO) {
                         activity.contentResolver.openOutputStream(uri, "wt")?.buffered()?.use {
                             PersistentDiagnosticLog.copyTo(it)
-                        } ?: error("Could not open the export file")
+                        } ?: throw UiException(R.string.error_open_export)
                     }
-                }.onSuccess { message = activity.getString(R.string.diagnostic_log_exported) }
-                    .onFailure { message = it.message ?: "Could not export the diagnostic log" }
+                }.onSuccess { message = activity.uiText(R.string.diagnostic_log_exported) }
+                    .onFailure { message = it.userMessage(activity, R.string.log_export_failed) }
             }
         }
     }
@@ -166,8 +166,8 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
                 }
                 Text(
                     buildString {
-                        append(if (autoScroll) "Auto-scroll on" else "Auto-scroll paused · scroll to the bottom to resume")
-                        append(" · showing the latest 512 KB")
+                        append(if (autoScroll) activity.uiText(R.string.log_auto_scroll_on) else activity.uiText(R.string.log_auto_scroll_paused))
+                        append(activity.uiText(R.string.log_latest))
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

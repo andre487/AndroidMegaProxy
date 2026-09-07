@@ -1,5 +1,9 @@
 package net.megaproxy487.data
 
+import net.megaproxy487.R
+import net.megaproxy487.UiException
+import net.megaproxy487.requireUi
+
 import net.megaproxy487.model.ProxyConfig
 import java.net.URI
 import java.net.URLDecoder
@@ -14,11 +18,11 @@ object ProxyListParser {
             .filter { it.isNotEmpty() && !it.startsWith("#") }
             .take(MAX_IMPORTED_PROFILES + 1)
             .toList()
-        require(lines.isNotEmpty()) { "The proxy list is empty" }
-        require(lines.size <= MAX_IMPORTED_PROFILES) { "The proxy list contains more than $MAX_IMPORTED_PROFILES entries" }
+        requireUi(lines.isNotEmpty()) { UiException(R.string.error_proxy_empty) }
+        requireUi(lines.size <= MAX_IMPORTED_PROFILES) { UiException(R.string.error_proxy_many, MAX_IMPORTED_PROFILES) }
         var skippedNonHttps = 0
         val proxies = lines.mapIndexedNotNull { index, line ->
-            val uri = runCatching { URI(line) }.getOrElse { error("Line ${index + 1} is not a valid URI") }
+            val uri = runCatching { URI(line) }.getOrElse { throw UiException(R.string.error_proxy_uri, index + 1) }
             if (!uri.scheme.equals("https", ignoreCase = true)) {
                 skippedNonHttps++
                 null
@@ -30,15 +34,15 @@ object ProxyListParser {
     }
 
     private fun parseLine(uri: URI, lineNumber: Int): ImportedProxy {
-        require(uri.toString().length <= 64 * 1024) { "Line $lineNumber is too long" }
-        val host = uri.host?.takeIf(String::isNotBlank) ?: error("Line $lineNumber has no proxy host")
-        val userInfo = uri.rawUserInfo ?: error("Line $lineNumber has no Basic Auth credentials")
+        requireUi(uri.toString().length <= 64 * 1024) { UiException(R.string.error_proxy_long, lineNumber) }
+        val host = uri.host?.takeIf(String::isNotBlank) ?: throw UiException(R.string.error_proxy_host, lineNumber)
+        val userInfo = uri.rawUserInfo ?: throw UiException(R.string.error_proxy_auth, lineNumber)
         val separator = userInfo.indexOf(':')
-        require(separator >= 0) { "Line $lineNumber has no Basic Auth password" }
+        requireUi(separator >= 0) { UiException(R.string.error_proxy_password, lineNumber) }
         val username = decodeUriComponent(userInfo.substring(0, separator))
         val password = decodeUriComponent(userInfo.substring(separator + 1))
-        require(username.length <= 4_096) { "Line $lineNumber has an excessively long username" }
-        require(password.length <= 16_384) { "Line $lineNumber has an excessively long password" }
+        requireUi(username.length <= 4_096) { UiException(R.string.error_proxy_user_long, lineNumber) }
+        requireUi(password.length <= 16_384) { UiException(R.string.error_proxy_password_long, lineNumber) }
         val query = parseQuery(uri.rawQuery)
         return ImportedProxy(
             name = query["title"].orEmpty(),
@@ -55,7 +59,7 @@ object ProxyListParser {
 
     private fun parseQuery(rawQuery: String?): Map<String, String> = rawQuery.orEmpty()
         .splitToSequence('&').filter(String::isNotEmpty).take(101).toList().also {
-            require(it.size <= 100) { "A proxy URL contains too many query parameters" }
+            requireUi(it.size <= 100) { UiException(R.string.error_proxy_query) }
         }.associate { pair ->
             val separator = pair.indexOf('=')
             if (separator < 0) decode(pair) to ""

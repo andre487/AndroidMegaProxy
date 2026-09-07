@@ -42,7 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import net.megaproxy487.ui.theme.MegaProxyTheme
 import net.megaproxy487.data.ConfigStore
 import java.net.NetworkInterface
@@ -192,23 +192,23 @@ private fun buildVisibilityReport(context: Context): VisibilityReport {
             splitTunneling -> VisibilityState.SELECTED_APPS_ONLY
             else -> VisibilityState.DETECTED
         },
-        if (detected && splitTunneling) context.getString(R.string.excluded_apps_underlying_network, yes) else if (detected) yes else no,
+        if (detected && splitTunneling) context.uiText(R.string.excluded_apps_underlying_network, yes) else if (detected) yes else no,
     )
 
     return VisibilityReport(
         global = listOf(
-            check(context.getString(R.string.system_proxy_properties), systemProxyVisible, context.getString(R.string.system_proxy_yes), context.getString(R.string.system_proxy_no)),
-            check(context.getString(R.string.vpn_interface_name), vpnInterfaces.isNotEmpty(), context.getString(R.string.vpn_interface_yes), context.getString(R.string.vpn_interface_no)),
-            check(context.getString(R.string.unusual_vpn_mtu), unusualMtu.isNotEmpty(), context.getString(R.string.unusual_vpn_mtu_yes), context.getString(R.string.unusual_vpn_mtu_no)),
-            VisibilityCheck(context.getString(R.string.local_mitm_certificate), VisibilityState.NOT_DETECTED, context.getString(R.string.local_mitm_certificate_detail)),
+            check(context.uiText(R.string.system_proxy_properties), systemProxyVisible, context.uiText(R.string.system_proxy_yes), context.uiText(R.string.system_proxy_no)),
+            check(context.uiText(R.string.vpn_interface_name), vpnInterfaces.isNotEmpty(), context.uiText(R.string.vpn_interface_yes), context.uiText(R.string.vpn_interface_no)),
+            check(context.uiText(R.string.unusual_vpn_mtu), unusualMtu.isNotEmpty(), context.uiText(R.string.unusual_vpn_mtu_yes), context.uiText(R.string.unusual_vpn_mtu_no)),
+            VisibilityCheck(context.uiText(R.string.local_mitm_certificate), VisibilityState.NOT_DETECTED, context.uiText(R.string.local_mitm_certificate_detail)),
         ),
         selectedApps = listOf(
-            vpnCheck(context.getString(R.string.vpn_transport), vpnTransportVisible, context.getString(R.string.vpn_transport_yes), context.getString(R.string.vpn_transport_no)),
-            vpnCheck(context.getString(R.string.vpn_transport_information), vpnInfoVisible, context.getString(R.string.vpn_info_yes), context.getString(R.string.vpn_info_no)),
-            vpnCheck(context.getString(R.string.not_vpn_capability), vpnWithoutNotVpn, context.getString(R.string.not_vpn_yes), context.getString(R.string.not_vpn_no)),
-            vpnCheck(context.getString(R.string.vpn_link_proxy), linkProxyVisible, context.getString(R.string.vpn_link_proxy_yes), context.getString(R.string.vpn_link_proxy_no)),
-            vpnCheck(context.getString(R.string.virtual_default_route), virtualDefaultRoute, context.getString(R.string.virtual_route_yes), context.getString(R.string.virtual_route_no)),
-            vpnCheck(context.getString(R.string.virtual_dns_address), virtualDns, context.getString(R.string.virtual_dns_yes), context.getString(R.string.virtual_dns_no)),
+            vpnCheck(context.uiText(R.string.vpn_transport), vpnTransportVisible, context.uiText(R.string.vpn_transport_yes), context.uiText(R.string.vpn_transport_no)),
+            vpnCheck(context.uiText(R.string.vpn_transport_information), vpnInfoVisible, context.uiText(R.string.vpn_info_yes), context.uiText(R.string.vpn_info_no)),
+            vpnCheck(context.uiText(R.string.not_vpn_capability), vpnWithoutNotVpn, context.uiText(R.string.not_vpn_yes), context.uiText(R.string.not_vpn_no)),
+            vpnCheck(context.uiText(R.string.vpn_link_proxy), linkProxyVisible, context.uiText(R.string.vpn_link_proxy_yes), context.uiText(R.string.vpn_link_proxy_no)),
+            vpnCheck(context.uiText(R.string.virtual_default_route), virtualDefaultRoute, context.uiText(R.string.virtual_route_yes), context.uiText(R.string.virtual_route_no)),
+            vpnCheck(context.uiText(R.string.virtual_dns_address), virtualDns, context.uiText(R.string.virtual_dns_yes), context.uiText(R.string.virtual_dns_no)),
         ),
         splitTunneling = splitTunneling,
     )

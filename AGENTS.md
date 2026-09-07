@@ -45,7 +45,8 @@ branch names, credentials, signing material, or other secrets.
 ## Product and UI conventions
 
 - All user-visible UI text must use Android string resources and be supplied in both the default
-  English resources and Russian resources. Do not localize standardized data-unit symbols.
+  English resources and Russian resources. The app language selects UI words; number, date and
+  other data formatting follows the system locale. Do not localize standardized data-unit symbols.
 - Traffic totals and rates share the selected unit system. IEC is the default and uses powers of
   1024 with Latin symbols (`KiB`, `MiB`, `GiB`, `TiB`, `PiB`); users can select SI powers of 1000
   with Latin symbols (`KB`, `MB`, `GB`, `TB`, `PB`).

@@ -1,5 +1,10 @@
 package net.megaproxy487.vpn
 
+import net.megaproxy487.R
+import net.megaproxy487.titleRes
+import net.megaproxy487.uiText
+import net.megaproxy487.localizedName
+
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
@@ -83,7 +88,7 @@ class ProxyVpnService : VpnService() {
                 updatePassiveHealthState()
                 getSystemService(NotificationManager::class.java).notify(
                     NOTIFICATION_ID,
-                    notification(failoverNotice ?: retryStatus ?: VpnRuntimeState.networkWarning.value ?: if (isRunning) "Connected" else "Reconnecting…"),
+                    notification(failoverNotice ?: retryStatus ?: VpnRuntimeState.networkWarning.value ?: if (isRunning) this@ProxyVpnService.uiText(R.string.status_connected) else this@ProxyVpnService.uiText(R.string.status_reconnecting)),
                 )
                 val retryDue = SystemClock.elapsedRealtime() >= nextStartAttemptAt
                 if (retryDue && tunnel == null && hostKeyPrompt == null && !connectionBlockedForAction && !testRunning.get() && startRunning.compareAndSet(false, true)) {
@@ -166,7 +171,7 @@ class ProxyVpnService : VpnService() {
             probableFailureCounts.clear(); probableFailureTimes.clear(); attemptedFailoverProfiles.clear()
             VpnRuntimeState.updateNetworkWarning(null)
             DiagnosticLog.add("event=vpn_reconnect reason=${intent.getStringExtra(EXTRA_RECONNECT_REASON) ?: "settings_changed"}")
-            startForeground(NOTIFICATION_ID, notification("Reconnecting…"))
+            startForeground(NOTIFICATION_ID, notification(this@ProxyVpnService.uiText(R.string.status_reconnecting)))
             stopTunnel(removeForeground = false)
             val generation = startGeneration.get()
             ConfigStore(this).setConnectionDesired(true)
@@ -196,7 +201,7 @@ class ProxyVpnService : VpnService() {
             }
             hostKeyPrompt = null
             SshHostKeyPromptState.clear()
-            startForeground(NOTIFICATION_ID, notification("Testing connection…"))
+            startForeground(NOTIFICATION_ID, notification(this@ProxyVpnService.uiText(R.string.status_testing_connection)))
             TestDiagnosticLog.begin()
             thread(name = "megaproxy-connection-test") {
                 try {
@@ -210,7 +215,7 @@ class ProxyVpnService : VpnService() {
             }
             return START_NOT_STICKY
         }
-        startForeground(NOTIFICATION_ID, notification("Connecting…"))
+        startForeground(NOTIFICATION_ID, notification(this@ProxyVpnService.uiText(R.string.status_connecting_progress)))
         if (tunnel == null && startRunning.compareAndSet(false, true)) {
             val generation = startGeneration.get()
             VpnRuntimeState.update(VpnConnectionState.CONNECTING)
@@ -241,7 +246,7 @@ class ProxyVpnService : VpnService() {
 
     private fun testConnection() {
         val storedConfig = ConfigStore(this).globalConnectionSettings().applyTo(ConfigStore(this).activeProfile().config)
-        storedConfig.connectionValidationError()?.let { getString(it) }?.let {
+        storedConfig.connectionValidationError()?.let { uiText(it) }?.let {
             TestDiagnosticLog.fail("Connection test cannot start: $it")
             if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
             return
@@ -261,7 +266,7 @@ class ProxyVpnService : VpnService() {
         }
         val result = NativeProxyCore(this, TestDiagnosticLog::add).test(config) { message ->
             configureHostKeyPrompt(message, ConfigStore(this).activeProfileId(), true)
-            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
+            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
         }
         if (result != null) TestDiagnosticLog.succeed(result.exitIp, result.countryCode) else TestDiagnosticLog.fail()
         if (temporaryVpn) {
@@ -287,12 +292,12 @@ class ProxyVpnService : VpnService() {
             else if (storedConfig.routeAllApps) "event=vpn_start mode=global"
             else "event=vpn_start mode=split selected_app_count=${storedConfig.selectedPackages.size}"
         )
-        val validationError = if (testOnly) storedConfig.connectionValidationError()?.let { getString(it) } else storedConfig.validationError()?.let { getString(it) }
+        val validationError = if (testOnly) storedConfig.connectionValidationError()?.let { uiText(it) } else storedConfig.validationError()?.let { uiText(it) }
         validationError?.let {
             if (testOnly) TestDiagnosticLog.fail(it) else {
                 val notice = if (isAlwaysOnMode)
-                    "VPN configuration requires attention. Fix it in MegaProxy, then reconnect from Android Always-on VPN settings."
-                else "VPN configuration requires attention. Open MegaProxy settings."
+                    this@ProxyVpnService.uiText(R.string.vpn_config_always_on)
+                else this@ProxyVpnService.uiText(R.string.vpn_config_attention)
                 VpnRuntimeState.updateNetworkWarning(notice)
                 if (isAlwaysOnMode) {
                     connectionBlockedForAction = true
@@ -350,7 +355,7 @@ class ProxyVpnService : VpnService() {
             }
             return proxyCore.resolveProxy(host) { message ->
                 failureDetail = message
-                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
+                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
             }?.also { addressCache.put(host, it) }
         }
         val proxyIp = if (storedConfig.type == net.megaproxy487.model.ProxyType.HTTPS_JUMP) "" else resolveHost(storedConfig.host, "proxy") ?: run {
@@ -376,7 +381,7 @@ class ProxyVpnService : VpnService() {
                 failureDetail = message
                 configureHostKeyPrompt(message, promptProfileId, testOnly)
                 if (!testOnly && "dpi_hint=possible" in message) monitorHandler.post { handleRuntimeDiagnostic(promptProfileId, message) }
-                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(message))
+                getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
             }
         if (!started) {
             establishedTunnel.close()
@@ -420,7 +425,7 @@ class ProxyVpnService : VpnService() {
             TestDiagnosticLog.fail(message)
             if (hostKeyPrompt != null) {
                 getSystemService(NotificationManager::class.java).notify(
-                    NOTIFICATION_ID, notification("SSH host key approval required"),
+                    NOTIFICATION_ID, notification(this@ProxyVpnService.uiText(R.string.ssh_key_approval)),
                 )
             } else {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -435,8 +440,8 @@ class ProxyVpnService : VpnService() {
             }
             if (signal == null && requiresUserAction(detail)) {
                 val notice = if (isAlwaysOnMode)
-                    "VPN connection requires attention. Check authentication, certificate, or SSH host-key settings, then reconnect Always-on VPN."
-                else "VPN connection requires attention. Check authentication, certificate, or SSH host-key settings."
+                    this@ProxyVpnService.uiText(R.string.vpn_auth_always_on)
+                else this@ProxyVpnService.uiText(R.string.vpn_auth_attention)
                 VpnRuntimeState.updateNetworkWarning(notice)
                 if (isAlwaysOnMode) {
                     connectionBlockedForAction = true
@@ -453,7 +458,7 @@ class ProxyVpnService : VpnService() {
             val failureStage = connectionFailureStage(detail)
             consecutiveStartFailures++
             if (!isAlwaysOnMode && consecutiveStartFailures >= MAX_MANUAL_START_FAILURES) {
-                val notice = "$failureStage Connection stopped after $consecutiveStartFailures failed attempts."
+                val notice = this@ProxyVpnService.uiText(R.string.vpn_retries_stopped, failureStage, consecutiveStartFailures)
                 DiagnosticLog.add("event=vpn_retry result=exhausted attempts=$consecutiveStartFailures stage=${failureStageToken(detail)}")
                 retryStatus = null
                 ConfigStore(this).setConnectionDesired(false)
@@ -466,7 +471,7 @@ class ProxyVpnService : VpnService() {
             }
             val delay = retryDelayMs(consecutiveStartFailures)
             nextStartAttemptAt = SystemClock.elapsedRealtime() + delay
-            retryStatus = "$failureStage Retrying in ${delay / 1_000}s (attempt ${consecutiveStartFailures + 1})."
+            retryStatus = this@ProxyVpnService.uiText(R.string.vpn_retry_delay, failureStage, delay / 1_000, consecutiveStartFailures + 1)
             DiagnosticLog.add("event=vpn_retry result=scheduled attempt=${consecutiveStartFailures + 1} delay_ms=$delay stage=${failureStageToken(detail)}")
             VpnRuntimeState.update(VpnConnectionState.CONNECTING)
             getSystemService(NotificationManager::class.java).notify(
@@ -487,12 +492,12 @@ class ProxyVpnService : VpnService() {
     }
 
     private fun connectionFailureStage(detail: String): String = when {
-        "SSH jump handshake" in detail -> "Jump host SSH handshake failed."
-        "SSH destination handshake" in detail -> "Destination SSH handshake failed."
-        "jump host could not reach" in detail -> "Jump host could not reach the destination."
-        "dial jump host" in detail -> "Could not connect to the jump host."
-        "VPN interface could not be established" in detail -> "Android could not create the VPN interface."
-        else -> "Connection failed."
+        "SSH jump handshake" in detail -> this@ProxyVpnService.uiText(R.string.vpn_jump_handshake)
+        "SSH destination handshake" in detail -> this@ProxyVpnService.uiText(R.string.vpn_destination_handshake)
+        "jump host could not reach" in detail -> this@ProxyVpnService.uiText(R.string.vpn_jump_unreachable)
+        "dial jump host" in detail -> this@ProxyVpnService.uiText(R.string.vpn_jump_connect)
+        "VPN interface could not be established" in detail -> this@ProxyVpnService.uiText(R.string.vpn_interface_failed)
+        else -> this@ProxyVpnService.uiText(R.string.vpn_connection_failed)
     }
 
     private fun failureStageToken(detail: String): String = when {
@@ -516,7 +521,7 @@ class ProxyVpnService : VpnService() {
     private fun handleProbableBlocking(profileId: String, signal: BlockingSignal) {
         val store = ConfigStore(this)
         val settings = store.globalConnectionSettings()
-        val warning = "Proxy probably blocked (${signal.name.lowercase().replace('_', ' ')})."
+        val warning = uiText(R.string.vpn_probably_blocked, uiText(signal.titleRes))
         VpnRuntimeState.updateNetworkWarning(warning)
         // DNS failover may move a hostname away from a filtered or stale address. Give
         // the current profile one fresh resolution attempt before changing exit IP or
@@ -528,7 +533,7 @@ class ProxyVpnService : VpnService() {
                     if (profile.type.hasJump) remove(profile.jumpHost)
                 }
             }
-            val notice = "$warning Retrying this profile with fresh encrypted DNS before failover."
+            val notice = this@ProxyVpnService.uiText(R.string.vpn_refresh_dns, warning)
             VpnRuntimeState.updateNetworkWarning(notice)
             DiagnosticLog.add("event=blocking_recovery action=refresh_dns profile_type=${store.profile(profileId)?.config?.type?.name?.lowercase() ?: "unknown"}")
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
@@ -536,7 +541,7 @@ class ProxyVpnService : VpnService() {
             return
         }
         if (settings.failoverMode == FailoverMode.DISABLED) {
-            val notice = "$warning Failover is disabled; the connection may remain unavailable."
+            val notice = this@ProxyVpnService.uiText(R.string.vpn_failover_disabled, warning)
             VpnRuntimeState.updateNetworkWarning(notice)
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
             return
@@ -551,7 +556,7 @@ class ProxyVpnService : VpnService() {
             else -> emptyList()
         }.filter { it.id != profileId && it.id !in attemptedFailoverProfiles }
         val next = candidates.firstOrNull() ?: run {
-            val notice = "$warning No eligible fallback profile remains."
+            val notice = this@ProxyVpnService.uiText(R.string.vpn_failover_empty, warning)
             failoverNotice = notice
             store.setFailoverState(false, notice)
             VpnRuntimeState.updateNetworkWarning(notice)
@@ -561,7 +566,7 @@ class ProxyVpnService : VpnService() {
         attemptedFailoverProfiles += next.id
         resetRetryState()
         store.setConnectionProfile(next.id)
-        val notice = "Failover active: switched to ${next.displayName}. Location and exit IP may have changed."
+        val notice = this@ProxyVpnService.uiText(R.string.vpn_failover_active, next.localizedName(this))
         failoverNotice = notice
         store.setFailoverState(true, notice)
         VpnRuntimeState.updateNetworkWarning(notice)
@@ -620,7 +625,7 @@ class ProxyVpnService : VpnService() {
             }
             newConnectionOutcomes && stats.connectionSamples >= 3 && stats.connectionErrorRate >= 0.75 && !healthWarningActive -> {
                 healthWarningActive = true
-                val warning = "Connection is degraded: most recent proxy connections failed."
+                val warning = this@ProxyVpnService.uiText(R.string.vpn_degraded)
                 VpnRuntimeState.updateNetworkWarning(warning)
                 DiagnosticLog.add("event=connection_health state=degraded error_rate_percent=${(stats.connectionErrorRate * 100).toInt()} samples=${stats.connectionSamples}")
             }
@@ -657,7 +662,7 @@ class ProxyVpnService : VpnService() {
             }
             if (validated == null) {
                 if (captive) {
-                    val warning = "Wi-Fi sign-in is required before the VPN can reconnect."
+                    val warning = this@ProxyVpnService.uiText(R.string.vpn_wifi_login)
                     VpnRuntimeState.updateNetworkWarning(warning)
                     getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(warning))
                     DiagnosticLog.add("event=network state=captive_portal")
@@ -727,7 +732,7 @@ class ProxyVpnService : VpnService() {
 
     private fun createChannel() {
         val channel = NotificationChannel(CHANNEL_ID, "VPN", NotificationManager.IMPORTANCE_LOW).apply {
-            description = "Persistent VPN status"
+            description = this@ProxyVpnService.uiText(R.string.vpn_channel_description)
             setShowBadge(false)
         }
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
@@ -763,12 +768,12 @@ class ProxyVpnService : VpnService() {
 
     private fun notification(text: String) = NotificationCompat.Builder(this, CHANNEL_ID)
         .setSmallIcon(net.megaproxy487.R.drawable.ic_vpn_notification)
-        .setContentTitle(getString(net.megaproxy487.R.string.megaproxy_active))
+        .setContentTitle(uiText(R.string.megaproxy_active))
         .setContentText(text)
         .setOngoing(true)
         .setCategory(NotificationCompat.CATEGORY_SERVICE)
         .setContentIntent(hostKeyPrompt ?: PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
-        .also { builder -> hostKeyPrompt?.let { builder.addAction(0, getString(net.megaproxy487.R.string.review_ssh_key), it) } }
+        .also { builder -> hostKeyPrompt?.let { builder.addAction(0, uiText(R.string.review_ssh_key), it) } }
         .build()
 
     companion object {

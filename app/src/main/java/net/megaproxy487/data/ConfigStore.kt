@@ -1,5 +1,8 @@
 package net.megaproxy487.data
 
+import net.megaproxy487.uiText
+import net.megaproxy487.localizedName
+
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -32,6 +35,7 @@ data class ConfigurationImportResult(
 )
 
 class ConfigStore(context: Context) {
+    private val context = context.applicationContext
     private val prefs = context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE)
 
     @Synchronized
@@ -206,7 +210,7 @@ class ConfigStore(context: Context) {
         val source = existing[sourceIndex]
         val clone = source.copy(
             id = UUID.randomUUID().toString(),
-            name = "${source.displayName} copy",
+            name = context.uiText(net.megaproxy487.R.string.profile_copy, source.localizedName(context)),
         )
         writeProfiles(existing.toMutableList().apply { add(sourceIndex + 1, clone) })
         return clone

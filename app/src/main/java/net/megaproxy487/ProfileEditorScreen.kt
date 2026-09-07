@@ -57,7 +57,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
@@ -101,8 +101,8 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     var connectionChangeDeferred by remember { mutableStateOf(false) }
     val countries = remember {
         Locale.getISOCountries().map { code ->
-            code to Locale.Builder().setRegion(code).build().getDisplayCountry(Locale.getDefault())
-        }.sortedBy { it.second.lowercase(Locale.getDefault()) }
+            code to Locale.Builder().setRegion(code).build().getDisplayCountry(systemFormattingLocale())
+        }.sortedBy { it.second.lowercase(systemFormattingLocale()) }
     }
 
     val globalSettings = remember { store.globalConnectionSettings() }
@@ -119,7 +119,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
         config = updated
         profile = profile.copy(config = updated)
         saveProfile()
-        error = globalSettings.applyTo(updated).connectionValidationError()?.let { activity.getString(it) }
+        error = globalSettings.applyTo(updated).connectionValidationError()?.let { activity.uiText(it) }
         if (ProxyVpnService.isRunning && profile.id == editedConnectionProfileId) {
             coroutineScope.launch(ConfigIoDispatcher) { store.markPendingReconnect() }
         }
@@ -137,14 +137,14 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             val result = runCatching {
                 withContext(Dispatchers.IO) {
                     activity.contentResolver.openInputStream(uri)?.use { it.readPrivateKeyText() }
-                        ?: throw IllegalArgumentException("Unable to open the selected file")
+                        ?: throw UiException(R.string.error_open_file)
                 }
             }
             result.onSuccess { imported ->
                 updateConfig(if (jump) config.copy(jumpPrivateKey = imported) else config.copy(privateKey = imported))
                 error = null
             }.onFailure { failure ->
-                error = failure.message ?: "Unable to import the private key"
+                error = failure.userMessage(activity, R.string.key_import_failed)
             }
         }
     }
@@ -158,7 +158,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { ScreenTitle(profile.displayName) },
+                title = { ScreenTitle(profile.localizedName(activity)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -186,7 +186,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 OutlinedTextField(
                     profile.countryCode.takeIf(String::isNotEmpty)?.let { code ->
                         "${profile.flagEmoji} ${countries.firstOrNull { it.first == code }?.second ?: code}"
-                    } ?: "No flag",
+                    } ?: activity.uiText(R.string.no_flag),
                     {}, readOnly = true, label = { FieldLabel(stringResource(R.string.country_flag)) },
                     trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(countryExpanded) },
                     modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
@@ -217,9 +217,9 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
           }
           item {
             ExposedDropdownMenuBox(typeExpanded, { typeExpanded = it }) {
-                OutlinedTextField(if (config.type == ProxyType.HTTPS_JUMP) stringResource(R.string.https_with_jump) else config.type.title, {}, readOnly = true, label = { FieldLabel(stringResource(R.string.profile_type)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                OutlinedTextField(activity.uiText(config.type.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.profile_type)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
                 DropdownMenu(typeExpanded, { typeExpanded = false }) {
-                    ProxyType.entries.forEach { type -> DropdownMenuItem(text = { Text(if (type == ProxyType.HTTPS_JUMP) stringResource(R.string.https_with_jump) else type.title) }, onClick = {
+                    ProxyType.entries.forEach { type -> DropdownMenuItem(text = { Text(activity.uiText(type.titleRes)) }, onClick = {
                         updateConfig(config.copy(type = type, port = type.defaultPort, jumpPort = if (type.hasJump && (!config.type.hasJump || type.isHttps != config.type.isHttps)) type.defaultPort else config.jumpPort))
                         portText = type.defaultPort.toString()
                         if (type.hasJump) jumpPortText = config.jumpPort.toString()
@@ -235,7 +235,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             OutlinedTextField(portText, { value ->
                 portText = value
                 val port = value.toIntOrNull()
-                if (port == null) error = activity.getString(R.string.validation_port)
+                if (port == null) error = activity.uiText(R.string.validation_port)
                 else updateConfig(config.copy(port = port))
             }, label = { FieldLabel(stringResource(R.string.port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
@@ -269,14 +269,14 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 if (config.password.isBlank() && config.privateKey.isBlank()) {
                   item {
                     Text(
-                        "No SSH password or private key is configured. Connection will only work if the server permits authentication without credentials.",
+                        activity.uiText(R.string.ssh_no_credentials),
                         color = MaterialTheme.colorScheme.tertiary,
                         style = MaterialTheme.typography.bodySmall,
                     )
                   }
                 }
               item {
-                SettingCheckboxRow(config.acceptAnyHostKey, "Accept any destination host key", "Unsafe: disables SSH server identity verification.") { checked ->
+                SettingCheckboxRow(config.acceptAnyHostKey, activity.uiText(R.string.ssh_accept_destination), activity.uiText(R.string.ssh_accept_destination_help)) { checked ->
                     if (checked) unsafeHostKeyHop = "destination" else updateConfig(config.copy(acceptAnyHostKey = false))
                 }
               }
@@ -338,7 +338,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 }, label = { FieldLabel(stringResource(R.string.jump_port)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
               }
               item {
-                SettingCheckboxRow(config.sameJumpAuthentication, "Use the same authentication", "Reuse destination username, password and private key.") {
+                SettingCheckboxRow(config.sameJumpAuthentication, activity.uiText(R.string.ssh_same_auth), activity.uiText(R.string.ssh_same_auth_help)) {
                     updateConfig(config.copy(sameJumpAuthentication = it))
                 }
               }
@@ -361,7 +361,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                     if (config.jumpPassword.isBlank() && config.jumpPrivateKey.isBlank()) {
                       item {
                         Text(
-                            "No jump password or private key is configured. Connection will only work if the jump server permits authentication without credentials.",
+                            activity.uiText(R.string.ssh_jump_no_credentials),
                             color = MaterialTheme.colorScheme.tertiary,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -369,7 +369,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                     }
                 }
               item {
-                SettingCheckboxRow(config.jumpAcceptAnyHostKey, "Accept any jump host key", "Unsafe: disables jump host identity verification.") { checked ->
+                SettingCheckboxRow(config.jumpAcceptAnyHostKey, activity.uiText(R.string.ssh_accept_jump), activity.uiText(R.string.ssh_accept_jump_help)) { checked ->
                     if (checked) unsafeHostKeyHop = "jump" else updateConfig(config.copy(jumpAcceptAnyHostKey = false))
                 }
               }
@@ -377,7 +377,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             }
 
           item {
-            SettingCheckboxRow(config.allowIpv6, "Enable IPv6 destinations", "Enable only if this proxy can reach IPv6 destinations.") {
+            SettingCheckboxRow(config.allowIpv6, activity.uiText(R.string.ipv6_destinations), activity.uiText(R.string.ipv6_destinations_help)) {
                 updateConfig(config.copy(allowIpv6 = it))
             }
           }
@@ -387,9 +387,9 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
           }
           item {
             ExposedDropdownMenuBox(dnsExpanded, { dnsExpanded = it }) {
-                OutlinedTextField(config.dnsProvider.title, {}, readOnly = true, label = { FieldLabel(stringResource(R.string.dns_over_https)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                OutlinedTextField(activity.uiText(config.dnsProvider.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.dns_over_https)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
                 DropdownMenu(dnsExpanded, { dnsExpanded = false }) {
-                    DnsProvider.entries.forEach { provider -> DropdownMenuItem(text = { Text(provider.title) }, onClick = { updateConfig(config.copy(dnsProvider = provider)); dnsExpanded = false }) }
+                    DnsProvider.entries.forEach { provider -> DropdownMenuItem(text = { Text(activity.uiText(provider.titleRes)) }, onClick = { updateConfig(config.copy(dnsProvider = provider)); dnsExpanded = false }) }
                 }
             }
           }
@@ -447,7 +447,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
         AlertDialog(
             onDismissRequest = { unsafeHostKeyHop = null },
             title = { DialogTitle(stringResource(R.string.accept_any_ssh_key_title)) },
-            text = { ScrollableDialogText(stringResource(R.string.accept_any_ssh_key_message, hop)) },
+            text = { ScrollableDialogText(stringResource(R.string.accept_any_ssh_key_message, activity.sshHopLabel(hop))) },
             confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { updateConfig(if (hop == "jump") config.copy(jumpAcceptAnyHostKey = true) else config.copy(acceptAnyHostKey = true)); unsafeHostKeyHop = null }) { Text(stringResource(R.string.accept_any_key)) } },
             dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { unsafeHostKeyHop = null }) { Text(stringResource(R.string.cancel)) } },
         )

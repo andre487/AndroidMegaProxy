@@ -1,19 +1,23 @@
 package net.megaproxy487.data
 
+import net.megaproxy487.R
+import net.megaproxy487.UiException
+import net.megaproxy487.requireUi
+
 import net.megaproxy487.model.ProxyConfig
 import org.json.JSONObject
 
 object FoxyProxyParser {
     fun parse(text: String): Result<ProxyListImportResult> = runCatching {
         val root = JSONObject(text)
-        require(!ConfigTransfer.isSupportedSchema(root.optString("schema"))) {
-            "This is a MegaProxy configuration, not a FoxyProxy configuration"
+        requireUi(!ConfigTransfer.isSupportedSchema(root.optString("schema"))) {
+            UiException(R.string.error_foxy_wrong)
         }
         val data = root.optJSONArray("data")
-            ?: error("The FoxyProxy configuration has no data array")
-        require(data.length() > 0) { "The FoxyProxy proxy list is empty" }
-        require(data.length() <= MAX_IMPORTED_PROFILES) {
-            "The FoxyProxy configuration contains more than $MAX_IMPORTED_PROFILES entries"
+            ?: throw UiException(R.string.error_foxy_data)
+        requireUi(data.length() > 0) { UiException(R.string.error_foxy_empty) }
+        requireUi(data.length() <= MAX_IMPORTED_PROFILES) {
+            UiException(R.string.error_foxy_many, MAX_IMPORTED_PROFILES)
         }
 
         var skippedNonHttps = 0
@@ -28,9 +32,9 @@ object FoxyProxyParser {
                 parseProxy(item, index + 1)?.let(::add)
             }
         }
-        require(proxies.isNotEmpty()) {
-            if (skippedNonHttps > 0) "The FoxyProxy configuration contains no HTTPS proxies"
-            else "The FoxyProxy configuration contains no usable proxies"
+        requireUi(proxies.isNotEmpty()) {
+            if (skippedNonHttps > 0) UiException(R.string.error_foxy_no_https)
+            else UiException(R.string.error_foxy_no_usable)
         }
         ProxyListImportResult(proxies, skippedNonHttps)
     }
@@ -39,8 +43,8 @@ object FoxyProxyParser {
         val host = item.limitedString("hostname", 253).trim().ifEmpty {
             item.limitedString("address", 253).trim()
         }
-        require(host.isNotEmpty() && !host.contains(Regex("[/:\\s]"))) {
-            "FoxyProxy entry $position has an invalid hostname"
+        requireUi(host.isNotEmpty() && !host.contains(Regex("[/:\\s]"))) {
+            UiException(R.string.error_foxy_host, position)
         }
         val port = when (val value = item.opt("port")) {
             is Number -> value.toInt()
@@ -62,6 +66,6 @@ object FoxyProxyParser {
     }
 
     private fun JSONObject.limitedString(name: String, maxLength: Int): String = optString(name).also {
-        require(it.length <= maxLength) { "$name is too long" }
+        requireUi(it.length <= maxLength) { UiException(R.string.error_field_long, name) }
     }
 }

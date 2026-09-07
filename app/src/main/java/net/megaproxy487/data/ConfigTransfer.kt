@@ -1,5 +1,9 @@
 package net.megaproxy487.data
 
+import net.megaproxy487.R
+import net.megaproxy487.UiException
+import net.megaproxy487.requireUi
+
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
@@ -96,21 +100,21 @@ object ConfigTransfer {
 
     fun importJson(text: String): PortableConfiguration {
         val root = JSONObject(text)
-        require(isSupportedSchema(root.optString("schema"))) { "This is not a MegaProxy configuration file" }
+        requireUi(isSupportedSchema(root.optString("schema"))) { UiException(R.string.error_config_invalid) }
         val version = root.optInt("version", 0)
-        require(version in 1..SCHEMA_VERSION) { "Unsupported MegaProxy configuration version: $version" }
-        val array = root.optJSONArray("profiles") ?: error("The configuration has no profiles")
-        require(array.length() <= MAX_IMPORTED_PROFILES) { "The configuration contains more than $MAX_IMPORTED_PROFILES profiles" }
-        if (version >= 7) require((0 until array.length()).all { index ->
+        requireUi(version in 1..SCHEMA_VERSION) { UiException(R.string.error_config_version, version) }
+        val array = root.optJSONArray("profiles") ?: throw UiException(R.string.error_config_no_profiles)
+        requireUi(array.length() <= MAX_IMPORTED_PROFILES) { UiException(R.string.error_config_too_many, MAX_IMPORTED_PROFILES) }
+        if (version >= 7) requireUi((0 until array.length()).all { index ->
             array.optJSONObject(index)?.optString("id")?.let { it.isNotBlank() && it.length <= 256 } == true
-        }) { "Every profile in version 7 or newer must have a stable ID" }
+        }) { UiException(R.string.error_config_stable_ids) }
         val decoded = (0 until array.length()).map { index ->
             runCatching { decodeProfile(array.getJSONObject(index), index) }
         }
         val decodedProfiles = decoded.mapNotNull(Result<ProxyProfile>::getOrNull)
-        require(decodedProfiles.isNotEmpty()) { "The configuration contains no usable profiles" }
-        require(decodedProfiles.map(ProxyProfile::id).distinct().size == decodedProfiles.size) {
-            "The configuration contains duplicate profile IDs"
+        requireUi(decodedProfiles.isNotEmpty()) { UiException(R.string.error_config_no_usable) }
+        requireUi(decodedProfiles.map(ProxyProfile::id).distinct().size == decodedProfiles.size) {
+            UiException(R.string.error_config_duplicate_ids)
         }
         val legacyIpv6 = root.optJSONObject("routing")?.optBoolean("allowIpv6", false) ?: false
         val profiles = if (version in 2..5) decodedProfiles.map {
@@ -149,7 +153,7 @@ object ConfigTransfer {
         val failover = root.optJSONObject("failover") ?: JSONObject()
         val parsedTls = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT)
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
-            require(array.length() <= MAX_IMPORTED_PACKAGES) { "The configuration contains too many application package names" }
+            requireUi(array.length() <= MAX_IMPORTED_PACKAGES) { UiException(R.string.error_config_packages) }
             (0 until array.length()).mapNotNull { index ->
                 array.optString(index).takeIf { it.length <= 256 }?.trim()
                     ?.takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
@@ -165,7 +169,7 @@ object ConfigTransfer {
             sshRotationMb = ssh.optInt("rotationMb", 0).coerceIn(0, 10240),
             failoverMode = enumValue(failover.optString("mode"), FailoverMode.DISABLED),
             failoverProfileIds = failover.optJSONArray("profileIds")?.let { array ->
-                require(array.length() <= MAX_IMPORTED_PROFILES) { "The configuration contains too many failover profile IDs" }
+                requireUi(array.length() <= MAX_IMPORTED_PROFILES) { UiException(R.string.error_config_failover_ids) }
                 (0 until array.length()).mapNotNull {
                     array.optString(it).takeIf { id -> id.isNotBlank() && id.length <= 256 }
                 }
@@ -229,11 +233,11 @@ object ConfigTransfer {
         val dns = item.optJSONObject("dns") ?: JSONObject()
         val routing = item.optJSONObject("routing") ?: JSONObject()
         val host = proxy.limitedString("host", 253).trim()
-        require(host.isNotEmpty() && !host.contains(Regex("[/:\\s]")))
+        requireUi(host.isNotEmpty() && !host.contains(Regex("[/:\\s]")))
         val type = enumValue(proxy.optString("type"), ProxyType.HTTPS)
         val jump = proxy.optJSONObject("jump")
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
-            require(array.length() <= MAX_IMPORTED_PACKAGES) { "A profile contains too many application package names" }
+            requireUi(array.length() <= MAX_IMPORTED_PACKAGES) { UiException(R.string.error_profile_packages) }
             (0 until array.length()).mapNotNull { packageIndex ->
                 array.optString(packageIndex).takeIf { it.length <= 256 }?.trim()
                     ?.takeIf { it.matches(Regex("[A-Za-z0-9_.]+")) }
@@ -278,7 +282,7 @@ object ConfigTransfer {
     }
 
     private fun JSONObject.limitedString(name: String, maxLength: Int): String = optString(name).also {
-        require(it.length <= maxLength) { "$name is too long" }
+        requireUi(it.length <= maxLength) { UiException(R.string.error_field_long, name) }
     }
 
     private inline fun <reified T : Enum<T>> enumValue(value: String, default: T): T =

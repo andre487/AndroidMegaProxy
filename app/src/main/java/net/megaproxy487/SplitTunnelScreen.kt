@@ -50,7 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.model.GlobalConnectionSettings
@@ -131,8 +131,8 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                 ) {
                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                         Text(
-                            if (showAlwaysOnDeferredNotice) "Always-on is active. Routing changes apply on the next connection."
-                            else "Reconnect to apply routing changes to the active VPN.",
+                            if (showAlwaysOnDeferredNotice) activity.uiText(R.string.routing_deferred)
+                            else activity.uiText(R.string.routing_reconnect),
                         )
                         WrappingActions() {
                             TextButton(shape = RoundedCornerShape(12.dp), onClick = {

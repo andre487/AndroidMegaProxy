@@ -54,13 +54,12 @@ import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.TestDiagnosticLog
 import net.megaproxy487.vpn.TestState
 import net.megaproxy487.vpn.SshHostKeyPromptState
-import net.megaproxy487.vpn.OTHER_ALWAYS_ON_VPN_MESSAGE
 import net.megaproxy487.vpn.hasOtherProvider
 import net.megaproxy487.vpn.openAndroidVpnSettings
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
@@ -81,24 +80,24 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
             val status = readAlwaysOnVpnStatus(activity)
             val dismissedImmediately = System.currentTimeMillis() - vpnPermissionRequestedAt < 1_000
             if (status.hasOtherProvider || dismissedImmediately) {
-                TestDiagnosticLog.fail(OTHER_ALWAYS_ON_VPN_MESSAGE)
+                TestDiagnosticLog.fail(activity.uiText(R.string.other_always_on_vpn))
                 showAlwaysOnConflict = true
             } else {
-                TestDiagnosticLog.fail("VPN access was not granted in the Android confirmation dialog")
+                TestDiagnosticLog.fail(activity.uiText(R.string.vpn_permission_denied))
             }
         }
     }
     val runTest = {
         val configStore = ConfigStore(activity)
         val error = configStore.globalConnectionSettings().applyTo(configStore.activeProfile().config)
-            .connectionValidationError()?.let { activity.getString(it) }
+            .connectionValidationError()?.let { activity.uiText(it) }
         if (error != null) {
             TestDiagnosticLog.fail(error)
         } else {
             TestDiagnosticLog.begin()
             val status = readAlwaysOnVpnStatus(activity)
             if (status.hasOtherProvider) {
-                TestDiagnosticLog.fail(OTHER_ALWAYS_ON_VPN_MESSAGE)
+                TestDiagnosticLog.fail(activity.uiText(R.string.other_always_on_vpn))
                 showAlwaysOnConflict = true
             } else {
                 val intent = VpnService.prepare(activity)
@@ -138,10 +137,10 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 val statusLabel = when (state) {
-                    TestState.IDLE -> "Ready"
-                    TestState.RUNNING -> "Testing"
-                    TestState.SUCCEEDED -> "Test passed"
-                    TestState.FAILED -> "Test failed"
+                    TestState.IDLE -> activity.uiText(R.string.test_ready)
+                    TestState.RUNNING -> activity.uiText(R.string.test_testing)
+                    TestState.SUCCEEDED -> activity.uiText(R.string.test_passed)
+                    TestState.FAILED -> activity.uiText(R.string.test_failed)
                 }
                 Card(Modifier.fillMaxWidth().semantics {
                     liveRegion = LiveRegionMode.Polite
@@ -154,7 +153,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                             else -> MaterialTheme.colorScheme.onSurface
                         }
                         Text(
-                            if (state == TestState.RUNNING) "Testing…" else statusLabel,
+                            if (state == TestState.RUNNING) activity.uiText(R.string.test_testing_progress) else statusLabel,
                             style = MaterialTheme.typography.titleLarge,
                             color = statusColor,
                         )
@@ -162,25 +161,25 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                             CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
                         }
                         exitIp?.let { Text(stringResource(R.string.proxy_exit_ip, it)) }
-                        countryCode?.let { Text(stringResource(R.string.proxy_exit_country, formatCountry(it))) }
+                        countryCode?.let { Text(stringResource(R.string.proxy_exit_country, formatCountry(it, systemFormattingLocale()))) }
                     }
                 }
                 WrappingActions(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(shape = RoundedCornerShape(12.dp), onClick = runTest, enabled = state != TestState.RUNNING) { Text(stringResource(R.string.run_again)) }
                     Button(shape = RoundedCornerShape(12.dp), onClick = {
                         val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText(activity.getString(R.string.connection_test_clipboard_label), TestDiagnosticLog.entries.joinToString("\n")))
+                        clipboard.setPrimaryClip(ClipData.newPlainText(activity.uiText(R.string.connection_test_clipboard_label), TestDiagnosticLog.entries.joinToString("\n")))
                     }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.copy_log)) }
                 }
                 Text(
-                    "The test uses a temporary VPN when the main connection is inactive. Credentials and traffic content are not logged.",
+                    activity.uiText(R.string.test_privacy_help),
                     style = MaterialTheme.typography.bodySmall,
                 )
                 Box(Modifier.fillMaxWidth().heightIn(min = 160.dp, max = logHeight)) {
                     SelectionContainer {
                         Text(
                             TestDiagnosticLog.entries.joinToString("\n").ifEmpty {
-                                if (state == TestState.RUNNING) "Waiting for the first diagnostic event…" else "No test events yet."
+                                if (state == TestState.RUNNING) activity.uiText(R.string.test_waiting) else activity.uiText(R.string.test_empty)
                             },
                             style = MaterialTheme.typography.bodySmall,
                             modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
@@ -195,7 +194,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
         AlertDialog(
             onDismissRequest = { showAlwaysOnConflict = false },
             title = { DialogTitle(stringResource(R.string.always_on_conflict_title)) },
-            text = { ScrollableDialogText(OTHER_ALWAYS_ON_VPN_MESSAGE) },
+            text = { ScrollableDialogText(activity.uiText(R.string.other_always_on_vpn)) },
             confirmButton = {
                 TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     showAlwaysOnConflict = false
@@ -216,11 +215,11 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
             title = { DialogTitle(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
             text = { ScrollableDialogText(buildString {
                 if (pending.changed) {
-                    append(activity.getString(R.string.ssh_changed_key_warning, pending.hop))
+                    append(activity.uiText(R.string.ssh_changed_key_warning, activity.sshHopLabel(pending.hop)))
                 } else {
-                    append(activity.getString(R.string.ssh_first_connection_warning, pending.hop))
+                    append(activity.uiText(R.string.ssh_first_connection_warning, activity.sshHopLabel(pending.hop)))
                 }
-                append(activity.getString(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
+                append(activity.uiText(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
             }) },
             confirmButton = {
                 TextButton(shape = RoundedCornerShape(12.dp), onClick = {
@@ -234,7 +233,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                     if (saved && persisted == pending.fingerprint) {
                         ProxyVpnService.test(activity)
                     } else {
-                        TestDiagnosticLog.fail("The SSH host key could not be saved to the tested profile")
+                        TestDiagnosticLog.fail(activity.uiText(R.string.test_key_save_failed))
                     }
                 }) { Text(stringResource(if (pending.changed) R.string.replace_and_test else R.string.trust_and_test)) }
             },

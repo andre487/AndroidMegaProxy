@@ -57,7 +57,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.semantics.Role
@@ -158,13 +158,13 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
                         )
                     }
                     activity.startActivity(intent)
-                }.onFailure { supportError = it.message ?: activity.getString(R.string.could_not_open_email) }
+                }.onFailure { supportError = activity.uiText(R.string.could_not_open_email) }
             }
         }
         SettingsButton(stringResource(R.string.github_issues), stringResource(R.string.github_issues_description)) {
             runCatching {
                 activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/andre487/AndroidMegaProxy/issues")))
-            }.onFailure { supportError = activity.getString(R.string.no_browser) }
+            }.onFailure { supportError = activity.uiText(R.string.no_browser) }
         }
         supportError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         Text(
@@ -266,9 +266,9 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     }
     SettingsScaffold(onBack, stringResource(R.string.failover)) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
-            OutlinedTextField(settings.failoverMode.title, {}, readOnly = true, label = { FieldLabel(stringResource(R.string.failover_mode)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+            OutlinedTextField(activity.uiText(settings.failoverMode.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.failover_mode)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
             DropdownMenu(expanded, { expanded = false }) {
-                FailoverMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(mode.title) }, onClick = {
+                FailoverMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(activity.uiText(mode.titleRes)) }, onClick = {
                     expanded = false
                     if (mode == FailoverMode.ALL) pendingAll = true else save(mode = mode)
                 }) }
@@ -292,7 +292,7 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Checkbox(checked, null)
-                    Text(profile.displayNameWithFlag, modifier = Modifier.weight(1f))
+                    Text(profile.localizedNameWithFlag(activity), modifier = Modifier.weight(1f))
                 }
             }
             val usableFallbacks = store.sortedProfiles().count { it.id in settings.failoverProfileIds }
@@ -336,14 +336,14 @@ internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
     SettingsScaffold(onBack, stringResource(R.string.always_on_vpn)) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
-                selected.displayNameWithFlag, {}, readOnly = true,
+                selected.localizedNameWithFlag(activity), {}, readOnly = true,
                 label = { FieldLabel(stringResource(R.string.always_on_profile)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             DropdownMenu(expanded, { expanded = false }) {
                 store.sortedProfiles().forEach { profile ->
-                    DropdownMenuItem(text = { Text(profile.displayNameWithFlag) }, onClick = {
+                    DropdownMenuItem(text = { Text(profile.localizedNameWithFlag(activity)) }, onClick = {
                         selected = profile
                         scope.launch(ConfigIoDispatcher) { store.setAlwaysOnProfile(profile.id) }
                         expanded = false
@@ -399,7 +399,7 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
     ) {
         saveSettings(settings.copy(tlsProfile = profile, customJa3 = customJa3, sshProfile = sshProfile))
         error = if (profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null) {
-            activity.getString(R.string.invalid_ja3)
+            activity.uiText(R.string.invalid_ja3)
         } else null
     }
 
@@ -407,14 +407,14 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
         Text(stringResource(R.string.https_fingerprint), style = MaterialTheme.typography.titleMedium)
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
-                settings.tlsProfile.title, {}, readOnly = true,
+                activity.uiText(settings.tlsProfile.titleRes), {}, readOnly = true,
                 label = { FieldLabel(stringResource(R.string.https_tls_ja3_profile)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             DropdownMenu(expanded, { expanded = false }) {
                 TlsProfile.entries.filter { it.available }.forEach { profile ->
-                    DropdownMenuItem(text = { Text(profile.title) }, onClick = { save(profile = profile); expanded = false })
+                    DropdownMenuItem(text = { Text(activity.uiText(profile.titleRes)) }, onClick = { save(profile = profile); expanded = false })
                 }
             }
         }
@@ -432,14 +432,14 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
         Text(stringResource(R.string.ssh_fingerprint), style = MaterialTheme.typography.titleMedium)
         ExposedDropdownMenuBox(sshExpanded, { sshExpanded = it }) {
             OutlinedTextField(
-                settings.sshProfile.title, {}, readOnly = true,
+                activity.uiText(settings.sshProfile.titleRes), {}, readOnly = true,
                 label = { FieldLabel(stringResource(R.string.ssh_client_profile)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshExpanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             DropdownMenu(sshExpanded, { sshExpanded = false }) {
                 SshProfile.entries.forEach { profile ->
-                    DropdownMenuItem(text = { Text(profile.title) }, onClick = {
+                    DropdownMenuItem(text = { Text(activity.uiText(profile.titleRes)) }, onClick = {
                         save(sshProfile = profile)
                         sshExpanded = false
                     })
@@ -448,13 +448,13 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
         }
         ExposedDropdownMenuBox(sshAuthExpanded, { sshAuthExpanded = it }) {
             OutlinedTextField(
-                settings.sshAuthMode.title, {}, readOnly = true,
+                activity.uiText(settings.sshAuthMode.titleRes), {}, readOnly = true,
                 label = { FieldLabel(stringResource(R.string.ssh_authentication)) },
                 trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(sshAuthExpanded) },
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             DropdownMenu(sshAuthExpanded, { sshAuthExpanded = false }) {
-                SshAuthMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(mode.title) }, onClick = {
+                SshAuthMode.entries.forEach { mode -> DropdownMenuItem(text = { Text(activity.uiText(mode.titleRes)) }, onClick = {
                     saveSettings(settings.copy(sshAuthMode = mode))
                     sshAuthExpanded = false
                 }) }
