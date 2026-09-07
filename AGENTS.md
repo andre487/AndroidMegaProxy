@@ -28,9 +28,13 @@ branch names, credentials, signing material, or other secrets.
 - Prefer extracting UI-facing decisions into small production contracts and testing those with
   deterministic JVM unit tests. Resource parity, navigation destination wiring, preference
   serialization/defaults, formatting, and state transitions should not require a device.
-- Keep device-only tests out of required GitHub CI unless the project later adopts a dependable
-  device farm or controlled self-hosted runner. Do not reintroduce a software-emulated Android
-  fallback.
+- Device UI tests run on Selectel real Android devices through Fastlane, separately from the
+  required JVM/native checks. Keep the farm check optional until its reliability is established;
+  do not reintroduce a software-emulated Android fallback.
+- Selectel credentials live in GitHub Actions secrets or `~/.config/megaproxy/selectel.env`.
+  Build APKs before renting; release only the recorded device/slot owned by the run, including
+  after failures. Preserve the lease journal until cleanup succeeds. Never load release signing
+  configuration for device tests.
 
 ## Releases and distribution
 

@@ -1,0 +1,57 @@
+name: Selectel lease recovery
+
+on:
+  workflow_run:
+    workflows: [Selectel UI]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  release:
+    # Only our own branches can create leases. Do not run fork-provided code.
+    if: github.event.workflow_run.head_repository.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out trusted default branch cleanup code
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+      - name: Find lease journal
+        id: journal
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              ...context.repo, run_id: run.id
+            });
+            const expected = `selectel-lease-${run.id}-${run.run_attempt}`;
+            const journal = artifacts.find(a => a.name === expected && !a.expired);
+            core.setOutput('found', Boolean(journal));
+            core.setOutput('name', expected);
+      - name: Download only the lease data
+        if: steps.journal.outputs.found == 'true'
+        uses: actions/download-artifact@v8
+        with:
+          name: ${{ steps.journal.outputs.name }}
+          path: .selectel
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+      - name: Release any remaining lease
+        if: steps.journal.outputs.found == 'true'
+        env:
+          SELECTEL_USERNAME: ${{ secrets.SELECTEL_USERNAME }}
+          SELECTEL_PASSWORD: ${{ secrets.SELECTEL_PASSWORD }}
+          SELECTEL_ACCOUNT_ID: ${{ secrets.SELECTEL_ACCOUNT_ID }}
+          SELECTEL_PROJECT_ID: ${{ secrets.SELECTEL_PROJECT_ID }}
+          FASTLANE_SKIP_DOCS: "1"
+        run: bundle exec fastlane android selectel_release

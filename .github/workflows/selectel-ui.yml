@@ -1,0 +1,88 @@
+name: Selectel UI
+
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer commit waits for cleanup instead of cancelling a paid device session.
+concurrency:
+  group: selectel-ui-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  ui-tests:
+    # Forks have no device credentials; never use pull_request_target for PR code.
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      FASTLANE_SKIP_DOCS: "1"
+      SELECTEL_ANDROID_API: "35"
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+      - name: Install Android SDK components
+        run: |
+          sdkmanager="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$sdkmanager" --licenses >/dev/null || true
+          "$sdkmanager" "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+      - name: Build application and UI test APKs before renting
+        run: bundle exec fastlane android ui_test_artifacts
+      - name: Acquire Selectel device
+        env:
+          SELECTEL_USERNAME: ${{ secrets.SELECTEL_USERNAME }}
+          SELECTEL_PASSWORD: ${{ secrets.SELECTEL_PASSWORD }}
+          SELECTEL_ACCOUNT_ID: ${{ secrets.SELECTEL_ACCOUNT_ID }}
+          SELECTEL_PROJECT_ID: ${{ secrets.SELECTEL_PROJECT_ID }}
+        run: bundle exec fastlane android selectel_acquire
+      - name: Persist lease journal for recovery (no credentials)
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: selectel-lease-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .selectel/lease.json
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Run device UI tests
+        run: bundle exec fastlane android selectel_run
+      - name: Release paid device lease
+        if: always()
+        env:
+          SELECTEL_USERNAME: ${{ secrets.SELECTEL_USERNAME }}
+          SELECTEL_PASSWORD: ${{ secrets.SELECTEL_PASSWORD }}
+          SELECTEL_ACCOUNT_ID: ${{ secrets.SELECTEL_ACCOUNT_ID }}
+          SELECTEL_PROJECT_ID: ${{ secrets.SELECTEL_PROJECT_ID }}
+        run: bundle exec fastlane android selectel_release
+      - name: Upload UI reports
+        if: always()
+        id: reports
+        uses: actions/upload-artifact@v7
+        with:
+          name: selectel-ui-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/reports/selectel/
+          if-no-files-found: ignore
+          retention-days: 14
+      - name: Publish report link
+        if: always()
+        env:
+          REPORT_URL: ${{ steps.reports.outputs.artifact-url }}
+        run: |
+          if [[ -n "$REPORT_URL" ]]; then
+            echo "[Selectel UI reports and screenshots]($REPORT_URL)" >> "$GITHUB_STEP_SUMMARY"
+          fi

@@ -19,8 +19,7 @@ platform :android do
     sh(File.join(project_root, "scripts", "build-fdroid-native.sh"))
   end
 
-  desc "Run Android checks, build a debug APK, and verify that the CI release APK is unsigned"
-  lane :android_checks do
+  private_lane :ensure_no_release_signing do
     signing_variables = %w[
       MEGAPROXY_KEYSTORE_PATH
       MEGAPROXY_KEYSTORE_PASSWORD
@@ -33,10 +32,16 @@ platform :android do
     end
     unless configured_signing_variables.empty?
       UI.user_error!(
-        "Signing configuration must not be available to android_checks: " \
+        "Signing configuration must not be available to unsigned checks or UI tests: " \
         "#{configured_signing_variables.join(', ')}"
       )
     end
+
+  end
+
+  desc "Run Android checks, build a debug APK, and verify that the CI release APK is unsigned"
+  lane :android_checks do
+    ensure_no_release_signing
 
     native_library
     gradle(
@@ -68,6 +73,44 @@ platform :android do
   lane :test do
     native_tests
     android_checks
+  end
+
+  desc "Test the Selectel lease lifecycle and instrumentation result parser without a device"
+  lane :selectel_contract_tests do
+    sh("python3", "-m", "unittest", "discover", "-s", File.join(project_root, "scripts", "tests"))
+  end
+
+  desc "Build debug application and instrumentation APKs before renting a device"
+  lane :ui_test_artifacts do
+    ensure_no_release_signing
+    selectel_contract_tests
+    native_library
+    gradle(tasks: %w[assembleDebug assembleDebugAndroidTest], flags: "--no-daemon", project_dir: project_root)
+  end
+
+  desc "Check Selectel access and device availability without renting"
+  lane :selectel_probe do
+    sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "probe")
+  end
+
+  desc "Rent and connect one Selectel Android device for the prebuilt UI test APKs"
+  lane :selectel_acquire do
+    sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "acquire")
+  end
+
+  desc "Run prebuilt UI tests on the device recorded in the Selectel lease journal"
+  lane :selectel_run do
+    sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "run")
+  end
+
+  desc "Release the Selectel lease recorded by this checkout (safe to repeat)"
+  lane :selectel_release do
+    sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "release")
+  end
+
+  desc "Rent, run prebuilt UI tests, and release a Selectel Android device"
+  lane :selectel_ui_tests do
+    sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "test")
   end
 
   desc "Build a debug APK after preparing the native library"

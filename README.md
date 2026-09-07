@@ -277,6 +277,12 @@ installed Gradle version. See [native/README.md](native/README.md) for Go data-p
 English is the project language for source code, comments, documentation, commit messages, UI
 copy, logs, and tooling.
 
+### Real-device UI tests
+
+UI tests run on Selectel through Fastlane without a GitHub-hosted emulator. See the
+[English setup](docs/en/selectel-ui-tests.md) or [Russian setup](docs/ru/selectel-ui-tests.md)
+for local credentials, PR integration, reports, and paid-device cleanup.
+
 ### Emulator
 
 Create the API 35 Google APIs ARM64 emulator:
