@@ -627,6 +627,12 @@ internal fun MainScreen(
                     modifier = Modifier.padding(top = 12.dp),
                 )
             }
+            Text(
+                stringResource(R.string.version_and_commit, BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
+            )
             }
         }
     }
