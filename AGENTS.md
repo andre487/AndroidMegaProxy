@@ -61,6 +61,10 @@ branch names, credentials, signing material, or other secrets.
   rows wrap or stack; constrain app-bar titles and field labels, and make long dialog content
   scrollable. Verify visual changes locally without adding emulator requirements to GitHub CI.
 
+- Configuration writes must outlive individual screens and expose pending/failure state. Keep
+  transfer operations across configuration changes; never put credentials or export payloads into
+  Android saved-state bundles, and reject a lost export before opening the output stream.
+
 ## Architecture landmarks
 
 - `ProxyVpnService` extends Android's standard `android.net.VpnService`. It owns VPN lifecycle,

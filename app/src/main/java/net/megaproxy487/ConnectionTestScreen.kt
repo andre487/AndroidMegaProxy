@@ -42,6 +42,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -110,8 +111,10 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
             }
         }
     }
-    LaunchedEffect(Unit) {
-        if (autoStart) {
+    var autoStartConsumed by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(autoStart) {
+        if (autoStart && !autoStartConsumed) {
+            autoStartConsumed = true
             TestDiagnosticLog.reset()
             runTest()
         }

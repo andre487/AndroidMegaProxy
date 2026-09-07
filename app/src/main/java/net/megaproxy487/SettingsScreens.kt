@@ -51,6 +51,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +70,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigWrites
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.model.Ja3Spec
 import net.megaproxy487.model.TlsProfile
@@ -256,7 +261,7 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     fun save(mode: FailoverMode = settings.failoverMode, ids: List<String> = settings.failoverProfileIds) {
         settings = settings.copy(failoverMode = mode, failoverProfileIds = ids)
         val snapshot = settings
-        scope.launch(ConfigIoDispatcher) { store.saveGlobalConnectionSettings(snapshot) }
+        ConfigWrites.submit("global") { store.saveGlobalConnectionSettings(snapshot) }
     }
     SettingsScaffold(onBack, stringResource(R.string.failover)) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
@@ -339,7 +344,7 @@ internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
                 store.sortedProfiles().forEach { profile ->
                     DropdownMenuItem(text = { Text(profile.localizedNameWithFlag(activity)) }, onClick = {
                         selected = profile
-                        scope.launch(ConfigIoDispatcher) { store.setAlwaysOnProfile(profile.id) }
+                        ConfigWrites.submit("always-on") { store.setAlwaysOnProfile(profile.id) }
                         expanded = false
                         if (alwaysOnActive && ProxyVpnService.isRunning) {
                             ProxyVpnService.switchProfile(activity, profile.id, true)
@@ -372,10 +377,12 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
     var showAlwaysOnNotice by remember { mutableStateOf(false) }
     var deferred by remember { mutableStateOf(false) }
 
+    val invalidFields = remember { mutableStateMapOf<String, Boolean>() }
+    val writeStatus by ConfigWrites.status.collectAsState()
     fun saveSettings(updated: net.megaproxy487.model.GlobalConnectionSettings) {
         settings = updated
         val snapshot = settings
-        scope.launch(ConfigIoDispatcher) {
+        ConfigWrites.submit("global") {
             store.saveGlobalConnectionSettings(snapshot)
             if (ProxyVpnService.isRunning) store.markPendingReconnect()
         }
@@ -454,16 +461,16 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
                 }) }
             }
         }
-        IntegerSettingField(settings.sshKeepaliveSeconds, 0..3600, stringResource(R.string.ssh_keepalive)) {
+        IntegerSettingField(settings.sshKeepaliveSeconds, 0..3600, stringResource(R.string.ssh_keepalive), onValidityChange = { invalidFields["sshKeepaliveSeconds"] = !it }) {
             saveSettings(settings.copy(sshKeepaliveSeconds = it))
         }
-        IntegerSettingField(settings.sshMaxChannels, 1..256, stringResource(R.string.ssh_max_channels)) {
+        IntegerSettingField(settings.sshMaxChannels, 1..256, stringResource(R.string.ssh_max_channels), onValidityChange = { invalidFields["sshMaxChannels"] = !it }) {
             saveSettings(settings.copy(sshMaxChannels = it))
         }
-        IntegerSettingField(settings.sshRotationMinutes, 0..1440, stringResource(R.string.ssh_rotation_minutes)) {
+        IntegerSettingField(settings.sshRotationMinutes, 0..1440, stringResource(R.string.ssh_rotation_minutes), onValidityChange = { invalidFields["sshRotationMinutes"] = !it }) {
             saveSettings(settings.copy(sshRotationMinutes = it))
         }
-        IntegerSettingField(settings.sshRotationMb, 0..10240, stringResource(R.string.ssh_rotation_mb)) {
+        IntegerSettingField(settings.sshRotationMb, 0..10240, stringResource(R.string.ssh_rotation_mb), onValidityChange = { invalidFields["sshRotationMb"] = !it }) {
             saveSettings(settings.copy(sshRotationMb = it))
         }
         Text(stringResource(R.string.ssh_profile_description), style = MaterialTheme.typography.bodySmall)
@@ -473,7 +480,7 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
                     Text(stringResource(R.string.reconnect_apply_changes))
                     WrappingActions() {
                         TextButton(shape = RoundedCornerShape(12.dp), onClick = { showReconnectPrompt = false; deferred = true }) { Text(stringResource(R.string.next_connection)) }
-                        TextButton(shape = RoundedCornerShape(12.dp), onClick = {
+                        TextButton(shape = RoundedCornerShape(12.dp), enabled = error == null && invalidFields.values.none { it } && writeStatus.pending == 0 && !writeStatus.failed, onClick = {
                             showReconnectPrompt = false
                             deferred = true
                             ProxyVpnService.reconnect(activity)
@@ -495,25 +502,11 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
 }
 
 @Composable
-private fun IntegerSettingField(initialValue: Int, range: IntRange, label: String, onValidValue: (Int) -> Unit) {
-    var text by remember { mutableStateOf(initialValue.toString()) }
-    val parsed = text.toIntOrNull()
-    OutlinedTextField(
-        value = text,
-        onValueChange = { value ->
-            if (value.length <= range.last.toString().length && value.all(Char::isDigit)) {
-                text = value
-                value.toIntOrNull()?.takeIf { it in range }?.let(onValidValue)
-            }
-        },
-        label = { FieldLabel(label) },
-        supportingText = if (text.isNotEmpty() && parsed !in range) {
-            { Text(stringResource(R.string.allowed_range, range.first, range.last)) }
-        } else null,
-        isError = text.isNotEmpty() && parsed !in range,
-        singleLine = true,
-        modifier = Modifier.fillMaxWidth(),
-    )
+private fun IntegerSettingField(initialValue: Int, range: IntRange, label: String,
+    onValidityChange: (Boolean) -> Unit = {}, onValidValue: (Int) -> Unit) {
+    var text by rememberSaveable { mutableStateOf(initialValue.toString()) }
+    SideEffect { onValidityChange(validIntegerInput(text, range) != null) }
+    IntegerInputField(text, { text = it }, range, label, onValidValue, Modifier.fillMaxWidth())
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -541,7 +534,7 @@ private fun SettingsScaffold(onBack: () -> Unit, title: String, content: @Compos
                     .padding(16.dp)
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
-                content = content,
+                content = { SaveStatusBanner(); content() },
             )
         }
     }

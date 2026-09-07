@@ -52,6 +52,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import net.megaproxy487.data.ConfigWrites
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -250,6 +252,7 @@ internal fun MainScreen(
     val transportProtocol by VpnRuntimeState.transportProtocol
     val pendingHostKey by SshHostKeyPromptState.pending
     val store = remember { ConfigStore(activity) }
+    val writeStatus by ConfigWrites.status.collectAsState()
     var error by remember { mutableStateOf<String?>(null) }
     var profileMenuExpanded by remember { mutableStateOf(false) }
     var profiles by remember { mutableStateOf(store.sortedProfiles()) }
@@ -293,8 +296,15 @@ internal fun MainScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(connection) {
-        pendingReconnect = store.hasPendingReconnect()
+    LaunchedEffect(connection, writeStatus) {
+        if (writeStatus.pending == 0) {
+            val saved = withContext(ConfigIoDispatcher) {
+                Triple(store.sortedProfiles(), store.globalConnectionSettings(), store.hasPendingReconnect())
+            }
+            profiles = saved.first
+            globalSettings = saved.second
+            pendingReconnect = saved.third
+        }
     }
     LaunchedEffect(lifecycleOwner, connection) {
         if (connection != VpnConnectionState.CONNECTED) {
@@ -389,6 +399,7 @@ internal fun MainScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
+            SaveStatusBanner()
             val connected = connection == VpnConnectionState.CONNECTED
             val statusLabel = when (connection) {
                 VpnConnectionState.CONNECTED -> activity.uiText(R.string.status_connected)
@@ -524,7 +535,7 @@ internal fun MainScreen(
                                         if (useAsAlwaysOn || connection != VpnConnectionState.DISCONNECTED) {
                                             ProxyVpnService.switchProfile(activity, profile.id, useAsAlwaysOn)
                                         } else {
-                                            scope.launch(ConfigIoDispatcher) { store.setActiveProfile(profile.id) }
+                                            ConfigWrites.submit("active-profile") { store.setActiveProfile(profile.id) }
                                         }
                                         profileMenuExpanded = false
                                     },
@@ -558,7 +569,7 @@ internal fun MainScreen(
                         connect()
                     }
                 },
-                enabled = !alwaysOn &&
+                enabled = !alwaysOn && writeStatus.pending == 0 && !writeStatus.failed &&
                     (connection != VpnConnectionState.DISCONNECTED || activeProfileError == null),
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -573,6 +584,7 @@ internal fun MainScreen(
             if (connected) {
                 FilledTonalButton(shape = RoundedCornerShape(12.dp),
                     onClick = { ProxyVpnService.reconnect(activity) },
+                    enabled = writeStatus.pending == 0 && !writeStatus.failed,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     WrappingActions(horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)) {

@@ -98,6 +98,13 @@ import net.megaproxy487.model.ProxyType
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.ui.theme.MegaProxyTheme
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
+import net.megaproxy487.data.ConfigWrites
+import androidx.compose.material3.LinearProgressIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -200,36 +207,76 @@ private fun applySelectedProfileOptions(
     return result
 }
 
+private class ProfilesUiState(private val context: android.content.Context) : ViewModel() {
+    val profiles = mutableStateListOf<ProxyProfile>()
+    var deleteProfile by mutableStateOf<ProxyProfile?>(null)
+    var importedProfileCount by mutableStateOf(0)
+    var importError by mutableStateOf<String?>(null)
+    var skippedNonHttps by mutableStateOf(0)
+    var showImportFilterNotice by mutableStateOf(false)
+    var showExportDialog by mutableStateOf(false)
+    var showPasswordExportWarning by mutableStateOf(false)
+    var exportFormat by mutableStateOf(ConfigExportFormat.JSON)
+    var includePasswords by mutableStateOf(false)
+    var includePrivateKeys by mutableStateOf(false)
+    var pendingExportContent by mutableStateOf<String?>(null)
+    var exportReady by mutableStateOf(false)
+    var transferMessage by mutableStateOf<String?>(null)
+    var pendingUnsafeImport by mutableStateOf<PortableConfiguration?>(null)
+    var missingProfilesReview by mutableStateOf<MissingProfilesReview?>(null)
+    val selectedMissingProfileIds = mutableStateListOf<String>()
+    var importOptionsReview by mutableStateOf<ImportOptionsReview?>(null)
+    val selectedImportOptionKeys = mutableStateListOf<String>()
+    var applyImportedGlobalOptions by mutableStateOf(false)
+    private var pendingOperations by mutableStateOf(0)
+    val busy: Boolean get() = pendingOperations > 0
+
+    fun launchOperation(block: suspend CoroutineScope.() -> Unit) {
+        pendingOperations++
+        viewModelScope.launch {
+            try { block() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                pendingExportContent = null
+                exportReady = false
+                importError = failure.userMessage(context, R.string.transfer_failed)
+            } finally { pendingOperations-- }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfile: (String) -> Unit) {
     val store = remember { ConfigStore(activity) }
-    val scope = rememberCoroutineScope()
-    val profiles = remember { mutableStateListOf<ProxyProfile>() }
-    var deleteProfile by remember { mutableStateOf<ProxyProfile?>(null) }
-    var importedProfileCount by remember { mutableStateOf(0) }
-    var importError by remember { mutableStateOf<String?>(null) }
-    var skippedNonHttps by remember { mutableStateOf(0) }
-    var showImportFilterNotice by remember { mutableStateOf(false) }
-    var showExportDialog by remember { mutableStateOf(false) }
-    var showPasswordExportWarning by remember { mutableStateOf(false) }
-    var exportFormat by remember { mutableStateOf(ConfigExportFormat.JSON) }
-    var includePasswords by remember { mutableStateOf(false) }
-    var includePrivateKeys by remember { mutableStateOf(false) }
-    var pendingExportContent by remember { mutableStateOf("") }
-    var transferMessage by remember { mutableStateOf<String?>(null) }
-    var pendingUnsafeImport by remember { mutableStateOf<PortableConfiguration?>(null) }
-    var missingProfilesReview by remember { mutableStateOf<MissingProfilesReview?>(null) }
-    val selectedMissingProfileIds = remember { mutableStateListOf<String>() }
-    var importOptionsReview by remember { mutableStateOf<ImportOptionsReview?>(null) }
-    val selectedImportOptionKeys = remember { mutableStateListOf<String>() }
-    var applyImportedGlobalOptions by remember { mutableStateOf(false) }
+    val uiState = viewModel { ProfilesUiState(activity.applicationContext) }
+    val busy = uiState.busy
+    val profiles = uiState.profiles
+    var deleteProfile by uiState::deleteProfile
+    var importedProfileCount by uiState::importedProfileCount
+    var importError by uiState::importError
+    var skippedNonHttps by uiState::skippedNonHttps
+    var showImportFilterNotice by uiState::showImportFilterNotice
+    var showExportDialog by uiState::showExportDialog
+    var showPasswordExportWarning by uiState::showPasswordExportWarning
+    var exportFormat by uiState::exportFormat
+    var includePasswords by uiState::includePasswords
+    var includePrivateKeys by uiState::includePrivateKeys
+    var pendingExportContent by uiState::pendingExportContent
+    var exportReady by uiState::exportReady
+    var transferMessage by uiState::transferMessage
+    var pendingUnsafeImport by uiState::pendingUnsafeImport
+    var missingProfilesReview by uiState::missingProfilesReview
+    val selectedMissingProfileIds = uiState.selectedMissingProfileIds
+    var importOptionsReview by uiState::importOptionsReview
+    val selectedImportOptionKeys = uiState.selectedImportOptionKeys
+    var applyImportedGlobalOptions by uiState::applyImportedGlobalOptions
     val lifecycleOwner = LocalLifecycleOwner.current
     val listState = rememberLazyListState()
     var draggedProfileId by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
-        scope.launch {
+        uiState.launchOperation {
             val loaded = withContext(ConfigIoDispatcher) { store.sortedProfiles() }
             profiles.clear()
             profiles.addAll(loaded)
@@ -237,21 +284,24 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
     }
     LaunchedEffect(Unit) { refresh() }
     fun moveProfile(profileId: String, delta: Int): Boolean {
+        if (uiState.busy) return false
         val sourceIndex = profiles.indexOfFirst { it.id == profileId }
         val targetIndex = sourceIndex + delta
         if (sourceIndex < 0 || targetIndex !in profiles.indices) return false
         profiles.add(targetIndex, profiles.removeAt(sourceIndex))
         val order = profiles.map(ProxyProfile::id)
-        scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
+        ConfigWrites.submit("profile-order") { store.reorderProfiles(order) }
         return true
     }
     fun edit(profile: ProxyProfile) {
         onEditProfile(profile.id)
     }
     fun writeExport(uri: Uri?) {
+        val prepared = pendingExportContent
+        pendingExportContent = null
         if (uri == null) return
-        val content = pendingExportContent
-        scope.launch {
+        uiState.launchOperation {
+            val content = requireExportContent(prepared)
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { it.write(content) }
@@ -268,7 +318,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
         }
     }
     fun applyJsonImport(configuration: PortableConfiguration) {
-        scope.launch {
+        uiState.launchOperation {
             val result = withContext(ConfigIoDispatcher) {
                 store.importConfiguration(configuration).also {
                     if (ProxyVpnService.isRunning) store.markPendingReconnect()
@@ -297,7 +347,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
         }
     }
     fun prepareJsonImport(configuration: PortableConfiguration) {
-        scope.launch {
+        uiState.launchOperation {
             val review = withContext(ConfigIoDispatcher) {
                 val existing = store.profiles().associateBy(ProxyProfile::id)
                 val profileReviews = configuration.profiles.mapNotNull { imported ->
@@ -340,73 +390,50 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
     val exportTxtDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain"), ::writeExport)
     val exportJsonDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json"), ::writeExport)
     fun launchExport() {
-        scope.launch {
+        if (uiState.busy || pendingExportContent != null) return
+        uiState.launchOperation {
             pendingExportContent = withContext(ConfigIoDispatcher) {
                 when (exportFormat) {
                     ConfigExportFormat.PROXY_LIST -> ConfigTransfer.exportProxyList(store.profiles(), includePasswords)
                     ConfigExportFormat.JSON -> ConfigTransfer.exportJson(store, includePasswords, includePrivateKeys)
                 }
             }
+            requireExportContent(pendingExportContent)
+            exportReady = true
+        }
+    }
+    LaunchedEffect(exportReady) {
+        if (exportReady) {
+            exportReady = false
             if (exportFormat == ConfigExportFormat.PROXY_LIST) exportTxtDocument.launch("ProxyList.txt")
             else exportJsonDocument.launch("MegaProxy-config.json")
         }
     }
     val importDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching {
-                val text = activity.contentResolver.openInputStream(uri)?.buffered()?.use { it.readConfigText() }
-                    ?: throw UiException(R.string.error_read_file)
-                val isJson = activity.contentResolver.getType(uri) == "application/json" ||
-                    uri.lastPathSegment.orEmpty().substringAfterLast('.', "").equals("json", true) ||
-                    text.trimStart().startsWith('{')
-                if (isJson) {
-                    val isMegaProxy = runCatching {
-                        ConfigTransfer.isSupportedSchema(org.json.JSONObject(text).optString("schema"))
-                    }.getOrDefault(false)
-                    if (isMegaProxy) {
-                        val configuration = ConfigTransfer.importJson(text)
+        if (uri != null && !uiState.busy) {
+            uiState.launchOperation {
+                val parsed = withContext(Dispatchers.IO) {
+                    val text = activity.contentResolver.openInputStream(uri)?.buffered()?.use { it.readConfigText() }
+                        ?: throw UiException(R.string.error_read_file)
+                    parseProfileImport(text, activity.contentResolver.getType(uri), uri.lastPathSegment.orEmpty())
+                }
+                when (parsed) {
+                    is ParsedProfileImport.Configuration -> {
+                        val configuration = parsed.value
                         if (configuration.profiles.any { it.config.allowInvalidProxyCertificate || it.config.jumpAllowInvalidProxyCertificate || it.config.acceptAnyHostKey || it.config.jumpAcceptAnyHostKey }) {
                             pendingUnsafeImport = configuration
-                        } else {
-                            prepareJsonImport(configuration)
-                        }
-                    } else {
-                        val imported = FoxyProxyParser.parse(text).getOrThrow()
-                        val added = store.importProfiles(imported.proxies)
+                        } else prepareJsonImport(configuration)
+                    }
+                    is ParsedProfileImport.ProxyList -> {
+                        val added = withContext(ConfigIoDispatcher) { store.importProfiles(parsed.value.proxies) }
                         refresh()
                         importedProfileCount = added.size
-                        skippedNonHttps = imported.skippedNonHttps
-                        showImportFilterNotice = imported.skippedNonHttps > 0
-                        if (imported.skippedNonHttps == 0) {
-                            transferMessage = activity.uiText(R.string.imported_foxyproxy, added.size)
-                        }
-                    }
-                } else {
-                    val isSuperProxy = SuperProxyParser.matches(text)
-                    val imported = if (isSuperProxy) {
-                        SuperProxyParser.parse(text).getOrThrow()
-                    } else {
-                        ProxyListParser.parse(text).getOrThrow()
-                    }
-                    val added = store.importProfiles(imported.proxies)
-                    refresh()
-                    importedProfileCount = added.size
-                    skippedNonHttps = imported.skippedNonHttps
-                    showImportFilterNotice = imported.skippedNonHttps > 0
-                    if (imported.skippedNonHttps == 0) {
-                        transferMessage = if (isSuperProxy) {
-                            activity.uiText(R.string.imported_super_proxy, added.size)
-                        } else {
-                            activity.uiText(R.string.imported_https_profiles, added.size)
-                        }
+                        skippedNonHttps = parsed.value.skippedNonHttps
+                        showImportFilterNotice = skippedNonHttps > 0
+                        if (!showImportFilterNotice) transferMessage = activity.uiText(parsed.summaryRes, added.size)
                     }
                 }
                 importError = null
-            }.onFailure {
-                importError = activity.uiText(
-                    R.string.configuration_import_failed,
-                    it.userMessage(activity, R.string.error_invalid_input),
-                )
             }
         }
     }
@@ -421,26 +448,30 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 }
             },
             actions = {
-                IconButton(onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
+                IconButton(enabled = !busy, onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
                     Icon(Icons.Default.FileDownload, contentDescription = stringResource(R.string.import_action))
                 }
-                IconButton(onClick = { showExportDialog = true }) { Icon(Icons.Default.FileUpload, contentDescription = stringResource(R.string.export_action)) }
+                IconButton(enabled = !busy, onClick = { showExportDialog = true }) { Icon(Icons.Default.FileUpload, contentDescription = stringResource(R.string.export_action)) }
             },
         )
         },
         bottomBar = {
+            Column {
+                if (busy) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text(stringResource(R.string.transfer_working), modifier = Modifier.padding(horizontal = 16.dp))
+                }
+                SaveStatusBanner()
             Surface(tonalElevation = 3.dp) {
                 Button(
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                    enabled = !busy,
                     onClick = {
-                        scope.launch {
-                            val profile = withContext(ConfigIoDispatcher) { store.addProfile() }
-                            refresh()
-                            edit(profile)
-                        }
+                        onEditProfile("new")
                     },
                 ) { Text(stringResource(R.string.add_profile)) }
+            }
             }
         },
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -480,13 +511,13 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                     dragOffset = 0f
                                     draggedProfileId = null
                                     val order = profiles.map(ProxyProfile::id)
-                                    scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
+                                    ConfigWrites.submit("profile-order") { store.reorderProfiles(order) }
                                 },
                                 onDragEnd = {
                                     dragOffset = 0f
                                     draggedProfileId = null
                                     val order = profiles.map(ProxyProfile::id)
-                                    scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
+                                    ConfigWrites.submit("profile-order") { store.reorderProfiles(order) }
                                 },
                                 onDrag = { change, amount ->
                                     change.consume()
@@ -516,9 +547,10 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                 }
                             }
                         },
+                    enabled = !busy,
                     onConfigure = { edit(profile) },
                     onClone = {
-                        scope.launch {
+                        uiState.launchOperation {
                             withContext(ConfigIoDispatcher) { store.cloneProfile(profile.id) }
                             refresh()
                         }
@@ -526,10 +558,18 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                     onDelete = { deleteProfile = profile },
                 )
                 }
-                importError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
                 item { Text(stringResource(R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp)) }
             }
         }
+    }
+
+    importError?.let { message ->
+        AlertDialog(onDismissRequest = { importError = null },
+            title = { DialogTitle(stringResource(R.string.configuration_transfer)) },
+            text = { ScrollableDialogText(message) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { importError = null }) {
+                Text(stringResource(R.string.ok))
+            } })
     }
 
     deleteProfile?.let { profile ->
@@ -539,7 +579,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
             text = { ScrollableDialogText(profile.localizedName(activity) + "\n\n" + stringResource(R.string.delete_profile_message)) },
             confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 deleteProfile = null
-                scope.launch {
+                uiState.launchOperation {
                     val reconnect = withContext(ConfigIoDispatcher) {
                         val needed = store.isConnectionDesired() && store.connectionProfile().id == profile.id
                         store.deleteProfile(profile.id)
@@ -750,7 +790,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                         val selected = selectedMissingProfileIds.toSet()
                         missingProfilesReview = null
                         selectedMissingProfileIds.clear()
-                        scope.launch {
+                        uiState.launchOperation {
                             val reconnect = withContext(ConfigIoDispatcher) {
                                 val desired = store.isConnectionDesired()
                                 store.deleteProfiles(selected).also {
@@ -779,6 +819,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
 @Composable
 private fun ProfileCard(
     profile: ProxyProfile,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onConfigure: () -> Unit,
     onClone: () -> Unit,
@@ -811,9 +852,9 @@ private fun ProfileCard(
                 trailing = { ProfileTypeBadge(profile.config.type, foreground) },
             )
             WrappingActions() {
-                TextButton(shape = RoundedCornerShape(12.dp), onClick = onConfigure) { Text(stringResource(R.string.configure), color = foreground) }
-                TextButton(shape = RoundedCornerShape(12.dp), onClick = onClone) { Text(stringResource(R.string.clone), color = foreground) }
-                TextButton(shape = RoundedCornerShape(12.dp), onClick = onDelete) { Text(stringResource(R.string.delete), color = foreground) }
+                TextButton(enabled = enabled, shape = RoundedCornerShape(12.dp), onClick = onConfigure) { Text(stringResource(R.string.configure), color = foreground) }
+                TextButton(enabled = enabled, shape = RoundedCornerShape(12.dp), onClick = onClone) { Text(stringResource(R.string.clone), color = foreground) }
+                TextButton(enabled = enabled, shape = RoundedCornerShape(12.dp), onClick = onDelete) { Text(stringResource(R.string.delete), color = foreground) }
             }
         }
     }

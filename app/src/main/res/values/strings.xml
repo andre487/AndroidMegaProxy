@@ -443,4 +443,16 @@
     <string name="blocking_silent_drop">No response</string>
     <string name="ssh_hop_jump">(jump host)</string>
     <string name="ssh_hop_destination">(destination host)</string>
+    <string name="saving_changes">Saving changes…</string>
+    <string name="save_failed">Some changes could not be saved. Retry before reconnecting.</string>
+    <string name="retry_save">Retry saving</string>
+    <string name="show_password">Show password</string>
+    <string name="hide_password">Hide password</string>
+    <string name="integer_not_saved">Not saved. Enter a whole number from %1$d to %2$d.</string>
+    <string name="correct_fields_before_connecting">Correct the highlighted fields to use this configuration.</string>
+    <string name="export_expired">The prepared export was lost when the app restarted. Start the export again; no data was written.</string>
+    <string name="export_empty">There are no profiles available for this export format.</string>
+    <string name="transfer_failed">The operation could not be completed. Please try again.</string>
+    <string name="transfer_working">Processing configuration…</string>
+    <string name="draft_profile_hint">This profile will be saved after your first change. Go back to cancel.</string>
 </resources>

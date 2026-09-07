@@ -42,6 +42,8 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.saveable.rememberSaveable
+import net.megaproxy487.data.ConfigWrites
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -74,7 +76,7 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var lines by remember { mutableStateOf(emptyList<String>()) }
     var autoScroll by remember { mutableStateOf(true) }
-    var limitText by remember { mutableStateOf(store.diagnosticLogLimitMb().toString()) }
+    var limitText by rememberSaveable { mutableStateOf(store.diagnosticLogLimitMb().toString()) }
     var showClearConfirmation by remember { mutableStateOf(false) }
     var message by remember { mutableStateOf<String?>(null) }
     val isAtBottom by remember {
@@ -138,24 +140,16 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
                 Modifier.fillMaxSize().padding(horizontal = 16.dp).verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                OutlinedTextField(
-                    value = limitText,
-                    onValueChange = { value ->
-                        if (value.all(Char::isDigit) && value.length <= 3) {
-                            limitText = value
-                            value.toIntOrNull()?.takeIf {
-                                it in PersistentDiagnosticLog.MIN_LIMIT_MB..PersistentDiagnosticLog.MAX_LIMIT_MB
-                            }?.let {
-                                store.setDiagnosticLogLimitMb(it)
-                                PersistentDiagnosticLog.setLimitMb(it)
-                            }
+                SaveStatusBanner()
+                IntegerInputField(limitText, { limitText = it },
+                    PersistentDiagnosticLog.MIN_LIMIT_MB..PersistentDiagnosticLog.MAX_LIMIT_MB,
+                    stringResource(R.string.rotated_log_limit), onValidValue = { limit ->
+                        ConfigWrites.submit("diagnostic-limit") {
+                            store.setDiagnosticLogLimitMb(limit)
+                            PersistentDiagnosticLog.setLimitMb(limit)
                         }
-                    },
-                    label = { FieldLabel(stringResource(R.string.rotated_log_limit)) },
-                    supportingText = { Text(stringResource(R.string.rotated_log_limit_description)) },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                )
+                    }, modifier = Modifier.fillMaxWidth())
+                Text(stringResource(R.string.rotated_log_limit_description), style = MaterialTheme.typography.bodySmall)
                 WrappingActions(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     Button(shape = RoundedCornerShape(12.dp), onClick = { exportDocument.launch("MegaProxy-diagnostic.log") }) {
                         Text(stringResource(R.string.export_action))
