@@ -1,4 +1,5 @@
 name: CI
+run-name: CI · ${{ github.event.pull_request.title || github.ref_name }}
 
 on:
   pull_request:
@@ -14,31 +15,62 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  changes:
+    name: Change scope
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      android: ${{ steps.scope.outputs.android }}
+      native: ${{ steps.scope.outputs.native }}
+      python: ${{ steps.scope.outputs.python }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Classify the complete change set
+        id: scope
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          args=(--base "$BASE_SHA" --head "$HEAD_SHA" --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY")
+          if [[ "$EVENT_NAME" == push ]]; then args+=(--push); fi
+          python3 scripts/ci_changes.py "${args[@]}"
+
   ui-status:
     name: Prepare manual UI status
+    needs: changes
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     permissions:
       statuses: write
     steps:
       - uses: actions/github-script@v8
+        env:
+          ANDROID_CHANGED: ${{ needs.changes.outputs.android }}
         with:
           script: |
             const sha = context.payload.pull_request.head.sha;
             const name = 'Selectel UI required';
+            const needed = process.env.ANDROID_CHANGED === 'true';
             const statuses = await github.paginate(github.rest.repos.listCommitStatusesForRef, {
               ...context.repo, ref: sha, per_page: 100
             });
             // A CI rerun must preserve an existing UI result or active manual run.
             if (!statuses.some(status => status.context === name)) {
               await github.rest.repos.createCommitStatus({
-                ...context.repo, sha, context: name, state: 'pending',
-                description: 'Awaiting manual required UI run for this commit',
+                ...context.repo, sha, context: name, state: needed ? 'pending' : 'success',
+                description: needed ? 'Awaiting manual required UI run for this commit' : 'UI not required: no Android-impacting changes',
                 target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/workflows/selectel-ui.yml`
               });
             }
 
   native-tests:
+    needs: changes
+    if: needs.changes.outputs.native == 'true'
     name: Native Go tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -62,6 +94,8 @@ jobs:
         run: bundle exec fastlane android native_tests
 
   python-tests:
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
     name: Python tests and style
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -88,6 +122,8 @@ jobs:
         run: bundle exec fastlane android python_checks
 
   android-tests:
+    needs: changes
+    if: needs.changes.outputs.android == 'true'
     name: Android tests and checks
     runs-on: ubuntu-latest
     timeout-minutes: 45

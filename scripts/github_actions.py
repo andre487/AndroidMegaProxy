@@ -11,7 +11,7 @@ import sys
 
 REPOSITORY = "andre487/AndroidMegaProxy"
 MODES = [
-    ("required", "Required UI: Galaxy A14 / Android 15 (one paid rental)"),
+    ("required", "Required UI: HONOR X8c / Android 15 (one paid rental)"),
     ("additional", "Additional UI: Android 11, 13, 16, 17 (four paid rentals)"),
     ("ci", "Re-run CI: Python, Go, Android/JVM/lint/build (no device rental)"),
 ]
@@ -138,14 +138,14 @@ def plan_run(client, pr, mode):
     return ["run", "rerun", str(run["databaseId"])], run["url"]
 
 
-def launch(client, pr, mode, dry_run=False):
+def launch(client, pr, mode, dry_run=False, yes=False):
     command, url = plan_run(client, pr, mode)
     print(f'\nPR #{pr["number"]}, commit {pr["headRefOid"][:12]}')
     print(shlex.join(client.argv(*command)))
     if dry_run:
         print("Dry run: no workflow started.\n" + url)
         return
-    if input("Start this run? [y/N]: ").strip().lower() != "y":
+    if not yes and input("Start this run? [y/N]: ").strip().lower() != "y":
         print("Cancelled.")
         return
     current = client.pr(pr["number"])
@@ -169,6 +169,12 @@ def main():
     parser.add_argument(
         "--dry-run", action="store_true", help="Preview without starting workflows"
     )
+    parser.add_argument(
+        "--yes",
+        "-y",
+        action="store_true",
+        help="Skip final launch confirmation; still choose a PR and test profile",
+    )
     args = parser.parse_args()
     try:
         client = GitHub(args.repo)
@@ -182,7 +188,7 @@ def main():
         )
         pr = client.pr(number)
         mode = choose("Tests to run", MODES)
-        launch(client, pr, mode, args.dry_run)
+        launch(client, pr, mode, args.dry_run, args.yes)
         return 0
     except (KeyboardInterrupt, EOFError):
         print("\nCancelled.")

@@ -16,9 +16,9 @@
       "abi": "arm64-v8a"
     },
     {
-      "id": "samsung-galaxy-a14-35-arm64-v8a",
-      "manufacturer": "SAMSUNG",
-      "model": "Galaxy A14",
+      "id": "honor-x8c-35-arm64-v8a",
+      "manufacturer": "HONOR",
+      "model": "X8c",
       "api": "35",
       "abi": "arm64-v8a"
     },
@@ -36,5 +36,6 @@
       "api": "37",
       "abi": "arm64-v8a"
     }
-  ]
+  ],
+  "required_device": "honor-x8c-35-arm64-v8a"
 }

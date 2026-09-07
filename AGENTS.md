@@ -26,6 +26,9 @@ branch names, credentials, signing material, or other secrets.
 - Pull requests must run native tests and Android JVM unit/lint/build checks. Do not require an
   Android emulator in GitHub Actions: hosted-runner KVM availability proved too unreliable for a
   trustworthy required check.
+- Classify the full PR diff, not just the latest push. Require `Change scope`; skip unrelated
+  suites. Without Android-impacting changes, skip Android/UI jobs and publish a successful UI
+  status explaining the skip. Shared build/CI inputs and unknown paths run all suites.
 - PR builds may publish debug and unsigned APK artifacts. They must never have access to release
   signing material and must never produce or publish a signed release APK.
 - Surface downloadable APK artifacts in the GitHub Actions job summary in addition to uploading
@@ -38,7 +41,7 @@ branch names, credentials, signing material, or other secrets.
   `Selectel UI required` for the current commit. Never rent devices on each push.
   `required` covers Android 15; optional `additional` covers Android 11, 13, 16, 17 without overlap.
   Publish their distinct commit statuses so manual-run progress is visible on the PR; initialize
-  required as pending for each new PR head, preserving results on CI reruns. Both use `config/selectel-devices.json`; no runtime discovery.
+  required as pending for Android-impacting PR heads, preserving results on CI reruns. Both use `config/selectel-devices.json`; no runtime discovery.
   Do not reintroduce a software-emulated Android fallback.
 - Selectel credentials live in GitHub Actions secrets or `~/.config/megaproxy/selectel.env`.
   Build APKs before renting; release only the recorded device/slot owned by the run, including

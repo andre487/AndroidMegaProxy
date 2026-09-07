@@ -88,6 +88,31 @@ class LauncherTest(unittest.TestCase):
             "devices=required",
         )
 
+    def test_yes_skips_confirmation_but_still_rechecks_the_commit(self):
+        with (
+            patch.object(self.client, "pr", return_value=self.pr) as pr,
+            patch.object(self.client, "run", return_value="") as run,
+            patch("builtins.input", side_effect=AssertionError),
+        ):
+            m.launch(self.client, self.pr, "required", yes=True)
+        pr.assert_called_once_with(31)
+        run.assert_called_once()
+        changed = dict(self.pr, headRefOid="new")
+        with (
+            patch.object(self.client, "pr", return_value=changed),
+            patch.object(self.client, "run", side_effect=AssertionError),
+            patch("builtins.input", side_effect=AssertionError),
+            self.assertRaisesRegex(RuntimeError, "PR changed"),
+        ):
+            m.launch(self.client, self.pr, "required", yes=True)
+
+    def test_dry_run_wins_over_yes(self):
+        with (
+            patch.object(self.client, "run", side_effect=AssertionError),
+            patch("builtins.input", side_effect=AssertionError),
+        ):
+            m.launch(self.client, self.pr, "additional", dry_run=True, yes=True)
+
     def test_fork_is_rejected(self):
         self.pr["isCrossRepository"] = True
         with self.assertRaisesRegex(RuntimeError, "forks"):

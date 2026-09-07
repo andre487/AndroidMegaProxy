@@ -170,7 +170,8 @@ def connect_device(path, endpoint):
 def device_matrix(profile):
     if profile not in ("required", "additional"):
         raise RuntimeError("Device profile must be required or additional")
-    devices = json.loads((ROOT / "config/selectel-devices.json").read_text())["devices"]
+    catalog = json.loads((ROOT / "config/selectel-devices.json").read_text())
+    devices = catalog["devices"]
     if not devices:
         raise RuntimeError("The fixed device catalog is empty")
     ids = set()
@@ -183,14 +184,7 @@ def device_matrix(profile):
         ):
             raise RuntimeError("Unsupported device matrix entry")
         ids.add(device["id"])
-    required = [
-        d
-        for d in devices
-        if d["manufacturer"] == "SAMSUNG"
-        and d["model"] == "Galaxy A14"
-        and d["api"] == "35"
-        and d["abi"] == "arm64-v8a"
-    ]
+    required = [d for d in devices if d["id"] == catalog["required_device"]]
     if len(required) != 1:
         raise RuntimeError(
             "The required device must occur exactly once in the fixed catalog"
@@ -260,10 +254,15 @@ def run_matrix(client, state_path, profile):
         raise RuntimeError("Some fixed device configurations failed; see matrix.json")
 
 
+class DeviceUnavailable(RuntimeError):
+    pass
+
+
 def choose_device(available):
-    sdk = os.environ.get("SELECTEL_ANDROID_API", "35")
-    model = os.environ.get("SELECTEL_DEVICE_MODEL", "Galaxy A14")
-    abi = os.environ.get("SELECTEL_DEVICE_ABI", "arm64-v8a")
+    default = device_matrix("required")[0]
+    sdk = os.environ.get("SELECTEL_ANDROID_API", default["api"])
+    model = os.environ.get("SELECTEL_DEVICE_MODEL", default["model"])
+    abi = os.environ.get("SELECTEL_DEVICE_ABI", default["abi"])
     manufacturer = os.environ.get("SELECTEL_DEVICE_MANUFACTURER", "")
     choices = [
         d
@@ -276,10 +275,39 @@ def choose_device(available):
         and (not model or d.get("marketName") == model)
     ]
     if not choices:
-        raise RuntimeError(
+        raise DeviceUnavailable(
             f"Unavailable configuration: {manufacturer} {model}, API {sdk}, {abi}; no lease created"
         )
     return sorted(choices, key=lambda d: d["marketName"])[0]
+
+
+def wait_for_device(client):
+    raw_timeout = os.environ.get("SELECTEL_DEVICE_WAIT_SECONDS", "600")
+    if (
+        not raw_timeout.isascii()
+        or not raw_timeout.isdecimal()
+        or not 0 <= int(raw_timeout) <= 900
+    ):
+        raise RuntimeError(
+            "SELECTEL_DEVICE_WAIT_SECONDS must be an integer from 0 to 900"
+        )
+    timeout = int(raw_timeout)
+    deadline = time.monotonic() + timeout
+    while True:
+        try:
+            return choose_device(client.request("GET", "/v3/devices/available"))
+        except DeviceUnavailable as error:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise DeviceUnavailable(
+                    f"{error}; availability wait expired ({timeout}s)"
+                ) from None
+            delay = min(30, remaining)
+            print(
+                f"{error}; checking again in {delay:.0f}s ({remaining:.0f}s remaining)",
+                flush=True,
+            )
+            time.sleep(delay)
 
 
 def acquire(client, path):
@@ -294,8 +322,8 @@ def acquire(client, path):
         if not apk.is_file():
             raise RuntimeError("Build UI test APKs before renting a device")
     adb_path()
+    model = wait_for_device(client)
     existing = client.request("GET", "/v3/devices")
-    model = choose_device(client.request("GET", "/v3/devices/available"))
     state = {
         "project": client.project,
         "created_at": time.time(),

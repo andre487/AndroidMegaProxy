@@ -3,8 +3,8 @@
 The `Selectel UI` workflow runs **manually**, on the PR branch selected in Actions → Selectel UI →
 Run workflow. Pushes do not rent devices. Choose one independent profile:
 
-- `required`: Galaxy A14 / Android 15 (API 35), 12 test cases. Its `Selectel UI required` check must
-  succeed for the current PR commit before merging; a new commit requires a new manual run.
+- `required`: HONOR X8c / Android 15 (API 35), 12 test cases. Its `Selectel UI required` check must
+  succeed for the current PR commit before merging; a new commit requires a new manual run when the full PR diff affects Android.
 - `additional`: Galaxy A03 / Android 11, Galaxy A14 / Android 13, Galaxy A35 / Android 16,
   Pixel 8 / Android 17 — four devices, 48 test cases. Its `Selectel UI additional` check is optional.
   It excludes the required device configuration and cannot satisfy or overwrite the required check.
@@ -13,7 +13,7 @@ The fixed snapshot is `config/selectel-devices.json`, captured on 2026-09-07. Bo
 Additional devices run at most two simultaneously in GitHub; locally they run sequentially. There is
 no runtime discovery or substitution if a configuration is unavailable. Update the snapshot in a PR.
 Each profile fails if its build, any selected device or lease cleanup fails. Native/Python/Android
-checks still run automatically. The two UI profiles are launched separately; additional is not needed
+checks run automatically when relevant to the full PR diff. The two UI profiles are launched separately; additional is not needed
 for the merge gate.
 
 ```sh
@@ -27,9 +27,15 @@ from GitHub Actions alongside the existing native/Android checks. Workflow dispa
 in the Actions UI after the workflow is merged into the default branch.
 
 The UI results are published as commit statuses, not only manual-workflow check runs. On each PR
-commit, CI initializes `Selectel UI required` as pending with a link to the manual workflow. Starting
+commit affecting Android, CI initializes `Selectel UI required` as pending with a link to the manual workflow. Starting
 and finishing a UI profile updates its own status on the tested SHA. Rerunning CI preserves existing
 UI results. A new commit never inherits a previous commit's UI success.
+
+CI classifies the **full PR diff against its base**, not only the latest push. Python-only changes
+run Python checks; documentation-only changes skip test jobs. Android and UI tests are skipped when
+Android is unaffected, and the required UI status succeeds with an explicit skip reason. Manual UI
+dispatch uses the same filter and does not build APKs or rent devices in that case. Shared CI/build
+inputs and unknown paths conservatively enable all suites. `Change scope` is a required check.
 
 ## Interactive GitHub launcher
 
@@ -44,6 +50,9 @@ branch inputs and current commit, asks before sending the request, and refuses t
 changed during selection. UI dispatch resolves the branch head when GitHub accepts it; avoid pushing
 while launching. CI reruns target only an existing, completed run for the current PR commit. Fork PRs
 are excluded. Release workflows are not offered. `q` or Ctrl+C cancels.
+
+`--yes` / `-y` skips the final confirmation while retaining PR/profile selection and the check
+that the PR head has not changed. `--dry-run` still prevents launches when combined with `--yes`.
 
 The Python code uses only the standard library and invokes **GitHub CLI (`gh`)**. Install `gh`, then
 run `gh auth login` once (or use its existing `GH_TOKEN`/`GITHUB_TOKEN` environment authentication).
@@ -73,11 +82,17 @@ bundle exec fastlane android selectel_ui_tests
 ```
 
 The first command is read-only. The last rents **one device with minute billing**. Default selection:
-Galaxy A14, Android API 35, arm64. Override with `SELECTEL_ANDROID_API` and
+HONOR X8c, Android API 35, arm64. Override with `SELECTEL_ANDROID_API` and
 `SELECTEL_DEVICE_MODEL` (exact catalog name). No silent model/API-level fallback. Device
 availability and the actual tariff depend on the provider. The UI build includes only ARM64 to reduce upload time. Build before renting to avoid paying for
 compilation. ADB uses its own key directory and server port 5038 (`SELECTEL_ADB_PORT` overrides it),
 so local phones and emulators are not targeted.
+
+Before creating a rental, the runner waits up to **600 seconds**, polling free-device availability
+every 30 seconds. `SELECTEL_DEVICE_WAIT_SECONDS` accepts 0–900 seconds (0 means one immediate check).
+This wait creates no rental and incurs no device billing. API errors fail immediately; an ambiguous
+rental POST is never retried. A device may still be taken between the availability check and rental.
+The device job has a 40-minute limit to leave time for tests and cleanup after waiting.
 
 ## Local additional devices
 

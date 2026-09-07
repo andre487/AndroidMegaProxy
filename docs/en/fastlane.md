@@ -91,7 +91,9 @@ committing the lock file and using `bundle exec fastlane` locally and in CI.
 
 The scripts themselves use Python's standard library. Install the pinned formatting tools only for
 development; Black and isort settings live in `pyproject.toml`. The separate required
-`Python tests and style` job runs formatting checks and Python tests on every PR.
+`Python tests and style` job runs formatting checks and Python tests when the full PR diff affects Python or shared CI/build inputs.
+`Change scope` selects relevant suites; Python/docs-only changes skip Android and UI tests.
+Documentation-only changes skip test jobs. Skipped Android builds do not publish APK artifacts.
 
 ```sh
 python3 -m venv .venv

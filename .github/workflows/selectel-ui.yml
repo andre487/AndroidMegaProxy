@@ -39,8 +39,43 @@ jobs:
               target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
             });
 
-  build:
+  changes:
+    name: Check Android change scope
     needs: status
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      android: ${{ steps.scope.outputs.android }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Find the PR comparison base
+        id: base
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const branch = context.ref.replace(/^refs\/heads\//, '');
+            const prs = await github.paginate(github.rest.pulls.list, {
+              ...context.repo, state: 'open', head: `${context.repo.owner}:${branch}`, per_page: 100
+            });
+            const pr = prs.find(pr => pr.head.sha === context.sha && pr.head.repo.full_name === `${context.repo.owner}/${context.repo.repo}`);
+            // Without a matching PR, run conservatively instead of guessing the diff.
+            core.setOutput('sha', pr ? pr.base.sha : '0'.repeat(40));
+      - name: Classify the full PR diff before renting
+        id: scope
+        env:
+          BASE_SHA: ${{ steps.base.outputs.sha }}
+          HEAD_SHA: ${{ github.sha }}
+        run: python3 scripts/ci_changes.py --base "$BASE_SHA" --head "$HEAD_SHA" --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY"
+
+  build:
+    needs: [status, changes]
+    if: needs.changes.outputs.android == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -90,13 +125,14 @@ jobs:
 
   ui-tests:
     needs: build
+    if: needs.build.result == 'success'
     name: UI · ${{ matrix.model }} · API ${{ matrix.api }} · ${{ matrix.abi }}
     strategy:
       fail-fast: false
       max-parallel: 2
       matrix: ${{ fromJSON(needs.build.outputs.devices) }}
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 40
     env:
       FASTLANE_SKIP_DOCS: "1"
       SELECTEL_DEVICE_MODEL: ${{ matrix.model }}
@@ -164,7 +200,7 @@ jobs:
     # Commit statuses are the PR-facing contexts; avoid an identically named check run.
     name: UI result · ${{ inputs.devices }}
     if: always()
-    needs: [build, ui-tests]
+    needs: [changes, build, ui-tests]
     runs-on: ubuntu-latest
     permissions:
       statuses: write
@@ -173,17 +209,20 @@ jobs:
         uses: actions/github-script@v8
         env:
           PROFILE: ${{ inputs.devices }}
+          SCOPE_RESULT: ${{ needs.changes.result }}
+          ANDROID_CHANGED: ${{ needs.changes.outputs.android }}
           BUILD_RESULT: ${{ needs.build.result }}
           UI_RESULT: ${{ needs.ui-tests.result }}
         with:
           script: |
             const profile = process.env.PROFILE;
             if (!['required', 'additional'].includes(profile)) throw new Error('Invalid UI profile');
-            const passed = process.env.BUILD_RESULT === 'success' && process.env.UI_RESULT === 'success';
+            const skipped = process.env.SCOPE_RESULT === 'success' && process.env.ANDROID_CHANGED === 'false';
+            const passed = skipped || (process.env.BUILD_RESULT === 'success' && process.env.UI_RESULT === 'success');
             await github.rest.repos.createCommitStatus({
               ...context.repo, sha: context.sha, context: `Selectel UI ${profile}`,
               state: passed ? 'success' : 'failure',
-              description: passed ? 'All selected UI tests and cleanup passed' : 'UI run failed, was cancelled, or cleanup failed',
+              description: skipped ? 'UI not required: no Android-impacting changes' : passed ? 'All selected UI tests and cleanup passed' : 'UI run failed, was cancelled, or cleanup failed',
               target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
             });
             if (!passed) core.setFailed('UI build, device tests, or cleanup did not succeed');

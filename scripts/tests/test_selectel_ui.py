@@ -4,7 +4,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location(
     "selectel_ui", Path(__file__).parents[1] / "selectel_ui.py"
@@ -157,6 +157,82 @@ class AdbConnectionTest(unittest.TestCase):
         )
 
 
+class AvailabilityTest(unittest.TestCase):
+    def candidate(self):
+        device = m.device_matrix("required")[0]
+        return dict(
+            platform="Android",
+            sdk=device["api"],
+            marketName=device["model"],
+            manufacturer=device["manufacturer"],
+            abi=device["abi"],
+            count=1,
+        )
+
+    def test_waits_without_creating_rentals(self):
+        candidate = self.candidate()
+        client = Mock()
+        client.request.side_effect = [[], [candidate]]
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(m.time, "sleep") as sleep,
+        ):
+            self.assertEqual(candidate, m.wait_for_device(client))
+        sleep.assert_called_once_with(30)
+        self.assertEqual(
+            [(("GET", "/v3/devices/available"),)] * 2,
+            [(call.args,) for call in client.request.call_args_list],
+        )
+
+    def test_available_device_does_not_wait(self):
+        client = Mock()
+        client.request.return_value = [self.candidate()]
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(m.time, "sleep") as sleep,
+        ):
+            m.wait_for_device(client)
+        sleep.assert_not_called()
+
+    def test_timeout_expires_without_renting(self):
+        client = Mock()
+        client.request.return_value = []
+        with (
+            patch.dict(os.environ, {"SELECTEL_DEVICE_WAIT_SECONDS": "40"}, clear=True),
+            patch.object(m.time, "monotonic", side_effect=[0, 0, 30, 40]),
+            patch.object(m.time, "sleep") as sleep,
+        ):
+            with self.assertRaisesRegex(m.DeviceUnavailable, "wait expired"):
+                m.wait_for_device(client)
+        self.assertEqual([30, 10], [call.args[0] for call in sleep.call_args_list])
+        self.assertTrue(
+            all(
+                call.args == ("GET", "/v3/devices/available")
+                for call in client.request.call_args_list
+            )
+        )
+
+    def test_api_errors_are_not_retried(self):
+        client = Mock()
+        client.request.side_effect = m.ApiError("GET", "/v3/devices/available", 403)
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch.object(m.time, "sleep") as sleep,
+        ):
+            with self.assertRaises(m.ApiError):
+                m.wait_for_device(client)
+        sleep.assert_not_called()
+        client.request.assert_called_once()
+
+    def test_invalid_timeout_cannot_rent(self):
+        for value in ["-1", "nan", "1.5", "901", ""]:
+            client = Mock()
+            with patch.dict(os.environ, {"SELECTEL_DEVICE_WAIT_SECONDS": value}):
+                with self.assertRaisesRegex(RuntimeError, "integer from 0 to 900"):
+                    m.wait_for_device(client)
+            client.request.assert_not_called()
+
+
 class MatrixTest(unittest.TestCase):
     def test_fixed_catalog_needs_no_credentials_or_api(self):
         with (
@@ -166,7 +242,7 @@ class MatrixTest(unittest.TestCase):
             devices = m.device_matrix("additional")
             required = m.device_matrix("required")
         self.assertEqual(1, len(required))
-        self.assertEqual("Galaxy A14", required[0]["model"])
+        self.assertEqual("X8c", required[0]["model"])
         self.assertNotIn(required[0], devices)
         self.assertEqual("35", required[0]["api"])
         self.assertEqual(4, len(devices))
@@ -181,8 +257,8 @@ class MatrixTest(unittest.TestCase):
             candidate = dict(
                 platform="Android",
                 sdk="35",
-                marketName="Galaxy A14",
-                manufacturer="SAMSUNG",
+                marketName="X8c",
+                manufacturer="HONOR",
                 abi="arm64-v8a",
                 count=1,
             )
