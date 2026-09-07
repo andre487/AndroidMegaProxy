@@ -1,21 +1,24 @@
 # Selectel UI tests
 
 The `Selectel UI` workflow runs **manually**, on the PR branch selected in Actions → Selectel UI →
-Run workflow. Select `single` or `all`. Pushes do not rent devices. The aggregate
-`Selectel UI required` check must succeed for the current PR commit before merging; a new commit
-requires a new manual run. Native/JVM/lint checks still run automatically. The required check fails
-if the build or any selected device fails, including unavailable configurations.
+Run workflow. Pushes do not rent devices. Choose one independent profile:
 
-The fixed snapshot in `config/selectel-devices.json`, captured on 2026-09-07, contains **five ARM64 configurations**: Android 11 (Galaxy A03), 13 (Galaxy A14),
-15 (Galaxy A14), 16 (Galaxy A35) and 17 (Pixel 8). `single` selects Galaxy A14 / API 35 / ARM64;
-`all` runs one device per configuration, at most two simultaneously in GitHub. This is not runtime
-discovery and does not rent every physical copy of a model. Update the snapshot explicitly in a PR.
-The full matrix performs 60 test cases and costs more than a single-device run. Availability and
-compatibility of every catalog entry are not guaranteed; there is no substitution on failure.
+- `required`: Galaxy A14 / Android 15 (API 35), 12 test cases. Its `Selectel UI required` check must
+  succeed for the current PR commit before merging; a new commit requires a new manual run.
+- `additional`: Galaxy A03 / Android 11, Galaxy A14 / Android 13, Galaxy A35 / Android 16,
+  Pixel 8 / Android 17 — four devices, 48 test cases. Its `Selectel UI additional` check is optional.
+  It excludes the required device configuration and cannot satisfy or overwrite the required check.
+
+The fixed snapshot is `config/selectel-devices.json`, captured on 2026-09-07. Both profiles use ARM64.
+Additional devices run at most two simultaneously in GitHub; locally they run sequentially. There is
+no runtime discovery or substitution if a configuration is unavailable. Update the snapshot in a PR.
+Each profile fails if its build, any selected device or lease cleanup fails. Native/Python/Android
+checks still run automatically. The two UI profiles are launched separately; additional is not needed
+for the merge gate.
 
 ```sh
-gh workflow run selectel-ui.yml --ref YOUR_PR_BRANCH -f devices=single
-# Or: -f devices=all
+gh workflow run selectel-ui.yml --ref YOUR_PR_BRANCH -f devices=required
+# Or: -f devices=additional
 ```
 
 Only repository branches can be selected; fork code is not automatically tested with secrets.
@@ -31,19 +34,19 @@ python3 scripts/github_actions.py
 python3 scripts/github_actions.py --dry-run
 ```
 
-Choose an open PR and then UI `single`, UI `all`, or a rerun of ordinary CI. The launcher shows the
+Choose an open PR and then UI `required`, UI `additional`, or a rerun of ordinary CI. The launcher shows the
 branch inputs and current commit, asks before sending the request, and refuses to proceed if the PR
 changed during selection. UI dispatch resolves the branch head when GitHub accepts it; avoid pushing
 while launching. CI reruns target only an existing, completed run for the current PR commit. Fork PRs
 are excluded. Release workflows are not offered. `q` or Ctrl+C cancels.
 
-Only Python's standard library is required. Authentication uses `GH_TOKEN`, then `GITHUB_TOKEN`, then
-an existing `gh auth` login if the optional GitHub CLI is installed. Otherwise the token is requested
-with hidden input and is never saved. A fine-grained token needs repository **Actions: write** and
-**Pull requests: read**. No local Selectel secrets or Android toolchain are needed for this launcher.
-Use `--repo OWNER/REPO` to override the default repository. Network failures are not retried: if a
-launch response is lost, check Actions before launching again. The output links to the workflow or CI
-run. The launcher can be used for our registered workflow before the web Run workflow button appears.
+The Python code uses only the standard library and invokes **GitHub CLI (`gh`)**. Install `gh`, then
+run `gh auth login` once (or use its existing `GH_TOKEN`/`GITHUB_TOKEN` environment authentication).
+The script has no HTTP client or token storage. It calls `gh pr list/view`, `gh workflow run`, and
+`gh run list/rerun` with argument arrays, without a shell. No local Selectel secrets or Android
+toolchain are needed. Use `--repo OWNER/REPO` to override the repository. The launcher lists up to
+1,000 open PRs. Failed or timed-out launches are not retried: check Actions before trying again.
+The launcher works for our registered workflow before its web Run workflow button appears.
 
 ## Setup
 
@@ -71,14 +74,14 @@ availability and the actual tariff depend on the provider. The UI build includes
 compilation. ADB uses its own key directory and server port 5038 (`SELECTEL_ADB_PORT` overrides it),
 so local phones and emulators are not targeted.
 
-## Local full matrix
+## Local additional devices
 
 ```sh
-bundle exec fastlane android ui_test_artifacts profile:all
-bundle exec fastlane android selectel_ui_tests profile:all
+bundle exec fastlane android ui_test_artifacts profile:additional
+bundle exec fastlane android selectel_ui_tests profile:additional
 ```
 
-Use `profile:all` for both commands. The selected catalog uses ARM64; if ARM32 is explicitly added
+Use `profile:additional` for both commands. The selected profiles use ARM64; if ARM32 is explicitly added
 to the snapshot later, the build switches to a universal APK. Locally,
 devices run sequentially with independent lease journals and report directories named by catalog ID.
 Test failures do not stop remaining configurations; cleanup failures stop new rentals immediately.

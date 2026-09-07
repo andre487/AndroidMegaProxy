@@ -163,19 +163,19 @@ class MatrixTest(unittest.TestCase):
             patch.dict(os.environ, {}, clear=True),
             patch.object(m, "Client", side_effect=AssertionError),
         ):
-            devices = m.device_matrix("all")
-            single = m.device_matrix("single")
-        self.assertEqual(1, len(single))
-        self.assertEqual("Galaxy A14", single[0]["model"])
-        self.assertIn(single[0], devices)
+            devices = m.device_matrix("additional")
+            required = m.device_matrix("required")
+        self.assertEqual(1, len(required))
+        self.assertEqual("Galaxy A14", required[0]["model"])
+        self.assertNotIn(required[0], devices)
+        self.assertEqual("35", required[0]["api"])
+        self.assertEqual(4, len(devices))
         self.assertEqual(len(devices), len({d["id"] for d in devices}))
         self.assertEqual({"arm64-v8a"}, {d["abi"] for d in devices})
-        self.assertEqual(
-            ["30", "33", "35", "36", "37"], sorted(d["api"] for d in devices)
-        )
+        self.assertEqual(["30", "33", "36", "37"], sorted(d["api"] for d in devices))
 
     def test_selection_does_not_substitute_another_configuration(self):
-        device = m.device_matrix("single")[0]
+        device = m.device_matrix("required")[0]
         with patch.dict(os.environ):
             m.select_configuration(device)
             candidate = dict(
@@ -209,7 +209,7 @@ class MatrixTest(unittest.TestCase):
             self.assertEqual(paths, [call.args[1] for call in release.call_args_list])
 
     def test_matrix_continues_test_failures_but_stops_cleanup_failures(self):
-        devices = m.device_matrix("all")[:2]
+        devices = m.device_matrix("additional")[:2]
         for cleanup_fails in [False, True]:
             with (
                 tempfile.TemporaryDirectory() as root,
@@ -229,7 +229,9 @@ class MatrixTest(unittest.TestCase):
                 ),
             ):
                 with self.assertRaises(RuntimeError):
-                    m.run_matrix(None, Path(root) / ".selectel/lease.json", "all")
+                    m.run_matrix(
+                        None, Path(root) / ".selectel/lease.json", "additional"
+                    )
                 self.assertEqual(1 if cleanup_fails else 2, acquire.call_count)
                 report = json.loads(
                     (Path(root) / "app/build/reports/selectel/matrix.json").read_text()

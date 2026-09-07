@@ -36,7 +36,8 @@ branch names, credentials, signing material, or other secrets.
 - Device UI tests run on Selectel real Android devices through Fastlane, separately from the
   automatic JVM/native checks. Run UI tests manually on the PR branch before merging; require
   `Selectel UI required` for the current commit. Never rent devices on each push.
-  Use `single` or the fixed `config/selectel-devices.json` catalog (`all`); no runtime discovery.
+  `required` covers Android 15; optional `additional` covers Android 11, 13, 16, 17 without overlap.
+  Keep their check names distinct. Both use `config/selectel-devices.json`; no runtime discovery.
   Do not reintroduce a software-emulated Android fallback.
 - Selectel credentials live in GitHub Actions secrets or `~/.config/megaproxy/selectel.env`.
   Build APKs before renting; release only the recorded device/slot owned by the run, including

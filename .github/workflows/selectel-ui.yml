@@ -1,13 +1,14 @@
 name: Selectel UI
+run-name: Selectel UI · ${{ inputs.devices }} · ${{ github.ref_name }}
 
 on:
   workflow_dispatch:
     inputs:
       devices:
-        description: Fixed device set
+        description: Required smoke test or additional Android versions
         type: choice
-        options: [single, all]
-        default: single
+        options: [required, additional]
+        default: required
         required: true
 
 permissions:
@@ -139,8 +140,9 @@ jobs:
             echo "[Selectel UI reports and screenshots]($REPORT_URL)" >> "$GITHUB_STEP_SUMMARY"
           fi
 
-  required:
-    name: Selectel UI required
+  result:
+    # Use different contexts: additional must never satisfy the required check.
+    name: ${{ format('Selectel UI {0}', inputs.devices) }}
     if: always()
     needs: [build, ui-tests]
     runs-on: ubuntu-latest

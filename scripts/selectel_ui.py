@@ -168,8 +168,8 @@ def connect_device(path, endpoint):
 
 
 def device_matrix(profile):
-    if profile not in ("single", "all"):
-        raise RuntimeError("Device profile must be single or all")
+    if profile not in ("required", "additional"):
+        raise RuntimeError("Device profile must be required or additional")
     devices = json.loads((ROOT / "config/selectel-devices.json").read_text())["devices"]
     if not devices:
         raise RuntimeError("The fixed device catalog is empty")
@@ -183,20 +183,21 @@ def device_matrix(profile):
         ):
             raise RuntimeError("Unsupported device matrix entry")
         ids.add(device["id"])
-    if profile == "single":
-        devices = [
-            d
-            for d in devices
-            if d["manufacturer"] == "SAMSUNG"
-            and d["model"] == "Galaxy A14"
-            and d["api"] == "35"
-            and d["abi"] == "arm64-v8a"
-        ]
-        if len(devices) != 1:
-            raise RuntimeError(
-                "The default device must occur exactly once in the fixed catalog"
-            )
-    return devices
+    required = [
+        d
+        for d in devices
+        if d["manufacturer"] == "SAMSUNG"
+        and d["model"] == "Galaxy A14"
+        and d["api"] == "35"
+        and d["abi"] == "arm64-v8a"
+    ]
+    if len(required) != 1:
+        raise RuntimeError(
+            "The required device must occur exactly once in the fixed catalog"
+        )
+    if profile == "required":
+        return required
+    return [device for device in devices if device["id"] != required[0]["id"]]
 
 
 def select_configuration(device):
@@ -573,7 +574,9 @@ def main():
         ],
     )
     parser.add_argument("--state", type=Path, default=ROOT / ".selectel/lease.json")
-    parser.add_argument("--profile", choices=["single", "all"], default="single")
+    parser.add_argument(
+        "--profile", choices=["required", "additional"], default="required"
+    )
     args = parser.parse_args()
     args.state = args.state.resolve()
 

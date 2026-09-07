@@ -18,6 +18,6 @@ existing release scripts. It requires the signing environment documented in the 
 Publishing to an app store is not performed by any lane.
 
 Real-device UI tests use `ui_test_artifacts` followed by `selectel_ui_tests`.
-Pass `profile:all` to both lanes for the fixed full device catalog. See the complete
+Pass `profile:additional` to both lanes for the four optional configurations, excluding the required Android 15 device. See the complete
 [English command reference](../docs/en/fastlane.md), [Russian command reference](../docs/ru/fastlane.md),
 and [Selectel setup](../docs/en/selectel-ui-tests.md) for probe, lease and recovery commands.

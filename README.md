@@ -280,7 +280,8 @@ copy, logs, and tooling.
 ### Real-device UI tests
 
 UI tests run manually on Selectel before merging, with a required check for the current PR commit.
-Choose one device or the fixed full catalog; pushes only trigger native/JVM/lint checks. See the
+Choose `required` (Android 15) or optional `additional` (Android 11, 13, 16, 17);
+pushes only trigger Python/native/Android checks. See the
 [English setup](docs/en/selectel-ui-tests.md) or [Russian setup](docs/ru/selectel-ui-tests.md)
 for local credentials, PR integration, reports, and paid-device cleanup.
 Use `python3 scripts/github_actions.py` to choose a PR and launch UI tests or rerun CI interactively.

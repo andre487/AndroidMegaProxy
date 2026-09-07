@@ -1,11 +1,10 @@
 import copy
 import importlib.util
-import json
 import os
+import subprocess
 import unittest
-import urllib.error
 from pathlib import Path
-from unittest.mock import MagicMock, Mock, patch
+from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location(
     "github_actions", Path(__file__).parents[1] / "github_actions.py"
@@ -16,141 +15,155 @@ spec.loader.exec_module(m)
 
 class LauncherTest(unittest.TestCase):
     def setUp(self):
-        self.client = Mock(repository=m.REPOSITORY)
+        self.client = m.GitHub(m.REPOSITORY)
         self.pr = {
             "number": 31,
-            "state": "open",
-            "head": {
-                "sha": "abc",
-                "ref": "feature/test",
-                "repo": {"full_name": m.REPOSITORY},
-            },
+            "state": "OPEN",
+            "headRefOid": "abc",
+            "headRefName": "feature/test",
+            "isCrossRepository": False,
         }
 
-    def test_dispatch_uses_selected_branch_and_profile(self):
-        for mode in ("single", "all"):
-            path, body, _ = m.plan_run(self.client, self.pr, mode)
-            self.assertEqual("/actions/workflows/selectel-ui.yml/dispatches", path)
-            self.assertEqual({"ref": "feature/test", "inputs": {"devices": mode}}, body)
+    def test_required_and_additional_use_distinct_dispatch_inputs(self):
+        for mode in ("required", "additional"):
+            command, _ = m.plan_run(self.client, self.pr, mode)
+            self.assertEqual(
+                [
+                    "workflow",
+                    "run",
+                    "selectel-ui.yml",
+                    "--ref",
+                    "feature/test",
+                    "-f",
+                    f"devices={mode}",
+                ],
+                command,
+            )
 
-    def test_dry_run_never_posts_or_requests_confirmation(self):
-        with patch("builtins.input", side_effect=AssertionError):
-            m.launch(self.client, self.pr, "all", dry_run=True)
-        self.client.request.assert_not_called()
+    def test_dry_run_never_launches_or_requests_confirmation(self):
+        with (
+            patch.object(self.client, "run", side_effect=AssertionError),
+            patch("builtins.input", side_effect=AssertionError),
+        ):
+            m.launch(self.client, self.pr, "additional", dry_run=True)
 
     def test_changed_or_closed_pr_prevents_dispatch(self):
         for change in ("sha", "closed", "fork"):
             current = copy.deepcopy(self.pr)
             if change == "sha":
-                current["head"]["sha"] = "new"
+                current["headRefOid"] = "new"
             elif change == "closed":
-                current["state"] = "closed"
+                current["state"] = "CLOSED"
             else:
-                current["head"]["repo"]["full_name"] = "other/repo"
-            self.client.request.reset_mock()
-            self.client.request.return_value = current
+                current["isCrossRepository"] = True
             with (
+                patch.object(self.client, "pr", return_value=current),
+                patch.object(self.client, "run", side_effect=AssertionError),
                 patch("builtins.input", return_value="y"),
                 self.assertRaisesRegex(RuntimeError, "PR changed"),
             ):
-                m.launch(self.client, self.pr, "single")
-            self.assertEqual(
-                ["GET"], [call.args[0] for call in self.client.request.call_args_list]
-            )
+                m.launch(self.client, self.pr, "required")
 
-    def test_cancel_never_posts(self):
-        with patch("builtins.input", return_value="n"):
-            m.launch(self.client, self.pr, "single")
-        self.client.request.assert_not_called()
+    def test_cancel_never_launches(self):
+        with (
+            patch.object(self.client, "run", side_effect=AssertionError),
+            patch("builtins.input", return_value="n"),
+        ):
+            m.launch(self.client, self.pr, "required")
 
-    def test_confirmed_dispatch_posts_exactly_once(self):
-        self.client.request.side_effect = [self.pr, None]
-        with patch("builtins.input", return_value="y"):
-            m.launch(self.client, self.pr, "single")
-        self.assertEqual(
-            ["GET", "POST"],
-            [call.args[0] for call in self.client.request.call_args_list],
+    def test_confirmed_dispatch_launches_exactly_once(self):
+        with (
+            patch.object(self.client, "pr", return_value=self.pr),
+            patch.object(self.client, "run", return_value="") as run,
+            patch("builtins.input", return_value="y"),
+        ):
+            m.launch(self.client, self.pr, "required")
+        run.assert_called_once_with(
+            "workflow",
+            "run",
+            "selectel-ui.yml",
+            "--ref",
+            "feature/test",
+            "-f",
+            "devices=required",
         )
 
     def test_fork_is_rejected(self):
-        self.pr["head"]["repo"] = {"full_name": "other/repo"}
+        self.pr["isCrossRepository"] = True
         with self.assertRaisesRegex(RuntimeError, "forks"):
-            m.plan_run(self.client, self.pr, "all")
+            m.plan_run(self.client, self.pr, "additional")
 
-    def test_ci_does_not_rerun_old_commit_or_duplicate_active_run(self):
+    def test_ci_filters_current_commit_and_branch(self):
         run = {
-            "id": 20,
-            "head_sha": "abc",
-            "head_branch": "feature/test",
-            "head_repository": {"full_name": m.REPOSITORY},
+            "databaseId": 20,
+            "headSha": "abc",
+            "headBranch": "feature/test",
             "status": "completed",
-            "html_url": "https://github.com/run",
+            "url": "https://github.com/run",
         }
-        self.client.request.return_value = {"workflow_runs": [run]}
-        self.assertEqual(
-            "/actions/runs/20/rerun", m.plan_run(self.client, self.pr, "ci")[0]
-        )
-        run["head_sha"] = "old"
-        with self.assertRaisesRegex(RuntimeError, "No CI run"):
-            m.plan_run(self.client, self.pr, "ci")
-        run.update(head_sha="abc", status="in_progress")
-        with self.assertRaisesRegex(RuntimeError, "already queued or running"):
-            m.plan_run(self.client, self.pr, "ci")
-
-    def test_environment_token_does_not_need_gh(self):
-        with (
-            patch.dict(os.environ, {"GH_TOKEN": "test-token"}),
-            patch.object(m.subprocess, "run", side_effect=AssertionError),
-        ):
-            self.assertEqual("test-token", m.github_token())
-
-    def test_pr_list_paginates(self):
-        client = m.GitHub(m.REPOSITORY, "test-token")
-        with patch.object(
-            client, "request", side_effect=[[self.pr] * 100, [self.pr]]
-        ) as request:
-            self.assertEqual(101, len(client.open_prs()))
-        self.assertIn("page=2", request.call_args.args[1])
-
-
-class GitHubRequestTest(unittest.TestCase):
-    def test_dispatch_serializes_json_and_accepts_empty_success(self):
-        client = m.GitHub(m.REPOSITORY, "test-token")
-        response = MagicMock()
-        response.__enter__.return_value.read.return_value = b""
-        body = {"ref": "feature/test", "inputs": {"devices": "single"}}
-        with patch.object(
-            m.urllib.request, "urlopen", return_value=response
-        ) as urlopen:
-            self.assertIsNone(
-                client.request(
-                    "POST", "/actions/workflows/selectel-ui.yml/dispatches", body
-                )
+        with patch.object(self.client, "read_json", return_value=[run]) as read:
+            self.assertEqual(
+                ["run", "rerun", "20"], m.plan_run(self.client, self.pr, "ci")[0]
             )
-        request = urlopen.call_args.args[0]
-        self.assertEqual(body, json.loads(request.data))
-        self.assertEqual("Bearer test-token", request.get_header("Authorization"))
-        self.assertEqual("POST", request.method)
+            args = read.call_args.args
+            self.assertEqual("abc", args[args.index("--commit") + 1])
+            self.assertEqual("feature/test", args[args.index("--branch") + 1])
+            run["headSha"] = "old"
+            with self.assertRaisesRegex(RuntimeError, "No CI run"):
+                m.plan_run(self.client, self.pr, "ci")
+            run.update(headSha="abc", status="in_progress")
+            with self.assertRaisesRegex(RuntimeError, "already queued or running"):
+                m.plan_run(self.client, self.pr, "ci")
 
-    def test_ambiguous_post_failure_is_not_retried_or_leaked(self):
-        client = m.GitHub(m.REPOSITORY, "test-token")
-        for error in (
-            TimeoutError("test-token"),
-            urllib.error.HTTPError(
-                "https://api.github.com", 503, "test-token", {}, None
-            ),
+    def test_arguments_are_passed_without_a_shell(self):
+        with patch.object(
+            m.subprocess, "run", return_value=Mock(returncode=0, stdout="[]", stderr="")
+        ) as run:
+            self.client.run("pr", "view", "branch/$(not-a-command)", "--json", "number")
+        args, kwargs = run.call_args
+        self.assertEqual(
+            [
+                "gh",
+                "pr",
+                "view",
+                "branch/$(not-a-command)",
+                "--json",
+                "number",
+                "--repo",
+                m.REPOSITORY,
+            ],
+            args[0],
+        )
+        self.assertFalse(kwargs.get("shell", False))
+
+    def test_timeout_never_retries_a_launch(self):
+        with patch.object(
+            m.subprocess, "run", side_effect=subprocess.TimeoutExpired(["gh"], 60)
+        ) as run:
+            with self.assertRaisesRegex(RuntimeError, "Check Actions before retrying"):
+                self.client.run("workflow", "run", "selectel-ui.yml")
+        self.assertEqual(1, run.call_count)
+
+    def test_missing_cli_is_explained(self):
+        with (
+            patch.object(m.subprocess, "run", side_effect=FileNotFoundError),
+            self.assertRaisesRegex(RuntimeError, "gh auth login"),
         ):
-            with patch.object(
-                m.urllib.request, "urlopen", side_effect=error
-            ) as urlopen:
-                with self.assertRaisesRegex(
-                    RuntimeError, "outcome is unknown"
-                ) as raised:
-                    client.request(
-                        "POST", "/actions/workflows/selectel-ui.yml/dispatches", {}
-                    )
-            self.assertEqual(1, urlopen.call_count)
-            self.assertNotIn("test-token", str(raised.exception))
+            self.client.open_prs()
+
+    def test_tokens_are_not_echoed_from_cli_errors(self):
+        with (
+            patch.dict(os.environ, {"GH_TOKEN": "test-token", "GH_DEBUG": "api"}),
+            patch.object(
+                m.subprocess,
+                "run",
+                return_value=Mock(returncode=1, stderr="failed test-token"),
+            ) as run,
+        ):
+            with self.assertRaises(RuntimeError) as raised:
+                self.client.open_prs()
+        self.assertNotIn("test-token", str(raised.exception))
+        self.assertNotIn("GH_DEBUG", run.call_args.kwargs["env"])
 
 
 if __name__ == "__main__":

@@ -100,11 +100,11 @@ platform :android do
 
   desc "Build debug application and instrumentation APKs before renting a device"
   lane :ui_test_artifacts do |options|
-    profile = options[:profile] || "single"
-    UI.user_error!("profile must be single or all") unless %w[single all].include?(profile)
+    profile = options[:profile] || "required"
+    UI.user_error!("profile must be required or additional") unless %w[required additional].include?(profile)
     require "json"
     devices = JSON.parse(File.read(File.join(project_root, "config", "selectel-devices.json"))).fetch("devices")
-    needs_arm32 = profile == "all" && devices.any? { |device| device.fetch("abi") == "armeabi-v7a" }
+    needs_arm32 = profile == "additional" && devices.any? { |device| device.fetch("abi") == "armeabi-v7a" }
     variant = needs_arm32 ? "universal" : "arm64-v8a"
     ensure_no_release_signing
     selectel_contract_tests
@@ -135,9 +135,9 @@ platform :android do
 
   desc "Rent, run prebuilt UI tests, and release a Selectel Android device"
   lane :selectel_ui_tests do |options|
-    profile = options[:profile] || "single"
-    UI.user_error!("profile must be single or all") unless %w[single all].include?(profile)
-    if profile == "all"
+    profile = options[:profile] || "required"
+    UI.user_error!("profile must be required or additional") unless %w[required additional].include?(profile)
+    if profile == "additional"
       sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "matrix-test", "--profile", profile)
     else
       sh("bash", File.join(project_root, "scripts", "selectel-ui.sh"), "test")
