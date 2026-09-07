@@ -46,6 +46,9 @@ branch names, credentials, signing material, or other secrets.
 - Use Selectel v3 `/users/devices` and `/users/devices/{serial}/remote-connect` for sessions.
   The remote-connect response contains `remoteConnectUrl`, not a `success` flag. Check actual
   ADB device state after connecting; do not disconnect on each intermediate offline poll.
+- Register the public half of ADB’s actual primary `~/.android/adbkey`; Android preference
+  variables do not relocate it, and `ADB_VENDOR_KEYS` does not replace it. Preserve existing
+  private keys and pre-existing Selectel key registrations; isolate the server port.
 - Selectel credentials live in GitHub Actions secrets or `~/.config/megaproxy/selectel.env`.
   Build APKs before renting; release only the recorded device/slot owned by the run, including
   after failures. Preserve the lease journal until cleanup succeeds. Never load release signing

@@ -126,6 +126,61 @@ class LeaseTest(unittest.TestCase):
         )
 
 
+class AdbIdentityTest(unittest.TestCase):
+    def test_existing_primary_key_is_used_without_overwriting_it(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            key = root / ".android/adbkey"
+            key.parent.mkdir()
+            key.write_text("existing-private-key")
+            with (
+                patch.object(m.Path, "home", return_value=root),
+                patch.object(m, "adb", return_value="primary-public-key\n") as adb,
+            ):
+                self.assertEqual(
+                    "primary-public-key", m.adb_public_key(root / "lease.json")
+                )
+            adb.assert_called_once_with(root / "lease.json", "pubkey", str(key))
+            self.assertEqual("existing-private-key", key.read_text())
+
+    def test_missing_primary_key_is_initialized_by_adb(self):
+        with tempfile.TemporaryDirectory() as root:
+            root = Path(root)
+            state = root / "lease.json"
+            with (
+                patch.object(m.Path, "home", return_value=root),
+                patch.object(m, "adb", side_effect=["", "public-key\n"]) as adb,
+            ):
+                self.assertEqual("public-key", m.adb_public_key(state))
+            self.assertEqual(
+                [
+                    (state, "start-server"),
+                    (state, "pubkey", str(root / ".android/adbkey")),
+                ],
+                [call.args for call in adb.call_args_list],
+            )
+
+    def test_environment_does_not_redirect_server_or_add_vendor_keys(self):
+        with patch.dict(
+            os.environ,
+            {
+                "ADB_VENDOR_KEYS": "/other/key",
+                "ADB_SERVER_SOCKET": "tcp:elsewhere:5037",
+                "ANDROID_USER_HOME": "/other",
+                "ANDROID_PREFS_ROOT": "/other",
+            },
+        ):
+            env = m.adb_env(Path("/tmp/lease.json"))
+        for name in (
+            "ADB_VENDOR_KEYS",
+            "ADB_SERVER_SOCKET",
+            "ANDROID_USER_HOME",
+            "ANDROID_PREFS_ROOT",
+        ):
+            self.assertNotIn(name, env)
+        self.assertEqual(os.environ.get("HOME"), env.get("HOME"))
+
+
 class AdbConnectionTest(unittest.TestCase):
     def test_auth_warning_and_offline_can_become_ready_without_disconnect(self):
         with (
@@ -158,6 +213,12 @@ class AdbConnectionTest(unittest.TestCase):
 
 class AcquisitionTest(unittest.TestCase):
     def test_v3_lifecycle_accepts_remote_url_without_success_flag(self):
+        self.run_lifecycle(False)
+
+    def test_existing_key_registration_is_not_deleted(self):
+        self.run_lifecycle(True)
+
+    def run_lifecycle(self, existing_key):
         with tempfile.TemporaryDirectory() as root:
             root = Path(root)
             for name in [
@@ -187,17 +248,15 @@ class AcquisitionTest(unittest.TestCase):
                 if method == "GET":
                     return info
                 if route == "/v3/keys/adb":
+                    self.assertEqual("primary-public-key", body["publicKey"])
+                    if existing_key:
+                        raise m.ApiError(method, route, 409)
                     return {"fingerprint": "key"}
                 if route.endswith("/remote-connect") and method == "POST":
                     return {"remoteConnectUrl": "example.test:1234"}
                 return None  # Assignment succeeds with an empty HTTP 200 response.
 
             client.request.side_effect = request
-
-            def keygen(args, **kwargs):
-                key = Path(args[2])
-                key.write_text("test-private")
-                key.with_suffix(".pub").write_text("test-public")
 
             with (
                 patch.object(m, "ROOT", root),
@@ -213,7 +272,7 @@ class AcquisitionTest(unittest.TestCase):
                     },
                 ),
                 patch.object(m, "adb_path", return_value="adb"),
-                patch.object(m.subprocess, "run", side_effect=keygen),
+                patch.object(m, "adb_public_key", return_value="primary-public-key"),
                 patch.object(m, "connect_device") as connect,
                 patch.object(m, "adb"),
             ):
@@ -221,6 +280,13 @@ class AcquisitionTest(unittest.TestCase):
                 connect.assert_called_once_with(path, "example.test:1234")
                 m.release(client, path)
             self.assertTrue(m.read_state(path)["released"])
+            self.assertEqual(
+                not existing_key,
+                any(
+                    method == "DELETE" and route.startswith("/v3/keys/adb/")
+                    for method, route, _ in requests
+                ),
+            )
             self.assertIn(
                 ("POST", "/v3/users/devices", {"serial": "device", "timeout": 1200000}),
                 requests,

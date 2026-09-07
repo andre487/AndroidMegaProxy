@@ -85,8 +85,12 @@ The first command is read-only. The last rents **one device with minute billing*
 HONOR X8c, Android API 35, arm64. Override with `SELECTEL_ANDROID_API` and
 `SELECTEL_DEVICE_MODEL` (exact catalog name). No silent model/API-level fallback. Device
 availability and the actual tariff depend on the provider. The UI build includes only ARM64 to reduce upload time. Build before renting to avoid paying for
-compilation. ADB uses its own key directory and server port 5038 (`SELECTEL_ADB_PORT` overrides it),
-so local phones and emulators are not targeted.
+compilation. ADB uses its normal primary key at `~/.android/adbkey` and a separate server port 5038
+(`SELECTEL_ADB_PORT` overrides it). Commands target only the rented endpoint. Existing private
+keys are never overwritten or deleted; when missing, ADB creates its standard key. The runner
+registers the public key derived with `adb pubkey`, not a separate vendor key. Android preference
+variables do not relocate ADB’s primary key. A pre-existing Selectel key registration (HTTP 409)
+is reused and preserved; only registrations created by this run are removed during cleanup.
 
 Before creating a rental, the runner waits up to **600 seconds**, polling free-device availability
 every 30 seconds. `SELECTEL_DEVICE_WAIT_SECONDS` accepts 0–900 seconds (0 means one immediate check).
@@ -133,7 +137,7 @@ timeouts fail the job. GitHub uploads reports and links them in the job summary.
 
 ## Cleanup and recovery
 
-`.selectel/lease.json` records only project/device/slot identifiers and temporary public-key identity,
+`.selectel/lease.json` records only project/device/slot identifiers and public-key registration identity,
 not credentials. Do not delete it while a lease is outstanding. It survives Gradle clean and is ignored
 by Git. `selectel_ui_tests` cleans up in `finally`; GitHub also uses an `always()` release step.
 Recovery is idempotent and verifies the slot ID so an old journal cannot delete a newer rental.

@@ -109,14 +109,28 @@ def adb_path():
 
 
 def adb_env(state_path):
-    # Isolate keys and the host server from the developer's own devices.
-    home = state_path.parent / "adb-home"
-    (home / ".android").mkdir(parents=True, exist_ok=True)
+    # ADB reads its primary key from ~/.android/adbkey, independently of Android
+    # SDK preference paths. Use that same identity when registering with Selectel.
     env = os.environ.copy()
-    env["ANDROID_USER_HOME"] = str(home / ".android")
-    env["ANDROID_PREFS_ROOT"] = str(home)
-    env["ADB_VENDOR_KEYS"] = str(home / ".android/adbkey")
+    for name in (
+        "ANDROID_USER_HOME",
+        "ANDROID_PREFS_ROOT",
+        "ADB_VENDOR_KEYS",
+        "ADB_SERVER_SOCKET",
+    ):
+        env.pop(name, None)
     return env
+
+
+def adb_public_key(path):
+    key = Path.home() / ".android/adbkey"
+    if not key.is_file():
+        # Let ADB create its normal identity; never overwrite an existing key.
+        adb(path, "start-server")
+    public_key = adb(path, "pubkey", str(key)).strip()
+    if not public_key:
+        raise RuntimeError("ADB did not return its primary public key")
+    return public_key
 
 
 def adb(state_path, *args, timeout=30, check=True, include_stderr=False):
@@ -337,7 +351,7 @@ def acquire(client, path):
     ]:
         if not apk.is_file():
             raise RuntimeError("Build UI test APKs before renting a device")
-    adb_path()
+    public_key = adb_public_key(path)
     model = wait_for_device(client)
     existing = client.request("GET", "/v3/devices")
     state = {
@@ -383,22 +397,25 @@ def acquire(client, path):
     device = state["devices"][0]
     serial = urllib.parse.quote(device["serial"], safe="")
     wait_until_ready(client, serial)
-    env = adb_env(path)
-    key = Path(env["ADB_VENDOR_KEYS"])
-    subprocess.run(
-        [adb_path(), "keygen", str(key)], check=True, capture_output=True, env=env
-    )
-    os.chmod(key, 0o600)
-    key_info = client.request(
-        "POST",
-        "/v3/keys/adb",
-        {
-            "publicKey": key.with_suffix(".pub").read_text(),
-            "title": "megaproxy-ui-" + str(int(state["created_at"])),
-        },
-    )
-    state["fingerprint"] = key_info["fingerprint"]
-    write_state(path, state)
+    try:
+        key_info = client.request(
+            "POST",
+            "/v3/keys/adb",
+            {
+                "publicKey": public_key,
+                "title": "megaproxy-ui-" + str(int(state["created_at"])),
+            },
+        )
+    except ApiError as error:
+        if error.status != 409:
+            raise
+        # Documented 409: this fingerprint already exists. It is not ours to delete.
+        print(
+            "Using an existing Selectel registration of the primary ADB key", flush=True
+        )
+    else:
+        state["fingerprint"] = key_info["fingerprint"]
+        write_state(path, state)
     client.request(
         "POST", "/v3/users/devices", {"serial": device["serial"], "timeout": 1200000}
     )
@@ -478,7 +495,10 @@ def release(client, path):
         raise RuntimeError("; ".join(errors) + f". Recovery journal: {path}")
     state["released"] = True
     write_state(path, state)
-    print("Paid device lease and temporary ADB key released", flush=True)
+    print(
+        "Paid device lease released; any ADB key registration created by this run removed",
+        flush=True,
+    )
 
 
 def instrumentation_report(output, target):
