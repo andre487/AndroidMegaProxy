@@ -168,7 +168,7 @@ internal fun ProfileTypeBadge(type: ProxyType, foreground: Color, modifier: Modi
         modifier = modifier,
         color = Color.Transparent,
         contentColor = foreground,
-        shape = RoundedCornerShape(50),
+        shape = RoundedCornerShape(8.dp),
         border = BorderStroke(1.dp, foreground.copy(alpha = 0.5f)),
     ) {
         Text(
