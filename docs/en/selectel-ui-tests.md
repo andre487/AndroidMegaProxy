@@ -26,6 +26,11 @@ No hosted emulator or release signing is used. The ruleset for `main` requires `
 from GitHub Actions alongside the existing native/Android checks. Workflow dispatch becomes available
 in the Actions UI after the workflow is merged into the default branch.
 
+The UI results are published as commit statuses, not only manual-workflow check runs. On each PR
+commit, CI initializes `Selectel UI required` as pending with a link to the manual workflow. Starting
+and finishing a UI profile updates its own status on the tested SHA. Rerunning CI preserves existing
+UI results. A new commit never inherits a previous commit's UI success.
+
 ## Interactive GitHub launcher
 
 ```sh
@@ -116,6 +121,13 @@ uses trusted default-branch code to release any remaining rental. This recovery 
 active after merging it into the default branch. It does not execute code from downloaded artifacts.
 To recover manually on another checkout, download that run's `selectel-lease-*` artifact and put its
 `lease.json` in `.selectel/` before invoking `selectel_release`.
+
+
+Cancellation uses the device job's `always()` release step and a separate `workflow_run: completed`
+recovery run, including cancelled conclusions. Recovery also closes a failed/cancelled commit status
+without overwriting a newer run. Normal cancellation has a finite cleanup window (GitHub can force
+termination after five minutes); force-cancel and a dead runner can bypass local cleanup. Recovery
+needs the uploaded journal and only becomes active once this workflow reaches the default branch.
 
 There is a residual window if the runner dies before uploading the journal, or the allocation API
 accepts the request but its response is lost. Allocation is deliberately not retried automatically.

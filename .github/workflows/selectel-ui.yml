@@ -20,7 +20,27 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  status:
+    name: Publish UI start
+    runs-on: ubuntu-latest
+    permissions:
+      statuses: write
+    steps:
+      - uses: actions/github-script@v8
+        env:
+          PROFILE: ${{ inputs.devices }}
+        with:
+          script: |
+            const profile = process.env.PROFILE;
+            if (!['required', 'additional'].includes(profile)) throw new Error('Invalid UI profile');
+            await github.rest.repos.createCommitStatus({
+              ...context.repo, sha: context.sha, context: `Selectel UI ${profile}`,
+              state: 'pending', description: 'Building APKs and running device tests',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+
   build:
+    needs: status
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -141,14 +161,29 @@ jobs:
           fi
 
   result:
-    # Use different contexts: additional must never satisfy the required check.
-    name: ${{ format('Selectel UI {0}', inputs.devices) }}
+    # Commit statuses are the PR-facing contexts; avoid an identically named check run.
+    name: UI result · ${{ inputs.devices }}
     if: always()
     needs: [build, ui-tests]
     runs-on: ubuntu-latest
+    permissions:
+      statuses: write
     steps:
-      - name: Require successful build and every selected device
+      - name: Publish the UI result on the tested commit
+        uses: actions/github-script@v8
         env:
+          PROFILE: ${{ inputs.devices }}
           BUILD_RESULT: ${{ needs.build.result }}
           UI_RESULT: ${{ needs.ui-tests.result }}
-        run: test "$BUILD_RESULT" = success && test "$UI_RESULT" = success
+        with:
+          script: |
+            const profile = process.env.PROFILE;
+            if (!['required', 'additional'].includes(profile)) throw new Error('Invalid UI profile');
+            const passed = process.env.BUILD_RESULT === 'success' && process.env.UI_RESULT === 'success';
+            await github.rest.repos.createCommitStatus({
+              ...context.repo, sha: context.sha, context: `Selectel UI ${profile}`,
+              state: passed ? 'success' : 'failure',
+              description: passed ? 'All selected UI tests and cleanup passed' : 'UI run failed, was cancelled, or cleanup failed',
+              target_url: `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`
+            });
+            if (!passed) core.setFailed('UI build, device tests, or cleanup did not succeed');

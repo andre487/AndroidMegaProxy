@@ -37,7 +37,8 @@ branch names, credentials, signing material, or other secrets.
   automatic JVM/native checks. Run UI tests manually on the PR branch before merging; require
   `Selectel UI required` for the current commit. Never rent devices on each push.
   `required` covers Android 15; optional `additional` covers Android 11, 13, 16, 17 without overlap.
-  Keep their check names distinct. Both use `config/selectel-devices.json`; no runtime discovery.
+  Publish their distinct commit statuses so manual-run progress is visible on the PR; initialize
+  required as pending for each new PR head, preserving results on CI reruns. Both use `config/selectel-devices.json`; no runtime discovery.
   Do not reintroduce a software-emulated Android fallback.
 - Selectel credentials live in GitHub Actions secrets or `~/.config/megaproxy/selectel.env`.
   Build APKs before renting; release only the recorded device/slot owned by the run, including

@@ -8,6 +8,7 @@ on:
 permissions:
   contents: read
   actions: read
+  statuses: write
 
 jobs:
   release:
@@ -55,3 +56,28 @@ jobs:
           SELECTEL_PROJECT_ID: ${{ secrets.SELECTEL_PROJECT_ID }}
           FASTLANE_SKIP_DOCS: "1"
         run: bundle exec fastlane android selectel_release
+      - name: Close a failed or cancelled UI status
+        if: always() && github.event.workflow_run.conclusion != 'success'
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+            const match = /^Selectel UI · (required|additional) · /.exec(run.display_title || '');
+            if (!match) return;
+            const current = (await github.rest.actions.getWorkflowRun({
+              ...context.repo, run_id: run.id
+            })).data;
+            if (current.run_attempt !== run.run_attempt) return;
+            const name = `Selectel UI ${match[1]}`;
+            const statuses = await github.paginate(github.rest.repos.listCommitStatusesForRef, {
+              ...context.repo, ref: run.head_sha, per_page: 100
+            });
+            const latest = statuses.find(status => status.context === name);
+            const waitingUrl = `${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/workflows/selectel-ui.yml`;
+            // Never overwrite a newer run's result for the same commit/profile.
+            if (latest && latest.target_url !== run.html_url && latest.target_url !== waitingUrl) return;
+            await github.rest.repos.createCommitStatus({
+              ...context.repo, sha: run.head_sha, context: name, state: 'failure',
+              description: 'UI run failed or was cancelled; inspect lease recovery logs',
+              target_url: run.html_url
+            });
