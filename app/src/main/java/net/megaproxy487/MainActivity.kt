@@ -33,6 +33,8 @@ import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.outlined.RadioButtonUnchecked
@@ -73,7 +75,6 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import net.megaproxy487.uiStringResource as stringResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -165,16 +166,16 @@ class MainActivity : LocalizedActivity() {
 internal fun ProfileTypeBadge(type: ProxyType, foreground: Color, modifier: Modifier = Modifier) {
     Surface(
         modifier = modifier,
-        color = foreground.copy(alpha = 0.14f),
+        color = Color.Transparent,
         contentColor = foreground,
         shape = RoundedCornerShape(50),
         border = BorderStroke(1.dp, foreground.copy(alpha = 0.5f)),
     ) {
         Text(
             stringResource(type.titleRes),
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp, lineHeight = 12.sp, letterSpacing = 0.sp),
-            maxLines = 1,
-            softWrap = false,
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.sp),
+            maxLines = 2,
+            softWrap = true,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 3.dp),
         )
@@ -254,6 +255,7 @@ internal fun MainScreen(
     val store = remember { ConfigStore(activity) }
     val writeStatus by ConfigWrites.status.collectAsState()
     var error by remember { mutableStateOf<String?>(null) }
+    var actionsMenuExpanded by remember { mutableStateOf(false) }
     var profileMenuExpanded by remember { mutableStateOf(false) }
     var profiles by remember { mutableStateOf(store.sortedProfiles()) }
     var activeProfileId by remember { mutableStateOf(store.activeProfileId()) }
@@ -390,7 +392,44 @@ internal fun MainScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { ScreenTitle(stringResource(R.string.app_name)) }) },
+        topBar = {
+            TopAppBar(
+                title = { ScreenTitle(stringResource(R.string.app_name)) },
+                actions = {
+                    Box {
+                        IconButton(onClick = { actionsMenuExpanded = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.main_actions))
+                        }
+                        DropdownMenu(actionsMenuExpanded, { actionsMenuExpanded = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.test_connection)) },
+                                onClick = { actionsMenuExpanded = false; onOpenConnectionTest() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.settings)) },
+                                onClick = { actionsMenuExpanded = false; onOpenSettings() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.feedback)) },
+                                onClick = {
+                                    actionsMenuExpanded = false
+                                    scope.launch {
+                                        runCatching {
+                                            val intent = withContext(Dispatchers.IO) {
+                                                FeedbackEmail.createIntent(activity, connection, alwaysOn, lockdown)
+                                            }
+                                            activity.startActivity(intent)
+                                        }.onFailure {
+                                            error = activity.uiText(R.string.could_not_open_email)
+                                        }
+                                    }
+                                },
+                            )
+                        }
+                    }
+                },
+            )
+        },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
@@ -412,20 +451,26 @@ internal fun MainScreen(
                 stateDescription = statusLabel
             }) {
                 Column(
-                    Modifier.fillMaxWidth().padding(vertical = 28.dp, horizontal = 20.dp),
+                    Modifier.fillMaxWidth().padding(16.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                 ) {
-                    Icon(
-                        if (connected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
-                        contentDescription = null,
-                        tint = statusColor,
-                    )
-                    Text(
-                        if (connection == VpnConnectionState.CONNECTING) activity.uiText(R.string.status_connecting_progress) else statusLabel,
-                        style = MaterialTheme.typography.headlineSmall,
-                        color = statusColor,
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Icon(
+                            if (connected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                            contentDescription = null,
+                            tint = statusColor,
+                        )
+                        Text(
+                            if (connection == VpnConnectionState.CONNECTING) activity.uiText(R.string.status_connecting_progress) else statusLabel,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = statusColor,
+                            modifier = Modifier.weight(1f, fill = false),
+                        )
+                    }
                     if (alwaysOn) {
                         Text(
                             if (lockdown) activity.uiText(R.string.always_on_lockdown) else activity.uiText(R.string.always_on_badge),
@@ -440,29 +485,18 @@ internal fun MainScreen(
                             VpnTransportProtocol.SSH_MULTIPLEXED -> stringResource(R.string.transport_ssh_multiplexed)
                             VpnTransportProtocol.UNKNOWN -> ""
                         }
-                        Surface(
-                            color = MaterialTheme.colorScheme.secondaryContainer,
-                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                            shape = RoundedCornerShape(12.dp),
-                        ) {
-                            Text(
-                                transportLabel,
-                                style = MaterialTheme.typography.labelLarge,
-                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
-                            )
-                        }
+                        Text(
+                            transportLabel,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
                     }
                 }
             }
-            Spacer(Modifier.height(4.dp))
             networkWarning?.let {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer), modifier = Modifier.fillMaxWidth()) {
                     Text(it, color = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.padding(14.dp))
                 }
-                Spacer(Modifier.height(12.dp))
-            }
-            connectionStats?.let { stats ->
-                ConnectionStatsCard(stats)
                 Spacer(Modifier.height(12.dp))
             }
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
@@ -470,7 +504,7 @@ internal fun MainScreen(
             val actualProfile = profiles.firstOrNull { it.id == runtimeProfileId }
             val activeProfileError = globalSettings.applyTo(activeProfile.config).connectionValidationError()?.let { activity.uiText(it) }
             val profileColor = Color(ProfileColors.argb[Math.floorMod(activeProfile.colorIndex, ProfileColors.argb.size)])
-            val onProfileColor = if (profileColor.luminance() > 0.45f) Color.Black else Color.White
+            val onProfileColor = profileForeground(profileColor)
             Box(Modifier.fillMaxWidth()) {
                 Card(
                     Modifier.fillMaxWidth().clickable { profileMenuExpanded = true },
@@ -605,29 +639,6 @@ internal fun MainScreen(
                     }
                 }
             }
-            FilledTonalButton(shape = RoundedCornerShape(12.dp),
-                onClick = onOpenConnectionTest,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.test_connection)) }
-            FilledTonalButton(shape = RoundedCornerShape(12.dp),
-                onClick = onOpenSettings,
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.settings)) }
-            FilledTonalButton(shape = RoundedCornerShape(12.dp),
-                onClick = {
-                    scope.launch {
-                        runCatching {
-                            val intent = withContext(Dispatchers.IO) {
-                                FeedbackEmail.createIntent(activity, connection, alwaysOn, lockdown)
-                            }
-                            activity.startActivity(intent)
-                        }.onFailure {
-                            error = activity.uiText(R.string.could_not_open_email)
-                        }
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.feedback)) }
             error?.let {
                 Text(it, color = MaterialTheme.colorScheme.error, modifier = Modifier.padding(top = 12.dp))
             }
@@ -638,6 +649,9 @@ internal fun MainScreen(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 12.dp),
                 )
+            }
+            connectionStats?.let { stats ->
+                ConnectionStatsCard(stats)
             }
             Text(
                 stringResource(R.string.version_and_commit, BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH),

@@ -74,7 +74,6 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
@@ -827,7 +826,7 @@ private fun ProfileCard(
 ) {
     val activity = androidx.compose.ui.platform.LocalContext.current
     val background = Color(ProfileColors.argb[Math.floorMod(profile.colorIndex, ProfileColors.argb.size)])
-    val foreground = if (background.luminance() > 0.45f) Color.Black else Color.White
+    val foreground = profileForeground(background)
     Card(
         colors = CardDefaults.cardColors(containerColor = background, contentColor = foreground),
         modifier = modifier.fillMaxWidth(),

@@ -460,4 +460,5 @@
     <string name="transfer_failed">Не удалось завершить операцию. Повторите попытку.</string>
     <string name="transfer_working">Обработка конфигурации…</string>
     <string name="draft_profile_hint">Профиль сохранится после первого изменения. Чтобы отменить создание, вернитесь назад.</string>
+    <string name="main_actions">Другие действия</string>
 </resources>

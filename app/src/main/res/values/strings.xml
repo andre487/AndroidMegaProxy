@@ -455,4 +455,5 @@
     <string name="transfer_failed">The operation could not be completed. Please try again.</string>
     <string name="transfer_working">Processing configuration…</string>
     <string name="draft_profile_hint">This profile will be saved after your first change. Go back to cancel.</string>
+    <string name="main_actions">More actions</string>
 </resources>
