@@ -19,3 +19,5 @@ app/libs/megaproxy-sources.jar
 
 .selectel/
 __pycache__/
+
+.venv/

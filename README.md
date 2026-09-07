@@ -283,6 +283,7 @@ UI tests run manually on Selectel before merging, with a required check for the 
 Choose one device or the fixed full catalog; pushes only trigger native/JVM/lint checks. See the
 [English setup](docs/en/selectel-ui-tests.md) or [Russian setup](docs/ru/selectel-ui-tests.md)
 for local credentials, PR integration, reports, and paid-device cleanup.
+Use `python3 scripts/github_actions.py` to choose a PR and launch UI tests or rerun CI interactively.
 
 ### Emulator
 

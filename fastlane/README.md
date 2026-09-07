@@ -5,6 +5,8 @@ Fastlane is the supported entry point for tests and build artifacts. Install Rub
 
 | Command | Purpose |
 | --- | --- |
+| `bundle exec fastlane android python_format` | Format Python with Black and isort |
+| `bundle exec fastlane android python_checks` | Check Python style and runner contracts |
 | `bundle exec fastlane android native_tests` | Run Go tests with the race detector |
 | `bundle exec fastlane android android_checks` | Run Android tests and lint, build a debug APK and release APK, and prove that the release APK is unsigned |
 | `bundle exec fastlane android test` | Run all native and Android checks |

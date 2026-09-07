@@ -16,6 +16,10 @@ branch names, credentials, signing material, or other secrets.
 - Direct scripts and Gradle tasks may remain implementation details behind Fastlane lanes, but
   documentation and CI should normally expose the Fastlane commands.
 
+- Python scripts use the standard library at runtime. Format them with pinned Black and isort
+  (`requirements-dev.txt`, `pyproject.toml`) through the `python_format` Fastlane lane;
+  `python_checks` validates formatting and runner contracts in CI.
+
 ## CI and artifacts
 
 - Pull requests must run native tests and Android JVM unit/lint/build checks. Do not require an

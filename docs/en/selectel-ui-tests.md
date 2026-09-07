@@ -23,6 +23,28 @@ No hosted emulator or release signing is used. The ruleset for `main` requires `
 from GitHub Actions alongside the existing native/Android checks. Workflow dispatch becomes available
 in the Actions UI after the workflow is merged into the default branch.
 
+## Interactive GitHub launcher
+
+```sh
+python3 scripts/github_actions.py
+# Preview the selection without starting jobs or renting devices:
+python3 scripts/github_actions.py --dry-run
+```
+
+Choose an open PR and then UI `single`, UI `all`, or a rerun of ordinary CI. The launcher shows the
+branch inputs and current commit, asks before sending the request, and refuses to proceed if the PR
+changed during selection. UI dispatch resolves the branch head when GitHub accepts it; avoid pushing
+while launching. CI reruns target only an existing, completed run for the current PR commit. Fork PRs
+are excluded. Release workflows are not offered. `q` or Ctrl+C cancels.
+
+Only Python's standard library is required. Authentication uses `GH_TOKEN`, then `GITHUB_TOKEN`, then
+an existing `gh auth` login if the optional GitHub CLI is installed. Otherwise the token is requested
+with hidden input and is never saved. A fine-grained token needs repository **Actions: write** and
+**Pull requests: read**. No local Selectel secrets or Android toolchain are needed for this launcher.
+Use `--repo OWNER/REPO` to override the default repository. Network failures are not retried: if a
+launch response is lost, check Actions before launching again. The output links to the workflow or CI
+run. The launcher can be used for our registered workflow before the web Run workflow button appears.
+
 ## Setup
 
 Create a Selectel service user with `mobile_farm.admin` scoped to the chosen project. This role is

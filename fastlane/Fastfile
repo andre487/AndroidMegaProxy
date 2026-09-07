@@ -79,6 +79,25 @@ platform :android do
     sh("python3", "-m", "unittest", "discover", "-s", File.join(project_root, "scripts", "tests"))
   end
 
+  desc "Format Python scripts with isort and Black"
+  lane :python_format do
+    python = ENV.fetch("PYTHON", "python3")
+    Dir.chdir(project_root) do
+      sh(python, "-m", "isort", "scripts")
+      sh(python, "-m", "black", "scripts")
+    end
+  end
+
+  desc "Check Python formatting, import order, and runner contracts"
+  lane :python_checks do
+    python = ENV.fetch("PYTHON", "python3")
+    Dir.chdir(project_root) do
+      sh(python, "-m", "isort", "--check-only", "scripts")
+      sh(python, "-m", "black", "--check", "scripts")
+    end
+    selectel_contract_tests
+  end
+
   desc "Build debug application and instrumentation APKs before renting a device"
   lane :ui_test_artifacts do |options|
     profile = options[:profile] || "single"

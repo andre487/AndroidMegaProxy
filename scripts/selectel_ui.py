@@ -4,10 +4,10 @@
 State contains device/slot IDs, never credentials. Only devices created by this run
 are eligible for release. APKs must be built before acquiring a paid device.
 """
+
 import argparse
 import json
 import os
-from pathlib import Path
 import re
 import shutil
 import signal
@@ -18,44 +18,67 @@ import urllib.error
 import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
+from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-API = 'https://api.selectel.ru/mobfarm/api'
-AUTH = 'https://cloud.api.selcloud.ru/identity/v3/auth/tokens'
-APP = 'net.megaproxy487'
-RUNNER = APP + '.test/androidx.test.runner.AndroidJUnitRunner'
+API = "https://api.selectel.ru/mobfarm/api"
+AUTH = "https://cloud.api.selcloud.ru/identity/v3/auth/tokens"
+APP = "net.megaproxy487"
+RUNNER = APP + ".test/androidx.test.runner.AndroidJUnitRunner"
 
 
 class ApiError(RuntimeError):
     def __init__(self, method, path, status):
-        super().__init__(f'Selectel {method} {path}: HTTP {status}')
+        super().__init__(f"Selectel {method} {path}: HTTP {status}")
         self.status = status
 
 
 class Client:
     def __init__(self):
-        names = ['SELECTEL_USERNAME', 'SELECTEL_PASSWORD', 'SELECTEL_ACCOUNT_ID', 'SELECTEL_PROJECT_ID']
+        names = [
+            "SELECTEL_USERNAME",
+            "SELECTEL_PASSWORD",
+            "SELECTEL_ACCOUNT_ID",
+            "SELECTEL_PROJECT_ID",
+        ]
         if any(not os.environ.get(n) for n in names):
-            raise RuntimeError('Required variables: ' + ', '.join(names))
-        self.project = os.environ['SELECTEL_PROJECT_ID']
-        payload = {'auth': {'identity': {'methods': ['password'], 'password': {'user': {
-            'name': os.environ['SELECTEL_USERNAME'], 'password': os.environ['SELECTEL_PASSWORD'],
-            'domain': {'name': os.environ['SELECTEL_ACCOUNT_ID']}}}},
-            'scope': {'project': {'id': self.project}}}}
-        request = urllib.request.Request(AUTH, data=json.dumps(payload).encode(),
-                                         headers={'Content-Type': 'application/json'})
+            raise RuntimeError("Required variables: " + ", ".join(names))
+        self.project = os.environ["SELECTEL_PROJECT_ID"]
+        payload = {
+            "auth": {
+                "identity": {
+                    "methods": ["password"],
+                    "password": {
+                        "user": {
+                            "name": os.environ["SELECTEL_USERNAME"],
+                            "password": os.environ["SELECTEL_PASSWORD"],
+                            "domain": {"name": os.environ["SELECTEL_ACCOUNT_ID"]},
+                        }
+                    },
+                },
+                "scope": {"project": {"id": self.project}},
+            }
+        }
+        request = urllib.request.Request(
+            AUTH,
+            data=json.dumps(payload).encode(),
+            headers={"Content-Type": "application/json"},
+        )
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
-                self.token = response.headers['X-Subject-Token']
+                self.token = response.headers["X-Subject-Token"]
         except urllib.error.HTTPError as e:
-            raise ApiError('POST', 'auth', e.code) from None
+            raise ApiError("POST", "auth", e.code) from None
         if not self.token:
-            raise RuntimeError('Selectel did not return an IAM token')
+            raise RuntimeError("Selectel did not return an IAM token")
 
     def request(self, method, path, body=None):
-        request = urllib.request.Request(API + path, method=method,
+        request = urllib.request.Request(
+            API + path,
+            method=method,
             data=None if body is None else json.dumps(body).encode(),
-            headers={'Content-Type': 'application/json', 'X-Auth-Token': self.token})
+            headers={"Content-Type": "application/json", "X-Auth-Token": self.token},
+        )
         try:
             with urllib.request.urlopen(request, timeout=30) as response:
                 raw = response.read()
@@ -67,7 +90,7 @@ class Client:
 
 def write_state(path, state):
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp = path.with_suffix('.tmp')
+    temp = path.with_suffix(".tmp")
     temp.write_text(json.dumps(state, indent=2))
     os.chmod(temp, 0o600)
     temp.replace(path)
@@ -78,356 +101,506 @@ def read_state(path):
 
 
 def adb_path():
-    sdk = os.environ.get('ANDROID_HOME') or os.environ.get('ANDROID_SDK_ROOT')
-    adb = str(Path(sdk) / 'platform-tools/adb') if sdk else shutil.which('adb')
+    sdk = os.environ.get("ANDROID_HOME") or os.environ.get("ANDROID_SDK_ROOT")
+    adb = str(Path(sdk) / "platform-tools/adb") if sdk else shutil.which("adb")
     if not adb or not Path(adb).is_file():
-        raise RuntimeError('ADB is required (ANDROID_HOME/platform-tools/adb or PATH)')
+        raise RuntimeError("ADB is required (ANDROID_HOME/platform-tools/adb or PATH)")
     return adb
 
 
 def adb_env(state_path):
     # Isolate keys and the host server from the developer's own devices.
-    home = state_path.parent / 'adb-home'
-    (home / '.android').mkdir(parents=True, exist_ok=True)
+    home = state_path.parent / "adb-home"
+    (home / ".android").mkdir(parents=True, exist_ok=True)
     env = os.environ.copy()
-    env['ANDROID_USER_HOME'] = str(home / '.android')
-    env['ANDROID_PREFS_ROOT'] = str(home)
-    env['ADB_VENDOR_KEYS'] = str(home / '.android/adbkey')
+    env["ANDROID_USER_HOME"] = str(home / ".android")
+    env["ANDROID_PREFS_ROOT"] = str(home)
+    env["ADB_VENDOR_KEYS"] = str(home / ".android/adbkey")
     return env
 
 
 def adb(state_path, *args, timeout=30, check=True, include_stderr=False):
-    port = str(os.environ.get('SELECTEL_ADB_PORT', '5038'))
-    result = subprocess.run([adb_path(), '-P', port, *args], env=adb_env(state_path),
-                            capture_output=True, text=True, timeout=timeout)
+    port = str(os.environ.get("SELECTEL_ADB_PORT", "5038"))
+    result = subprocess.run(
+        [adb_path(), "-P", port, *args],
+        env=adb_env(state_path),
+        capture_output=True,
+        text=True,
+        timeout=timeout,
+    )
     if check and result.returncode:
-        raise RuntimeError(f'ADB command failed: {args[0]} (exit {result.returncode})')
+        raise RuntimeError(f"ADB command failed: {args[0]} (exit {result.returncode})")
     return result.stdout + (result.stderr if include_stderr else "")
 
 
 def connect_device(path, endpoint):
-    print('Waiting for remote ADB (maximum 90 seconds)', flush=True)
+    print("Waiting for remote ADB (maximum 90 seconds)", flush=True)
     deadline = time.monotonic() + 90
-    diagnostic = 'no response'
+    diagnostic = "no response"
     while time.monotonic() < deadline:
         try:
-            connected = adb(path, 'connect', endpoint, timeout=10, check=False, include_stderr=True)
-            status = adb(path, '-s', endpoint, 'get-state', timeout=10, check=False, include_stderr=True).strip()
-            if status == 'device':
+            connected = adb(
+                path, "connect", endpoint, timeout=10, check=False, include_stderr=True
+            )
+            status = adb(
+                path,
+                "-s",
+                endpoint,
+                "get-state",
+                timeout=10,
+                check=False,
+                include_stderr=True,
+            ).strip()
+            if status == "device":
                 return
-            diagnostic = (connected + ' ' + status).replace(endpoint, '<device>').replace('\n', ' ')[:240]
+            diagnostic = (
+                (connected + " " + status)
+                .replace(endpoint, "<device>")
+                .replace("\n", " ")[:240]
+            )
             # An offline transport makes repeated connect calls return 'already connected'.
             # Drop only this leased endpoint so the next attempt performs a new handshake.
-            adb(path, 'disconnect', endpoint, timeout=10, check=False)
+            adb(path, "disconnect", endpoint, timeout=10, check=False)
         except subprocess.TimeoutExpired:
             pass
         time.sleep(3)
-    raise RuntimeError('Remote ADB did not connect within 90 seconds: ' + diagnostic)
+    raise RuntimeError("Remote ADB did not connect within 90 seconds: " + diagnostic)
 
 
 def device_matrix(profile):
-    if profile not in ('single', 'all'):
-        raise RuntimeError('Device profile must be single or all')
-    devices = json.loads((ROOT / 'config/selectel-devices.json').read_text())['devices']
+    if profile not in ("single", "all"):
+        raise RuntimeError("Device profile must be single or all")
+    devices = json.loads((ROOT / "config/selectel-devices.json").read_text())["devices"]
     if not devices:
-        raise RuntimeError('The fixed device catalog is empty')
+        raise RuntimeError("The fixed device catalog is empty")
     ids = set()
     for device in devices:
-        if not re.fullmatch(r'[a-z0-9-]+', device['id']) or device['id'] in ids:
-            raise RuntimeError('Invalid or duplicate device matrix ID')
-        if device['abi'] not in ('arm64-v8a', 'armeabi-v7a') or not str(device['api']).isdigit():
-            raise RuntimeError('Unsupported device matrix entry')
-        ids.add(device['id'])
-    if profile == 'single':
-        devices = [d for d in devices if d['manufacturer'] == 'SAMSUNG' and d['model'] == 'Galaxy A14'
-                   and d['api'] == '35' and d['abi'] == 'arm64-v8a']
+        if not re.fullmatch(r"[a-z0-9-]+", device["id"]) or device["id"] in ids:
+            raise RuntimeError("Invalid or duplicate device matrix ID")
+        if (
+            device["abi"] not in ("arm64-v8a", "armeabi-v7a")
+            or not str(device["api"]).isdigit()
+        ):
+            raise RuntimeError("Unsupported device matrix entry")
+        ids.add(device["id"])
+    if profile == "single":
+        devices = [
+            d
+            for d in devices
+            if d["manufacturer"] == "SAMSUNG"
+            and d["model"] == "Galaxy A14"
+            and d["api"] == "35"
+            and d["abi"] == "arm64-v8a"
+        ]
         if len(devices) != 1:
-            raise RuntimeError('The default device must occur exactly once in the fixed catalog')
+            raise RuntimeError(
+                "The default device must occur exactly once in the fixed catalog"
+            )
     return devices
 
 
 def select_configuration(device):
-    for name, key in [('SELECTEL_DEVICE_MODEL', 'model'), ('SELECTEL_ANDROID_API', 'api'),
-                      ('SELECTEL_DEVICE_ABI', 'abi'), ('SELECTEL_DEVICE_MANUFACTURER', 'manufacturer')]:
+    for name, key in [
+        ("SELECTEL_DEVICE_MODEL", "model"),
+        ("SELECTEL_ANDROID_API", "api"),
+        ("SELECTEL_DEVICE_ABI", "abi"),
+        ("SELECTEL_DEVICE_MANUFACTURER", "manufacturer"),
+    ]:
         os.environ[name] = str(device[key])
 
 
 def release_all(client, root):
     errors = []
-    for path in sorted(root.rglob('lease.json')):
+    for path in sorted(root.rglob("lease.json")):
         try:
             release(client, path)
         except Exception as error:
-            errors.append(f'{path}: {error}')
+            errors.append(f"{path}: {error}")
     if errors:
-        raise RuntimeError('; '.join(errors))
+        raise RuntimeError("; ".join(errors))
 
 
 def run_matrix(client, state_path, profile):
     outcomes = []
     for device in device_matrix(profile):
         select_configuration(device)
-        os.environ['SELECTEL_RESULT_ID'] = device['id']
-        path = state_path.parent / device['id'] / 'lease.json'
-        print('Configuration: ' + device['id'], flush=True)
-        outcome = {'device': device['id'], 'status': 'passed'}
+        os.environ["SELECTEL_RESULT_ID"] = device["id"]
+        path = state_path.parent / device["id"] / "lease.json"
+        print("Configuration: " + device["id"], flush=True)
+        outcome = {"device": device["id"], "status": "passed"}
         try:
             acquire(client, path)
             run_tests(path)
         except Exception as error:
-            outcome.update(status='failed', error=str(error) if isinstance(error, RuntimeError) else type(error).__name__)
+            outcome.update(
+                status="failed",
+                error=(
+                    str(error)
+                    if isinstance(error, RuntimeError)
+                    else type(error).__name__
+                ),
+            )
         finally:
             cleanup_error = None
             try:
                 release(client, path)
             except Exception as error:
                 cleanup_error = error
-                outcome.update(status='failed', cleanup_error=type(error).__name__)
+                outcome.update(status="failed", cleanup_error=type(error).__name__)
         outcomes.append(outcome)
-        report = ROOT / 'app/build/reports/selectel/matrix.json'
+        report = ROOT / "app/build/reports/selectel/matrix.json"
         report.parent.mkdir(parents=True, exist_ok=True)
         report.write_text(json.dumps(outcomes, indent=2))
         if cleanup_error is not None:
-            raise RuntimeError('Matrix stopped after cleanup failed; run selectel_release') from cleanup_error
-    if any(result['status'] != 'passed' for result in outcomes):
-        raise RuntimeError('Some fixed device configurations failed; see matrix.json')
+            raise RuntimeError(
+                "Matrix stopped after cleanup failed; run selectel_release"
+            ) from cleanup_error
+    if any(result["status"] != "passed" for result in outcomes):
+        raise RuntimeError("Some fixed device configurations failed; see matrix.json")
 
 
 def choose_device(available):
-    sdk = os.environ.get('SELECTEL_ANDROID_API', '35')
-    model = os.environ.get('SELECTEL_DEVICE_MODEL', 'Galaxy A14')
-    abi = os.environ.get('SELECTEL_DEVICE_ABI', 'arm64-v8a')
-    manufacturer = os.environ.get('SELECTEL_DEVICE_MANUFACTURER', '')
-    choices = [d for d in available if d.get('platform') == 'Android'
-               and str(d.get('sdk')) == sdk and d.get('abi') == abi
-               and (not manufacturer or d.get('manufacturer') == manufacturer)
-               and d.get('count', 0) > 0 and (not model or d.get('marketName') == model)]
+    sdk = os.environ.get("SELECTEL_ANDROID_API", "35")
+    model = os.environ.get("SELECTEL_DEVICE_MODEL", "Galaxy A14")
+    abi = os.environ.get("SELECTEL_DEVICE_ABI", "arm64-v8a")
+    manufacturer = os.environ.get("SELECTEL_DEVICE_MANUFACTURER", "")
+    choices = [
+        d
+        for d in available
+        if d.get("platform") == "Android"
+        and str(d.get("sdk")) == sdk
+        and d.get("abi") == abi
+        and (not manufacturer or d.get("manufacturer") == manufacturer)
+        and d.get("count", 0) > 0
+        and (not model or d.get("marketName") == model)
+    ]
     if not choices:
-        raise RuntimeError(f'Unavailable configuration: {manufacturer} {model}, API {sdk}, {abi}; no lease created')
-    return sorted(choices, key=lambda d: d['marketName'])[0]
+        raise RuntimeError(
+            f"Unavailable configuration: {manufacturer} {model}, API {sdk}, {abi}; no lease created"
+        )
+    return sorted(choices, key=lambda d: d["marketName"])[0]
 
 
 def acquire(client, path):
-    if path.exists() and not read_state(path).get('released'):
-        raise RuntimeError('An unreleased lease journal exists; run selectel_release first')
-    for apk in [ROOT / 'app/build/outputs/apk/debug/app-debug.apk',
-                ROOT / 'app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk']:
+    if path.exists() and not read_state(path).get("released"):
+        raise RuntimeError(
+            "An unreleased lease journal exists; run selectel_release first"
+        )
+    for apk in [
+        ROOT / "app/build/outputs/apk/debug/app-debug.apk",
+        ROOT / "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
+    ]:
         if not apk.is_file():
-            raise RuntimeError('Build UI test APKs before renting a device')
+            raise RuntimeError("Build UI test APKs before renting a device")
     adb_path()
-    existing = client.request('GET', '/v3/devices')
-    model = choose_device(client.request('GET', '/v3/devices/available'))
-    state = {'project': client.project, 'created_at': time.time(), 'devices': [],
-             'released': False, 'baseline': [d['serial'] for d in existing]}
+    existing = client.request("GET", "/v3/devices")
+    model = choose_device(client.request("GET", "/v3/devices/available"))
+    state = {
+        "project": client.project,
+        "created_at": time.time(),
+        "devices": [],
+        "released": False,
+        "baseline": [d["serial"] for d in existing],
+    }
     write_state(path, state)
-    filters = {k: model[k] for k in ['manufacturer', 'marketName', 'sdk', 'platform', 'abi']}
-    filters['count'] = 1
-    print(f"Renting one {model['marketName']} (API {model['sdk']}), billing=minutes", flush=True)
+    filters = {
+        k: model[k] for k in ["manufacturer", "marketName", "sdk", "platform", "abi"]
+    }
+    filters["count"] = 1
+    print(
+        f"Renting one {model['marketName']} (API {model['sdk']}), billing=minutes",
+        flush=True,
+    )
     # Never retry this non-idempotent request: a lost response may already have created a lease.
-    state['allocation_pending'] = True
+    state["allocation_pending"] = True
     write_state(path, state)
     try:
-        result = client.request('POST', '/v3/devices', {'billingType': 'minutes', 'filters': [filters]})
+        result = client.request(
+            "POST", "/v3/devices", {"billingType": "minutes", "filters": [filters]}
+        )
     except ApiError as error:
         if 400 <= error.status < 500:
-            state['allocation_pending'] = False
+            state["allocation_pending"] = False
             write_state(path, state)
         raise
-    state['devices'] = [{'serial': d['serial'], 'slot': d['meta']['slot']['id']} for d in result['devices']]
-    state['allocation_pending'] = False
+    state["devices"] = [
+        {"serial": d["serial"], "slot": d["meta"]["slot"]["id"]}
+        for d in result["devices"]
+    ]
+    state["allocation_pending"] = False
     write_state(path, state)
-    if len(state['devices']) != 1 or any(d['serial'] in state['baseline'] for d in state['devices']):
-        raise RuntimeError('Unexpected lease response; inspect journal before proceeding')
-    device = state['devices'][0]
-    serial = urllib.parse.quote(device['serial'], safe='')
+    if len(state["devices"]) != 1 or any(
+        d["serial"] in state["baseline"] for d in state["devices"]
+    ):
+        raise RuntimeError(
+            "Unexpected lease response; inspect journal before proceeding"
+        )
+    device = state["devices"][0]
+    serial = urllib.parse.quote(device["serial"], safe="")
     deadline = time.monotonic() + 180
     while time.monotonic() < deadline:
-        info = client.request('GET', '/v3/devices/' + serial)
-        if info.get('ready') and info.get('present'):
+        info = client.request("GET", "/v3/devices/" + serial)
+        if info.get("ready") and info.get("present"):
             break
         time.sleep(5)
     else:
-        raise RuntimeError('Device did not become ready within 180 seconds')
+        raise RuntimeError("Device did not become ready within 180 seconds")
     env = adb_env(path)
-    key = Path(env['ADB_VENDOR_KEYS'])
-    subprocess.run([adb_path(), 'keygen', str(key)], check=True, capture_output=True, env=env)
+    key = Path(env["ADB_VENDOR_KEYS"])
+    subprocess.run(
+        [adb_path(), "keygen", str(key)], check=True, capture_output=True, env=env
+    )
     os.chmod(key, 0o600)
-    key_info = client.request('POST', '/v3/keys/adb',
-        {'publicKey': key.with_suffix('.pub').read_text(), 'title': 'megaproxy-ui-' + str(int(state['created_at']))})
-    state['fingerprint'] = key_info['fingerprint']
+    key_info = client.request(
+        "POST",
+        "/v3/keys/adb",
+        {
+            "publicKey": key.with_suffix(".pub").read_text(),
+            "title": "megaproxy-ui-" + str(int(state["created_at"])),
+        },
+    )
+    state["fingerprint"] = key_info["fingerprint"]
     write_state(path, state)
-    client.request('POST', '/v1/user/devices', {'serial': device['serial'], 'timeout': 1200000})
-    remote = client.request('POST', '/v1/user/devices/' + serial + '/remoteConnect')
-    endpoint = remote.get('remoteConnectUrl', '')
-    if not remote.get('success') or not re.fullmatch(r'[A-Za-z0-9.-]+:[0-9]+', endpoint):
-        raise RuntimeError('Selectel did not return a valid ADB endpoint')
-    state['endpoint'] = endpoint
+    client.request(
+        "POST", "/v1/user/devices", {"serial": device["serial"], "timeout": 1200000}
+    )
+    remote = client.request("POST", "/v1/user/devices/" + serial + "/remoteConnect")
+    endpoint = remote.get("remoteConnectUrl", "")
+    if not remote.get("success") or not re.fullmatch(
+        r"[A-Za-z0-9.-]+:[0-9]+", endpoint
+    ):
+        raise RuntimeError("Selectel did not return a valid ADB endpoint")
+    state["endpoint"] = endpoint
     write_state(path, state)
     connect_device(path, endpoint)
-    print('Device connected; lease journal saved', flush=True)
+    print("Device connected; lease journal saved", flush=True)
 
 
 def release(client, path):
     if not path.exists():
         return
     state = read_state(path)
-    if state.get('project') != client.project:
-        raise RuntimeError('Lease belongs to a different project')
-    if state.get('released'):
+    if state.get("project") != client.project:
+        raise RuntimeError("Lease belongs to a different project")
+    if state.get("released"):
         return
     errors = []
-    if state.get('allocation_pending'):
-        errors.append('Allocation response was lost: inspect project for a new lease; do not blindly retry')
-    for device in state.get('devices', []):
-        if device['serial'] in state.get('baseline', []):
-            errors.append('Refusing to remove a pre-existing device')
+    if state.get("allocation_pending"):
+        errors.append(
+            "Allocation response was lost: inspect project for a new lease; do not blindly retry"
+        )
+    for device in state.get("devices", []):
+        if device["serial"] in state.get("baseline", []):
+            errors.append("Refusing to remove a pre-existing device")
             continue
-        serial = urllib.parse.quote(device['serial'], safe='')
+        serial = urllib.parse.quote(device["serial"], safe="")
         # Slot identity prevents a stale recovery job from deleting a newer lease.
         try:
-            current = client.request('GET', '/v3/devices/' + serial)
-            if current['meta']['slot']['id'] != device['slot']:
+            current = client.request("GET", "/v3/devices/" + serial)
+            if current["meta"]["slot"]["id"] != device["slot"]:
                 continue
-            for suffix in ['/remoteConnect', '']:
+            for suffix in ["/remoteConnect", ""]:
                 try:
-                    client.request('DELETE', '/v1/user/devices/' + serial + suffix)
+                    client.request("DELETE", "/v1/user/devices/" + serial + suffix)
                 except (ApiError, urllib.error.URLError):
                     pass  # Still remove the paid lease, even if session teardown fails.
-            client.request('DELETE', '/v3/devices/' + serial, {'slotID': device['slot']})
+            client.request(
+                "DELETE", "/v3/devices/" + serial, {"slotID": device["slot"]}
+            )
         except ApiError as e:
             if e.status != 404:
                 errors.append(str(e))
         except (KeyError, urllib.error.URLError) as e:
-            errors.append(type(e).__name__ + ' while releasing device')
-    if state.get('fingerprint'):
+            errors.append(type(e).__name__ + " while releasing device")
+    if state.get("fingerprint"):
         try:
-            client.request('DELETE', '/v3/keys/adb/' + urllib.parse.quote(state['fingerprint'], safe=''))
+            client.request(
+                "DELETE",
+                "/v3/keys/adb/" + urllib.parse.quote(state["fingerprint"], safe=""),
+            )
         except ApiError as e:
             if e.status != 404:
                 errors.append(str(e))
     try:
-        adb(path, 'kill-server', check=False)
+        adb(path, "kill-server", check=False)
     except (RuntimeError, subprocess.TimeoutExpired):
         pass
-    shutil.rmtree(path.parent / 'adb-home', ignore_errors=True)
+    shutil.rmtree(path.parent / "adb-home", ignore_errors=True)
     if errors:
-        raise RuntimeError('; '.join(errors) + f'. Recovery journal: {path}')
-    state['released'] = True
+        raise RuntimeError("; ".join(errors) + f". Recovery journal: {path}")
+    state["released"] = True
     write_state(path, state)
-    print('Paid device lease and temporary ADB key released', flush=True)
+    print("Paid device lease and temporary ADB key released", flush=True)
 
 
 def instrumentation_report(output, target):
     """Translate Android's instrumentation protocol; adb exit=0 alone is not success."""
-    suite = ET.Element('testsuite', name='MegaProxy UI')
+    suite = ET.Element("testsuite", name="MegaProxy UI")
     fields = {}
     last_key = None
     completed = 0
     failures = 0
     passed = 0
     for line in output.splitlines():
-        if line.startswith('INSTRUMENTATION_STATUS: '):
-            key, _, value = line[len('INSTRUMENTATION_STATUS: '):].partition('=')
+        if line.startswith("INSTRUMENTATION_STATUS: "):
+            key, _, value = line[len("INSTRUMENTATION_STATUS: ") :].partition("=")
             fields[key] = value
             last_key = key
-        elif line.startswith('INSTRUMENTATION_STATUS_CODE: '):
-            code = int(line.split(': ', 1)[1])
-            if code <= 0 and fields.get('test'):
-                case = ET.SubElement(suite, 'testcase', classname=fields.get('class', ''), name=fields['test'])
+        elif line.startswith("INSTRUMENTATION_STATUS_CODE: "):
+            code = int(line.split(": ", 1)[1])
+            if code <= 0 and fields.get("test"):
+                case = ET.SubElement(
+                    suite,
+                    "testcase",
+                    classname=fields.get("class", ""),
+                    name=fields["test"],
+                )
                 completed += 1
                 if code in (-3, -4):
-                    ET.SubElement(case, 'skipped')
+                    ET.SubElement(case, "skipped")
                 elif code == 0:
                     passed += 1
                 else:
                     failures += 1
-                    ET.SubElement(case, 'failure').text = fields.get('stack', 'Instrumentation failure')
+                    ET.SubElement(case, "failure").text = fields.get(
+                        "stack", "Instrumentation failure"
+                    )
             fields = {}
             last_key = None
-        elif last_key == 'stack' and not line.startswith('INSTRUMENTATION_'):
-            fields['stack'] += '\n' + line
-    success = passed > 0 and failures == 0 and 'INSTRUMENTATION_CODE: -1' in output and re.search(r'OK \(\d+ tests?\)', output) is not None
+        elif last_key == "stack" and not line.startswith("INSTRUMENTATION_"):
+            fields["stack"] += "\n" + line
+    success = (
+        passed > 0
+        and failures == 0
+        and "INSTRUMENTATION_CODE: -1" in output
+        and re.search(r"OK \(\d+ tests?\)", output) is not None
+    )
     if not success and failures == 0:
         failures += 1
         completed += 1
-        ET.SubElement(ET.SubElement(suite, 'testcase', name='instrumentation_finished'), 'failure').text = 'No successful instrumentation completion; see instrumentation.txt'
-    suite.set('tests', str(completed))
-    suite.set('failures', str(failures))
-    ET.ElementTree(suite).write(target, encoding='utf-8', xml_declaration=True)
+        ET.SubElement(
+            ET.SubElement(suite, "testcase", name="instrumentation_finished"), "failure"
+        ).text = "No successful instrumentation completion; see instrumentation.txt"
+    suite.set("tests", str(completed))
+    suite.set("failures", str(failures))
+    ET.ElementTree(suite).write(target, encoding="utf-8", xml_declaration=True)
     return success
 
 
 def run_tests(path):
     state = read_state(path)
-    if state.get('released'):
-        raise RuntimeError('Device lease is already released')
-    endpoint = state['endpoint']
-    reports = ROOT / 'app/build/reports/selectel'
-    result_id = os.environ.get('SELECTEL_RESULT_ID', '')
+    if state.get("released"):
+        raise RuntimeError("Device lease is already released")
+    endpoint = state["endpoint"]
+    reports = ROOT / "app/build/reports/selectel"
+    result_id = os.environ.get("SELECTEL_RESULT_ID", "")
     if result_id:
-        if not re.fullmatch(r'[a-z0-9-]+', result_id):
-            raise RuntimeError('Invalid SELECTEL_RESULT_ID')
+        if not re.fullmatch(r"[a-z0-9-]+", result_id):
+            raise RuntimeError("Invalid SELECTEL_RESULT_ID")
         reports = reports / result_id
     shutil.rmtree(reports, ignore_errors=True)
     reports.mkdir(parents=True, exist_ok=True)
     # Install only on the newly leased device, never a local emulator or personal phone.
     connect_device(path, endpoint)
-    for apk in ['app/build/outputs/apk/debug/app-debug.apk',
-                'app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk']:
-        print('Installing ' + Path(apk).name, flush=True)
-        adb(path, '-s', endpoint, 'install', '-r', '-t', str(ROOT / apk), timeout=180)
-    adb(path, '-s', endpoint, 'shell', 'pm', 'clear', APP)
-    print('Running instrumentation (maximum 10 minutes)', flush=True)
+    for apk in [
+        "app/build/outputs/apk/debug/app-debug.apk",
+        "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk",
+    ]:
+        print("Installing " + Path(apk).name, flush=True)
+        adb(path, "-s", endpoint, "install", "-r", "-t", str(ROOT / apk), timeout=180)
+    adb(path, "-s", endpoint, "shell", "pm", "clear", APP)
+    print("Running instrumentation (maximum 10 minutes)", flush=True)
     try:
-        output = adb(path, '-s', endpoint, 'shell', 'am', 'instrument', '-w', '-r', RUNNER, timeout=600, check=False)
+        output = adb(
+            path,
+            "-s",
+            endpoint,
+            "shell",
+            "am",
+            "instrument",
+            "-w",
+            "-r",
+            RUNNER,
+            timeout=600,
+            check=False,
+        )
     except subprocess.TimeoutExpired as error:
-        output = error.stdout or ''
+        output = error.stdout or ""
         if isinstance(output, bytes):
-            output = output.decode(errors='replace')
-        (reports / 'instrumentation.txt').write_text(output + '\nInstrumentation timed out')
-        instrumentation_report(output, reports / 'junit.xml')
-        raise RuntimeError('Instrumentation exceeded 10 minutes') from None
+            output = output.decode(errors="replace")
+        (reports / "instrumentation.txt").write_text(
+            output + "\nInstrumentation timed out"
+        )
+        instrumentation_report(output, reports / "junit.xml")
+        raise RuntimeError("Instrumentation exceeded 10 minutes") from None
     finally:
         try:
-            adb(path, '-s', endpoint, 'pull', '/sdcard/Android/data/' + APP + '/files/ui-test-screenshots',
-                str(reports / 'screenshots'), timeout=30, check=False)
+            adb(
+                path,
+                "-s",
+                endpoint,
+                "pull",
+                "/sdcard/Android/data/" + APP + "/files/ui-test-screenshots",
+                str(reports / "screenshots"),
+                timeout=30,
+                check=False,
+            )
         except (RuntimeError, subprocess.TimeoutExpired):
-            print('Screenshot collection unavailable; instrumentation outcome is preserved', flush=True)
-    (reports / 'instrumentation.txt').write_text(output)
-    success = instrumentation_report(output, reports / 'junit.xml')
+            print(
+                "Screenshot collection unavailable; instrumentation outcome is preserved",
+                flush=True,
+            )
+    (reports / "instrumentation.txt").write_text(output)
+    success = instrumentation_report(output, reports / "junit.xml")
     print(f'UI report: {reports / "junit.xml"}', flush=True)
     if not success:
-        raise RuntimeError('UI instrumentation tests failed; see reports')
+        raise RuntimeError("UI instrumentation tests failed; see reports")
 
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument('action', choices=['probe', 'acquire', 'run', 'release', 'release-all', 'test', 'matrix', 'matrix-test'])
-    parser.add_argument('--state', type=Path, default=ROOT / '.selectel/lease.json')
-    parser.add_argument('--profile', choices=['single', 'all'], default='single')
+    parser.add_argument(
+        "action",
+        choices=[
+            "probe",
+            "acquire",
+            "run",
+            "release",
+            "release-all",
+            "test",
+            "matrix",
+            "matrix-test",
+        ],
+    )
+    parser.add_argument("--state", type=Path, default=ROOT / ".selectel/lease.json")
+    parser.add_argument("--profile", choices=["single", "all"], default="single")
     args = parser.parse_args()
     args.state = args.state.resolve()
+
     def interrupted(signum, frame):
         raise KeyboardInterrupt
+
     signal.signal(signal.SIGTERM, interrupted)
     try:
-        if args.action == 'matrix':
-            print(json.dumps({'include': device_matrix(args.profile)}))
-        elif args.action == 'run':
+        if args.action == "matrix":
+            print(json.dumps({"include": device_matrix(args.profile)}))
+        elif args.action == "run":
             run_tests(args.state)
         else:
             client = Client()
-            if args.action == 'release-all':
+            if args.action == "release-all":
                 release_all(client, args.state.parent)
-            elif args.action == 'matrix-test':
+            elif args.action == "matrix-test":
                 run_matrix(client, args.state, args.profile)
-            elif args.action == 'probe':
-                existing = client.request('GET', '/v3/devices')
-                model = choose_device(client.request('GET', '/v3/devices/available'))
-                print(f"Access OK; {len(existing)} existing devices untouched; candidate {model['marketName']} API {model['sdk']}")
-            elif args.action == 'release':
+            elif args.action == "probe":
+                existing = client.request("GET", "/v3/devices")
+                model = choose_device(client.request("GET", "/v3/devices/available"))
+                print(
+                    f"Access OK; {len(existing)} existing devices untouched; candidate {model['marketName']} API {model['sdk']}"
+                )
+            elif args.action == "release":
                 release(client, args.state)
-            elif args.action == 'acquire':
+            elif args.action == "acquire":
                 acquire(client, args.state)
             else:
                 try:
@@ -436,14 +609,20 @@ def main():
                 finally:
                     release(client, args.state)
     except KeyboardInterrupt:
-        print('Interrupted; run selectel_release if the lease remains active', file=sys.stderr)
+        print(
+            "Interrupted; run selectel_release if the lease remains active",
+            file=sys.stderr,
+        )
         return 130
     except Exception as e:
         # Avoid tracebacks containing request data or credentials.
-        print(str(e) if isinstance(e, (RuntimeError, ApiError)) else type(e).__name__, file=sys.stderr)
+        print(
+            str(e) if isinstance(e, (RuntimeError, ApiError)) else type(e).__name__,
+            file=sys.stderr,
+        )
         return 1
     return 0
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     sys.exit(main())

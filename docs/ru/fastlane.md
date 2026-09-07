@@ -36,6 +36,8 @@ bundle exec fastlane lanes
 
 | Команда | Результат |
 | --- | --- |
+| `bundle exec fastlane android python_format` | Форматирует Python-скрипты и сортирует импорты через Black/isort. |
+| `bundle exec fastlane android python_checks` | Проверяет стиль Python и контрактные тесты скриптов без устройств. |
 | `bundle exec fastlane android native_tests` | Запускает все Go-тесты с race detector. |
 | `bundle exec fastlane android android_checks` | Собирает native AAR, запускает Android unit-тесты и lint, собирает debug APK, затем собирает и проверяет unsigned release APK. Команда отклоняет переменные release-подписи. |
 | `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
@@ -86,3 +88,18 @@ bundle exec fastlane android test
 [English version](../en/fastlane.md)
 
 [Настройка UI-тестов Selectel](selectel-ui-tests.md).
+
+## Инструменты разработки Python
+
+Сами скрипты используют стандартную библиотеку Python. Зафиксированные форматтеры нужны только для
+разработки; настройки Black и isort находятся в `pyproject.toml`, CI проверяет их в каждом PR.
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+bundle exec fastlane android python_format
+bundle exec fastlane android python_checks
+```
+
+Переменная `PYTHON` переопределяет интерпретатор форматтеров.

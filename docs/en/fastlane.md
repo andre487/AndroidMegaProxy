@@ -35,6 +35,8 @@ That command lists the lanes available in the checked-out version of the project
 
 | Command | Result |
 | --- | --- |
+| `bundle exec fastlane android python_format` | Formats Python scripts and sorts imports with Black/isort. |
+| `bundle exec fastlane android python_checks` | Checks Python style and runs all runner/launcher contract tests without devices. |
 | `bundle exec fastlane android native_tests` | Runs all Go tests with the race detector. |
 | `bundle exec fastlane android android_checks` | Builds the native AAR, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
 | `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
@@ -84,3 +86,18 @@ committing the lock file and using `bundle exec fastlane` locally and in CI.
 [Русская версия](../ru/fastlane.md)
 
 [Selectel UI testing setup](selectel-ui-tests.md).
+
+## Python development tools
+
+The scripts themselves use Python's standard library. Install the pinned formatting tools only for
+development; Black and isort settings live in `pyproject.toml` and CI checks them on every PR.
+
+```sh
+python3 -m venv .venv
+. .venv/bin/activate
+python -m pip install -r requirements-dev.txt
+bundle exec fastlane android python_format
+bundle exec fastlane android python_checks
+```
+
+Set `PYTHON` to override the formatter interpreter.
