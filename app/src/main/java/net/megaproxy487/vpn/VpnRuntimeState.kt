@@ -1,6 +1,7 @@
 package net.megaproxy487.vpn
 
 import android.os.Handler
+import android.os.SystemClock
 import android.os.Looper
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
@@ -35,8 +36,16 @@ object VpnRuntimeState {
     private val mutableTransportProtocol = mutableStateOf(VpnTransportProtocol.UNKNOWN)
     val transportProtocol: State<VpnTransportProtocol> = mutableTransportProtocol
 
+    private val mutableSession = mutableStateOf<ConnectionSession?>(null)
+    val session: State<ConnectionSession?> = mutableSession
+
     fun update(value: VpnConnectionState) {
+        val wallTime = System.currentTimeMillis()
+        val elapsedTime = SystemClock.elapsedRealtime()
         val update = {
+            mutableSession.value = connectionSessionForState(
+                mutableSession.value, value == VpnConnectionState.CONNECTED, wallTime, elapsedTime,
+            )
             mutableConnection.value = value
             if (value != VpnConnectionState.CONNECTED) mutableTransportProtocol.value = VpnTransportProtocol.UNKNOWN
         }

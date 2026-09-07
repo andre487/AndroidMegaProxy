@@ -277,4 +277,11 @@
     <string name="validation_doh_url">Пользовательский URL DoH должен начинаться с https://</string>
     <string name="validation_jump_basic_username">Введите имя пользователя Basic Auth промежуточного прокси</string>
     <string name="validation_jump_basic_password">Введите пароль Basic Auth промежуточного прокси</string>
+    <string name="connection_started_at">Подключено: %1$s</string>
+    <string name="connection_duration">Длительность: %1$s</string>
+    <string name="connection_duration_seconds">%1$d с</string>
+    <string name="connection_duration_minutes_seconds">%1$d мин %2$d с</string>
+    <string name="connection_duration_minutes">%1$d мин</string>
+    <string name="connection_duration_hours_minutes">%1$d ч %2$d мин</string>
+    <string name="connection_duration_days_hours">%1$d д %2$d ч</string>
 </resources>

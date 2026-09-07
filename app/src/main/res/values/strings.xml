@@ -272,4 +272,11 @@
     <string name="validation_doh_url">The custom DoH URL must start with https://</string>
     <string name="validation_jump_basic_username">Enter the jump Basic Auth username</string>
     <string name="validation_jump_basic_password">Enter the jump Basic Auth password</string>
+    <string name="connection_started_at">Connected: %1$s</string>
+    <string name="connection_duration">Duration: %1$s</string>
+    <string name="connection_duration_seconds">%1$d s</string>
+    <string name="connection_duration_minutes_seconds">%1$d min %2$d s</string>
+    <string name="connection_duration_minutes">%1$d min</string>
+    <string name="connection_duration_hours_minutes">%1$d h %2$d min</string>
+    <string name="connection_duration_days_hours">%1$d d %2$d h</string>
 </resources>
