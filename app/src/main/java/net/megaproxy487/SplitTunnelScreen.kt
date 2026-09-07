@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import androidx.compose.foundation.shape.RoundedCornerShape
+
 import android.app.Activity
 import android.content.Intent
 import android.os.Bundle
@@ -39,6 +41,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -48,8 +51,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigWrites
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.model.GlobalConnectionSettings
 import net.megaproxy487.vpn.ProxyVpnService
@@ -65,6 +69,7 @@ private data class AppItem(val packageName: String, val label: String)
 @Composable
 internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
+    val writeStatus by ConfigWrites.status.collectAsState()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
     var appSearch by remember { mutableStateOf("") }
     var showReconnectPrompt by remember { mutableStateOf(false) }
@@ -78,7 +83,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
             settings.copy(selectedPackages = updated.selectedPackages) == updated
         val affectsActiveRouting = !(settings.routeAllApps && updated.routeAllApps && selectedPackagesOnly)
         settings = updated
-        coroutineScope.launch(ConfigIoDispatcher) {
+        ConfigWrites.submit("global") {
             store.saveGlobalConnectionSettings(updated)
             if (ProxyVpnService.isRunning && affectsActiveRouting) store.markPendingReconnect()
         }
@@ -113,7 +118,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.split_tunneling)) },
+                title = { ScreenTitle(stringResource(R.string.split_tunneling)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -122,6 +127,8 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
             )
         },
         bottomBar = {
+            Column {
+            SaveStatusBanner()
             if (showReconnectPrompt || showAlwaysOnDeferredNotice) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
@@ -129,17 +136,17 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                 ) {
                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                         Text(
-                            if (showAlwaysOnDeferredNotice) "Always-on is active. Routing changes apply on the next connection."
-                            else "Reconnect to apply routing changes to the active VPN.",
+                            if (showAlwaysOnDeferredNotice) activity.uiText(R.string.routing_deferred)
+                            else activity.uiText(R.string.routing_reconnect),
                         )
-                        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                            TextButton(onClick = {
+                        WrappingActions() {
+                            TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                                 showReconnectPrompt = false
                                 showAlwaysOnDeferredNotice = false
                                 deferChangesUntilNextConnection = true
                             }) { Text(stringResource(if (showAlwaysOnDeferredNotice) R.string.dismiss else R.string.next_connection)) }
                             if (showReconnectPrompt) {
-                                TextButton(onClick = {
+                                TextButton(shape = RoundedCornerShape(12.dp), enabled = writeStatus.pending == 0 && !writeStatus.failed, onClick = {
                                     showReconnectPrompt = false
                                     deferChangesUntilNextConnection = true
                                     ProxyVpnService.reconnect(activity)
@@ -148,6 +155,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                         }
                     }
                 }
+            }
             }
         },
         // Use one inset source. Applying safeDrawing in Scaffold and imePadding to
@@ -223,7 +231,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                     OutlinedTextField(
                         value = appSearch,
                         onValueChange = { appSearch = it },
-                        label = { Text(stringResource(R.string.search_applications)) },
+                        label = { FieldLabel(stringResource(R.string.search_applications)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
                     )

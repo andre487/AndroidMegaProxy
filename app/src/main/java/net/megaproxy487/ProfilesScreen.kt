@@ -31,6 +31,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.FileUpload
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,7 +43,8 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Button
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material3.ExposedDropdownMenuBox
 import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -68,12 +74,11 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
+import net.megaproxy487.uiStringResource as stringResource
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
@@ -92,6 +97,13 @@ import net.megaproxy487.model.ProxyType
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.ui.theme.MegaProxyTheme
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
+import androidx.lifecycle.viewmodel.compose.viewModel
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
+import net.megaproxy487.data.ConfigWrites
+import androidx.compose.material3.LinearProgressIndicator
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -194,36 +206,76 @@ private fun applySelectedProfileOptions(
     return result
 }
 
+private class ProfilesUiState(private val context: android.content.Context) : ViewModel() {
+    val profiles = mutableStateListOf<ProxyProfile>()
+    var deleteProfile by mutableStateOf<ProxyProfile?>(null)
+    var importedProfileCount by mutableStateOf(0)
+    var importError by mutableStateOf<String?>(null)
+    var skippedNonHttps by mutableStateOf(0)
+    var showImportFilterNotice by mutableStateOf(false)
+    var showExportDialog by mutableStateOf(false)
+    var showPasswordExportWarning by mutableStateOf(false)
+    var exportFormat by mutableStateOf(ConfigExportFormat.JSON)
+    var includePasswords by mutableStateOf(false)
+    var includePrivateKeys by mutableStateOf(false)
+    var pendingExportContent by mutableStateOf<String?>(null)
+    var exportReady by mutableStateOf(false)
+    var transferMessage by mutableStateOf<String?>(null)
+    var pendingUnsafeImport by mutableStateOf<PortableConfiguration?>(null)
+    var missingProfilesReview by mutableStateOf<MissingProfilesReview?>(null)
+    val selectedMissingProfileIds = mutableStateListOf<String>()
+    var importOptionsReview by mutableStateOf<ImportOptionsReview?>(null)
+    val selectedImportOptionKeys = mutableStateListOf<String>()
+    var applyImportedGlobalOptions by mutableStateOf(false)
+    private var pendingOperations by mutableStateOf(0)
+    val busy: Boolean get() = pendingOperations > 0
+
+    fun launchOperation(block: suspend CoroutineScope.() -> Unit) {
+        pendingOperations++
+        viewModelScope.launch {
+            try { block() }
+            catch (cancelled: CancellationException) { throw cancelled }
+            catch (failure: Exception) {
+                pendingExportContent = null
+                exportReady = false
+                importError = failure.userMessage(context, R.string.transfer_failed)
+            } finally { pendingOperations-- }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfile: (String) -> Unit) {
     val store = remember { ConfigStore(activity) }
-    val scope = rememberCoroutineScope()
-    val profiles = remember { mutableStateListOf<ProxyProfile>() }
-    var deleteProfile by remember { mutableStateOf<ProxyProfile?>(null) }
-    var importedProfileCount by remember { mutableStateOf(0) }
-    var importError by remember { mutableStateOf<String?>(null) }
-    var skippedNonHttps by remember { mutableStateOf(0) }
-    var showImportFilterNotice by remember { mutableStateOf(false) }
-    var showExportDialog by remember { mutableStateOf(false) }
-    var showPasswordExportWarning by remember { mutableStateOf(false) }
-    var exportFormat by remember { mutableStateOf(ConfigExportFormat.JSON) }
-    var includePasswords by remember { mutableStateOf(false) }
-    var includePrivateKeys by remember { mutableStateOf(false) }
-    var pendingExportContent by remember { mutableStateOf("") }
-    var transferMessage by remember { mutableStateOf<String?>(null) }
-    var pendingUnsafeImport by remember { mutableStateOf<PortableConfiguration?>(null) }
-    var missingProfilesReview by remember { mutableStateOf<MissingProfilesReview?>(null) }
-    val selectedMissingProfileIds = remember { mutableStateListOf<String>() }
-    var importOptionsReview by remember { mutableStateOf<ImportOptionsReview?>(null) }
-    val selectedImportOptionKeys = remember { mutableStateListOf<String>() }
-    var applyImportedGlobalOptions by remember { mutableStateOf(false) }
+    val uiState = viewModel { ProfilesUiState(activity.applicationContext) }
+    val busy = uiState.busy
+    val profiles = uiState.profiles
+    var deleteProfile by uiState::deleteProfile
+    var importedProfileCount by uiState::importedProfileCount
+    var importError by uiState::importError
+    var skippedNonHttps by uiState::skippedNonHttps
+    var showImportFilterNotice by uiState::showImportFilterNotice
+    var showExportDialog by uiState::showExportDialog
+    var showPasswordExportWarning by uiState::showPasswordExportWarning
+    var exportFormat by uiState::exportFormat
+    var includePasswords by uiState::includePasswords
+    var includePrivateKeys by uiState::includePrivateKeys
+    var pendingExportContent by uiState::pendingExportContent
+    var exportReady by uiState::exportReady
+    var transferMessage by uiState::transferMessage
+    var pendingUnsafeImport by uiState::pendingUnsafeImport
+    var missingProfilesReview by uiState::missingProfilesReview
+    val selectedMissingProfileIds = uiState.selectedMissingProfileIds
+    var importOptionsReview by uiState::importOptionsReview
+    val selectedImportOptionKeys = uiState.selectedImportOptionKeys
+    var applyImportedGlobalOptions by uiState::applyImportedGlobalOptions
     val lifecycleOwner = LocalLifecycleOwner.current
     val listState = rememberLazyListState()
     var draggedProfileId by remember { mutableStateOf<String?>(null) }
 
     fun refresh() {
-        scope.launch {
+        uiState.launchOperation {
             val loaded = withContext(ConfigIoDispatcher) { store.sortedProfiles() }
             profiles.clear()
             profiles.addAll(loaded)
@@ -231,38 +283,41 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
     }
     LaunchedEffect(Unit) { refresh() }
     fun moveProfile(profileId: String, delta: Int): Boolean {
+        if (uiState.busy) return false
         val sourceIndex = profiles.indexOfFirst { it.id == profileId }
         val targetIndex = sourceIndex + delta
         if (sourceIndex < 0 || targetIndex !in profiles.indices) return false
         profiles.add(targetIndex, profiles.removeAt(sourceIndex))
         val order = profiles.map(ProxyProfile::id)
-        scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
+        ConfigWrites.submit("profile-order") { store.reorderProfiles(order) }
         return true
     }
     fun edit(profile: ProxyProfile) {
         onEditProfile(profile.id)
     }
     fun writeExport(uri: Uri?) {
+        val prepared = pendingExportContent
+        pendingExportContent = null
         if (uri == null) return
-        val content = pendingExportContent
-        scope.launch {
+        uiState.launchOperation {
+            val content = requireExportContent(prepared)
             val result = withContext(Dispatchers.IO) {
                 runCatching {
                     activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use { it.write(content) }
-                        ?: error("Could not open the export file")
+                        ?: throw UiException(R.string.error_open_export)
                 }
             }
-            result.onSuccess { transferMessage = activity.getString(R.string.configuration_exported) }
+            result.onSuccess { transferMessage = activity.uiText(R.string.configuration_exported) }
                 .onFailure {
-                    importError = activity.getString(
+                    importError = activity.uiText(
                         R.string.configuration_export_failed,
-                        it.message ?: activity.getString(R.string.unknown_error),
+                        it.userMessage(activity, R.string.unknown_error),
                     )
                 }
         }
     }
     fun applyJsonImport(configuration: PortableConfiguration) {
-        scope.launch {
+        uiState.launchOperation {
             val result = withContext(ConfigIoDispatcher) {
                 store.importConfiguration(configuration).also {
                     if (ProxyVpnService.isRunning) store.markPendingReconnect()
@@ -273,12 +328,12 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
             val imported = result.added + result.updated + result.unchanged
             val missingPasswords = imported.count { it.config.password.isEmpty() }
             val summary = listOfNotNull(
-                activity.getString(R.string.config_import_summary, result.added.size, result.updated.size, result.unchanged.size),
-                activity.getString(R.string.config_import_skipped, configuration.skippedProfiles)
+                activity.uiText(R.string.config_import_summary, result.added.size, result.updated.size, result.unchanged.size),
+                activity.uiText(R.string.config_import_skipped, configuration.skippedProfiles)
                     .takeIf { configuration.skippedProfiles > 0 },
-                activity.getString(R.string.config_import_missing_passwords, missingPasswords)
+                activity.uiText(R.string.config_import_missing_passwords, missingPasswords)
                     .takeIf { missingPasswords > 0 },
-                activity.getString(R.string.config_import_always_on_reconnect)
+                activity.uiText(R.string.config_import_always_on_reconnect)
                     .takeIf { ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning },
             ).joinToString(" ")
             if (result.missing.isEmpty()) {
@@ -291,7 +346,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
         }
     }
     fun prepareJsonImport(configuration: PortableConfiguration) {
-        scope.launch {
+        uiState.launchOperation {
             val review = withContext(ConfigIoDispatcher) {
                 val existing = store.profiles().associateBy(ProxyProfile::id)
                 val profileReviews = configuration.profiles.mapNotNull { imported ->
@@ -334,73 +389,50 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
     val exportTxtDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain"), ::writeExport)
     val exportJsonDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json"), ::writeExport)
     fun launchExport() {
-        scope.launch {
+        if (uiState.busy || pendingExportContent != null) return
+        uiState.launchOperation {
             pendingExportContent = withContext(ConfigIoDispatcher) {
                 when (exportFormat) {
                     ConfigExportFormat.PROXY_LIST -> ConfigTransfer.exportProxyList(store.profiles(), includePasswords)
                     ConfigExportFormat.JSON -> ConfigTransfer.exportJson(store, includePasswords, includePrivateKeys)
                 }
             }
+            requireExportContent(pendingExportContent)
+            exportReady = true
+        }
+    }
+    LaunchedEffect(exportReady) {
+        if (exportReady) {
+            exportReady = false
             if (exportFormat == ConfigExportFormat.PROXY_LIST) exportTxtDocument.launch("ProxyList.txt")
             else exportJsonDocument.launch("MegaProxy-config.json")
         }
     }
     val importDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null) {
-            runCatching {
-                val text = activity.contentResolver.openInputStream(uri)?.buffered()?.use { it.readConfigText() }
-                    ?: error("Could not read the selected file")
-                val isJson = activity.contentResolver.getType(uri) == "application/json" ||
-                    uri.lastPathSegment.orEmpty().substringAfterLast('.', "").equals("json", true) ||
-                    text.trimStart().startsWith('{')
-                if (isJson) {
-                    val isMegaProxy = runCatching {
-                        ConfigTransfer.isSupportedSchema(org.json.JSONObject(text).optString("schema"))
-                    }.getOrDefault(false)
-                    if (isMegaProxy) {
-                        val configuration = ConfigTransfer.importJson(text)
+        if (uri != null && !uiState.busy) {
+            uiState.launchOperation {
+                val parsed = withContext(Dispatchers.IO) {
+                    val text = activity.contentResolver.openInputStream(uri)?.buffered()?.use { it.readConfigText() }
+                        ?: throw UiException(R.string.error_read_file)
+                    parseProfileImport(text, activity.contentResolver.getType(uri), uri.lastPathSegment.orEmpty())
+                }
+                when (parsed) {
+                    is ParsedProfileImport.Configuration -> {
+                        val configuration = parsed.value
                         if (configuration.profiles.any { it.config.allowInvalidProxyCertificate || it.config.jumpAllowInvalidProxyCertificate || it.config.acceptAnyHostKey || it.config.jumpAcceptAnyHostKey }) {
                             pendingUnsafeImport = configuration
-                        } else {
-                            prepareJsonImport(configuration)
-                        }
-                    } else {
-                        val imported = FoxyProxyParser.parse(text).getOrThrow()
-                        val added = store.importProfiles(imported.proxies)
+                        } else prepareJsonImport(configuration)
+                    }
+                    is ParsedProfileImport.ProxyList -> {
+                        val added = withContext(ConfigIoDispatcher) { store.importProfiles(parsed.value.proxies) }
                         refresh()
                         importedProfileCount = added.size
-                        skippedNonHttps = imported.skippedNonHttps
-                        showImportFilterNotice = imported.skippedNonHttps > 0
-                        if (imported.skippedNonHttps == 0) {
-                            transferMessage = activity.getString(R.string.imported_foxyproxy, added.size)
-                        }
-                    }
-                } else {
-                    val isSuperProxy = SuperProxyParser.matches(text)
-                    val imported = if (isSuperProxy) {
-                        SuperProxyParser.parse(text).getOrThrow()
-                    } else {
-                        ProxyListParser.parse(text).getOrThrow()
-                    }
-                    val added = store.importProfiles(imported.proxies)
-                    refresh()
-                    importedProfileCount = added.size
-                    skippedNonHttps = imported.skippedNonHttps
-                    showImportFilterNotice = imported.skippedNonHttps > 0
-                    if (imported.skippedNonHttps == 0) {
-                        transferMessage = if (isSuperProxy) {
-                            activity.getString(R.string.imported_super_proxy, added.size)
-                        } else {
-                            activity.getString(R.string.imported_https_profiles, added.size)
-                        }
+                        skippedNonHttps = parsed.value.skippedNonHttps
+                        showImportFilterNotice = skippedNonHttps > 0
+                        if (!showImportFilterNotice) transferMessage = activity.uiText(parsed.summaryRes, added.size)
                     }
                 }
                 importError = null
-            }.onFailure {
-                importError = activity.getString(
-                    R.string.configuration_import_failed,
-                    it.message ?: activity.getString(R.string.unknown_error),
-                )
             }
         }
     }
@@ -408,29 +440,37 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
     Scaffold(
         topBar = {
         TopAppBar(
-            title = { Text(stringResource(R.string.profiles)) },
+            title = { ScreenTitle(stringResource(R.string.profiles)) },
             navigationIcon = {
                 IconButton(onClick = onBack) {
                     Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
                 }
             },
             actions = {
-                TextButton(onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
-                    Text(stringResource(R.string.import_action))
+                IconButton(enabled = !busy, onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
+                    Icon(Icons.Default.FileDownload, contentDescription = stringResource(R.string.import_action))
                 }
-                TextButton(onClick = { showExportDialog = true }) { Text(stringResource(R.string.export_action)) }
+                IconButton(enabled = !busy, onClick = { showExportDialog = true }) { Icon(Icons.Default.FileUpload, contentDescription = stringResource(R.string.export_action)) }
             },
         )
         },
-        floatingActionButton = {
-            FloatingActionButton(onClick = {
-                scope.launch {
-                    val profile = withContext(ConfigIoDispatcher) { store.addProfile() }
-                    refresh()
-                    edit(profile)
+        bottomBar = {
+            Column {
+                if (busy) {
+                    LinearProgressIndicator(Modifier.fillMaxWidth())
+                    Text(stringResource(R.string.transfer_working), modifier = Modifier.padding(horizontal = 16.dp))
                 }
-            }) {
-                Icon(Icons.Default.Add, contentDescription = stringResource(R.string.add_profile))
+                SaveStatusBanner()
+            Surface(tonalElevation = 3.dp) {
+                Button(
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                    enabled = !busy,
+                    onClick = {
+                        onEditProfile("new")
+                    },
+                ) { Text(stringResource(R.string.add_profile)) }
+            }
             }
         },
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -442,6 +482,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
             LazyColumn(
                 Modifier.fillMaxHeight().fillMaxWidth().widthIn(max = 840.dp).padding(horizontal = 16.dp),
                 state = listState,
+                contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
@@ -469,13 +510,13 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                     dragOffset = 0f
                                     draggedProfileId = null
                                     val order = profiles.map(ProxyProfile::id)
-                                    scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
+                                    ConfigWrites.submit("profile-order") { store.reorderProfiles(order) }
                                 },
                                 onDragEnd = {
                                     dragOffset = 0f
                                     draggedProfileId = null
                                     val order = profiles.map(ProxyProfile::id)
-                                    scope.launch(ConfigIoDispatcher) { store.reorderProfiles(order) }
+                                    ConfigWrites.submit("profile-order") { store.reorderProfiles(order) }
                                 },
                                 onDrag = { change, amount ->
                                     change.consume()
@@ -498,16 +539,17 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                         .semantics {
                             customActions = buildList {
                                 if (profiles.firstOrNull()?.id != profile.id) {
-                                    add(CustomAccessibilityAction(activity.getString(R.string.move_up)) { moveProfile(profile.id, -1) })
+                                    add(CustomAccessibilityAction(activity.uiText(R.string.move_up)) { moveProfile(profile.id, -1) })
                                 }
                                 if (profiles.lastOrNull()?.id != profile.id) {
-                                    add(CustomAccessibilityAction(activity.getString(R.string.move_down)) { moveProfile(profile.id, 1) })
+                                    add(CustomAccessibilityAction(activity.uiText(R.string.move_down)) { moveProfile(profile.id, 1) })
                                 }
                             }
                         },
+                    enabled = !busy,
                     onConfigure = { edit(profile) },
                     onClone = {
-                        scope.launch {
+                        uiState.launchOperation {
                             withContext(ConfigIoDispatcher) { store.cloneProfile(profile.id) }
                             refresh()
                         }
@@ -515,20 +557,28 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                     onDelete = { deleteProfile = profile },
                 )
                 }
-                importError?.let { message -> item { Text(message, color = MaterialTheme.colorScheme.error) } }
                 item { Text(stringResource(R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(bottom = 16.dp)) }
             }
         }
     }
 
+    importError?.let { message ->
+        AlertDialog(onDismissRequest = { importError = null },
+            title = { DialogTitle(stringResource(R.string.configuration_transfer)) },
+            text = { ScrollableDialogText(message) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { importError = null }) {
+                Text(stringResource(R.string.ok))
+            } })
+    }
+
     deleteProfile?.let { profile ->
         AlertDialog(
             onDismissRequest = { deleteProfile = null },
-            title = { Text(stringResource(R.string.delete_profile_title, profile.displayName)) },
-            text = { Text(stringResource(R.string.delete_profile_message)) },
-            confirmButton = { TextButton(onClick = {
+            title = { DialogTitle(stringResource(R.string.delete_profile_confirmation)) },
+            text = { ScrollableDialogText(profile.localizedName(activity) + "\n\n" + stringResource(R.string.delete_profile_message)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 deleteProfile = null
-                scope.launch {
+                uiState.launchOperation {
                     val reconnect = withContext(ConfigIoDispatcher) {
                         val needed = store.isConnectionDesired() && store.connectionProfile().id == profile.id
                         store.deleteProfile(profile.id)
@@ -538,83 +588,83 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                     if (reconnect) ProxyVpnService.reconnect(activity)
                 }
             }, enabled = profiles.size > 1) { Text(stringResource(R.string.delete)) } },
-            dismissButton = { TextButton(onClick = { deleteProfile = null }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { deleteProfile = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (showImportFilterNotice) {
         AlertDialog(
             onDismissRequest = { showImportFilterNotice = false },
-            title = { Text(stringResource(R.string.only_https_imported_title)) },
-            text = { Text(stringResource(R.string.only_https_imported_message, importedProfileCount, skippedNonHttps)) },
-            confirmButton = { TextButton(onClick = { showImportFilterNotice = false }) { Text(stringResource(R.string.continue_action)) } },
+            title = { DialogTitle(stringResource(R.string.only_https_imported_title)) },
+            text = { ScrollableDialogText(stringResource(R.string.only_https_imported_message, importedProfileCount, skippedNonHttps)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { showImportFilterNotice = false }) { Text(stringResource(R.string.continue_action)) } },
         )
     }
     if (showExportDialog) {
         AlertDialog(
             onDismissRequest = { showExportDialog = false },
-            title = { Text(stringResource(R.string.export_configuration_title)) },
+            title = { DialogTitle(stringResource(R.string.export_configuration_title)) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(stringResource(R.string.format))
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(exportFormat == ConfigExportFormat.JSON, { exportFormat = ConfigExportFormat.JSON })
-                        Text(stringResource(R.string.export_json_description))
+                        Text(stringResource(R.string.export_json_description), modifier = Modifier.weight(1f))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         RadioButton(exportFormat == ConfigExportFormat.PROXY_LIST, { exportFormat = ConfigExportFormat.PROXY_LIST })
-                        Text(stringResource(R.string.export_proxy_list_description))
+                        Text(stringResource(R.string.export_proxy_list_description), modifier = Modifier.weight(1f))
                     }
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(includePasswords, { includePasswords = it })
-                        Text(stringResource(R.string.include_passwords))
+                        Text(stringResource(R.string.include_passwords), modifier = Modifier.weight(1f))
                     }
                     if (!includePasswords) {
                         Text(stringResource(R.string.passwords_omitted_message), style = MaterialTheme.typography.bodySmall)
                     }
                     if (exportFormat == ConfigExportFormat.JSON) Row(verticalAlignment = Alignment.CenterVertically) {
                         Checkbox(includePrivateKeys, { includePrivateKeys = it })
-                        Text(stringResource(R.string.include_private_keys))
+                        Text(stringResource(R.string.include_private_keys), modifier = Modifier.weight(1f))
                     }
                     if (includePrivateKeys) Text(stringResource(R.string.private_keys_plaintext_warning), color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                 }
             },
-            confirmButton = { TextButton(onClick = {
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 showExportDialog = false
                 if (includePasswords || includePrivateKeys) showPasswordExportWarning = true else launchExport()
             }) { Text(stringResource(R.string.export_action)) } },
-            dismissButton = { TextButton(onClick = { showExportDialog = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { showExportDialog = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     if (showPasswordExportWarning) {
         AlertDialog(
             onDismissRequest = { showPasswordExportWarning = false },
-            title = { Text(stringResource(R.string.export_secrets_title)) },
-            text = { Text(stringResource(R.string.export_secrets_message)) },
-            confirmButton = { TextButton(onClick = {
+            title = { DialogTitle(stringResource(R.string.export_secrets_title)) },
+            text = { ScrollableDialogText(stringResource(R.string.export_secrets_message)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 showPasswordExportWarning = false
                 launchExport()
             }) { Text(stringResource(R.string.export_anyway)) } },
-            dismissButton = { TextButton(onClick = { showPasswordExportWarning = false }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { showPasswordExportWarning = false }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     transferMessage?.let { message ->
         AlertDialog(
             onDismissRequest = { transferMessage = null },
-            title = { Text(stringResource(R.string.configuration_transfer)) },
-            text = { Text(message) },
-            confirmButton = { TextButton(onClick = { transferMessage = null }) { Text(stringResource(R.string.ok)) } },
+            title = { DialogTitle(stringResource(R.string.configuration_transfer)) },
+            text = { ScrollableDialogText(message) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { transferMessage = null }) { Text(stringResource(R.string.ok)) } },
         )
     }
     pendingUnsafeImport?.let { configuration ->
         AlertDialog(
             onDismissRequest = { pendingUnsafeImport = null },
-            title = { Text(stringResource(R.string.unsafe_import_title)) },
-            text = { Text(stringResource(R.string.unsafe_import_message)) },
-            confirmButton = { TextButton(onClick = {
+            title = { DialogTitle(stringResource(R.string.unsafe_import_title)) },
+            text = { ScrollableDialogText(stringResource(R.string.unsafe_import_message)) },
+            confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                 pendingUnsafeImport = null
                 prepareJsonImport(configuration)
             }) { Text(stringResource(R.string.import_anyway)) } },
-            dismissButton = { TextButton(onClick = { pendingUnsafeImport = null }) { Text(stringResource(R.string.cancel)) } },
+            dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { pendingUnsafeImport = null }) { Text(stringResource(R.string.cancel)) } },
         )
     }
     importOptionsReview?.let { review ->
@@ -624,10 +674,10 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 selectedImportOptionKeys.clear()
                 applyImportedGlobalOptions = false
             },
-            title = { Text(stringResource(R.string.import_options_title)) },
+            title = { DialogTitle(stringResource(R.string.import_options_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.import_options_message))
+                    Text(stringResource(R.string.import_options_message), modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()))
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 360.dp)) {
                         items(review.profiles, key = { it.profile.id }) { item ->
                             Row(
@@ -635,7 +685,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                 verticalAlignment = Alignment.Top,
                             ) {
                                 Column(Modifier.padding(top = 10.dp)) {
-                                    Text(item.profile.displayName, style = MaterialTheme.typography.titleSmall)
+                                    Text(item.profile.localizedName(activity), style = MaterialTheme.typography.titleSmall)
                                     item.changedGroups.forEach { group ->
                                         val key = importOptionKey(item.profile.id, group)
                                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -646,7 +696,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                                     else selectedImportOptionKeys.remove(key)
                                                 },
                                             )
-                                            Text(stringResource(group))
+                                            Text(stringResource(group), modifier = Modifier.weight(1f))
                                         }
                                     }
                                 }
@@ -661,14 +711,14 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                     checked = applyImportedGlobalOptions,
                                     onCheckedChange = { applyImportedGlobalOptions = it },
                                 )
-                                Text(stringResource(R.string.import_global_options))
+                                Text(stringResource(R.string.import_global_options), modifier = Modifier.weight(1f))
                             }
                         }
                     }
                 }
             },
             confirmButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     val selectedOptions = selectedImportOptionKeys.toSet()
                     val applyGlobals = !review.globalChanged || applyImportedGlobalOptions
                     val resolved = review.configuration.copy(
@@ -691,7 +741,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 }) { Text(stringResource(R.string.apply_import)) }
             },
             dismissButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     importOptionsReview = null
                     selectedImportOptionKeys.clear()
                     applyImportedGlobalOptions = false
@@ -706,10 +756,10 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 selectedMissingProfileIds.clear()
                 transferMessage = review.importSummary
             },
-            title = { Text(stringResource(R.string.remove_missing_profiles_title)) },
+            title = { DialogTitle(stringResource(R.string.remove_missing_profiles_title)) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.remove_missing_profiles_message))
+                    Text(stringResource(R.string.remove_missing_profiles_message), modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()))
                     LazyColumn(Modifier.fillMaxWidth().heightIn(max = 320.dp)) {
                         items(review.profiles, key = { it.id }) { profile ->
                             Row(
@@ -723,8 +773,8 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                                         else selectedMissingProfileIds.remove(profile.id)
                                     },
                                 )
-                                Column {
-                                    Text(profile.displayName)
+                                Column(Modifier.weight(1f)) {
+                                    Text(profile.localizedName(activity))
                                     Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
                                 }
                             }
@@ -733,13 +783,13 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 }
             },
             confirmButton = {
-                TextButton(
+                TextButton(shape = RoundedCornerShape(12.dp),
                     enabled = selectedMissingProfileIds.isNotEmpty(),
                     onClick = {
                         val selected = selectedMissingProfileIds.toSet()
                         missingProfilesReview = null
                         selectedMissingProfileIds.clear()
-                        scope.launch {
+                        uiState.launchOperation {
                             val reconnect = withContext(ConfigIoDispatcher) {
                                 val desired = store.isConnectionDesired()
                                 store.deleteProfiles(selected).also {
@@ -749,13 +799,13 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                             refresh()
                             if (reconnect) ProxyVpnService.reconnect(activity)
                             transferMessage = review.importSummary + " " +
-                                activity.getString(R.string.config_import_removed, selected.size)
+                                activity.uiText(R.string.config_import_removed, selected.size)
                         }
                     },
                 ) { Text(stringResource(R.string.remove_selected)) }
             },
             dismissButton = {
-                TextButton(onClick = {
+                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     missingProfilesReview = null
                     selectedMissingProfileIds.clear()
                     transferMessage = review.importSummary
@@ -768,52 +818,42 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
 @Composable
 private fun ProfileCard(
     profile: ProxyProfile,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onConfigure: () -> Unit,
     onClone: () -> Unit,
     onDelete: () -> Unit,
 ) {
+    val activity = androidx.compose.ui.platform.LocalContext.current
     val background = Color(ProfileColors.argb[Math.floorMod(profile.colorIndex, ProfileColors.argb.size)])
-    val foreground = if (background.luminance() > 0.45f) Color.Black else Color.White
+    val foreground = profileForeground(background)
     Card(
         colors = CardDefaults.cardColors(containerColor = background, contentColor = foreground),
         modifier = modifier.fillMaxWidth(),
     ) {
         Column(Modifier.fillMaxWidth().padding(14.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                if (profile.flagEmoji.isNotEmpty()) {
-                    Surface(
-                        color = Color.White, contentColor = Color.Black,
-                        shape = RoundedCornerShape(6.dp),
-                        border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.45f)),
-                    ) { Text(profile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
-                }
-                Column(Modifier.weight(1f)) {
-                    Text(profile.displayName, style = MaterialTheme.typography.titleMedium)
-                    Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
-                }
-                Surface(
-                    color = foreground.copy(alpha = 0.16f),
-                    contentColor = foreground,
-                    shape = RoundedCornerShape(50),
-                    border = BorderStroke(1.dp, foreground.copy(alpha = 0.55f)),
-                ) {
-                    Text(
-                        when (profile.config.type) {
-                            ProxyType.HTTPS -> "HTTPS"
-                            ProxyType.HTTPS_JUMP -> stringResource(R.string.https_with_jump)
-                            ProxyType.SSH -> "SSH"
-                            ProxyType.SSH_JUMP -> "SSH + Jump"
-                        },
-                        style = MaterialTheme.typography.labelMedium,
-                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
-                    )
-                }
-            }
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onConfigure) { Text(stringResource(R.string.configure), color = foreground) }
-                TextButton(onClick = onClone) { Text(stringResource(R.string.clone), color = foreground) }
-                TextButton(onClick = onDelete) { Text(stringResource(R.string.delete), color = foreground) }
+            AdaptiveLabelRow(
+                label = { labelModifier ->
+                    Row(labelModifier, verticalAlignment = Alignment.Top, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        if (profile.flagEmoji.isNotEmpty()) {
+                            Surface(
+                                color = Color.White, contentColor = Color.Black,
+                                shape = RoundedCornerShape(6.dp),
+                                border = BorderStroke(1.dp, Color.Black.copy(alpha = 0.45f)),
+                            ) { Text(profile.flagEmoji, modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)) }
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(profile.localizedName(activity), style = MaterialTheme.typography.titleMedium)
+                            Text("${profile.config.host}:${profile.config.port}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                },
+                trailing = { ProfileTypeBadge(profile.config.type, foreground) },
+            )
+            WrappingActions() {
+                TextButton(enabled = enabled, shape = RoundedCornerShape(12.dp), onClick = onConfigure) { Text(stringResource(R.string.configure), color = foreground) }
+                TextButton(enabled = enabled, shape = RoundedCornerShape(12.dp), onClick = onClone) { Text(stringResource(R.string.clone), color = foreground) }
+                TextButton(enabled = enabled, shape = RoundedCornerShape(12.dp), onClick = onDelete) { Text(stringResource(R.string.delete), color = foreground) }
             }
         }
     }

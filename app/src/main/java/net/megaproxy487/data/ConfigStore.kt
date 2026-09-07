@@ -1,6 +1,10 @@
 package net.megaproxy487.data
 
+import net.megaproxy487.uiText
+import net.megaproxy487.localizedName
+
 import android.content.Context
+import android.content.SharedPreferences
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
@@ -32,6 +36,7 @@ data class ConfigurationImportResult(
 )
 
 class ConfigStore(context: Context) {
+    private val context = context.applicationContext
     private val prefs = context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE)
 
     @Synchronized
@@ -91,14 +96,14 @@ class ConfigStore(context: Context) {
     }
 
     fun setActiveProfile(id: String) {
-        if (profile(id) != null) prefs.edit().putString(ACTIVE_PROFILE_ID, id).apply()
+        if (profile(id) != null) prefs.edit().putString(ACTIVE_PROFILE_ID, id).commitOrThrow()
     }
 
     fun setAlwaysOnProfile(id: String) {
         if (profile(id) != null) prefs.edit()
             .putString(ALWAYS_ON_PROFILE_ID, id)
             .putBoolean(FAILOVER_ACTIVE, false)
-            .apply()
+            .commitOrThrow()
     }
 
     fun connectionProfile(): ProxyProfile =
@@ -183,20 +188,22 @@ class ConfigStore(context: Context) {
             sshRotationMb = settings.sshRotationMb.coerceIn(0, 10240),
             failoverProfileIds = settings.failoverProfileIds.distinct(),
         )
-        prefs.edit().putString(GLOBAL_CONNECTION_SETTINGS, encodeGlobalConnectionSettings(normalized)).apply()
+        prefs.edit().putString(GLOBAL_CONNECTION_SETTINGS, encodeGlobalConnectionSettings(normalized)).commitOrThrow()
     }
 
     @Synchronized
-    fun addProfile(): ProxyProfile {
+    fun newProfileDraft(id: String = UUID.randomUUID().toString()): ProxyProfile {
         val existing = profiles()
         val profile = ProxyProfile(
-            id = UUID.randomUUID().toString(),
+            id = id,
             colorIndex = nextColorIndex(existing),
             config = ProxyConfig(port = 443),
         )
-        writeProfiles(existing + profile)
         return profile
     }
+
+    @Synchronized
+    fun addProfile(): ProxyProfile = newProfileDraft().also { writeProfiles(profiles() + it) }
 
     @Synchronized
     fun cloneProfile(id: String): ProxyProfile? {
@@ -206,7 +213,7 @@ class ConfigStore(context: Context) {
         val source = existing[sourceIndex]
         val clone = source.copy(
             id = UUID.randomUUID().toString(),
-            name = "${source.displayName} copy",
+            name = context.uiText(net.megaproxy487.R.string.profile_copy, source.localizedName(context)),
         )
         writeProfiles(existing.toMutableList().apply { add(sourceIndex + 1, clone) })
         return clone
@@ -304,10 +311,12 @@ class ConfigStore(context: Context) {
     ).joinToString("\u0000")
 
     @Synchronized
-    fun saveProfile(profile: ProxyProfile) {
+    fun saveProfile(profile: ProxyProfile, createIfMissing: Boolean = false) {
         val current = profiles()
-        val updated = current.map { if (it.id == profile.id) profile else it }
-        if (updated != current) writeProfiles(updated)
+        val updated = if (createIfMissing && current.none { it.id == profile.id }) current + profile
+            else current.map { if (it.id == profile.id) profile else it }
+        // A failed commit may already have updated SharedPreferences in memory. Retry the disk write too.
+        writeProfiles(updated)
     }
 
     @Synchronized
@@ -340,7 +349,8 @@ class ConfigStore(context: Context) {
         if (activeProfileId() == id) editor.putString(ACTIVE_PROFILE_ID, replacement)
         if (alwaysOnProfileId() == id) editor.putString(ALWAYS_ON_PROFILE_ID, replacement)
         if (connectionWasDeleted) editor.putString(CONNECTION_PROFILE_ID, replacement)
-        editor.apply()
+        editor.commitOrThrow()
+        ConfigWrites.discard("profile:$id")
         val settings = globalConnectionSettings()
         if (id in settings.failoverProfileIds) {
             saveGlobalConnectionSettings(settings.copy(failoverProfileIds = settings.failoverProfileIds - id))
@@ -362,7 +372,8 @@ class ConfigStore(context: Context) {
         if (activeProfileId() in removedIds) editor.putString(ACTIVE_PROFILE_ID, replacement)
         if (alwaysOnProfileId() in removedIds) editor.putString(ALWAYS_ON_PROFILE_ID, replacement)
         if (connectionWasDeleted) editor.putString(CONNECTION_PROFILE_ID, replacement)
-        editor.apply()
+        editor.commitOrThrow()
+        removedIds.forEach { ConfigWrites.discard("profile:$it") }
         val settings = globalConnectionSettings()
         saveGlobalConnectionSettings(settings.copy(
             failoverProfileIds = settings.failoverProfileIds.filterNot(removedIds::contains),
@@ -386,7 +397,7 @@ class ConfigStore(context: Context) {
     fun diagnosticLogLimitMb(): Int = prefs.getInt(DIAGNOSTIC_LOG_LIMIT_MB, 3).coerceIn(1, 100)
 
     fun setDiagnosticLogLimitMb(value: Int) {
-        prefs.edit().putInt(DIAGNOSTIC_LOG_LIMIT_MB, value.coerceIn(1, 100)).apply()
+        prefs.edit().putInt(DIAGNOSTIC_LOG_LIMIT_MB, value.coerceIn(1, 100)).commitOrThrow()
     }
 
     private fun ensureMigrated() {
@@ -434,7 +445,7 @@ class ConfigStore(context: Context) {
     }
 
     private fun writeProfiles(profiles: List<ProxyProfile>) {
-        prefs.edit().putString(PROFILES, encodeProfiles(profiles)).apply()
+        prefs.edit().putString(PROFILES, encodeProfiles(profiles)).commitOrThrow()
     }
 
     private fun encodeProfiles(profiles: List<ProxyProfile>) = JSONArray().apply {
@@ -608,4 +619,9 @@ class ConfigStore(context: Context) {
         private const val IPV6_PROFILE_MIGRATED = "ipv6_profile_migrated_v1"
         private const val PENDING_RECONNECT = "pending_reconnect"
     }
+}
+
+/** Call from the ordered I/O queue so a reported success includes the disk write. */
+private fun SharedPreferences.Editor.commitOrThrow() {
+    check(commit()) { "Configuration disk write failed" }
 }

@@ -1,5 +1,9 @@
 package net.megaproxy487.data
 
+import net.megaproxy487.R
+import net.megaproxy487.UiException
+import net.megaproxy487.requireUi
+
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
@@ -21,21 +25,21 @@ fun InputStream.readPrivateKeyText(): String {
         val count = read(buffer)
         if (count < 0) break
         total += count
-        require(total <= MAX_PRIVATE_KEY_FILE_BYTES) { "Private key file is larger than 64 KiB" }
+        requireUi(total <= MAX_PRIVATE_KEY_FILE_BYTES) { UiException(R.string.error_key_large) }
         output.write(buffer, 0, count)
     }
 
     val text = output.toString(Charsets.UTF_8.name()).removePrefix("\uFEFF").trim()
-    require(text.isNotEmpty()) { "Private key file is empty" }
-    require(!text.contains("BEGIN ENCRYPTED PRIVATE KEY") &&
+    requireUi(text.isNotEmpty()) { UiException(R.string.error_key_empty) }
+    requireUi(!text.contains("BEGIN ENCRYPTED PRIVATE KEY") &&
         !text.contains(Regex("Proc-Type:\\s*4,ENCRYPTED", RegexOption.IGNORE_CASE))) {
-        "Passphrase-protected private keys are not supported"
+        UiException(R.string.error_key_encrypted)
     }
 
     val begin = Regex("^-----BEGIN ([A-Z0-9 ]+)-----", RegexOption.MULTILINE).find(text)
-        ?: throw IllegalArgumentException("File does not contain a PEM or OpenSSH private key")
+        ?: throw UiException(R.string.error_key_missing)
     val type = begin.groupValues[1]
-    require(type in supportedPrivateKeyTypes) { "Unsupported private key format: $type" }
-    require(text.contains("-----END $type-----")) { "Private key footer is missing" }
+    requireUi(type in supportedPrivateKeyTypes) { UiException(R.string.error_key_format, type) }
+    requireUi(text.contains("-----END $type-----")) { UiException(R.string.error_key_footer) }
     return "$text\n"
 }

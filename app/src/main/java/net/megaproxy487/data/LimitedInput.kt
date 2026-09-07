@@ -1,5 +1,9 @@
 package net.megaproxy487.data
 
+import net.megaproxy487.R
+import net.megaproxy487.UiException
+import net.megaproxy487.requireUi
+
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
 
@@ -15,7 +19,7 @@ fun InputStream.readConfigText(): String {
         val count = read(buffer)
         if (count < 0) break
         total += count
-        require(total <= MAX_CONFIG_FILE_BYTES) { "Configuration file is larger than 4 MB" }
+        requireUi(total <= MAX_CONFIG_FILE_BYTES) { UiException(R.string.error_config_large) }
         output.write(buffer, 0, count)
     }
     return output.toString(Charsets.UTF_8.name())

@@ -1,6 +1,8 @@
 package net.megaproxy487.data
 
 import java.io.ByteArrayInputStream
+import net.megaproxy487.UiException
+import net.megaproxy487.R
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -21,9 +23,10 @@ class PrivateKeyImportTest {
     fun rejectsPublicKey() {
         val input = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAA example"
 
-        assertThrows(IllegalArgumentException::class.java) {
+        val failure = assertThrows(UiException::class.java) {
             ByteArrayInputStream(input.toByteArray()).readPrivateKeyText()
         }
+        assertEquals(R.string.error_key_missing, failure.textId)
     }
 
     @Test

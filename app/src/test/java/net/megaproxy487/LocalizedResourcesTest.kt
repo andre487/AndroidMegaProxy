@@ -26,6 +26,18 @@ class LocalizedResourcesTest {
         assertTrue(russian.getValue("traffic_units_si").contains("KB, MB, GB"))
     }
 
+    @Test
+    fun translationsPreserveFormatArguments() {
+        val english = stringsIn(resourceFile("values/strings.xml"))
+        val russian = stringsIn(resourceFile("values-ru/strings.xml"))
+        val placeholder = Regex("%[0-9]+\\$[a-zA-Z]")
+        english.forEach { (key, text) ->
+            assertEquals(key,
+                placeholder.findAll(text).map { it.value }.sorted().toList(),
+                placeholder.findAll(russian.getValue(key)).map { it.value }.sorted().toList())
+        }
+    }
+
     private fun resourceFile(relativePath: String): File =
         sequenceOf(File("src/main/res", relativePath), File("app/src/main/res", relativePath))
             .firstOrNull(File::isFile)
