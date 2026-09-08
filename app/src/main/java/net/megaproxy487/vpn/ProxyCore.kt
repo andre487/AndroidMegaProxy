@@ -5,7 +5,6 @@ import android.os.ParcelFileDescriptor
 import net.megaproxy487.model.ProxyConfig
 import org.json.JSONObject
 import org.json.JSONArray
-import java.lang.reflect.Proxy
 
 interface ProxyCore {
     fun resolveProxy(host: String, status: (String) -> Unit): String?
@@ -93,9 +92,7 @@ class NativeProxyCore(
         .toString()
 
     private fun callback(type: Class<*>, methodName: String, callback: (Array<out Any?>?) -> Any?) =
-        Proxy.newProxyInstance(type.classLoader, arrayOf(type)) { _, method, args ->
-            if (method.name == methodName) callback(args) else error("Unknown native callback ${method.name}")
-        }
+        nativeCallback(type, methodName, callback)
 
     override fun resolveProxy(host: String, status: (String) -> Unit): String? = runCatching {
         val mobile = Class.forName("mobile.Mobile")
@@ -113,6 +110,7 @@ class NativeProxyCore(
 
     override fun start(tunFd: Int, config: ProxyConfig, status: (String) -> Unit): Boolean {
         var detachedFd: Int? = null
+        var nativeStarted = false
         return runCatching {
             val mobile = Class.forName("mobile.Mobile")
             val protectorType = Class.forName("mobile.Protector")
@@ -125,16 +123,19 @@ class NativeProxyCore(
                 if ("SSH_HOST_KEY_" in message || "dpi_hint=possible" in message) status(message)
                 null
             }
-            detachedFd = ParcelFileDescriptor.fromFd(tunFd).detachFd()
+            val json = configJson(config)
             val startMethod = mobile.getMethod(
                 "start", Long::class.javaPrimitiveType, String::class.java, protectorType, reporterType,
             )
+            detachedFd = ParcelFileDescriptor.fromFd(tunFd).detachFd()
             val goFd = detachedFd!!
             detachedFd = null // Start's contract takes ownership, including error paths.
-            startMethod.invoke(null, goFd.toLong(), configJson(config), protector, reporter)
+            startMethod.invoke(null, goFd.toLong(), json, protector, reporter)
+            nativeStarted = true
             status("TCP is protected by ${config.type.title}")
             true
         }.getOrElse {
+            if (nativeStarted) stop()
             detachedFd?.let { fd -> runCatching { ParcelFileDescriptor.adoptFd(fd).close() } }
             status(if (it is ClassNotFoundException) "Add app/libs/megaproxy.aar" else "Native core error: ${it.cause?.message ?: it.message}")
             false

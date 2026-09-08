@@ -18,7 +18,7 @@ internal fun parseProfileImport(text: String, mimeType: String?, fileName: Strin
     val json = mimeType == "application/json" || fileName.substringAfterLast('.', "").equals("json", true) ||
         text.trimStart().startsWith('{')
     if (json) {
-        val root = org.json.JSONObject(text)
+        val root = boundedJsonObject(text)
         return if (ConfigTransfer.isSupportedSchema(root.optString("schema"))) {
             ParsedProfileImport.Configuration(ConfigTransfer.importJson(text))
         } else ParsedProfileImport.ProxyList(FoxyProxyParser.parse(text).getOrThrow(), R.string.imported_foxyproxy)

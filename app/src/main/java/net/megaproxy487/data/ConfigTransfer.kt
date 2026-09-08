@@ -99,7 +99,7 @@ object ConfigTransfer {
     }.toString(2)
 
     fun importJson(text: String): PortableConfiguration {
-        val root = JSONObject(text)
+        val root = boundedJsonObject(text)
         requireUi(isSupportedSchema(root.optString("schema"))) { UiException(R.string.error_config_invalid) }
         val version = root.optInt("version", 0)
         requireUi(version in 1..SCHEMA_VERSION) { UiException(R.string.error_config_version, version) }
@@ -109,7 +109,7 @@ object ConfigTransfer {
             array.optJSONObject(index)?.optString("id")?.let { it.isNotBlank() && it.length <= 256 } == true
         }) { UiException(R.string.error_config_stable_ids) }
         val decoded = (0 until array.length()).map { index ->
-            runCatching { decodeProfile(array.getJSONObject(index), index) }
+            operationResult { decodeProfile(array.getJSONObject(index), index) }
         }
         val decodedProfiles = decoded.mapNotNull(Result<ProxyProfile>::getOrNull)
         requireUi(decodedProfiles.isNotEmpty()) { UiException(R.string.error_config_no_usable) }

@@ -461,4 +461,7 @@
     <string name="transfer_working">Обработка конфигурации…</string>
     <string name="draft_profile_hint">Профиль сохранится после первого изменения. Чтобы отменить создание, вернитесь назад.</string>
     <string name="main_actions">Другие действия</string>
+    <string name="log_read_failed">Не удалось прочитать диагностический лог. Повторяем попытку…</string>
+    <string name="error_config_complex">Конфигурация содержит слишком глубокую вложенность или слишком много элементов JSON.</string>
+    <string name="vpn_command_failed">Не удалось выполнить команду VPN. Проверьте состояние соединения и повторите попытку.</string>
 </resources>
