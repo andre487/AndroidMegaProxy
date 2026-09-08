@@ -32,7 +32,7 @@ class BoundedJsonTest {
     }
 
     @Test fun lenientSyntaxCannotHideNestingFromGuard() {
-        for (text in listOf("{'key':[]}", "{/* comment */\"key\":[]}", "{# comment\n\"key\":[]}")) {
+        for (text in listOf("{\"key\":[0;0;0]}", "{\"key\"=0}", "{'key':[]}", "{/* comment */\"key\":[]}", "{# comment\n\"key\":[]}")) {
             assertThrows(UiException::class.java) { boundedJsonObject(text) }
         }
     }

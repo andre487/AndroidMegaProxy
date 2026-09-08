@@ -103,7 +103,7 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	case <-c.closed:
 		return 0, net.ErrClosed
 	case <-deadline:
-		return 0, timeoutError{}
+		return 0, c.deadlineError()
 	default:
 	}
 	if !c.config.AllowIPv6 {
@@ -120,7 +120,7 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	select {
 	case c.inFlight <- struct{}{}:
 	case <-deadline:
-		return 0, timeoutError{}
+		return 0, c.deadlineError()
 	case <-c.closed:
 		return 0, net.ErrClosed
 	case <-c.context.Done():
@@ -234,7 +234,7 @@ func (c *dohPacketConn) ReadFrom(buffer []byte) (int, net.Addr, error) {
 	deadline := c.readDeadline.wait()
 	select {
 	case <-deadline:
-		return 0, nil, timeoutError{}
+		return 0, nil, c.deadlineError()
 	case <-c.closed:
 		return 0, nil, net.ErrClosed
 	default:
@@ -249,9 +249,19 @@ func (c *dohPacketConn) ReadFrom(buffer []byte) (int, net.Addr, error) {
 		}
 		return copy(buffer, reply.payload), reply.addr, nil
 	case <-deadline:
-		return 0, nil, timeoutError{}
+		return 0, nil, c.deadlineError()
 	case <-c.closed:
 		return 0, nil, net.ErrClosed
+	}
+}
+
+// Close also wakes deadline waiters; report closure instead of a random timeout.
+func (c *dohPacketConn) deadlineError() error {
+	select {
+	case <-c.closed:
+		return net.ErrClosed
+	default:
+		return timeoutError{}
 	}
 }
 

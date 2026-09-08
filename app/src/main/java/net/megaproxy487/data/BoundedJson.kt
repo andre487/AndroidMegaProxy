@@ -28,7 +28,7 @@ internal fun boundedJsonObject(text: String): JSONObject {
                 ',', ':' -> tokens++
                 // Android's lenient parser also accepts comments and single quotes.
                 // Reject those extensions so they cannot bypass this JSON guard.
-                '\'', '/', '#' -> throw UiException(R.string.error_invalid_input)
+                '\'', '/', '#', ';', '=' -> throw UiException(R.string.error_invalid_input)
             }
             requireUi(depth in 0..32 && tokens <= 250_000) {
                 UiException(R.string.error_config_complex)

@@ -134,7 +134,7 @@ func TestCancelledSSHOpenKeepsAdmissionUntilWorkerEnds(t *testing.T) {
 	released := make(chan struct{})
 	done := make(chan bool, 1)
 	go func() {
-		_, _, abandoned := dialSSHChannel(ctx, client, "example.com:443", func() { close(released) })
+		_, _, abandoned := dialSSHChannel(ctx, client, "example.com:443", func() { close(released) }, func() { t.Error("healthy worker aborted") }, time.Hour)
 		done <- abandoned
 	}()
 	<-raw.entered
@@ -168,5 +168,38 @@ func TestClosedSSHDialerCannotReconnect(t *testing.T) {
 	}
 	if _, err := d.connectTarget(context.Background(), "127.0.0.1:443"); err == nil {
 		t.Fatal("closed SSH dialer used direct bypass")
+	}
+}
+
+func TestAbandonedSSHOpenEventuallyReleasesPool(t *testing.T) {
+	raw := &blockedSSHConn{entered: make(chan struct{}), unblock: make(chan struct{})}
+	defer raw.Close()
+	client := &ssh.Client{Conn: raw}
+	d := &sshDialer{client: client}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	released := make(chan struct{})
+	done := make(chan bool, 1)
+	go func() {
+		_, _, abandoned := dialSSHChannel(ctx, client, "example.com:443", func() { close(released) }, func() { d.invalidateClient(client) }, 20*time.Millisecond)
+		done <- abandoned
+	}()
+	<-raw.entered
+	cancel()
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		t.Fatal("caller did not cancel")
+	}
+	select {
+	case <-released:
+	case <-time.After(time.Second):
+		t.Fatal("unresponsive peer permanently occupied admission")
+	}
+	d.mu.Lock()
+	current := d.client
+	d.mu.Unlock()
+	if current != nil {
+		t.Fatal("stalled session not cleared for next connection")
 	}
 }

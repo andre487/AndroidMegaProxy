@@ -37,7 +37,7 @@ import kotlinx.coroutines.launch
 class ProxyVpnService : VpnService() {
     @Volatile private var tunnel: ParcelFileDescriptor? = null
     @Volatile private var core: ProxyCore? = null
-    @Volatile private var activeConfig: net.megaproxy487.model.ProxyConfig? = null
+    @Volatile private var activeSession: ConnectionTestTarget? = null
     @Volatile private var tunnelTestOnly = false
     @Volatile private var hostKeyPrompt: PendingIntent? = null
     @Volatile private var failoverNotice: String? = null
@@ -250,15 +250,18 @@ class ProxyVpnService : VpnService() {
     }
 
     private fun testConnection() {
-        val storedConfig = synchronized(tunnelStateLock) { activeConfig }
-            ?: ConfigStore(this).globalConnectionSettings().applyTo(ConfigStore(this).activeProfile().config)
-        storedConfig.connectionValidationError()?.let { uiText(it) }?.let {
+        val target = connectionTestTarget(synchronized(tunnelStateLock) { activeSession }) {
+            val store = ConfigStore(this)
+            val profile = store.activeProfile()
+            ConnectionTestTarget(profile.id, store.globalConnectionSettings().applyTo(profile.config))
+        }
+        target.config.connectionValidationError()?.let { uiText(it) }?.let {
             TestDiagnosticLog.fail("Connection test cannot start: $it")
             if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
             return
         }
         val temporaryVpn = tunnel == null
-        if (temporaryVpn && !startTunnel(testOnly = true, suppliedConfig = storedConfig, generation = startGeneration.get())) {
+        if (temporaryVpn && !startTunnel(testOnly = true, suppliedTarget = target, generation = startGeneration.get())) {
             TestDiagnosticLog.fail("Connection test failed: temporary VPN could not be started")
             if (hostKeyPrompt == null) {
                 stopForeground(STOP_FOREGROUND_REMOVE)
@@ -266,12 +269,13 @@ class ProxyVpnService : VpnService() {
             }
             return
         }
-        val config = synchronized(tunnelStateLock) { activeConfig } ?: run {
+        val session = synchronized(tunnelStateLock) { activeSession } ?: run {
             TestDiagnosticLog.fail("Connection test failed: active VPN configuration is unavailable")
             return
         }
-        val result = NativeProxyCore(this, TestDiagnosticLog::add).test(config) { message ->
-            configureHostKeyPrompt(message, ConfigStore(this).activeProfileId(), true)
+        val testConfig = session.withStoredTrust(ConfigStore(this).profile(session.profileId)).config
+        val result = NativeProxyCore(this, TestDiagnosticLog::add).test(testConfig) { message ->
+            configureHostKeyPrompt(message, session.profileId, true)
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
         }
         if (result != null) TestDiagnosticLog.succeed(result.exitIp, result.countryCode) else TestDiagnosticLog.fail()
@@ -283,14 +287,14 @@ class ProxyVpnService : VpnService() {
 
     private fun startTunnel(
         testOnly: Boolean,
-        suppliedConfig: net.megaproxy487.model.ProxyConfig? = null,
+        suppliedTarget: ConnectionTestTarget? = null,
         generation: Long = startGeneration.get(),
     ): Boolean {
         val configStore = ConfigStore(this)
         val pendingReconnectToken = if (testOnly) null else configStore.pendingReconnectToken()
         val storedProfile = configStore.connectionProfile()
-        val storedConfig = suppliedConfig ?: configStore.globalConnectionSettings().applyTo(storedProfile.config)
-        val promptProfileId = if (testOnly) configStore.activeProfileId() else storedProfile.id
+        val storedConfig = suppliedTarget?.config ?: configStore.globalConnectionSettings().applyTo(storedProfile.config)
+        val promptProfileId = suppliedTarget?.profileId ?: storedProfile.id
         val diagnostics = if (testOnly) TestDiagnosticLog::add else DiagnosticLog::add
         var failureDetail = ""
         diagnostics(
@@ -405,7 +409,7 @@ class ProxyVpnService : VpnService() {
                     tunnel = establishedTunnel
                     core = proxyCore
                     tunnelTestOnly = testOnly
-                    activeConfig = config
+                    activeSession = ConnectionTestTarget(promptProfileId, config)
                     isRunning = true
                     true
                 }
@@ -718,7 +722,7 @@ class ProxyVpnService : VpnService() {
             tunnel = null
             core = null
             tunnelTestOnly = false
-            activeConfig = null
+            activeSession = null
             isRunning = false
             healthWarningActive = false
             lastHealthBytes = 0L

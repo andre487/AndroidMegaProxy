@@ -3,6 +3,7 @@ package mobile
 import (
 	"encoding/binary"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -156,5 +157,22 @@ var _ net.PacketConn = (*dohPacketConn)(nil)
 func TestWrappedTimeoutClassification(t *testing.T) {
 	if got := errorClass(fmt.Errorf("dial proxy: %w", timeoutError{})); got != "timeout" {
 		t.Fatalf("wrapped timeout classified as %s", got)
+	}
+}
+
+func TestClosedDoHDoesNotRandomlyReportDeadlineExceeded(t *testing.T) {
+	c := newDoHPacketConnWithClient(config{}, nil, nil, "https://dns.example/query", nil, nil)
+	_ = c.Close()
+	query, _, err := buildAQuery("example.com")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 100; i++ {
+		if _, _, err := c.ReadFrom(make([]byte, 512)); !errors.Is(err, net.ErrClosed) {
+			t.Fatalf("read after close: %v", err)
+		}
+		if _, err := c.WriteTo(query, dnsAddr("dns")); !errors.Is(err, net.ErrClosed) {
+			t.Fatalf("write after close: %v", err)
+		}
 	}
 }

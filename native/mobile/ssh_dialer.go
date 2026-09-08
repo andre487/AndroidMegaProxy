@@ -83,7 +83,10 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	}
 	started := time.Now()
 	dialContext, cancelDial := context.WithTimeout(ctx, 20*time.Second)
-	conn, err, abandoned := dialSSHChannel(dialContext, client, target, func() { <-channels })
+	conn, err, abandoned := dialSSHChannel(dialContext, client, target, func() { <-channels }, func() {
+		report(d.reporter, "event=ssh_session result=stalled reason=abandoned_channel_open")
+		d.invalidateClient(client)
+	}, 30*time.Second)
 	if abandoned {
 		release = false
 	} // The blocked worker keeps its slot until it actually ends.
@@ -490,7 +493,7 @@ func (c *sshTrackedConn) Close() error { err := c.Conn.Close(); c.once.Do(c.rele
 
 // x/crypto's DialContext returns on cancellation while its internal Dial may still
 // wait for CHANNEL_OPEN confirmation. Keep admission charged to that worker.
-func dialSSHChannel(ctx context.Context, client *ssh.Client, target string, releaseAbandoned func()) (net.Conn, error, bool) {
+func dialSSHChannel(ctx context.Context, client *ssh.Client, target string, releaseAbandoned, abortStalled func(), grace time.Duration) (net.Conn, error, bool) {
 	if err := ctx.Err(); err != nil {
 		return nil, err, false
 	}
@@ -499,7 +502,9 @@ func dialSSHChannel(ctx context.Context, client *ssh.Client, target string, rele
 		err  error
 	}
 	results := make(chan result)
+	workerDone := make(chan struct{})
 	go func() {
+		defer close(workerDone)
 		conn, err := client.Dial("tcp", target)
 		select {
 		case results <- result{conn, err}:
@@ -514,6 +519,22 @@ func dialSSHChannel(ctx context.Context, client *ssh.Client, target string, rele
 	case outcome := <-results:
 		return outcome.conn, outcome.err, false
 	case <-ctx.Done():
+		// Cancellation must not release admission early, but a peer that never answers
+		// CHANNEL_OPEN must not consume the entire pool forever either.
+		go func() {
+			timer := time.NewTimer(grace)
+			defer timer.Stop()
+			select {
+			case <-workerDone:
+			case <-timer.C:
+				select {
+				case <-workerDone:
+					return
+				default:
+					abortStalled()
+				}
+			}
+		}()
 		return nil, ctx.Err(), true
 	}
 }
