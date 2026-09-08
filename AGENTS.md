@@ -35,6 +35,9 @@ branch names, credentials, signing material, or other secrets.
 - Prefer extracting UI-facing decisions into small production contracts and testing those with
   deterministic JVM unit tests. Resource parity, navigation destination wiring, preference
   serialization/defaults, formatting, and state transitions should not require a device.
+- Compose interaction tests may run in `app/src/test` using Robolectric with a pinned SDK and
+  plain test Application. Inject platform operations; do not load Go JNI or real Keystore in
+  those tests. They run through the existing Fastlane Android checks without an emulator.
 - Keep device-only tests out of required GitHub CI unless the project later adopts a dependable
   device farm or controlled self-hosted runner. Do not reintroduce a software-emulated Android
   fallback.

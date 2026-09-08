@@ -136,3 +136,20 @@ python3 scripts/github_actions.py --yes
 ```shell
 bundle exec fastlane android native_fuzz
 ```
+
+## Compose UI-тесты без эмулятора
+
+`bundle exec fastlane android android_checks` (и `android test`) запускает Compose-тесты
+Robolectric из `app/src/test` вместе с существующими JVM-тестами. Они входят в обычную
+Android-проверку PR; устройство, ADB и KVM не нужны.
+
+`SshHostKeyUiTest` проверяет реальный диалог SSH-подтверждения: успешное сохранение,
+ошибку и повтор, блокировку действий/Back во время сохранения и отмену диагностики.
+Тест использует обычный тестовый Application и подставные операции, поэтому не запускает
+VPN, Go JNI и Android Keystore. Зафиксированы Android API 35 и английские ресурсы;
+при первом запуске Robolectric скачивает Android runtime из Maven Central.
+
+Новые проверки поведения добавляйте с теми же runner и Compose rule. Операции платформы
+оставляйте на границе экрана и подставляйте управляемые реализации; избегайте sleep и сети.
+Это проверки взаимодействия, а не сравнение скриншотов или полная проверка на устройстве.
+См. [настройку Robolectric](https://robolectric.org/getting-started/).

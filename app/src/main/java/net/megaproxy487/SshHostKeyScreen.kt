@@ -33,6 +33,32 @@ private class HostKeyReviewState : ViewModel() {
 
 @Composable
 internal fun SshHostKeyScreen(activity: Activity, prompt: PendingSshHostKey, onDismiss: () -> Unit) {
+    val app = activity.applicationContext
+    SshHostKeyReview(
+        prompt = prompt,
+        saveAndResume = {
+            val saved = withContext(ConfigIoDispatcher) {
+                ConfigStore(app).trustSshHostKey(prompt.profileId, prompt.hop, prompt.fingerprint)
+            }
+            if (saved) {
+                if (prompt.testOnly) ProxyVpnService.test(app) else ProxyVpnService.reconnect(app)
+            }
+            saved
+        },
+        onReject = { if (prompt.testOnly) ProxyVpnService.dismissHostKeyPrompt(app) },
+        onDismiss = onDismiss,
+    )
+}
+
+/** The actual dialog and save state machine; platform side effects belong to the route above. */
+@Composable
+internal fun SshHostKeyReview(
+    prompt: PendingSshHostKey,
+    saveAndResume: suspend () -> Boolean,
+    onReject: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     val state = viewModel<HostKeyReviewState>(key = "${prompt.profileId}:${prompt.hop}:${prompt.fingerprint}") {
         HostKeyReviewState()
     }
@@ -40,7 +66,7 @@ internal fun SshHostKeyScreen(activity: Activity, prompt: PendingSshHostKey, onD
     fun reject() {
         if (state.saving) return
         // Regular connections remain paused; temporary diagnostics may release their service.
-        if (prompt.testOnly) ProxyVpnService.dismissHostKeyPrompt(activity)
+        onReject()
         onDismiss()
     }
     androidx.activity.compose.BackHandler { reject() }
@@ -50,8 +76,8 @@ internal fun SshHostKeyScreen(activity: Activity, prompt: PendingSshHostKey, onD
         text = {
             Column {
                 ScrollableDialogText(buildString {
-                    append(activity.uiText(if (prompt.changed) R.string.ssh_changed_key_warning else R.string.ssh_first_connection_warning, activity.sshHopLabel(prompt.hop)))
-                    append(activity.uiText(R.string.ssh_key_details, prompt.algorithm, prompt.fingerprint))
+                    append(context.uiText(if (prompt.changed) R.string.ssh_changed_key_warning else R.string.ssh_first_connection_warning, context.sshHopLabel(prompt.hop)))
+                    append(context.uiText(R.string.ssh_key_details, prompt.algorithm, prompt.fingerprint))
                 })
                 if (state.saving) Text(stringResource(R.string.saving_changes))
                 if (state.failed) Text(stringResource(R.string.ssh_key_save_failed), color = MaterialTheme.colorScheme.error)
@@ -60,16 +86,9 @@ internal fun SshHostKeyScreen(activity: Activity, prompt: PendingSshHostKey, onD
         confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), enabled = !state.saving, onClick = {
             state.saving = true
             state.failed = false
-            val app = activity.applicationContext
             state.viewModelScope.launch {
                 try {
-                    val saved = withContext(ConfigIoDispatcher) {
-                        ConfigStore(app).trustSshHostKey(prompt.profileId, prompt.hop, prompt.fingerprint)
-                    }
-                    if (saved) {
-                        if (prompt.testOnly) ProxyVpnService.test(app) else ProxyVpnService.reconnect(app)
-                        state.completed = true
-                    } else state.failed = true
+                    if (saveAndResume()) state.completed = true else state.failed = true
                 } catch (cancelled: CancellationException) {
                     throw cancelled
                 } catch (_: Exception) {

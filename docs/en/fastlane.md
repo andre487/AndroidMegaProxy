@@ -132,3 +132,20 @@ Run a bounded local fuzz campaign for native config, JA3 and DNS parsers (20 sec
 ```shell
 bundle exec fastlane android native_fuzz
 ```
+
+## Compose UI tests without an emulator
+
+`bundle exec fastlane android android_checks` (and `android test`) runs the Robolectric
+Compose tests in `app/src/test` together with the existing JVM tests. They also run in the
+normal Android PR check; no device, ADB or KVM is required.
+
+`SshHostKeyUiTest` exercises the production SSH confirmation dialog: successful save,
+failed save and retry, disabled actions/Back during a pending save, and test cancellation.
+It uses a plain test Application and injected operations, so it does not start the VPN,
+load Go JNI or access Android Keystore. The test pins Android API 35 and English resources;
+Robolectric downloads its Android runtime from Maven Central on the first run.
+
+Add behavior tests using the same runner and Compose rule. Keep platform operations at the
+screen boundary and supply deterministic fakes; avoid sleeps and real network calls.
+These are interaction tests, not screenshot comparisons or device lifecycle certification.
+See [Robolectric setup](https://robolectric.org/getting-started/).
