@@ -38,6 +38,10 @@ bundle exec fastlane lanes
 
 | Команда | Результат |
 | --- | --- |
+| `bundle exec fastlane android python_format` | Форматирует Python зафиксированными Black и isort. |
+| `bundle exec fastlane android python_tests` | Запускает Python unit-тесты. |
+| `bundle exec fastlane android python_checks` | Проверяет форматирование, порядок импортов и Python-тесты. |
+| `bundle exec fastlane android native_fuzz` | Запускает fuzz-тесты нативных парсеров на 20 секунд с двумя worker-процессами. |
 | `bundle exec fastlane android native_tests` | Запускает все Go-тесты с race detector. |
 | `bundle exec fastlane android android_checks` | Собирает native AAR, запускает Android unit-тесты и lint, собирает debug APK, затем собирает и проверяет unsigned release APK. Команда отклоняет переменные release-подписи. |
 | `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
@@ -86,7 +90,7 @@ bundle exec fastlane android test
 текущего прогона. Коммиты из отброшенной после rebase истории не используются. Через gh проверяются
 последние 30 завершённых CI-прогонов ветки. Если истории нет, API недоступен или старый прогон не
 сохранял базу, используется полный diff PR. Каждый пуш в main запускает все наборы без фильтрации по diff и истории.
-Бейдж README явно привязан к `ci.yml?branch=main&event=push`.
+Бейдж README явно привязан к `badge.svg?branch=main&event=push`.
 База сравнения и решение для каждого набора видны в summary Actions. При повторе собственный run ID
 не используется как предыдущая проверка.
 

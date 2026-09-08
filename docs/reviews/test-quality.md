@@ -1,5 +1,7 @@
 # Test quality and critical-scenario review
 
+Review snapshot: September 8, 2026. Counts and verification below describe that review.
+
 This is a scenario/source audit, not a measured line-coverage or mutation-coverage report.
 Counts of tests do not establish coverage of the Android VPN lifecycle.
 

@@ -1,6 +1,6 @@
 # MegaProxy Fastlane lanes
 
-Fastlane is the supported entry point for tests and build artifacts. Install Ruby 3.4, then run
+Fastlane is the supported entry point for tests and build artifacts. Install Ruby 3.4.10 (see `.ruby-version`), then run
 `bundle install` from the repository root.
 
 | Command | Purpose |
@@ -8,6 +8,7 @@ Fastlane is the supported entry point for tests and build artifacts. Install Rub
 | `bundle exec fastlane android python_format` | Format Python with Black and isort |
 | `bundle exec fastlane android python_tests` | Run Python unit tests |
 | `bundle exec fastlane android python_checks` | Check Python style and run unit tests |
+| `bundle exec fastlane android native_fuzz` | Fuzz native parsers for 20 seconds with two workers |
 | `bundle exec fastlane android native_tests` | Run Go tests with the race detector |
 | `bundle exec fastlane android android_checks` | Run Android tests and lint, build a debug APK and release APK, and prove that the release APK is unsigned |
 | `bundle exec fastlane android test` | Run all native and Android checks |
@@ -18,10 +19,4 @@ The release lane deliberately delegates signing and artifact verification to the
 existing release scripts. It requires the signing environment documented in the root README.
 Publishing to an app store is not performed by any lane.
 
-### android native_fuzz
-
-```sh
-bundle exec fastlane android native_fuzz
-```
-
-Fuzz native config, JA3 and DNS parsers for 20 seconds with two workers.
+Full setup and CI scope rules: [English](../docs/en/fastlane.md) / [Русский](../docs/ru/fastlane.md).

@@ -37,6 +37,10 @@ That command lists the lanes available in the checked-out version of the project
 
 | Command | Result |
 | --- | --- |
+| `bundle exec fastlane android python_format` | Formats Python scripts with pinned Black and isort. |
+| `bundle exec fastlane android python_tests` | Runs Python unit tests. |
+| `bundle exec fastlane android python_checks` | Checks Python formatting/import order and runs unit tests. |
+| `bundle exec fastlane android native_fuzz` | Fuzzes native parsers for 20 seconds with two workers. |
 | `bundle exec fastlane android native_tests` | Runs all Go tests with the race detector. |
 | `bundle exec fastlane android android_checks` | Builds the native AAR, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
 | `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
@@ -84,7 +88,7 @@ belong to the same PR and repository, use the same recorded PR base and precede 
 Rebased-away commits are ignored. The history search examines the latest 30 completed CI runs on
 the branch through gh; missing history, API errors and old runs without a recorded base fall back
 to the full PR diff. Every push to main runs all suites without diff/history filtering; the README badge explicitly tracks
-`ci.yml?branch=main&event=push`. Each suite's baseline and decision are
+`badge.svg?branch=main&event=push`. Each suite's baseline and decision are
 shown in the Actions summary. Reruns exclude their own run ID from baseline selection.
 
 On initial PR runs, Python-only changes run Python checks; documentation-only changes skip test jobs. Native production

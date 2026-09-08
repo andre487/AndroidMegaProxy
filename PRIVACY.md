@@ -1,37 +1,54 @@
 # Privacy Policy
 
-**Last updated: September 2, 2026**
+**Last updated: September 8, 2026**
 
-MegaProxy does not collect, transmit, store, or share personal information or user data.
+MegaProxy does not operate a proxy service or collect configuration, usage statistics, or
+telemetry on developer-operated servers. The application does not use advertising, analytics
+SDKs, tracking identifiers, or automatic crash-report uploads.
 
-The application does not use analytics, telemetry, advertising services, or user tracking.
+## Local application data
 
-## Diagnostic logs
+MegaProxy stores proxy profiles, settings and trusted SSH host keys on the device. Proxy passwords
+and imported private keys are encrypted with AES-GCM using a key held by Android Keystore.
+Android cloud backup and device-to-device transfer are disabled for application data.
 
-The application may create diagnostic logs locally on the user's device for troubleshooting purposes.
+Profile exports may contain credentials if the user explicitly includes them. Exported files and
+copies shared with other applications are outside MegaProxy's local data storage.
 
-These logs are not automatically transmitted to the developer or any third party.
+## Network connections
 
-The user may choose to export or share a diagnostic log using the sharing functionality provided by the device. Sharing a log is entirely voluntary and is initiated explicitly by the user.
+MegaProxy forwards selected application traffic through the user's configured HTTPS or SSH
+servers. Authentication credentials are sent to the configured servers as required by the chosen
+protocol. Those servers can observe connection metadata and destinations. Application TLS is
+preserved; MegaProxy does not install a CA or intercept application TLS.
 
-The application is designed not to include personal information in diagnostic logs.
+DNS requests use the configured DNS-over-HTTPS provider and permitted fallback providers. Before
+the tunnel exists, resolving the proxy hostname may contact Cloudflare, Yandex, Google or Quad9
+bootstrap resolvers directly. Local-network bypass and per-app routing settings determine which
+application traffic uses the tunnel.
 
-## Data sharing
+The user-initiated connection test contacts `example.com` through the proxy and uses external
+services to determine the exit IP and country. IP providers are `ifconfig.me`, `api.ipify.org` and
+`icanhazip.com`; country providers are `ifconfig.co`, `ipapi.co` and `api.country.is`. Providers are
+tried in order as needed. These services see the connection's exit IP and process the requests
+under their own policies. These requests are connection diagnostics, not developer telemetry.
 
-MegaProxy does not automatically send user data to the developer or to third parties.
+## Diagnostic logs and sharing
+
+The application keeps size-limited diagnostic and crash logs locally for troubleshooting.
+Log sanitization is designed to remove credentials, addresses and sensitive request details;
+users should review any report before sharing it. Logs are not automatically uploaded.
+
+The user can explicitly export profiles, copy diagnostic information, or open a feedback/crash
+report in an email application. The user controls whether to send that report and its attachments.
 
 ## Data retention and deletion
 
-The developer does not maintain a database or other server-side storage containing user data collected by the application.
-
-Locally stored application data and diagnostic logs can be removed by clearing the application's data or uninstalling the application.
-
-## Third-party services
-
-MegaProxy does not use third-party analytics, advertising, telemetry, or tracking services.
+The developer does not maintain a server-side database of application profiles or usage data.
+Local application data and diagnostic logs can be removed by clearing the application's data or
+uninstalling it. Exported files and copies already shared with other applications must be deleted
+separately.
 
 ## Contact
 
-If you have questions about this Privacy Policy, you can contact:
-
-megaproxy-feedback@hotmail.com
+Questions about this policy: megaproxy-feedback@hotmail.com

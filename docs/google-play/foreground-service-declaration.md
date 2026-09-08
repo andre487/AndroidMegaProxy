@@ -15,9 +15,10 @@ Manifest subtype:
 ## Play Console description
 
 MegaProxy provides a user-configured VPN tunnel, which is the app's core
-functionality. The foreground service starts only after the user taps Connect,
-when Android starts the configured Always-on VPN, or during a user-initiated
-connection test.
+functionality. The foreground service starts when the user taps Connect, when Android starts the
+configured Always-on VPN, or during a user-initiated connection test. It can also restore a
+previously requested connection after an app update and reconnect that session after network
+or configuration changes.
 
 The service continuously processes network traffic through Android's
 `VpnService` tunnel. This work must start immediately and remain active for the
@@ -27,8 +28,8 @@ interrupt the network connection that the user explicitly enabled.
 While the tunnel is active, MegaProxy displays a persistent, low-priority
 notification titled "MegaProxy is active". The Android VPN indicator and the
 main screen also show that the VPN is connected. The user can stop a manually
-started session by tapping Disconnect. An Always-on VPN session is controlled
-through MegaProxy or Android's VPN settings. MegaProxy does not keep the
+started session by tapping Disconnect. An Always-on VPN session is controlled through Android's
+VPN settings; manual connection controls in MegaProxy are disabled while Always-on is active. MegaProxy does not keep the
 foreground service running after the VPN session has stopped.
 
 ## Video
