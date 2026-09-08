@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
-"""Classify the full PR diff for CI; unknown paths conservatively run every suite."""
+"""Select CI from the last successful ancestor check; unknown paths conservatively run every suite."""
 
 import argparse
 import json
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path, PurePosixPath
+
+from ci_history import successful_baselines
 
 SUITES = ("android", "native", "python")
 
@@ -27,6 +30,8 @@ def classify(paths):
             "Gemfile",
             "Gemfile.lock",
             ".ruby-version",
+            "scripts/ci_changes.py",
+            "scripts/ci_history.py",
         ):
             selected.update(SUITES)
         elif path.startswith("native/"):
@@ -76,6 +81,23 @@ def changed_files(base, head, pull_request=True):
     ]
 
 
+def select_suites(base, head, pull_request=True, baselines=None):
+    baselines = baselines or {}
+    result = {}
+    details = {}
+    fallback = changed_files(base, head, pull_request)
+    for suite in SUITES:
+        previous = baselines.get(suite)
+        paths = changed_files(previous["sha"], head, False) if previous else fallback
+        result[suite] = paths is None or classify(paths)[suite]
+        details[suite] = {
+            "base": previous["sha"] if previous else base,
+            "run_id": previous["run_id"] if previous else None,
+            "changed_files": len(paths) if paths is not None else None,
+        }
+    return result, details
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base", required=True)
@@ -85,32 +107,60 @@ def main():
         action="store_true",
         help="Compare push endpoints instead of the PR merge base",
     )
+    parser.add_argument(
+        "--history",
+        action="store_true",
+        help="Reuse successful ancestor checks for this PR",
+    )
     parser.add_argument("--github-output", type=Path)
     parser.add_argument("--summary", type=Path)
     args = parser.parse_args()
     try:
-        paths = changed_files(args.base, args.head, not args.push)
-        result = classify(paths) if paths is not None else dict.fromkeys(SUITES, True)
-        print(
-            json.dumps(
-                {**result, "changed_files": len(paths) if paths is not None else None}
-            )
-        )
+        baselines = {}
+        if args.history and not args.push:
+            try:
+                baselines = successful_baselines(
+                    os.environ["GITHUB_REPOSITORY"],
+                    os.environ["PR_BRANCH"],
+                    int(os.environ["PR_NUMBER"]),
+                    args.base,
+                    args.head,
+                    int(os.environ["GITHUB_RUN_ID"]),
+                )
+            except (
+                RuntimeError,
+                OSError,
+                ValueError,
+                KeyError,
+                TypeError,
+                subprocess.TimeoutExpired,
+            ):
+                print(
+                    "Check history unavailable; using the full PR diff", file=sys.stderr
+                )
+        result, details = select_suites(args.base, args.head, not args.push, baselines)
+        print(json.dumps({**result, "comparisons": details}))
         if args.github_output:
             with args.github_output.open("a") as output:
                 for suite, enabled in result.items():
                     output.write(f"{suite}={str(enabled).lower()}\n")
         if args.summary:
             with args.summary.open("a") as summary:
-                summary.write(
-                    "## CI change scope\n\nCompared the full PR diff"
-                    if not args.push
-                    else "## CI change scope\n\nCompared the push endpoints"
-                )
-                summary.write(f" (`{args.base[:12]}` → `{args.head[:12]}`).\n\n")
+                summary.write("## CI change scope\n\n")
                 for suite, enabled in result.items():
+                    detail = details[suite]
+                    origin = (
+                        f"successful run {detail['run_id']}"
+                        if detail["run_id"]
+                        else (
+                            "full PR diff (no reusable success)"
+                            if not args.push
+                            else "push endpoints"
+                        )
+                    )
                     summary.write(
-                        f"- {suite}: {'run' if enabled else 'skip — no relevant changes'}\n"
+                        f"- {suite}: {'run' if enabled else 'skip'}; {origin}; "
+                        f"`{detail['base'][:12]}` → `{args.head[:12]}`\n"
                     )
         return 0
     except RuntimeError as error:

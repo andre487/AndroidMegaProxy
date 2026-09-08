@@ -1,9 +1,15 @@
 import importlib.util
+import io
+import json
+import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+sys.path.insert(0, str(Path(__file__).parents[1]))
 
 spec = importlib.util.spec_from_file_location(
     "ci_changes", Path(__file__).parents[1] / "ci_changes.py"
@@ -53,6 +59,8 @@ class ChangeScopeTest(unittest.TestCase):
             ".github/workflows/ci.yml",
             "fastlane/Fastfile",
             "new-build-input.conf",
+            "scripts/ci_changes.py",
+            "scripts/ci_history.py",
         ]:
             self.assertTrue(all(m.classify([name]).values()))
 
@@ -65,6 +73,35 @@ class ChangeScopeTest(unittest.TestCase):
             self.assertRaises(RuntimeError),
         ):
             m.changed_files("a" * 40, "b" * 40)
+
+    def test_history_failure_falls_back_to_full_diff(self):
+        output = io.StringIO()
+        with (
+            patch.object(
+                sys,
+                "argv",
+                ["ci_changes.py", "--base", "a" * 40, "--head", "b" * 40, "--history"],
+            ),
+            patch.dict(
+                os.environ,
+                {
+                    "GITHUB_REPOSITORY": "owner/repo",
+                    "PR_BRANCH": "feature",
+                    "PR_NUMBER": "32",
+                    "GITHUB_RUN_ID": "40",
+                },
+            ),
+            patch.object(
+                m, "successful_baselines", side_effect=RuntimeError("unavailable")
+            ),
+            patch.object(
+                m, "changed_files", return_value=["app/src/main/Main.kt"]
+            ) as diff,
+            patch.object(sys, "stdout", output),
+        ):
+            self.assertEqual(0, m.main())
+        self.assertTrue(json.loads(output.getvalue())["android"])
+        diff.assert_called_once_with("a" * 40, "b" * 40, True)
 
     def test_full_pr_diff_includes_earlier_commits_and_deleted_code(self):
         with tempfile.TemporaryDirectory() as root:
@@ -88,6 +125,7 @@ class ChangeScopeTest(unittest.TestCase):
             code.write_text("code")
             git("add", ".")
             git("commit", "-qm", "Android change")
+            checked = git("rev-parse", "HEAD")
             path.write_text("docs only in latest commit")
             git("add", ".")
             git("commit", "-qm", "docs")
@@ -99,6 +137,11 @@ class ChangeScopeTest(unittest.TestCase):
                 side_effect=lambda *a, **kw: original(*a, cwd=root, **kw),
             ):
                 self.assertTrue(m.classify(m.changed_files(base, head))["android"])
+                result, detail = m.select_suites(
+                    base, head, baselines={"android": {"sha": checked, "run_id": 1}}
+                )
+                self.assertFalse(result["android"])
+                self.assertEqual(1, detail["android"]["run_id"])
             previous = head
             code.rename(Path(root) / "moved.md")
             git("add", "-A")

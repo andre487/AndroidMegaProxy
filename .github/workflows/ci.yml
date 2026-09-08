@@ -17,6 +17,9 @@ concurrency:
 jobs:
   changes:
     name: Change scope
+    permissions:
+      contents: read
+      actions: read
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -29,15 +32,20 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - name: Classify the complete change set
+      - name: "Comparison base: ${{ github.event.pull_request.base.sha || github.event.before }}"
+        run: ":"
+      - name: Classify changes since successful checks
         id: scope
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
           EVENT_NAME: ${{ github.event_name }}
+          PR_BRANCH: ${{ github.head_ref }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           args=(--base "$BASE_SHA" --head "$HEAD_SHA" --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY")
-          if [[ "$EVENT_NAME" == push ]]; then args+=(--push); fi
+          if [[ "$EVENT_NAME" == push ]]; then args+=(--push); else args+=(--history); fi
           python3 scripts/ci_changes.py "${args[@]}"
 
   native-tests:

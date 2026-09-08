@@ -76,9 +76,15 @@ committing the lock file and using `bundle exec fastlane` locally and in CI.
 
 ## Selective CI and Python tooling
 
-CI classifies the **full PR diff against the merge base**, not only the latest commit. Pushes to
-main compare the push endpoints. Python-only changes run Python checks; documentation-only changes
-skip test jobs. Android source/resources/build inputs enable Android checks; native production
+For each suite, CI compares the current PR head with the last successful ancestor check for that
+suite. Failed, cancelled and skipped jobs do not count as successful coverage. Candidates must
+belong to the same PR and repository, use the same recorded PR base and precede the current run.
+Rebased-away commits are ignored. The history search examines the latest 30 completed CI runs on
+the branch through gh; missing history, API errors and old runs without a recorded base fall back
+to the full PR diff. Pushes to main compare push endpoints. Each suite's baseline and decision are
+shown in the Actions summary. Reruns exclude their own run ID from baseline selection.
+
+Python-only changes run Python checks; documentation-only changes skip test jobs. Native production
 changes enable Go and Android, while Go test-only changes enable Go. Shared CI/Fastlane inputs and
 unknown paths enable all suites. Failed diff calculation fails `Change scope` instead of silently
 skipping tests. Skipped Android builds do not publish APK artifacts.

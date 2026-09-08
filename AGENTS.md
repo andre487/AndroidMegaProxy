@@ -24,8 +24,9 @@ branch names, credentials, signing material, or other secrets.
 - Pull requests must run native tests and Android JVM unit/lint/build checks. Do not require an
   Android emulator in GitHub Actions: hosted-runner KVM availability proved too unreliable for a
   trustworthy required check.
-- Classify the full PR diff, not only the latest push. Skip unrelated suites; unknown paths and
-  shared build/CI inputs enable all suites. Require `Change scope` and `Python tests and style`
+- Compare each suite against its last successful ancestor check in the same PR and base.
+  Failed/skipped/cancelled jobs do not advance coverage. Fall back to the full PR diff when
+  history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope` and `Python tests and style`
   alongside native/Android checks when this workflow is adopted.
 - PR builds may publish debug and unsigned APK artifacts. They must never have access to release
   signing material and must never produce or publish a signed release APK.
