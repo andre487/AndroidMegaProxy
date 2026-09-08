@@ -172,6 +172,19 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
             }.onFailure { supportError = activity.uiText(R.string.no_browser) }
         }
         supportError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        TextButton(
+            onClick = {
+                try {
+                    activity.startActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://github.com/andre487/AndroidMegaProxy/blob/main/PRIVACY.md")))
+                } catch (_: Exception) {
+                    supportError = activity.uiText(R.string.no_browser)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.privacy_policy))
+        }
     }
 
     if (showLanguageDialog) {

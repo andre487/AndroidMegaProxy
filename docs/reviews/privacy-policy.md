@@ -38,9 +38,10 @@ claim, because the developer receives emails that users choose to send.
 
 ## Remaining distribution work
 
-A privacy policy link is absent from the current app UI. Google's User Data policy requires a
-policy link or text inside the app as well as a URL in Play Console. Add an accessible settings link
-and verify that the published URL remains public and readable. The repository policy alone does
+The app now includes a privacy-policy link at the bottom of Settings, with English and Russian
+labels and an error message if the browser cannot be opened. It points to the public PRIVACY.md
+on main. Google's User Data policy also requires a URL in Play Console; verify that the published
+URL remains public and readable. The repository policy alone does
 not establish that the Play Console field or Data safety answers are correct; those settings were
 not inspected in this review.
 
