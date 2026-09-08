@@ -351,3 +351,10 @@ Android unit-test suites before opening a pull request.
 ## License
 
 MegaProxy is released under the [MIT License](LICENSE).
+
+### CI tools
+
+CI selects checks from the full PR diff. Use `python3 scripts/github_actions.py` to choose an open
+PR and rerun all CI jobs or only failed jobs through GitHub CLI. Supports `--dry-run` and `--yes`/`-y`.
+See the [English](docs/en/fastlane.md) or [Russian](docs/ru/fastlane.md) reference for scope rules,
+Python formatting/tests and launcher setup.
