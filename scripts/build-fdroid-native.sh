@@ -4,6 +4,8 @@ set -euo pipefail
 
 script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 project_dir="$(cd -- "$script_dir/.." && pwd)"
+source "$project_dir/scripts/java-toolchain.sh"
+
 gomobile_version="v0.0.0-20260821190718-4776eadac327"
 
 : "${ANDROID_HOME:?ANDROID_HOME must point to the Android SDK}"

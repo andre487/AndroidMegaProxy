@@ -72,7 +72,7 @@ func (s *http2ConnectSession) openTunnel(ctx context.Context, target, authorizat
 		response *http.Response
 		err      error
 	}
-	resultChannel := make(chan result, 1)
+	resultChannel := make(chan result)
 	go func() {
 		response, err := s.client.RoundTrip(request)
 		select {

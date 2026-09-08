@@ -100,7 +100,6 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.SshHostKeyPromptState
-import net.megaproxy487.vpn.PendingSshHostKey
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.VpnTransportProtocol
@@ -116,7 +115,6 @@ import net.megaproxy487.ui.theme.MegaProxyTheme
 class MainActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        restoreHostKeyPrompt(intent)
         enableEdgeToEdge()
         BatteryOptimizationReminder.maybeRequest(this)
         setContent { MegaProxyTheme { MegaProxyNavHost(this) } }
@@ -125,21 +123,6 @@ class MainActivity : LocalizedActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        restoreHostKeyPrompt(intent)
-    }
-
-    private fun restoreHostKeyPrompt(intent: Intent?) {
-        if (intent?.action != ACTION_REVIEW_SSH_HOST_KEY) return
-        SshHostKeyPromptState.show(
-            PendingSshHostKey(
-                profileId = intent.getStringExtra(EXTRA_PROFILE_ID).orEmpty(),
-                hop = intent.getStringExtra(EXTRA_HOP).orEmpty(),
-                algorithm = intent.getStringExtra(EXTRA_ALGORITHM).orEmpty(),
-                fingerprint = intent.getStringExtra(EXTRA_FINGERPRINT).orEmpty(),
-                changed = intent.getBooleanExtra(EXTRA_CHANGED, false),
-                testOnly = intent.getBooleanExtra(EXTRA_TEST_ONLY, false),
-            ),
-        )
     }
 
     override fun onResume() {

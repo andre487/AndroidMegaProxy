@@ -3,11 +3,13 @@ package mobile
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -122,4 +124,26 @@ func TestHTTP2StreamDeadlineDoesNotCloseSharedConnection(t *testing.T) {
 func isTimeout(err error) bool {
 	value, ok := err.(interface{ Timeout() bool })
 	return ok && value.Timeout()
+}
+
+type rejectedHTTP2Client struct{ closed bool }
+
+func (c *rejectedHTTP2Client) CanTakeNewRequest() bool { return !c.closed }
+func (c *rejectedHTTP2Client) Close() error            { c.closed = true; return nil }
+func (c *rejectedHTTP2Client) RoundTrip(r *http.Request) (*http.Response, error) {
+	_ = r.Body.Close()
+	return &http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(strings.NewReader(""))}, nil
+}
+func TestHTTP2RejectedTargetPreservesSession(t *testing.T) {
+	client := &rejectedHTTP2Client{}
+	session := &http2ConnectSession{client: client}
+	d := &httpsConnectDialer{h2Session: session}
+	_, err := d.connectTarget(context.Background(), "example.com:443")
+	var rejected *http2ConnectStatusError
+	if !errors.As(err, &rejected) || rejected.status != http.StatusBadGateway {
+		t.Fatalf("error = %v", err)
+	}
+	if client.closed || d.currentHTTP2Session() != session {
+		t.Fatal("target failure closed shared session")
+	}
 }

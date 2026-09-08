@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -33,7 +34,14 @@ var bootstrapResolvers = []bootstrapResolver{
 
 // ResolveProxy bootstraps the proxy address through protected encrypted DNS.
 func ResolveProxy(host string, protector Protector, reporter Reporter) (string, error) {
-	query, id, err := buildAQuery(host)
+	host = strings.TrimSpace(host)
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String(), nil
+	}
+	if protector == nil {
+		return "", errors.New("Android socket protector is required")
+	}
+	query, id, err := buildAQuery(strings.TrimSuffix(host, "."))
 	if err != nil {
 		return "", err
 	}

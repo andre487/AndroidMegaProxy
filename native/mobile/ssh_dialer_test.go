@@ -1,8 +1,10 @@
 package mobile
 
 import (
+	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"io"
 	"strings"
 	"testing"
 
@@ -63,5 +65,46 @@ func TestSSHAuthenticationModes(t *testing.T) {
 	}
 	if len(methods) != 2 {
 		t.Fatalf("password-only got %d methods", len(methods))
+	}
+}
+
+type rejectedSSHConn struct {
+	ssh.Conn
+	closed  bool
+	failure error
+}
+
+func (c *rejectedSSHConn) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+	return nil, nil, c.failure
+}
+func (c *rejectedSSHConn) Close() error { c.closed = true; return nil }
+
+func TestSSHChannelFailureIsolation(t *testing.T) {
+	for _, failure := range []error{&ssh.OpenChannelError{Reason: ssh.ConnectionFailed}, context.Canceled, context.DeadlineExceeded, io.EOF} {
+		t.Run(failure.Error(), func(t *testing.T) {
+			conn := &rejectedSSHConn{failure: failure}
+			client := &ssh.Client{Conn: conn}
+			d := &sshDialer{client: client, config: config{SSHMaxChannels: 2}}
+			_, err := d.connectTarget(context.Background(), "example.com:443")
+			if err == nil {
+				t.Fatal("expected failure")
+			}
+			wantClosed := failure == io.EOF
+			if conn.closed != wantClosed {
+				t.Fatalf("session closed=%t want %t", conn.closed, wantClosed)
+			}
+			if len(d.channels) != 0 {
+				t.Fatal("channel slot leaked")
+			}
+		})
+	}
+}
+
+func TestSSHOldFailureDoesNotCloseReplacement(t *testing.T) {
+	current := &rejectedSSHConn{}
+	d := &sshDialer{client: &ssh.Client{Conn: current}}
+	d.invalidateClient(&ssh.Client{})
+	if current.closed || d.client == nil {
+		t.Fatal("old session invalidated its replacement")
 	}
 }

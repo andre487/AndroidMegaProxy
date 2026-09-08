@@ -43,6 +43,7 @@ class ProxyVpnService : VpnService() {
     @Volatile private var failoverNotice: String? = null
     @Volatile private var connectionBlockedForAction = false
     @Volatile private var reconnectAfterStart = false
+    @Volatile private var serviceDestroyed = false
     @Volatile private var healthWarningActive = false
     @Volatile private var consecutiveStartFailures = 0
     @Volatile private var nextStartAttemptAt = 0L
@@ -159,6 +160,8 @@ class ProxyVpnService : VpnService() {
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_STOP) {
+            reconnectAfterStart = false
+            store.setConnectionDesired(false)
             stopTunnel()
             stopSelf()
             return START_NOT_STICKY
@@ -238,6 +241,8 @@ class ProxyVpnService : VpnService() {
         if (reconnectAfterStart) {
             reconnectAfterStart = false
             monitorHandler.post {
+                // A queued reconnect must not undo a later Stop or revive a destroyed service.
+                if (serviceDestroyed || !ConfigStore(this).isConnectionDesired()) return@post
                 startService(Intent(this, ProxyVpnService::class.java).setAction(ACTION_RECONNECT)
                     .putExtra(EXTRA_RECONNECT_REASON, "profile_changed_during_connect"))
             }
@@ -721,6 +726,8 @@ class ProxyVpnService : VpnService() {
         stopSelf()
     }
     override fun onDestroy() {
+        serviceDestroyed = true
+        reconnectAfterStart = false
         monitorHandler.removeCallbacks(monitor)
         monitorHandler.removeCallbacks(reconnectForNetworkChange)
         if (networkCallbackRegistered) {
@@ -749,7 +756,7 @@ class ProxyVpnService : VpnService() {
         val changed = marker.startsWith("SSH_HOST_KEY_CHANGED")
         val fingerprint = if (changed) parts.getOrNull(3) else parts.getOrNull(2)
         if (fingerprint == null || !fingerprint.startsWith("SHA256:")) return
-        val intent = Intent(this, MainActivity::class.java)
+        val intent = Intent(this, net.megaproxy487.SshHostKeyReviewActivity::class.java)
             .setAction(MainActivity.ACTION_REVIEW_SSH_HOST_KEY)
             .putExtra(MainActivity.EXTRA_PROFILE_ID, profileId)
             .putExtra(MainActivity.EXTRA_HOP, parts[0])

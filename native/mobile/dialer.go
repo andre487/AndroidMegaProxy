@@ -111,6 +111,10 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 			report(d.reporter, "event=http2_session result=unsupported action=fallback_http1")
 			return d.connectTarget(ctx, target)
 		}
+		// Rejection and cancellation belong to one stream, not the shared session.
+		if ctx.Err() != nil || session.canTakeRequest() {
+			return nil, err
+		}
 		d.invalidateHTTP2Session(session)
 		report(d.reporter, "event=http2_session result=stale action=reconnect reason=%s", errorClass(err))
 	}

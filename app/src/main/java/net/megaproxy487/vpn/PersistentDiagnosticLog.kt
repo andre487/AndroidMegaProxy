@@ -2,6 +2,7 @@ package net.megaproxy487.vpn
 
 import android.content.Context
 import android.os.Build
+import java.io.IOException
 import java.io.File
 import java.io.OutputStream
 import java.io.RandomAccessFile
@@ -46,7 +47,7 @@ object PersistentDiagnosticLog {
     fun write(rawMessage: String) {
         val safeMessage = PrivacyLogSanitizer.sanitize(rawMessage)
         val line = "${Instant.now()} session=$sessionId $safeMessage\n"
-        executor.execute {
+        enqueue {
             synchronized(lock) {
                 val logDirectory = directory ?: return@synchronized
                 rotateIfNeeded(logDirectory, line.toByteArray().size.toLong())
@@ -115,7 +116,7 @@ object PersistentDiagnosticLog {
     }
 
     fun clear() {
-        executor.execute {
+        enqueue {
             synchronized(lock) {
                 val logDirectory = directory ?: return@synchronized
                 File(logDirectory, CURRENT_FILE).delete()
@@ -136,7 +137,7 @@ object PersistentDiagnosticLog {
     }
 
     private fun enforceLimitAsync() {
-        executor.execute {
+        enqueue {
             synchronized(lock) {
                 val logDirectory = directory ?: return@synchronized
                 val segmentLimit = segmentLimitBytes()
@@ -144,6 +145,10 @@ object PersistentDiagnosticLog {
                 trimToTail(File(logDirectory, CURRENT_FILE), segmentLimit)
             }
         }
+    }
+
+    private fun enqueue(action: () -> Unit) {
+        executor.execute { runDiagnosticIo(action) }
     }
 
     private fun segmentLimitBytes(): Long = limitMb.toLong() * 1024 * 1024 / 2
@@ -201,4 +206,14 @@ object PrivacyLogSanitizer {
         .replace(packageName, "[package]")
         .replace(Regex("[\\r\\n]+"), " ")
         .take(2_000)
+}
+
+/** Diagnostics must not terminate the VPN process when storage is unavailable. */
+internal fun runDiagnosticIo(action: () -> Unit): Boolean = try {
+    action()
+    true
+} catch (_: IOException) {
+    false
+} catch (_: SecurityException) {
+    false
 }

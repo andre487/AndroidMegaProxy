@@ -252,7 +252,7 @@ object ConfigTransfer {
             config = ProxyConfig(
                 type = type,
                 host = host,
-                port = proxy.optInt("port", 443).takeIf { it in 1..65535 } ?: 443,
+                port = proxy.optInt("port", type.defaultPort).takeIf { it in 1..65535 } ?: type.defaultPort,
                 username = proxy.limitedString("username", 4_096),
                 password = proxy.limitedString("password", 16_384),
                 privateKey = proxy.limitedString("privateKey", 64 * 1024),

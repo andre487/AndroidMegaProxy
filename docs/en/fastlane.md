@@ -16,6 +16,8 @@ including JDK 21, Go, the Android SDK, and the Android NDK. Then install Ruby 3.
 `.ruby-version`. A Ruby version manager is recommended; do not depend on the old system Ruby
 included with macOS.
 
+Native and release build scripts discover JDK 21 from `JAVA_HOME`, macOS `java_home`, or `java` on `PATH`. An explicitly configured incompatible JDK fails early; no Homebrew installation path is assumed.
+
 Install a current Bundler and the repository-pinned Fastlane dependency from the project root:
 
 ```shell

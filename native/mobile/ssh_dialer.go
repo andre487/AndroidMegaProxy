@@ -79,7 +79,10 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	conn, err := client.DialContext(dialContext, "tcp", target)
 	cancelDial()
 	if err != nil {
-		d.invalidate()
+		var rejected *ssh.OpenChannelError
+		if !errors.As(err, &rejected) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			d.invalidateClient(client)
+		}
 		report(d.reporter, "event=connection mode=ssh stage=direct_tcpip result=failed reason=%s", errorClass(err))
 		recordConnectionOutcome(false)
 		return nil, fmt.Errorf("SSH direct-tcpip: %w", err)
@@ -376,9 +379,15 @@ func (d *sshDialer) sharedDoHResources() (*http.Client, chan struct{}) {
 	return d.dohClient, d.dohInFlight
 }
 
-func (d *sshDialer) invalidate() {
+func (d *sshDialer) invalidate() { d.invalidateClient(nil) }
+
+func (d *sshDialer) invalidateClient(expected *ssh.Client) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	// An error from an old channel must not tear down a replacement session.
+	if expected != nil && d.client != expected {
+		return
+	}
 	if d.client != nil {
 		d.client.Close()
 	}

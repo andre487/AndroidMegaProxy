@@ -33,3 +33,12 @@ func TestBootstrapIncludesYandexRedundancy(t *testing.T) {
 		t.Fatalf("Yandex resolver count = %d, want 2", count)
 	}
 }
+
+func TestResolveProxyLiteralDoesNotRequireDNS(t *testing.T) {
+	for _, host := range []string{"203.0.113.7", " 203.0.113.7 "} {
+		ip, err := ResolveProxy(host, nil, nil)
+		if err != nil || ip != "203.0.113.7" {
+			t.Fatalf("literal: %q %v", ip, err)
+		}
+	}
+}

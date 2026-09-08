@@ -89,11 +89,15 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 	netstack, err := core.CreateStack(&core.Config{LinkEndpoint: dev, TransportHandler: t})
 	if err != nil {
 		dev.Close()
+		if proxyCloser != nil {
+			_ = proxyCloser.Close()
+		}
 		return err
 	}
 	state.Lock()
 	if state.generation != generation || !state.starting {
 		state.Unlock()
+		dev.Close()
 		netstack.Close()
 		netstack.Wait()
 		if proxyCloser != nil {
