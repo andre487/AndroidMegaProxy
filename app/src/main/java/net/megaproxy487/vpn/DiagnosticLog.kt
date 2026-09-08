@@ -33,8 +33,9 @@ object TestDiagnosticLog {
     val exitIp: androidx.compose.runtime.State<String?> = mutableExitIp
     val countryCode: androidx.compose.runtime.State<String?> = mutableCountryCode
 
-    private fun onMain(action: () -> Unit) {
+    private fun onMain(droppable: Boolean = false, action: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) action()
+        else if (!droppable) mainHandler.post { action() }
         else if (pendingUiUpdates.incrementAndGet() <= MAX_PENDING_UI_UPDATES) {
             mainHandler.post {
                 try { action() } finally { pendingUiUpdates.decrementAndGet() }
@@ -59,7 +60,7 @@ object TestDiagnosticLog {
     fun add(message: String) {
         val safeMessage = PrivacyLogSanitizer.sanitize(message)
         PersistentDiagnosticLog.write("scope=connection_test $safeMessage")
-        onMain {
+        onMain(droppable = true) {
             entries.add("${LocalTime.now().format(timeFormat)}  $safeMessage")
             while (entries.size > MAX_ENTRIES) entries.removeAt(0)
         }

@@ -5,6 +5,12 @@ import org.junit.Assert.assertEquals
 import org.junit.Test
 
 class TrafficFormattingTest {
+    @org.junit.Test fun slowSamplingAndCounterResetDoNotInflateRates() {
+        org.junit.Assert.assertEquals(1024.0, sampledTrafficRate(4096, 1024, 3000), 0.001)
+        org.junit.Assert.assertEquals(0.0, sampledTrafficRate(0, 4096, 1000), 0.001)
+        org.junit.Assert.assertEquals(0.0, sampledTrafficRate(4096, 1024, 0), 0.001)
+    }
+
     @Test
     fun formatsByteTotalsUsingIecUnitsByDefault() {
         assertEquals("0 B", formatTrafficBytes(0, locale = Locale.US))

@@ -250,7 +250,8 @@ class ProxyVpnService : VpnService() {
     }
 
     private fun testConnection() {
-        val storedConfig = ConfigStore(this).globalConnectionSettings().applyTo(ConfigStore(this).activeProfile().config)
+        val storedConfig = synchronized(tunnelStateLock) { activeConfig }
+            ?: ConfigStore(this).globalConnectionSettings().applyTo(ConfigStore(this).activeProfile().config)
         storedConfig.connectionValidationError()?.let { uiText(it) }?.let {
             TestDiagnosticLog.fail("Connection test cannot start: $it")
             if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }

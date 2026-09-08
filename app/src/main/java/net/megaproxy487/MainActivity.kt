@@ -130,7 +130,7 @@ class MainActivity : LocalizedActivity() {
         ProxyVpnService.refreshStatus(this)
         val status = readAlwaysOnVpnStatus(this)
         val store = ConfigStore(this)
-        val profileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id
+        val profileId = if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfile().id
         VpnRuntimeState.updateSystem(status.enabled, status.lockdown, profileId)
     }
 
@@ -234,7 +234,6 @@ internal fun MainScreen(
     val runtimeProfileId by VpnRuntimeState.connectionProfileId
     val networkWarning by VpnRuntimeState.networkWarning
     val transportProtocol by VpnRuntimeState.transportProtocol
-    val pendingHostKey by SshHostKeyPromptState.pending
     val store = remember { ConfigStore(activity) }
     val writeStatus by ConfigWrites.status.collectAsState()
     var error by remember { mutableStateOf<String?>(null) }
@@ -245,7 +244,6 @@ internal fun MainScreen(
     var connectionProfileId by remember { mutableStateOf(store.connectionProfile().id) }
     var connectionStats by remember { mutableStateOf<DisplayedConnectionStats?>(null) }
     var systemVpnStatus by remember { mutableStateOf(readAlwaysOnVpnStatus(activity)) }
-    var vpnPermissionRequestedAt by remember { mutableStateOf(0L) }
     var showCrashReport by remember { mutableStateOf(CrashHandler.hasPendingReport()) }
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
     var pendingReconnect by remember { mutableStateOf(store.hasPendingReconnect()) }
@@ -264,7 +262,7 @@ internal fun MainScreen(
                             status = status,
                             profiles = store.sortedProfiles(),
                             activeProfileId = store.activeProfileId(),
-                            connectionProfileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id,
+                            connectionProfileId = if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfile().id,
                             pendingReconnect = store.hasPendingReconnect(),
                             globalSettings = store.globalConnectionSettings(),
                         )
@@ -298,6 +296,7 @@ internal fun MainScreen(
         }
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             var previous: NativeConnectionStats? = null
+            var previousAt = 0L
             var smoothedDownload = 0.0
             var smoothedUpload = 0.0
             while (true) {
@@ -307,15 +306,17 @@ internal fun MainScreen(
                 val snapshot = withContext(Dispatchers.Default) {
                     ConnectionStatsReader.snapshot()
                 }
+                val sampledAt = android.os.SystemClock.elapsedRealtime()
                 if (snapshot != null) {
                     previous?.let { old ->
-                        val download = (snapshot.downloadBytes - old.downloadBytes).coerceAtLeast(0).toDouble()
-                        val upload = (snapshot.uploadBytes - old.uploadBytes).coerceAtLeast(0).toDouble()
+                        val download = sampledTrafficRate(snapshot.downloadBytes, old.downloadBytes, sampledAt - previousAt)
+                        val upload = sampledTrafficRate(snapshot.uploadBytes, old.uploadBytes, sampledAt - previousAt)
                         val alpha = 0.35
                         smoothedDownload = if (smoothedDownload == 0.0) download else alpha * download + (1 - alpha) * smoothedDownload
                         smoothedUpload = if (smoothedUpload == 0.0) upload else alpha * upload + (1 - alpha) * smoothedUpload
                     }
                     previous = snapshot
+                    previousAt = sampledAt
                     connectionStats = DisplayedConnectionStats(snapshot, smoothedDownload, smoothedUpload)
                 }
                 delay(1_000)
@@ -327,8 +328,7 @@ internal fun MainScreen(
             if (!isAlwaysOnVpnActive(activity)) ProxyVpnService.start(activity) else error = null
         } else {
             val status = readAlwaysOnVpnStatus(activity)
-            val dismissedImmediately = System.currentTimeMillis() - vpnPermissionRequestedAt < 1_000
-            if (status.hasOtherProvider || dismissedImmediately) {
+            if (status.hasOtherProvider) {
                 error = null
                 showAlwaysOnConflict = true
             } else {
@@ -346,7 +346,6 @@ internal fun MainScreen(
             if (intent == null) {
                 ProxyVpnService.start(activity)
             } else {
-                vpnPermissionRequestedAt = System.currentTimeMillis()
                 vpnPermission.launch(intent)
             }
         }
@@ -386,6 +385,7 @@ internal fun MainScreen(
                         DropdownMenu(actionsMenuExpanded, { actionsMenuExpanded = false }) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.test_connection)) },
+                                enabled = connection != VpnConnectionState.CONNECTING,
                                 onClick = { actionsMenuExpanded = false; onOpenConnectionTest() },
                             )
                             DropdownMenuItem(
@@ -586,8 +586,7 @@ internal fun MainScreen(
                         connect()
                     }
                 },
-                enabled = !alwaysOn && writeStatus.pending == 0 && !writeStatus.failed &&
-                    (connection != VpnConnectionState.DISCONNECTED || activeProfileError == null),
+                enabled = connectionActionEnabled(connection, alwaysOn, writeStatus, activeProfileError == null),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
@@ -699,37 +698,7 @@ internal fun MainScreen(
         )
     }
 
-    pendingHostKey?.takeIf { !it.testOnly }?.let { pending ->
-        fun dismissHostKeyPrompt() {
-            SshHostKeyPromptState.clear()
-            ProxyVpnService.dismissHostKeyPrompt(activity)
-        }
-        AlertDialog(
-            onDismissRequest = ::dismissHostKeyPrompt,
-            title = { DialogTitle(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
-            text = { ScrollableDialogText(buildString {
-                if (pending.changed) {
-                    append(activity.uiText(R.string.ssh_changed_key_warning, activity.sshHopLabel(pending.hop)))
-                } else {
-                    append(activity.uiText(R.string.ssh_first_connection_warning, activity.sshHopLabel(pending.hop)))
-                }
-                append(activity.uiText(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
-            }) },
-            confirmButton = {
-                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
-                    if (store.trustSshHostKey(pending.profileId, pending.hop, pending.fingerprint)) {
-                        SshHostKeyPromptState.clear()
-                        ProxyVpnService.reconnect(activity)
-                    } else {
-                        error = activity.uiText(R.string.ssh_key_save_failed)
-                    }
-                }) { Text(stringResource(if (pending.changed) R.string.replace_trusted_key else R.string.trust_and_connect)) }
-            },
-            dismissButton = {
-                TextButton(shape = RoundedCornerShape(12.dp), onClick = ::dismissHostKeyPrompt) { Text(stringResource(R.string.cancel)) }
-            },
-        )
-    }
+
 }
 
 private fun isAlwaysOnVpnActive(activity: Activity): Boolean =

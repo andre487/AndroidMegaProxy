@@ -80,6 +80,8 @@ internal fun MegaProxyNavHost(activity: Activity) {
     LaunchedEffect(hostKeyPrompt) {
         if (hostKeyPrompt != null && navController.currentDestination?.route != AppRoute.SSH_HOST_KEY) {
             navController.navigate(AppRoute.SSH_HOST_KEY)
+        } else if (hostKeyPrompt == null && navController.currentDestination?.route == AppRoute.SSH_HOST_KEY) {
+            navController.popBackStack()
         }
     }
 
@@ -115,7 +117,7 @@ internal fun MegaProxyNavHost(activity: Activity) {
             hostKeyPrompt?.let { prompt ->
                 SshHostKeyScreen(activity, prompt) {
                     net.megaproxy487.vpn.SshHostKeyPromptState.clear()
-                    navController.popBackStack()
+                    if (navController.currentDestination?.route == AppRoute.SSH_HOST_KEY) navController.popBackStack()
                 }
             }
         }
