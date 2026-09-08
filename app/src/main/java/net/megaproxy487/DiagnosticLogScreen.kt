@@ -102,9 +102,16 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
 
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var seenRevision = -1L
             while (true) {
-                val content = withContext(Dispatchers.IO) { PersistentDiagnosticLog.readTail(viewerWindowBytes) }
-                lines = content.lineSequence().filter(String::isNotEmpty).toList()
+                val revision = PersistentDiagnosticLog.revision
+                if (revision != seenRevision) {
+                    lines = withContext(Dispatchers.IO) {
+                        PersistentDiagnosticLog.readTail(viewerWindowBytes)
+                            .lineSequence().filter(String::isNotEmpty).toList()
+                    }
+                    seenRevision = revision
+                }
                 delay(1_000)
             }
         }

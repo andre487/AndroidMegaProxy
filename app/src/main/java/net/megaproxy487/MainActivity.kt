@@ -130,7 +130,7 @@ class MainActivity : LocalizedActivity() {
         ProxyVpnService.refreshStatus(this)
         val status = readAlwaysOnVpnStatus(this)
         val store = ConfigStore(this)
-        val profileId = if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfile().id
+        val profileId = if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfileId()
         VpnRuntimeState.updateSystem(status.enabled, status.lockdown, profileId)
     }
 
@@ -241,7 +241,7 @@ internal fun MainScreen(
     var profileMenuExpanded by remember { mutableStateOf(false) }
     var profiles by remember { mutableStateOf(store.sortedProfiles()) }
     var activeProfileId by remember { mutableStateOf(store.activeProfileId()) }
-    var connectionProfileId by remember { mutableStateOf(store.connectionProfile().id) }
+    var connectionProfileId by remember { mutableStateOf(store.connectionProfileId()) }
     var connectionStats by remember { mutableStateOf<DisplayedConnectionStats?>(null) }
     var systemVpnStatus by remember { mutableStateOf(readAlwaysOnVpnStatus(activity)) }
     var showCrashReport by remember { mutableStateOf(CrashHandler.hasPendingReport()) }
@@ -262,7 +262,7 @@ internal fun MainScreen(
                             status = status,
                             profiles = store.sortedProfiles(),
                             activeProfileId = store.activeProfileId(),
-                            connectionProfileId = if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfile().id,
+                            connectionProfileId = if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfileId(),
                             pendingReconnect = store.hasPendingReconnect(),
                             globalSettings = store.globalConnectionSettings(),
                         )

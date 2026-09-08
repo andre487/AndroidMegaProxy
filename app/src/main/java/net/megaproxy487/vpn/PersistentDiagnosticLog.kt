@@ -8,6 +8,7 @@ import java.io.OutputStream
 import java.io.RandomAccessFile
 import java.time.Instant
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.ThreadPoolExecutor
 import java.util.concurrent.TimeUnit
@@ -27,6 +28,8 @@ object PersistentDiagnosticLog {
         ThreadPoolExecutor.DiscardOldestPolicy(),
     )
     private val lock = Any()
+    private val revisionCounter = AtomicLong()
+    val revision: Long get() = revisionCounter.get()
     private val sessionId = UUID.randomUUID().toString().take(8)
     @Volatile private var directory: File? = null
     @Volatile private var limitMb = DEFAULT_LIMIT_MB
@@ -52,12 +55,13 @@ object PersistentDiagnosticLog {
                 val logDirectory = directory ?: return@synchronized
                 rotateIfNeeded(logDirectory, line.toByteArray().size.toLong())
                 File(logDirectory, CURRENT_FILE).appendText(line, Charsets.UTF_8)
+                revisionCounter.incrementAndGet()
             }
         }
     }
 
     /** Crash-path write: deliberately synchronous so it survives immediate process termination. */
-    fun writeCrash(thread: Thread, throwable: Throwable) = synchronized(lock) {
+    fun writeCrash(thread: Thread, throwable: Throwable): Unit = synchronized(lock) {
         val logDirectory = directory ?: return
         val entry = buildString {
             append("${Instant.now()} session=$sessionId event=uncaught_exception api=${Build.VERSION.SDK_INT}")
@@ -79,6 +83,7 @@ object PersistentDiagnosticLog {
         }
         rotateIfNeeded(logDirectory, entry.toByteArray(Charsets.UTF_8).size.toLong())
         File(logDirectory, CURRENT_FILE).appendText(entry, Charsets.UTF_8)
+        revisionCounter.incrementAndGet()
     }
 
     fun readTail(maxBytes: Int): String = synchronized(lock) {
@@ -121,6 +126,7 @@ object PersistentDiagnosticLog {
                 val logDirectory = directory ?: return@synchronized
                 File(logDirectory, CURRENT_FILE).delete()
                 File(logDirectory, PREVIOUS_FILE).delete()
+                revisionCounter.incrementAndGet()
             }
             write("event=log_cleared")
         }
@@ -143,6 +149,7 @@ object PersistentDiagnosticLog {
                 val segmentLimit = segmentLimitBytes()
                 trimToTail(File(logDirectory, PREVIOUS_FILE), segmentLimit)
                 trimToTail(File(logDirectory, CURRENT_FILE), segmentLimit)
+                revisionCounter.incrementAndGet()
             }
         }
     }
@@ -193,6 +200,8 @@ object PrivacyLogSanitizer {
     private val privatePath = Regex("(?i)/(?:data|storage|sdcard|mnt)/[^\\s]+")
     private val packageName = Regex("(?<![A-Za-z0-9_])(?:[a-z][a-z0-9_]*\\.){2,}[a-zA-Z0-9_]+")
 
+    private val lineBreaks = Regex("[\\r\\n]+")
+
     fun sanitize(message: String): String = message.take(16_000)
         .replace(credentials) { "${it.groupValues[1]}=[redacted]" }
         .replace(email, "[email]")
@@ -204,7 +213,7 @@ object PrivacyLogSanitizer {
         .replace(ipv4, "[ip]")
         .replace(hostname, "[host]")
         .replace(packageName, "[package]")
-        .replace(Regex("[\\r\\n]+"), " ")
+        .replace(lineBreaks, " ")
         .take(2_000)
 }
 
