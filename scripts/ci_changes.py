@@ -110,7 +110,7 @@ def main():
     parser.add_argument(
         "--push",
         action="store_true",
-        help="Compare push endpoints instead of the PR merge base",
+        help="Run all suites for push CI (the workflow only accepts pushes to main)",
     )
     parser.add_argument(
         "--history",
@@ -128,7 +128,7 @@ def main():
     args = parser.parse_args()
     if args.run_attempt < 1:
         parser.error("--run-attempt must be positive")
-    force_all = args.run_attempt > 1
+    force_all = args.push or args.run_attempt > 1
     try:
         baselines = {}
         if args.history and not args.push and not force_all:
@@ -166,7 +166,11 @@ def main():
                 for suite, enabled in result.items():
                     detail = details[suite]
                     origin = (
-                        "full CI rerun (change filtering disabled)"
+                        (
+                            "push CI (change filtering disabled)"
+                            if args.push
+                            else "full CI rerun (change filtering disabled)"
+                        )
                         if force_all
                         else (
                             f"successful run {detail['run_id']}"

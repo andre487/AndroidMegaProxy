@@ -28,6 +28,8 @@ branch names, credentials, signing material, or other secrets.
   Failed/skipped/cancelled jobs do not advance coverage. Fall back to the full PR diff when
   history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope` and `Python tests and style`
   alongside native/Android checks when this workflow is adopted.
+- Every push to main runs all suites without diff/history filtering. The README CI badge is
+  pinned to main/push; selective checks apply to initial PR runs.
 - A full CI rerun disables change filtering when Change scope executes on run attempt > 1,
   so previously skipped suites run too. Failed-only reruns reuse scope unless that job also reruns.
 - PR builds may publish debug and unsigned APK artifacts. They must never have access to release

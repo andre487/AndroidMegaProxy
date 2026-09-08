@@ -83,10 +83,11 @@ suite. Failed, cancelled and skipped jobs do not count as successful coverage. C
 belong to the same PR and repository, use the same recorded PR base and precede the current run.
 Rebased-away commits are ignored. The history search examines the latest 30 completed CI runs on
 the branch through gh; missing history, API errors and old runs without a recorded base fall back
-to the full PR diff. Pushes to main compare push endpoints. Each suite's baseline and decision are
+to the full PR diff. Every push to main runs all suites without diff/history filtering; the README badge explicitly tracks
+`ci.yml?branch=main&event=push`. Each suite's baseline and decision are
 shown in the Actions summary. Reruns exclude their own run ID from baseline selection.
 
-Python-only changes run Python checks; documentation-only changes skip test jobs. Native production
+On initial PR runs, Python-only changes run Python checks; documentation-only changes skip test jobs. Native production
 changes enable Go and Android, while Go test-only changes enable Go. Shared CI/Fastlane inputs and
 unknown paths enable all suites. Failed diff calculation fails `Change scope` instead of silently
 skipping tests. Skipped Android builds do not publish APK artifacts.

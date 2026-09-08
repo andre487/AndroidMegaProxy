@@ -1,6 +1,6 @@
 # MegaProxy
 
-[![CI](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml/badge.svg)](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml)
+[![CI](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Android 8+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
 
@@ -354,7 +354,8 @@ MegaProxy is released under the [MIT License](LICENSE).
 
 ### CI tools
 
-CI selects checks from changes since each suite’s last successful ancestor check, with a full PR diff fallback. Use `python3 scripts/github_actions.py` to choose an open
-PR and rerun all CI jobs or only failed jobs through GitHub CLI. Supports `--dry-run` and `--yes`/`-y`.
+Every push to main runs all Android/Compose UI, Go and Python checks; the CI badge tracks these runs.
+PR CI selects checks from changes since each suite’s last successful ancestor check, with a full PR diff fallback. Use `python3 scripts/github_actions.py` to choose an open
+PR and rerun all CI jobs (including skipped checks) or only failed jobs through GitHub CLI. Supports `--dry-run` and `--yes`/`-y`.
 See the [English](docs/en/fastlane.md) or [Russian](docs/ru/fastlane.md) reference for scope rules,
 Python formatting/tests and launcher setup.
