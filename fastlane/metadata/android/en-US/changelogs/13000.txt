@@ -1,0 +1,5 @@
+Added HTTPS proxy chains with a jump proxy.
+Improved the main screen, profile editing and transfers, localization, and layouts on narrow screens with large fonts.
+Connection details now show the start time and duration.
+Improved connection stability, error handling, memory usage, and SSH host-key verification.
+Updated the privacy policy and added a link in Settings.
