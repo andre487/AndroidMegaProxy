@@ -5,6 +5,7 @@ import (
 	"context"
 	stdtls "crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -38,6 +39,9 @@ type connectionTestResult struct {
 
 // TestConnection verifies the configured proxy path without starting a TUN device.
 func TestConnection(rawConfig string, protector Protector, reporter Reporter) (string, error) {
+	if protector == nil {
+		return "", errors.New("Android socket protector is required")
+	}
 	c, err := parseConfig(rawConfig)
 	if err != nil {
 		return "", err

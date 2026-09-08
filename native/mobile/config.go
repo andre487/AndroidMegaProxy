@@ -48,8 +48,19 @@ type config struct {
 
 func parseConfig(raw string) (config, error) {
 	var c config
+	if len(raw) > 1024*1024 {
+		return c, errors.New("native config exceeds 1 MiB")
+	}
 	if err := json.Unmarshal([]byte(raw), &c); err != nil {
 		return c, fmt.Errorf("decode config: %w", err)
+	}
+	if len(c.DoHFallbackURLs) > 16 {
+		return c, errors.New("too many fallback DoH providers")
+	}
+	if c.SSHKeepaliveSeconds < 0 || c.SSHKeepaliveSeconds > 3600 ||
+		c.SSHRotationMinutes < 0 || c.SSHRotationMinutes > 1440 ||
+		c.SSHRotationMB < 0 || c.SSHRotationMB > 10240 {
+		return c, errors.New("invalid SSH keepalive or rotation limit")
 	}
 	c.Host = strings.TrimSpace(c.Host)
 	c.DialHost = strings.TrimSpace(c.DialHost)

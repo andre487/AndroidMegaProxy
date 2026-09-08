@@ -25,6 +25,7 @@ type sshDialer struct {
 	reporter       Reporter
 	mu             sync.Mutex
 	client         *ssh.Client
+	closed         bool
 	jumpClient     *ssh.Client
 	channels       chan struct{}
 	sessionCreated time.Time
@@ -39,6 +40,12 @@ func (d *sshDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.
 }
 
 func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn, error) {
+	d.mu.Lock()
+	closed := d.closed
+	d.mu.Unlock()
+	if closed {
+		return nil, net.ErrClosed
+	}
 	if !d.config.AllowIPv6 {
 		host, _, _ := net.SplitHostPort(target)
 		if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
@@ -76,7 +83,10 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	}
 	started := time.Now()
 	dialContext, cancelDial := context.WithTimeout(ctx, 20*time.Second)
-	conn, err := client.DialContext(dialContext, "tcp", target)
+	conn, err, abandoned := dialSSHChannel(dialContext, client, target, func() { <-channels })
+	if abandoned {
+		release = false
+	} // The blocked worker keeps its slot until it actually ends.
 	cancelDial()
 	if err != nil {
 		var rejected *ssh.OpenChannelError
@@ -97,6 +107,9 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if d.closed {
+		return nil, net.ErrClosed
+	}
 	if d.client != nil {
 		return d.client, nil
 	}
@@ -402,6 +415,9 @@ func (d *sshDialer) invalidateClient(expected *ssh.Client) {
 }
 
 func (d *sshDialer) Close() error {
+	d.mu.Lock()
+	d.closed = true
+	d.mu.Unlock()
 	d.invalidate()
 	d.mu.Lock()
 	if d.dohClient != nil {
@@ -442,6 +458,8 @@ func (d *sshDialer) startKeepalive() {
 			select {
 			case <-ticker.C:
 				if _, _, err := client.SendRequest("keepalive@openssh.com", true, nil); err != nil {
+					report(d.reporter, "event=ssh_keepalive result=failed reason=%s", errorClass(err))
+					d.invalidateClient(client)
 					return
 				}
 			case <-stop:
@@ -469,3 +487,33 @@ func (c *sshTrackedConn) Write(p []byte) (int, error) {
 	return n, err
 }
 func (c *sshTrackedConn) Close() error { err := c.Conn.Close(); c.once.Do(c.release); return err }
+
+// x/crypto's DialContext returns on cancellation while its internal Dial may still
+// wait for CHANNEL_OPEN confirmation. Keep admission charged to that worker.
+func dialSSHChannel(ctx context.Context, client *ssh.Client, target string, releaseAbandoned func()) (net.Conn, error, bool) {
+	if err := ctx.Err(); err != nil {
+		return nil, err, false
+	}
+	type result struct {
+		conn net.Conn
+		err  error
+	}
+	results := make(chan result)
+	go func() {
+		conn, err := client.Dial("tcp", target)
+		select {
+		case results <- result{conn, err}:
+		case <-ctx.Done():
+			if conn != nil {
+				_ = conn.Close()
+			}
+			releaseAbandoned()
+		}
+	}()
+	select {
+	case outcome := <-results:
+		return outcome.conn, outcome.err, false
+	case <-ctx.Done():
+		return nil, ctx.Err(), true
+	}
+}

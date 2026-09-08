@@ -17,3 +17,11 @@ Fastlane is the supported entry point for tests and build artifacts. Install Rub
 The release lane deliberately delegates signing and artifact verification to the repository's
 existing release scripts. It requires the signing environment documented in the root README.
 Publishing to an app store is not performed by any lane.
+
+### android native_fuzz
+
+```sh
+bundle exec fastlane android native_fuzz
+```
+
+Fuzz native config, JA3 and DNS parsers for 20 seconds with two workers.

@@ -50,8 +50,8 @@ type dohPacketConn struct {
 	inFlight       chan struct{}
 	closed         chan struct{}
 	closeOnce      sync.Once
-	deadlineMu     sync.Mutex
-	readDeadline   time.Time
+	readDeadline   packetDeadline
+	writeDeadline  packetDeadline
 	client         *http.Client
 	context        context.Context
 	cancel         context.CancelFunc
@@ -95,9 +95,15 @@ func newDoHPacketConnWithClient(c config, reporter Reporter, connect func(contex
 }
 
 func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
+	if len(payload) < 12 || len(payload) > 65535 {
+		return 0, errors.New("invalid DNS packet size")
+	}
+	deadline := c.writeDeadline.wait()
 	select {
 	case <-c.closed:
 		return 0, net.ErrClosed
+	case <-deadline:
+		return 0, timeoutError{}
 	default:
 	}
 	if !c.config.AllowIPv6 {
@@ -111,14 +117,17 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 			return len(payload), nil
 		}
 	}
-	query := append([]byte(nil), payload...)
 	select {
 	case c.inFlight <- struct{}{}:
+	case <-deadline:
+		return 0, timeoutError{}
 	case <-c.closed:
 		return 0, net.ErrClosed
 	case <-c.context.Done():
 		return 0, c.context.Err()
 	}
+	// Allocate only after admission, so waiting writers cannot retain extra packet copies.
+	query := append([]byte(nil), payload...)
 	go func() {
 		defer func() { <-c.inFlight }()
 		var lastErr error
@@ -215,22 +224,20 @@ func (c *dohPacketConn) deliver(reply dnsReply) {
 	select {
 	case c.replies <- reply:
 	case <-c.closed:
+	default:
+		// UDP may drop packets. A stalled reader must not consume every shared query slot.
+		report(c.reporter, "event=doh result=dropped reason=reply_queue_full")
 	}
 }
 
 func (c *dohPacketConn) ReadFrom(buffer []byte) (int, net.Addr, error) {
-	c.deadlineMu.Lock()
-	deadline := c.readDeadline
-	c.deadlineMu.Unlock()
-	var timer <-chan time.Time
-	if !deadline.IsZero() {
-		duration := time.Until(deadline)
-		if duration <= 0 {
-			return 0, nil, timeoutError{}
-		}
-		t := time.NewTimer(duration)
-		defer t.Stop()
-		timer = t.C
+	deadline := c.readDeadline.wait()
+	select {
+	case <-deadline:
+		return 0, nil, timeoutError{}
+	case <-c.closed:
+		return 0, nil, net.ErrClosed
+	default:
 	}
 	select {
 	case reply := <-c.replies:
@@ -241,7 +248,7 @@ func (c *dohPacketConn) ReadFrom(buffer []byte) (int, net.Addr, error) {
 			return 0, reply.addr, io.ErrShortBuffer
 		}
 		return copy(buffer, reply.payload), reply.addr, nil
-	case <-timer:
+	case <-deadline:
 		return 0, nil, timeoutError{}
 	case <-c.closed:
 		return 0, nil, net.ErrClosed
@@ -252,18 +259,36 @@ func (c *dohPacketConn) Close() error {
 	c.closeOnce.Do(func() {
 		close(c.closed)
 		c.cancel()
+		c.readDeadline.stop()
+		c.writeDeadline.stop()
 	})
 	return nil
 }
 func (c *dohPacketConn) LocalAddr() net.Addr { return dnsAddr("megaproxy-doh") }
 func (c *dohPacketConn) SetDeadline(t time.Time) error {
-	c.deadlineMu.Lock()
-	c.readDeadline = t
-	c.deadlineMu.Unlock()
+	if err := c.SetReadDeadline(t); err != nil {
+		return err
+	}
+	return c.SetWriteDeadline(t)
+}
+func (c *dohPacketConn) SetReadDeadline(t time.Time) error {
+	select {
+	case <-c.closed:
+		return net.ErrClosed
+	default:
+	}
+	c.readDeadline.set(t)
 	return nil
 }
-func (c *dohPacketConn) SetReadDeadline(t time.Time) error { return c.SetDeadline(t) }
-func (c *dohPacketConn) SetWriteDeadline(time.Time) error  { return nil }
+func (c *dohPacketConn) SetWriteDeadline(t time.Time) error {
+	select {
+	case <-c.closed:
+		return net.ErrClosed
+	default:
+	}
+	c.writeDeadline.set(t)
+	return nil
+}
 
 type dnsAddr string
 
@@ -272,6 +297,6 @@ func (a dnsAddr) String() string  { return string(a) }
 
 type timeoutError struct{}
 
-func (timeoutError) Error() string   { return "DNS read deadline exceeded" }
+func (timeoutError) Error() string   { return "DNS operation deadline exceeded" }
 func (timeoutError) Timeout() bool   { return true }
 func (timeoutError) Temporary() bool { return true }

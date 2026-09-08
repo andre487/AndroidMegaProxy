@@ -147,3 +147,40 @@ func TestHTTP2RejectedTargetPreservesSession(t *testing.T) {
 		t.Fatal("target failure closed shared session")
 	}
 }
+
+func TestSupersededHTTP2DeadlineCannotCloseStream(t *testing.T) {
+	left, right := net.Pipe()
+	defer left.Close()
+	defer right.Close()
+	reader, writer := io.Pipe()
+	stream := newHTTP2StreamConn(left, reader, writer, func() {})
+	defer stream.Close()
+	_ = stream.SetReadDeadline(time.Now().Add(time.Hour))
+	old := stream.readGeneration
+	_ = stream.SetReadDeadline(time.Time{})
+	stream.expireDeadline(true, old) // Timer callback already queued before Stop.
+	if stream.closed || stream.readExpired {
+		t.Fatal("old read timer expired a cleared deadline")
+	}
+	_ = stream.SetWriteDeadline(time.Now().Add(time.Hour))
+	old = stream.writeGeneration
+	_ = stream.SetWriteDeadline(time.Time{})
+	stream.expireDeadline(false, old)
+	if stream.closed || stream.writeExpired {
+		t.Fatal("old write timer expired a cleared deadline")
+	}
+	_ = stream.Close()
+	_ = stream.SetReadDeadline(time.Now().Add(time.Hour))
+	if stream.readTimer != nil && !stream.readTimer.Stop() {
+		t.Fatal("closed stream installed an active timer")
+	}
+}
+
+func TestClosedDialerRejectsLateHTTP2Session(t *testing.T) {
+	d := &httpsConnectDialer{}
+	_ = d.Close()
+	client := &rejectedHTTP2Client{}
+	if session := d.installHTTP2Session(&http2ConnectSession{client: client}); session != nil || !client.closed {
+		t.Fatal("late handshake resurrected a closed dialer")
+	}
+}

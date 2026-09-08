@@ -6,7 +6,9 @@ import (
 	"crypto/rand"
 	"io"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"golang.org/x/crypto/ssh"
 )
@@ -106,5 +108,65 @@ func TestSSHOldFailureDoesNotCloseReplacement(t *testing.T) {
 	d.invalidateClient(&ssh.Client{})
 	if current.closed || d.client == nil {
 		t.Fatal("old session invalidated its replacement")
+	}
+}
+
+type blockedSSHConn struct {
+	ssh.Conn
+	entered chan struct{}
+	unblock chan struct{}
+	once    sync.Once
+}
+
+func (c *blockedSSHConn) OpenChannel(string, []byte) (ssh.Channel, <-chan *ssh.Request, error) {
+	close(c.entered)
+	<-c.unblock
+	return nil, nil, io.EOF
+}
+func (c *blockedSSHConn) Close() error { c.once.Do(func() { close(c.unblock) }); return nil }
+
+func TestCancelledSSHOpenKeepsAdmissionUntilWorkerEnds(t *testing.T) {
+	raw := &blockedSSHConn{entered: make(chan struct{}), unblock: make(chan struct{})}
+	defer raw.Close()
+	client := &ssh.Client{Conn: raw}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	released := make(chan struct{})
+	done := make(chan bool, 1)
+	go func() {
+		_, _, abandoned := dialSSHChannel(ctx, client, "example.com:443", func() { close(released) })
+		done <- abandoned
+	}()
+	<-raw.entered
+	cancel()
+	select {
+	case abandoned := <-done:
+		if !abandoned {
+			t.Fatal("worker not tracked")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cancel blocked")
+	}
+	select {
+	case <-released:
+		t.Fatal("released slot with worker still blocked")
+	default:
+	}
+	_ = raw.Close()
+	select {
+	case <-released:
+	case <-time.After(time.Second):
+		t.Fatal("worker did not release slot after transport closed")
+	}
+}
+
+func TestClosedSSHDialerCannotReconnect(t *testing.T) {
+	d := &sshDialer{config: config{BypassLocalNetworks: true}}
+	_ = d.Close()
+	if _, err := d.session(context.Background()); err == nil {
+		t.Fatal("closed SSH dialer attempted a session")
+	}
+	if _, err := d.connectTarget(context.Background(), "127.0.0.1:443"); err == nil {
+		t.Fatal("closed SSH dialer used direct bypass")
 	}
 }

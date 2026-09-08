@@ -124,3 +124,11 @@ jobs and missing runs are rejected; CI normally starts on pushes. Failed-only mo
 run; cancelled runs can be rerun with all jobs. Launch failures/timeouts are never retried automatically.
 Rerunning preserves that run's original commit and diff baseline; push a new commit to reassess scope
 against an updated PR base. No device or release workflows are offered.
+
+### Native parser fuzzing
+
+Run a bounded local fuzz campaign for native config, JA3 and DNS parsers (20 seconds, two workers). Seed inputs also run as part of `native_tests`. This campaign is not a device test.
+
+```shell
+bundle exec fastlane android native_fuzz
+```

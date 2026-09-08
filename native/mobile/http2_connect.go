@@ -27,8 +27,9 @@ type http2ConnectSession struct {
 
 func newHTTP2ConnectSession(raw net.Conn) (*http2ConnectSession, error) {
 	transport := &http2.Transport{
-		ReadIdleTimeout: 45 * time.Second,
-		PingTimeout:     10 * time.Second,
+		ReadIdleTimeout:   45 * time.Second,
+		MaxHeaderListSize: 64 * 1024,
+		PingTimeout:       10 * time.Second,
 	}
 	client, err := transport.NewClientConn(raw)
 	if err != nil {
@@ -112,16 +113,19 @@ func (s *http2ConnectSession) openTunnel(ctx context.Context, target, authorizat
 // http2StreamConn exposes one HTTP/2 CONNECT stream as a net.Conn. A deadline
 // closes only this stream, never the shared outer TLS connection.
 type http2StreamConn struct {
-	raw          net.Conn
-	reader       io.ReadCloser
-	writer       *io.PipeWriter
-	cancel       context.CancelFunc
-	closeOnce    sync.Once
-	deadlineMu   sync.Mutex
-	readTimer    *time.Timer
-	writeTimer   *time.Timer
-	readExpired  bool
-	writeExpired bool
+	raw             net.Conn
+	reader          io.ReadCloser
+	writer          *io.PipeWriter
+	cancel          context.CancelFunc
+	closeOnce       sync.Once
+	deadlineMu      sync.Mutex
+	readTimer       *time.Timer
+	writeTimer      *time.Timer
+	readGeneration  uint64
+	writeGeneration uint64
+	closed          bool
+	readExpired     bool
+	writeExpired    bool
 }
 
 func newHTTP2StreamConn(raw net.Conn, reader io.ReadCloser, writer *io.PipeWriter, cancel context.CancelFunc) *http2StreamConn {
@@ -154,6 +158,7 @@ func (c *http2StreamConn) Close() error {
 	var closeErr error
 	c.closeOnce.Do(func() {
 		c.deadlineMu.Lock()
+		c.closed = true
 		if c.readTimer != nil {
 			c.readTimer.Stop()
 		}
@@ -190,6 +195,11 @@ func (c *http2StreamConn) SetWriteDeadline(deadline time.Time) error {
 func (c *http2StreamConn) setReadDeadline(deadline time.Time) {
 	c.deadlineMu.Lock()
 	defer c.deadlineMu.Unlock()
+	if c.closed {
+		return
+	}
+	c.readGeneration++
+	generation := c.readGeneration
 	c.readExpired = false
 	if c.readTimer != nil {
 		c.readTimer.Stop()
@@ -197,10 +207,7 @@ func (c *http2StreamConn) setReadDeadline(deadline time.Time) {
 	}
 	if !deadline.IsZero() {
 		c.readTimer = time.AfterFunc(time.Until(deadline), func() {
-			c.deadlineMu.Lock()
-			c.readExpired = true
-			c.deadlineMu.Unlock()
-			_ = c.Close()
+			c.expireDeadline(true, generation)
 		})
 	}
 }
@@ -208,6 +215,11 @@ func (c *http2StreamConn) setReadDeadline(deadline time.Time) {
 func (c *http2StreamConn) setWriteDeadline(deadline time.Time) {
 	c.deadlineMu.Lock()
 	defer c.deadlineMu.Unlock()
+	if c.closed {
+		return
+	}
+	c.writeGeneration++
+	generation := c.writeGeneration
 	c.writeExpired = false
 	if c.writeTimer != nil {
 		c.writeTimer.Stop()
@@ -215,10 +227,28 @@ func (c *http2StreamConn) setWriteDeadline(deadline time.Time) {
 	}
 	if !deadline.IsZero() {
 		c.writeTimer = time.AfterFunc(time.Until(deadline), func() {
-			c.deadlineMu.Lock()
-			c.writeExpired = true
-			c.deadlineMu.Unlock()
-			_ = c.Close()
+			c.expireDeadline(false, generation)
 		})
 	}
+}
+
+func (c *http2StreamConn) expireDeadline(read bool, generation uint64) {
+	c.deadlineMu.Lock()
+	current := c.writeGeneration
+	if read {
+		current = c.readGeneration
+	}
+	if c.closed || generation != current {
+		c.deadlineMu.Unlock()
+		return
+	}
+	if read {
+		c.readExpired = true
+	} else {
+		c.writeExpired = true
+	}
+	// Commit expiration under the same lock as SetDeadline, before closing I/O.
+	c.closed = true
+	c.deadlineMu.Unlock()
+	_ = c.Close()
 }

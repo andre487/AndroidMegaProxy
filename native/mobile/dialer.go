@@ -37,11 +37,13 @@ type httpsConnectDialer struct {
 	connections  chan struct{}
 	h2Session    *http2ConnectSession
 	h2Disabled   bool
+	closed       bool
 }
 
 func (d *httpsConnectDialer) Close() error {
 	d.cacheMu.Lock()
 	defer d.cacheMu.Unlock()
+	d.closed = true
 	if d.jump != nil {
 		_ = d.jump.Close()
 	}
@@ -77,6 +79,12 @@ func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metada
 }
 
 func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (net.Conn, error) {
+	d.cacheMu.Lock()
+	closed := d.closed
+	d.cacheMu.Unlock()
+	if closed {
+		return nil, net.ErrClosed
+	}
 	connectionID := nextDiagnosticConnectionID()
 	totalStarted := time.Now()
 	if !d.config.AllowIPv6 {
@@ -184,6 +192,9 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		}
 		closeOnError = false // The HTTP/2 session now owns the outer TLS connection.
 		session = d.installHTTP2Session(session)
+		if session == nil {
+			return nil, net.ErrClosed
+		}
 		connection, connectErr := d.openHTTP2Tunnel(ctx, session, target, connectionID, totalStarted, false)
 		if shouldFallbackToHTTP1(connectErr) {
 			d.disableHTTP2(session)
@@ -245,6 +256,10 @@ func (d *httpsConnectDialer) dialProxy(ctx context.Context) (net.Conn, error) {
 		return d.protectedDialer().DialContext(ctx, "tcp", d.config.address())
 	}
 	d.cacheMu.Lock()
+	if d.closed {
+		d.cacheMu.Unlock()
+		return nil, net.ErrClosed
+	}
 	if d.jump == nil {
 		c := d.config
 		c.Type = "HTTPS"
@@ -315,6 +330,10 @@ func (d *httpsConnectDialer) currentHTTP2Session() *http2ConnectSession {
 func (d *httpsConnectDialer) installHTTP2Session(candidate *http2ConnectSession) *http2ConnectSession {
 	d.cacheMu.Lock()
 	defer d.cacheMu.Unlock()
+	if d.closed {
+		_ = candidate.close()
+		return nil
+	}
 	if d.h2Session != nil && d.h2Session.canTakeRequest() {
 		_ = candidate.close()
 		return d.h2Session
@@ -436,6 +455,10 @@ func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, erro
 		return nil, errUDPBlocked
 	}
 	d.cacheMu.Lock()
+	if d.closed {
+		d.cacheMu.Unlock()
+		return nil, net.ErrClosed
+	}
 	if d.dohClient == nil {
 		d.dohClient = newDoHHTTPClient(d.connectTarget)
 	}
