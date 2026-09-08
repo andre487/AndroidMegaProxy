@@ -77,6 +77,9 @@ branch names, credentials, signing material, or other secrets.
 - `ProxyVpnService` extends Android's standard `android.net.VpnService`. It owns VPN lifecycle,
   creates the TUN interface, coordinates profiles/reconnects/status, and hands the TUN file
   descriptor to the native networking layer. Native code performs the actual proxy forwarding.
+- JNI calls use the generated gomobile types as a compile-time dependency. Native `Start` borrows
+  the JVM TUN descriptor only for the call, duplicates it internally, and receives the Android MTU
+  explicitly. Keep callback exceptions inside the JVM boundary and reject stale-session callbacks.
 - Navigation uses a single activity/back stack. Keep route and settings-destination definitions in
   shared production contracts whose completeness and uniqueness can be checked by JVM tests.
 

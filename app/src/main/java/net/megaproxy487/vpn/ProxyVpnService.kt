@@ -349,7 +349,9 @@ class ProxyVpnService : VpnService() {
             handleStartFailure(testOnly, "VPN interface could not be established")
             return false
         }
-        val proxyCore = NativeProxyCore(this, diagnostics)
+        val proxyCore = NativeProxyCore(this, diagnostics) {
+            !serviceDestroyed && isStartCurrent(generation)
+        }
         var nativeStarted = false
         var tunnelCommitted = false
         try {
@@ -383,7 +385,7 @@ class ProxyVpnService : VpnService() {
                 return false
             }
             val config = storedConfig.copy(resolvedProxyIp = proxyIp, resolvedJumpIp = jumpIp)
-            val started = proxyCore.start(establishedTunnel.fd, config) { message ->
+            val started = proxyCore.start(establishedTunnel.fd, VPN_MTU, config) { message ->
                     failureDetail = message
                     configureHostKeyPrompt(message, promptProfileId, testOnly)
                     if (!testOnly && "dpi_hint=possible" in message) monitorHandler.post { handleRuntimeDiagnostic(promptProfileId, message) }

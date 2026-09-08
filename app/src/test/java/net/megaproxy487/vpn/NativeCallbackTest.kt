@@ -4,22 +4,53 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class NativeCallbackTest {
-    interface Reporter { fun report(message: String) }
+    @Test fun protectorFailsClosedAndReportsExceptions() {
+        val failure = SecurityException("denied")
+        val failures = mutableListOf<Exception>()
+        val protector = BridgeProtector({ true }, { throw failure }, failures::add)
+        assertFalse(protector.protect(42L))
+        assertEquals(listOf(failure), failures)
+    }
 
-    @Test fun objectMethodsAreSafeWithoutInvokingReporter() {
-        val received = mutableListOf<String>()
-        val reporter = nativeCallback(Reporter::class.java, "report") {
-            received += it!![0] as String
-            null
-        } as Reporter
-        val other = nativeCallback(Reporter::class.java, "report") { null }
+    @Test fun descriptorRangeIsCheckedBeforeNarrowingLongToInt() {
+        val calls = mutableListOf<Int>()
+        val protector = BridgeProtector({ true }, { calls += it; true }, { throw it })
+        assertFalse(protector.protect(-1L))
+        assertFalse(protector.protect(1L shl 32))
+        assertTrue(protector.protect(0L))
+        assertTrue(protector.protect(Int.MAX_VALUE.toLong()))
+        assertEquals(listOf(0, Int.MAX_VALUE), calls)
+    }
+
+    @Test fun stoppedCallbacksCannotProtectOrPublish() {
+        var enabled = true
+        var calls = 0
+        val protector = BridgeProtector({ enabled }, { calls++; true }, { throw it })
+        val reporter = BridgeReporter({ enabled }, { calls++ }, { throw it })
+        reporter.report("active")
+        assertTrue(protector.protect(1))
+        enabled = false
+        reporter.report("late")
+        assertFalse(protector.protect(1))
+        assertEquals(2, calls)
+    }
+
+    @Test fun reportingFailureDoesNotEscapeAndNextEventStillWorks() {
+        var attempts = 0
+        val failures = mutableListOf<Exception>()
+        val reporter = BridgeReporter({ true }, {
+            if (attempts++ == 0) throw IllegalStateException("notification unavailable")
+        }, failures::add)
+        reporter.report("first")
+        reporter.report("second")
+        assertEquals(2, attempts)
+        assertEquals(1, failures.size)
         assertEquals(reporter, reporter)
-        assertNotEquals(reporter, other)
-        assertFalse(reporter.equals(null))
         assertEquals(System.identityHashCode(reporter), reporter.hashCode())
-        assertTrue(reporter.toString().contains("Reporter"))
-        assertTrue(received.isEmpty())
-        reporter.report("connected")
-        assertEquals(listOf("connected"), received)
+    }
+
+    @Test fun fatalErrorsAreNotDisguisedAsSuccessfulCallbacks() {
+        val reporter = BridgeReporter({ true }, { throw OutOfMemoryError("synthetic") }, { throw it })
+        assertThrows(OutOfMemoryError::class.java) { reporter.report("event") }
     }
 }

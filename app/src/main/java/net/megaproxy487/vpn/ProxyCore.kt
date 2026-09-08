@@ -5,10 +5,15 @@ import android.os.ParcelFileDescriptor
 import net.megaproxy487.model.ProxyConfig
 import org.json.JSONObject
 import org.json.JSONArray
+import mobile.Mobile
+import mobile.Protector
+import mobile.Reporter
+import net.megaproxy487.data.operationResult
+import java.util.concurrent.atomic.AtomicBoolean
 
 interface ProxyCore {
     fun resolveProxy(host: String, status: (String) -> Unit): String?
-    fun start(tunFd: Int, config: ProxyConfig, status: (String) -> Unit): Boolean
+    fun start(tunFd: Int, mtu: Int, config: ProxyConfig, status: (String) -> Unit): Boolean
     fun test(config: ProxyConfig, status: (String) -> Unit): ConnectionTestResult?
     fun stop()
 }
@@ -34,8 +39,8 @@ data class NativeConnectionStats(
 )
 
 object ConnectionStatsReader {
-    fun snapshot(): NativeConnectionStats? = runCatching {
-        val raw = Class.forName("mobile.Mobile").getMethod("getStats").invoke(null) as String
+    fun snapshot(): NativeConnectionStats? = operationResult {
+        val raw = Mobile.getStats()
         val json = JSONObject(raw)
         NativeConnectionStats(
             downloadBytes = json.getLong("downloadBytes"),
@@ -53,8 +58,18 @@ object ConnectionStatsReader {
 class NativeProxyCore(
     private val vpnService: VpnService,
     private val diagnostics: (String) -> Unit = DiagnosticLog::add,
+    private val isCurrent: () -> Boolean = { true },
 ) : ProxyCore {
-    private fun protectSocket(fd: Long): Boolean = vpnService.protect(fd.toInt())
+    private val callbacksEnabled = AtomicBoolean(true)
+    private fun callbackFailure(error: Throwable) {
+        android.util.Log.w("MegaProxy", "Native callback failed: ${error.javaClass.simpleName}")
+    }
+    private fun protector(): Protector = BridgeProtector(
+        { callbacksEnabled.get() && isCurrent() }, vpnService::protect, ::callbackFailure,
+    )
+    private fun reporter(deliver: (String) -> Unit): Reporter = BridgeReporter(
+        { callbacksEnabled.get() && isCurrent() }, deliver, ::callbackFailure,
+    )
 
     private fun configJson(config: ProxyConfig) = JSONObject()
         .put("type", config.type.name)
@@ -91,70 +106,44 @@ class NativeProxyCore(
         .put("bypassLocalNetworks", config.bypassLocalNetworks)
         .toString()
 
-    private fun callback(type: Class<*>, methodName: String, callback: (Array<out Any?>?) -> Any?) =
-        nativeCallback(type, methodName, callback)
-
-    override fun resolveProxy(host: String, status: (String) -> Unit): String? = runCatching {
-        val mobile = Class.forName("mobile.Mobile")
-        val protectorType = Class.forName("mobile.Protector")
-        val reporterType = Class.forName("mobile.Reporter")
-        val protector = callback(protectorType, "protect") { protectSocket(it!![0] as Long) }
-        val reporter = callback(reporterType, "report") { diagnostics(it!![0] as String); null }
-        mobile.getMethod("resolveProxy", String::class.java, protectorType, reporterType)
-            .invoke(null, host, protector, reporter) as String
+    override fun resolveProxy(host: String, status: (String) -> Unit): String? = operationResult {
+        Mobile.resolveProxy(host, protector(), reporter(diagnostics))
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
         diagnostics("event=bootstrap_dns result=failed detail=$message")
         status("Proxy DNS failed: $message")
     }.getOrNull()
 
-    override fun start(tunFd: Int, config: ProxyConfig, status: (String) -> Unit): Boolean {
-        var detachedFd: Int? = null
+    override fun start(tunFd: Int, mtu: Int, config: ProxyConfig, status: (String) -> Unit): Boolean {
         var nativeStarted = false
-        return runCatching {
-            val mobile = Class.forName("mobile.Mobile")
-            val protectorType = Class.forName("mobile.Protector")
-            val reporterType = Class.forName("mobile.Reporter")
-            val protector = callback(protectorType, "protect") { protectSocket(it!![0] as Long) }
-            val reporter = callback(reporterType, "report") {
-                val message = it!![0] as String
+        return operationResult {
+            val reporter = reporter { message ->
                 diagnostics(message)
                 VpnRuntimeState.observeDiagnostic(message)
                 if ("SSH_HOST_KEY_" in message || "dpi_hint=possible" in message) status(message)
-                null
             }
             val json = configJson(config)
-            val startMethod = mobile.getMethod(
-                "start", Long::class.javaPrimitiveType, String::class.java, protectorType, reporterType,
-            )
-            detachedFd = ParcelFileDescriptor.fromFd(tunFd).detachFd()
-            val goFd = detachedFd!!
-            detachedFd = null // Start's contract takes ownership, including error paths.
-            startMethod.invoke(null, goFd.toLong(), json, protector, reporter)
-            nativeStarted = true
+            // Java keeps its duplicate alive for the call; Go duplicates it on entry.
+            // Even a linkage failure before Go is entered cannot leak a detached FD.
+            ParcelFileDescriptor.fromFd(tunFd).use { borrowed ->
+                Mobile.start(borrowed.fd.toLong(), mtu.toLong(), json, protector(), reporter)
+                nativeStarted = true
+            }
             status("TCP is protected by ${config.type.title}")
             true
         }.getOrElse {
             if (nativeStarted) stop()
-            detachedFd?.let { fd -> runCatching { ParcelFileDescriptor.adoptFd(fd).close() } }
-            status(if (it is ClassNotFoundException) "Add app/libs/megaproxy.aar" else "Native core error: ${it.cause?.message ?: it.message}")
+            status("Native core error: ${it.message}")
             false
         }
     }
 
-    override fun test(config: ProxyConfig, status: (String) -> Unit): ConnectionTestResult? = runCatching {
-        val mobile = Class.forName("mobile.Mobile")
-        val protectorType = Class.forName("mobile.Protector")
-        val reporterType = Class.forName("mobile.Reporter")
-        val protector = callback(protectorType, "protect") { protectSocket(it!![0] as Long) }
-        val reporter = callback(reporterType, "report") {
-            val message = it!![0] as String
+    override fun test(config: ProxyConfig, status: (String) -> Unit): ConnectionTestResult? = operationResult {
+        val reporter = reporter { message ->
             diagnostics(message)
             if ("SSH_HOST_KEY_" in message) status(message)
-            null
         }
-        val raw = mobile.getMethod("testConnection", String::class.java, protectorType, reporterType)
-            .invoke(null, configJson(config), protector, reporter) as String
+        val raw = Mobile.testConnection(configJson(config), protector(), reporter)
         parseConnectionTestResult(raw)
     }.onSuccess {
         status("Test passed: exit IP ${it.exitIp}")
@@ -165,6 +154,7 @@ class NativeProxyCore(
     }.getOrNull()
 
     override fun stop() {
-        runCatching { Class.forName("mobile.Mobile").getMethod("stop").invoke(null) }
+        callbacksEnabled.set(false)
+        operationResult { Mobile.stop() }.onFailure(::callbackFailure)
     }
 }

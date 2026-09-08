@@ -118,7 +118,7 @@ dependencies {
     implementation("androidx.navigation:navigation-compose:2.9.5")
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20250107")
-    runtimeOnly(files("libs/megaproxy.aar"))
+    implementation(files("libs/megaproxy.aar"))
 }
 
 // fwcd.kotlin does not understand Android Gradle Plugin variants reliably. Its language server
