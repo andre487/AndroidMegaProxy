@@ -70,6 +70,31 @@ platform :android do
     android_checks
   end
 
+  desc "Run Python unit tests"
+  lane :python_tests do
+    python = ENV.fetch("PYTHON", "python3")
+    sh(python, "-m", "unittest", "discover", "-s", File.join(project_root, "scripts", "tests"))
+  end
+
+  desc "Format Python scripts with isort and Black"
+  lane :python_format do
+    python = ENV.fetch("PYTHON", "python3")
+    Dir.chdir(project_root) do
+      sh(python, "-m", "isort", "scripts")
+      sh(python, "-m", "black", "scripts")
+    end
+  end
+
+  desc "Check Python formatting, import order, and unit tests"
+  lane :python_checks do
+    python = ENV.fetch("PYTHON", "python3")
+    Dir.chdir(project_root) do
+      sh(python, "-m", "isort", "--check-only", "scripts")
+      sh(python, "-m", "black", "--check", "scripts")
+    end
+    python_tests
+  end
+
   desc "Build a debug APK after preparing the native library"
   lane :debug_artifact do
     native_library

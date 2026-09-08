@@ -16,11 +16,18 @@ branch names, credentials, signing material, or other secrets.
 - Direct scripts and Gradle tasks may remain implementation details behind Fastlane lanes, but
   documentation and CI should normally expose the Fastlane commands.
 
+- Python runtime scripts use the standard library and native `gh` for GitHub access. Format with
+  pinned Black/isort through `python_format`; `python_tests` and `python_checks` use `PYTHON`.
+
 ## CI and artifacts
 
 - Pull requests must run native tests and Android JVM unit/lint/build checks. Do not require an
   Android emulator in GitHub Actions: hosted-runner KVM availability proved too unreliable for a
   trustworthy required check.
+- Compare each suite against its last successful ancestor check in the same PR and base.
+  Failed/skipped/cancelled jobs do not advance coverage. Fall back to the full PR diff when
+  history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope` and `Python tests and style`
+  alongside native/Android checks when this workflow is adopted.
 - PR builds may publish debug and unsigned APK artifacts. They must never have access to release
   signing material and must never produce or publish a signed release APK.
 - Surface downloadable APK artifacts in the GitHub Actions job summary in addition to uploading
