@@ -19,6 +19,64 @@ spec.loader.exec_module(m)
 
 
 class ChangeScopeTest(unittest.TestCase):
+    def test_full_rerun_enables_skipped_suites_without_diff_or_history(self):
+        with tempfile.TemporaryDirectory() as root:
+            output = Path(root) / "output"
+            summary = Path(root) / "summary"
+            with (
+                patch.object(
+                    sys,
+                    "argv",
+                    [
+                        "ci_changes.py",
+                        "--base",
+                        "a" * 40,
+                        "--head",
+                        "b" * 40,
+                        "--history",
+                        "--run-attempt",
+                        "2",
+                        "--github-output",
+                        str(output),
+                        "--summary",
+                        str(summary),
+                    ],
+                ),
+                patch.object(m, "successful_baselines", side_effect=AssertionError),
+                patch.object(m, "changed_files", side_effect=AssertionError),
+                patch.object(sys, "stdout", io.StringIO()) as stdout,
+            ):
+                self.assertEqual(0, m.main())
+            result = json.loads(stdout.getvalue())
+            self.assertTrue(result["forced"])
+            self.assertEqual(
+                "android=true\nnative=true\npython=true\n", output.read_text()
+            )
+            self.assertIn("change filtering disabled", summary.read_text())
+
+    def test_initial_attempt_still_filters_docs_only_changes(self):
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "ci_changes.py",
+                    "--base",
+                    "a" * 40,
+                    "--head",
+                    "b" * 40,
+                    "--run-attempt",
+                    "1",
+                ],
+            ),
+            patch.object(m, "changed_files", return_value=["README.md"]),
+            patch.object(sys, "stdout", io.StringIO()) as stdout,
+        ):
+            self.assertEqual(0, m.main())
+        result = json.loads(stdout.getvalue())
+        self.assertFalse(result["forced"])
+        self.assertFalse(any(result[suite] for suite in m.SUITES))
+
     def test_python_and_markdown_do_not_run_android(self):
         self.assertEqual(
             {"android": False, "native": False, "python": True},

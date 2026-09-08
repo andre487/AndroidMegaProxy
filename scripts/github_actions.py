@@ -11,7 +11,7 @@ import sys
 
 REPOSITORY = "andre487/AndroidMegaProxy"
 MODES = [
-    ("ci", "Re-run all CI jobs"),
+    ("ci", "Re-run all CI jobs, including skipped checks"),
     ("failed", "Re-run failed CI jobs only"),
 ]
 PR_FIELDS = "number,title,state,headRefName,headRefOid,isCrossRepository"

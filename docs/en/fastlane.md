@@ -114,7 +114,7 @@ python3 scripts/github_actions.py --dry-run
 python3 scripts/github_actions.py --yes
 ```
 
-Choose an open PR and either rerun all CI jobs or only failed jobs. Requires GitHub CLI (`gh`)
+Choose an open PR and either rerun all CI jobs **including skipped checks**, or only failed jobs. Requires GitHub CLI (`gh`)
 and its existing authentication (`gh auth login`, `GH_TOKEN` or `GITHUB_TOKEN`). The launcher uses
 native gh commands, no custom HTTP client or token storage. `--repo OWNER/REPO` overrides the repo.
 `--yes` / `-y` skips final confirmation but retains menu selection and the stale-head check;
@@ -122,8 +122,13 @@ native gh commands, no custom HTTP client or token storage. `--repo OWNER/REPO` 
 The script targets an existing completed CI run for the exact current PR commit. Running/queued
 jobs and missing runs are rejected; CI normally starts on pushes. Failed-only mode requires a failed
 run; cancelled runs can be rerun with all jobs. Launch failures/timeouts are never retried automatically.
-Rerunning preserves that run's original commit and diff baseline; push a new commit to reassess scope
-against an updated PR base. No device or release workflows are offered.
+A full rerun also reruns Change scope. On attempt 2 or later it enables Android (including
+Compose UI tests), native and Python suites without diff/history filtering. The same applies to
+GitHub's Re-run all jobs button. Failed-only reruns keep the existing scope unless Change scope
+itself failed and is rerun, in which case all suites are enabled.
+[GitHub reruns preserve the original commit](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
+Runs created before this workflow change retain the old filtering; push a new commit first.
+No device or release workflows are offered.
 
 ### Native parser fuzzing
 

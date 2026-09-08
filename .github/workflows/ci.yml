@@ -44,7 +44,7 @@ jobs:
           PR_NUMBER: ${{ github.event.pull_request.number }}
           GH_TOKEN: ${{ github.token }}
         run: |
-          args=(--base "$BASE_SHA" --head "$HEAD_SHA" --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY")
+          args=(--base "$BASE_SHA" --head "$HEAD_SHA" --run-attempt "$GITHUB_RUN_ATTEMPT" --github-output "$GITHUB_OUTPUT" --summary "$GITHUB_STEP_SUMMARY")
           if [[ "$EVENT_NAME" == push ]]; then args+=(--push); else args+=(--history); fi
           python3 scripts/ci_changes.py "${args[@]}"
 

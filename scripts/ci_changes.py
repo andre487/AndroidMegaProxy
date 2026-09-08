@@ -81,7 +81,12 @@ def changed_files(base, head, pull_request=True):
     ]
 
 
-def select_suites(base, head, pull_request=True, baselines=None):
+def select_suites(base, head, pull_request=True, baselines=None, force_all=False):
+    if force_all:
+        return {suite: True for suite in SUITES}, {
+            suite: {"base": base, "run_id": None, "changed_files": None}
+            for suite in SUITES
+        }
     baselines = baselines or {}
     result = {}
     details = {}
@@ -112,12 +117,21 @@ def main():
         action="store_true",
         help="Reuse successful ancestor checks for this PR",
     )
+    parser.add_argument(
+        "--run-attempt",
+        type=int,
+        default=1,
+        help="GitHub run attempt; rerunning change scope forces all suites",
+    )
     parser.add_argument("--github-output", type=Path)
     parser.add_argument("--summary", type=Path)
     args = parser.parse_args()
+    if args.run_attempt < 1:
+        parser.error("--run-attempt must be positive")
+    force_all = args.run_attempt > 1
     try:
         baselines = {}
-        if args.history and not args.push:
+        if args.history and not args.push and not force_all:
             try:
                 baselines = successful_baselines(
                     os.environ["GITHUB_REPOSITORY"],
@@ -138,8 +152,10 @@ def main():
                 print(
                     "Check history unavailable; using the full PR diff", file=sys.stderr
                 )
-        result, details = select_suites(args.base, args.head, not args.push, baselines)
-        print(json.dumps({**result, "comparisons": details}))
+        result, details = select_suites(
+            args.base, args.head, not args.push, baselines, force_all
+        )
+        print(json.dumps({**result, "forced": force_all, "comparisons": details}))
         if args.github_output:
             with args.github_output.open("a") as output:
                 for suite, enabled in result.items():
@@ -150,12 +166,16 @@ def main():
                 for suite, enabled in result.items():
                     detail = details[suite]
                     origin = (
-                        f"successful run {detail['run_id']}"
-                        if detail["run_id"]
+                        "full CI rerun (change filtering disabled)"
+                        if force_all
                         else (
-                            "full PR diff (no reusable success)"
-                            if not args.push
-                            else "push endpoints"
+                            f"successful run {detail['run_id']}"
+                            if detail["run_id"]
+                            else (
+                                "full PR diff (no reusable success)"
+                                if not args.push
+                                else "push endpoints"
+                            )
                         )
                     )
                     summary.write(
