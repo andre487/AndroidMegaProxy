@@ -42,6 +42,10 @@ branch names, credentials, signing material, or other secrets.
 - Compose interaction tests may run in `app/src/test` using Robolectric with a pinned SDK and
   plain test Application. Inject platform operations; do not load Go JNI or real Keystore in
   those tests. They run through the existing Fastlane Android checks without an emulator.
+- Exercise real screens and ConfigStore with a test-only Keystore provider. Before asserting
+  service commands or their absence, drain ordered configuration writes and check both completion
+  and failure state; `pending == 0` alone does not prove success. Recorded service intents do not
+  establish VPN lifecycle/JNI coverage. See `docs/reviews/test-quality.md` for coverage gaps.
 - Keep device-only tests out of required GitHub CI unless the project later adopts a dependable
   device farm or controlled self-hosted runner. Do not reintroduce a software-emulated Android
   fallback.
@@ -78,6 +82,20 @@ branch names, credentials, signing material, or other secrets.
 - Configuration writes must outlive individual screens and expose pending/failure state. Keep
   transfer operations across configuration changes; never put credentials or export payloads into
   Android saved-state bundles, and reject a lost export before opening the output stream.
+
+## Privacy and documentation
+
+- `PRIVACY.md` is the public privacy policy. Keep it consistent with actual app behavior and store
+  metadata; put detailed diagnostic endpoint inventories and encryption implementation details in
+  README instead of duplicating them in the policy.
+- Support emails, including sender addresses, messages and attachments, are retained until the
+  reported problem is fixed, then deleted. This is the developer's operational practice, not an
+  app-enforced retention timer. Uninstalling the app does not remove email or exported/shared copies.
+- Keep the privacy-policy link at the bottom of Settings, targeting the public policy on `main`,
+  with localized labels and an error message when no browser can open it.
+- Update current documentation while preserving historical changelogs. Review reports are dated
+  snapshots, not proof of current coverage or external store compliance; see
+  `docs/reviews/privacy-policy.md` for privacy follow-ups.
 
 ## Architecture landmarks
 
