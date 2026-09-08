@@ -158,7 +158,9 @@ echo "Building initial native AAR for $first_android_abi"
 echo "Running Android unit tests"
 (
     cd "$project_dir"
-    ./gradlew testReleaseUnitTest
+    # Compose's test host Activity is supplied by debugImplementation(ui-test-manifest).
+    # Run the same complete JVM suite as PR CI without packaging test hosts in release APKs.
+    ./gradlew testDebugUnitTest
 )
 
 for target in "${targets[@]}"; do
