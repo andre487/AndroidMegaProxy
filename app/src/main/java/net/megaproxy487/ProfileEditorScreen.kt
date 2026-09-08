@@ -87,6 +87,7 @@ import kotlinx.coroutines.withContext
 
 private class ProfileEditorState(initialProfile: net.megaproxy487.model.ProxyProfile) : ViewModel() {
     var profile by mutableStateOf(initialProfile)
+    var persisted by mutableStateOf(false)
     var config by mutableStateOf(profile.config)
     var portText by mutableStateOf(config.port.toString())
     var jumpPortText by mutableStateOf(config.jumpPort.toString())
@@ -113,10 +114,10 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     }
     val draftId = rememberSaveable { java.util.UUID.randomUUID().toString() }
     val isNew = profileId == "new"
-    val editorState = viewModel { ProfileEditorState(
-        if (isNew) store.profile(draftId) ?: store.newProfileDraft(draftId)
-        else store.profile(profileId.orEmpty()) ?: store.activeProfile(),
-    ) }
+    val editorState = viewModel {
+        val existing = if (isNew) store.profile(draftId) else store.profile(profileId.orEmpty()) ?: store.activeProfile()
+        ProfileEditorState(existing ?: store.newProfileDraft(draftId)).also { it.persisted = existing != null }
+    }
     val coroutineScope = editorState.viewModelScope
     var profile by editorState::profile
     var config by editorState::config
@@ -139,14 +140,22 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
         }.sortedBy { it.second.lowercase(systemFormattingLocale()) }
     }
 
-    val globalSettings = store.globalConnectionSettings()
-    val editedConnectionProfileId = store.connectionProfile().id
+    val writeStatus by ConfigWrites.status.collectAsState()
+    var globalSettings by remember(store) { mutableStateOf(store.globalConnectionSettings()) }
+    androidx.compose.runtime.LaunchedEffect(writeStatus) {
+        if (writeStatus.pending == 0) {
+            globalSettings = withContext(net.megaproxy487.data.ConfigIoDispatcher) { store.globalConnectionSettings() }
+        }
+    }
+    val editedConnectionProfileId = net.megaproxy487.vpn.VpnRuntimeState.connectionProfileId.value
+        .ifEmpty { store.connectionProfileId() }
     val alwaysOnActive = ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled
     fun saveProfile(affectsConnection: Boolean = false) {
         val snapshot = profile
         ConfigWrites.submit("profile:${snapshot.id}") {
             store.saveProfile(snapshot, createIfMissing = isNew)
-            if (affectsConnection && ProxyVpnService.isRunning && snapshot.id == store.connectionProfile().id) store.markPendingReconnect()
+            editorState.persisted = true
+            if (affectsConnection && ProxyVpnService.isRunning && snapshot.id == store.connectionProfileId()) store.markPendingReconnect()
         }
     }
     fun acceptText(value: String, maxLength: Int, update: (String) -> Unit) {
@@ -198,7 +207,6 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     fun fieldError(vararg ids: Int): String? = validationRes?.takeIf { it in ids }?.let { activity.uiText(it) }
     val validPorts = validIntegerInput(portText, 1..65535) != null &&
         (!config.type.hasJump || validIntegerInput(jumpPortText, 1..65535) != null)
-    val writeStatus by ConfigWrites.status.collectAsState()
     val canReconnect = validationRes == null && validPorts && writeStatus.pending == 0 && !writeStatus.failed
 
     Scaffold(
@@ -461,7 +469,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             if (config.dnsProvider == DnsProvider.CUSTOM) item { OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } }, label = { FieldLabel(stringResource(R.string.custom_doh_url)) }, isError = fieldError(R.string.validation_doh_url) != null, supportingText = fieldError(R.string.validation_doh_url)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
 
           item {
-            Text(stringResource(if (isNew && store.profile(profile.id) == null) R.string.draft_profile_hint else R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall)
+            Text(stringResource(if (isNew && !editorState.persisted) R.string.draft_profile_hint else R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall)
           }
         }
     }

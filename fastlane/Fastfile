@@ -14,6 +14,13 @@ platform :android do
     end
   end
 
+  desc "Fuzz native config, JA3 and DNS parsers for 20 seconds with two workers"
+  lane :native_fuzz do
+    Dir.chdir(File.join(project_root, "native")) do
+      sh("go", "test", "./mobile", "-run=^$", "-fuzz=FuzzNativeParsers", "-fuzztime=20s", "-parallel=2")
+    end
+  end
+
   desc "Build the native AAR used by Android builds"
   private_lane :native_library do
     sh(File.join(project_root, "scripts", "build-fdroid-native.sh"))

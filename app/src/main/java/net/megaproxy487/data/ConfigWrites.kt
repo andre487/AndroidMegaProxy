@@ -23,12 +23,17 @@ class ConfigWriteQueue(dispatcher: CoroutineDispatcher) {
         val generation = generations[key] ?: 0L
         scope.launch {
             val current = synchronized(this@ConfigWriteQueue) { generation == (generations[key] ?: 0L) }
-            val result = if (current) runCatching(write) else null
-            synchronized(this@ConfigWriteQueue) {
-                if (generation == (generations[key] ?: 0L) && result != null) {
-                    if (result.isSuccess) failures.remove(key) else failures[key] = write
+            try {
+                val result = if (current) operationResult(write) else null
+                synchronized(this@ConfigWriteQueue) {
+                    if (generation == (generations[key] ?: 0L) && result != null) {
+                        if (result.isSuccess) failures.remove(key) else failures[key] = write
+                    }
                 }
-                mutableStatus.value = ConfigWriteStatus(mutableStatus.value.pending - 1, failures.isNotEmpty())
+            } finally {
+                synchronized(this@ConfigWriteQueue) {
+                    mutableStatus.value = ConfigWriteStatus(mutableStatus.value.pending - 1, failures.isNotEmpty())
+                }
             }
         }
     }

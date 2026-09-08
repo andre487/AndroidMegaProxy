@@ -47,6 +47,18 @@ class ProxyConfigTest {
     }
 
     @Test
+    fun customDnsUrlValidationMatchesNativeRequirements() {
+        for (url in listOf("https://dns.example/", "https://dns.example:8443/query?mode=1")) {
+            assertNull(validConnection.copy(dnsProvider = DnsProvider.CUSTOM, customDohUrl = url).validationError())
+        }
+        for (url in listOf("http://dns.example/query", "https://user:secret@dns.example/query",
+            "https://dns.example/query#fragment", "https://dns.example:65536/query", "https://dns.example")) {
+            assertEquals(url, R.string.validation_doh_url,
+                validConnection.copy(dnsProvider = DnsProvider.CUSTOM, customDohUrl = url).validationError())
+        }
+    }
+
+    @Test
     fun splitTunnelingAllowsNoApplications() {
         assertNull(validConnection.copy(routeAllApps = false).validationError())
     }

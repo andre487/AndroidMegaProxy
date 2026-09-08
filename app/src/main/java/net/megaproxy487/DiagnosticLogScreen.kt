@@ -75,6 +75,7 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     var lines by remember { mutableStateOf(emptyList<String>()) }
+    var readFailed by remember { mutableStateOf(false) }
     var autoScroll by remember { mutableStateOf(true) }
     var limitText by rememberSaveable { mutableStateOf(store.diagnosticLogLimitMb().toString()) }
     var showClearConfirmation by remember { mutableStateOf(false) }
@@ -102,9 +103,19 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
 
     LaunchedEffect(lifecycleOwner) {
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            var seenRevision = -1L
             while (true) {
-                val content = withContext(Dispatchers.IO) { PersistentDiagnosticLog.readTail(viewerWindowBytes) }
-                lines = content.lineSequence().filter(String::isNotEmpty).toList()
+                val revision = PersistentDiagnosticLog.revision
+                if (revision != seenRevision) {
+                    val snapshot = withContext(Dispatchers.IO) {
+                        readDiagnosticSnapshot { PersistentDiagnosticLog.readTail(viewerWindowBytes) }
+                    }
+                    readFailed = snapshot == null
+                    if (snapshot != null) {
+                        lines = snapshot
+                        seenRevision = revision
+                    }
+                }
                 delay(1_000)
             }
         }
@@ -165,6 +176,11 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
                     },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (readFailed) Text(
+                    stringResource(R.string.log_read_failed),
+                    color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall,
                 )
                 LazyColumn(
                     state = listState,

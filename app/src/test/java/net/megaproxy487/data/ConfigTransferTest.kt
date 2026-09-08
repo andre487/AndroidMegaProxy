@@ -49,6 +49,14 @@ class ConfigTransferTest {
     }
 
     @Test
+    fun `SSH imports use the SSH default port`() {
+        val raw = """{"schema":"net.megaproxy487.config","version":8,"profiles":[
+            {"id":"ssh","proxy":{"type":"SSH","host":"ssh.example"}}
+        ]}"""
+        assertEquals(22, ConfigTransfer.importJson(raw).profiles.single().config.port)
+    }
+
+    @Test
     fun `proxy list omits passwords by default`() {
         val profile = ProxyProfile(
             id = "one", name = "Amsterdam", colorIndex = 0, countryCode = "nl",

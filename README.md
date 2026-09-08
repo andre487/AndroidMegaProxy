@@ -1,6 +1,6 @@
 # MegaProxy
 
-[![CI](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml/badge.svg)](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml)
+[![CI](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Android 8+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
 
@@ -22,8 +22,8 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 - **Private by design.** No account, ads, analytics, tracking identifiers, or background telemetry.
 - **Your infrastructure.** Connect to your HTTPS or SSH servers, directly or through a jump server.
-- **End-to-end application encryption.** HTTPS proxying uses CONNECT without intercepting or
-  decrypting application traffic.
+- **Preserves application TLS.** HTTPS proxying uses CONNECT without intercepting or
+  decrypting application TLS; plain application protocols still need their own encryption.
 - **Flexible routing.** Route the whole device or only selected applications through the VPN.
 - **Resilient connections.** Profile failover, encrypted DNS fallback, SSH keepalives, and
   connection health reporting help recover from network and server failures.
@@ -51,6 +51,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 - Android Always-on VPN integration and a persistent foreground-service notification.
 - Automatic reconnect when the active profile or pending connection settings change.
 - Approximate upload speed, download speed, proxy latency, and recent connection-error rate.
+- Session traffic totals with selectable IEC/SI units, connection start time and elapsed duration.
 
 ### DNS and transport
 
@@ -63,7 +64,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 ### Diagnostics
 
-- A staged connection test for proxy setup, `example.com`, and the observed exit IP.
+- A staged connection test for proxy setup, `example.com`, and the observed exit IP and country.
 - Local, size-limited, rotating diagnostic and crash logs designed to omit credentials and traffic
   content.
 - On-device connection visibility checks and actionable connection warnings.
@@ -75,8 +76,10 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 MegaProxy does not operate a proxy service and does not send configuration or usage data to the
 project author. Network traffic is sent only where required by the selected profile, destination,
-and DNS configuration. The explicit connection test additionally contacts `example.com` and
-`ifconfig.me`.
+and DNS configuration. Proxy-hostname bootstrap may contact Cloudflare, Yandex, Google or Quad9
+DoH resolvers directly before the tunnel exists. The explicit connection test contacts `example.com`
+and uses fallback providers for exit IP (`ifconfig.me`, `api.ipify.org`, `icanhazip.com`) and country
+(`ifconfig.co`, `ipapi.co`, `api.country.is`) through the proxy. See [PRIVACY.md](PRIVACY.md).
 
 - HTTPS proxy certificates are checked against the Android trust store, including hostname and
   validity. Normal CA certificate renewal does not require certificate pinning.
@@ -104,8 +107,8 @@ vendors may impose additional background-execution restrictions.
 MegaProxy requires Android 8.0 (API 26) or newer. Download the latest signed build from
 [GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest), expand the
 **Assets** section, and download the file ending in `universal.apk`. It is the recommended build:
-it supports every architecture listed below and is also the artifact independently rebuilt and
-verified for F-Droid distribution.
+it supports every architecture listed below and is the artifact intended for reproducible
+F-Droid verification.
 
 **[Download the recommended universal APK](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**
 
@@ -180,7 +183,7 @@ After installation:
 1. Create or import a connection profile.
 2. Choose global routing or select applications for split tunneling.
 3. Review DNS and fingerprint settings if the defaults are not appropriate for your server.
-4. Tap **Test** to validate the connection, then tap **Connect**.
+4. Open the main-screen menu and choose **Test**, then tap **Connect**.
 5. Optionally enable Always-on VPN in Android settings.
 
 Server configurations and setup instructions are maintained separately in
@@ -233,16 +236,15 @@ exports support single HTTPS proxies only and omit chain profiles.
 The command-line build does not require Android Studio. It requires:
 
 - JDK 21
-- Go 1.26 or newer
-- `gomobile`
-- Android SDK Platform 35
+- Go 1.26.3 or newer (see `native/go.mod`)
+- Network access to download the pinned `gomobile`/`gobind` tools during native builds
 - Android SDK Platform 36 and Build Tools 36.0.0
 - Android NDK 29.0.14206865
 
 Example environment on macOS:
 
 ```shell
-export JAVA_HOME="/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home"
+export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 export ANDROID_HOME="$HOME/Library/Android/sdk"
 export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/29.0.14206865"
 export PATH="$JAVA_HOME/bin:$HOME/go/bin:$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/emulator:$ANDROID_HOME/platform-tools:$PATH"
@@ -269,21 +271,25 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb shell am start -n net.megaproxy487/.MainActivity
 ```
 
-The project pins Gradle 8.9 through the checked-in wrapper. Use `./gradlew` rather than a globally
+The project pins Gradle 8.11.1 through the checked-in wrapper. Use `./gradlew` rather than a globally
 installed Gradle version. See [native/README.md](native/README.md) for Go data-plane details.
 
 ## Development workflow
 
-English is the project language for source code, comments, documentation, commit messages, UI
-copy, logs, and tooling.
+English is the project language for source code, comments, commit messages, logs, and tooling.
+User-visible UI strings are provided in English and Russian. Developer guides are maintained in
+both languages; numbers and dates follow the system locale independently of the app language.
 
 ### Emulator
 
-Create the API 35 Google APIs ARM64 emulator:
+For optional local device testing on an ARM64 host, create the API 35 Google APIs ARM64 emulator
+(the script installs the emulator and system image if missing):
 
 ```shell
 ./scripts/create-android-emulator.sh
 ```
+
+Required CI and Robolectric Compose tests do not need an emulator.
 
 The script installs missing components, configures host keyboard and mouse input, and can be run
 more than once. It creates `MegaProxy_API_35` by default; set `MEGAPROXY_AVD_NAME` to override the
@@ -318,6 +324,9 @@ logging.
 
 ### Signed release builds
 
+Release scripts require `gomobile` on `PATH`. The `debug_artifact` and `android_checks` lanes
+install the pinned native tools; run either once when preparing a fresh build environment.
+
 Build optimized and signed APKs for `arm64-v8a`, `armeabi-v7a`, `x86_64`, and `x86`, plus the
 universal APK used for reproducible F-Droid verification:
 
@@ -335,18 +344,15 @@ provided as `mega-proxy-native-debug-symbols.zip` for upload in Play Console.
 
 Pushing a version tag runs the same Fastlane release lane in GitHub Actions, builds and verifies
 every APK and the App Bundle, and attaches the artifacts to a GitHub Release. The tag must match
-`versionName` exactly:
-
-```shell
-git tag v0.0.4
-git push origin v0.0.4
-```
+`v` followed by the current `versionName` in `app/build.gradle.kts`. Create that tag with
+`git tag` and push the specific tag with `git push origin`; do not reuse a historical release tag.
 
 ## Contributing
 
 Bug reports and focused pull requests are welcome. Please avoid including proxy credentials,
 private keys, destination history, or other personal data in issues and logs. Run both the Go and
-Android unit-test suites before opening a pull request.
+Android checks with `bundle exec fastlane android test` before opening a pull request. For Python
+changes, also run `bundle exec fastlane android python_checks`; the `test` lane does not include Python.
 
 ## License
 
@@ -354,7 +360,8 @@ MegaProxy is released under the [MIT License](LICENSE).
 
 ### CI tools
 
-CI selects checks from changes since each suite’s last successful ancestor check, with a full PR diff fallback. Use `python3 scripts/github_actions.py` to choose an open
-PR and rerun all CI jobs or only failed jobs through GitHub CLI. Supports `--dry-run` and `--yes`/`-y`.
+Every push to main runs all Android/Compose UI, Go and Python checks; the CI badge tracks these runs.
+PR CI selects checks from changes since each suite’s last successful ancestor check, with a full PR diff fallback. Use `python3 scripts/github_actions.py` to choose an open
+PR and rerun all CI jobs (including skipped checks) or only failed jobs through GitHub CLI. Supports `--dry-run` and `--yes`/`-y`.
 See the [English](docs/en/fastlane.md) or [Russian](docs/ru/fastlane.md) reference for scope rules,
 Python formatting/tests and launcher setup.

@@ -28,6 +28,10 @@ branch names, credentials, signing material, or other secrets.
   Failed/skipped/cancelled jobs do not advance coverage. Fall back to the full PR diff when
   history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope` and `Python tests and style`
   alongside native/Android checks when this workflow is adopted.
+- Every push to main runs all suites without diff/history filtering. The README CI badge is
+  pinned to main/push; selective checks apply to initial PR runs.
+- A full CI rerun disables change filtering when Change scope executes on run attempt > 1,
+  so previously skipped suites run too. Failed-only reruns reuse scope unless that job also reruns.
 - PR builds may publish debug and unsigned APK artifacts. They must never have access to release
   signing material and must never produce or publish a signed release APK.
 - Surface downloadable APK artifacts in the GitHub Actions job summary in addition to uploading
@@ -35,6 +39,9 @@ branch names, credentials, signing material, or other secrets.
 - Prefer extracting UI-facing decisions into small production contracts and testing those with
   deterministic JVM unit tests. Resource parity, navigation destination wiring, preference
   serialization/defaults, formatting, and state transitions should not require a device.
+- Compose interaction tests may run in `app/src/test` using Robolectric with a pinned SDK and
+  plain test Application. Inject platform operations; do not load Go JNI or real Keystore in
+  those tests. They run through the existing Fastlane Android checks without an emulator.
 - Keep device-only tests out of required GitHub CI unless the project later adopts a dependable
   device farm or controlled self-hosted runner. Do not reintroduce a software-emulated Android
   fallback.
@@ -77,6 +84,9 @@ branch names, credentials, signing material, or other secrets.
 - `ProxyVpnService` extends Android's standard `android.net.VpnService`. It owns VPN lifecycle,
   creates the TUN interface, coordinates profiles/reconnects/status, and hands the TUN file
   descriptor to the native networking layer. Native code performs the actual proxy forwarding.
+- JNI calls use the generated gomobile types as a compile-time dependency. Native `Start` borrows
+  the JVM TUN descriptor only for the call, duplicates it internally, and receives the Android MTU
+  explicitly. Keep callback exceptions inside the JVM boundary and reject stale-session callbacks.
 - Navigation uses a single activity/back stack. Keep route and settings-destination definitions in
   shared production contracts whose completeness and uniqueness can be checked by JVM tests.
 

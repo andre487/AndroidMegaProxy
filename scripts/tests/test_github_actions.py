@@ -54,6 +54,12 @@ class LauncherTest(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "no failed conclusion"):
             m.plan_run(self.client, self.pr, "failed")
 
+    def test_full_rerun_accepts_successful_run_with_skipped_checks(self):
+        self.discovery.return_value[0]["conclusion"] = "success"
+        self.assertEqual(
+            ["run", "rerun", "20"], m.plan_run(self.client, self.pr, "ci")[0]
+        )
+
     def test_dry_run_never_launches_or_requests_confirmation(self):
         with (
             patch.object(self.client, "run", side_effect=AssertionError),

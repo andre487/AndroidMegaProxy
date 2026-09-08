@@ -1,9 +1,13 @@
 package mobile
 
 import (
+	"bufio"
 	"context"
 	"errors"
+	"net"
+	"net/http"
 	"testing"
+	"time"
 )
 
 func TestParseIPAddress(t *testing.T) {
@@ -73,5 +77,27 @@ func TestLookupEndpointValueFailsAfterEveryProvider(t *testing.T) {
 	})
 	if err == nil || value != "" || attempts != len(endpoints) {
 		t.Fatalf("lookupEndpointValue returned value=%q err=%v attempts=%d", value, err, attempts)
+	}
+}
+
+func TestHTTPExchangeCancellationInterruptsResponse(t *testing.T) {
+	client, server := net.Pipe()
+	defer client.Close()
+	defer server.Close()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	done := make(chan error, 1)
+	go func() { _, err := testHTTPExchange(ctx, client, "example.com", "/", true); done <- err }()
+	if _, err := http.ReadRequest(bufio.NewReader(server)); err != nil {
+		t.Fatal(err)
+	}
+	cancel() // Peer has accepted the request but never sends response headers.
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("cancellation succeeded without an error")
+		}
+	case <-time.After(2 * time.Second):
+		t.Fatal("HTTP read ignored cancellation")
 	}
 }

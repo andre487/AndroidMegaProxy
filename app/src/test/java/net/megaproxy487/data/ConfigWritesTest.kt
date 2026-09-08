@@ -12,6 +12,51 @@ class ConfigWritesTest {
         fun drain() { while (tasks.isNotEmpty()) tasks.removeFirst().run() }
     }
 
+    @Test fun retryWhileWritesArePendingDoesNotDuplicateWork() {
+        val dispatcher = ManualDispatcher()
+        val queue = ConfigWriteQueue(dispatcher)
+        var attempts = 0
+        queue.submit("profile") { attempts++; error("disk unavailable") }
+        dispatcher.drain()
+        queue.retry()
+        queue.retry()
+        assertEquals(1, queue.status.value.pending)
+        dispatcher.drain()
+        assertEquals(2, attempts)
+        assertEquals(ConfigWriteStatus(failed = true), queue.status.value)
+    }
+
+    @Test fun deletingBeforeInitialWritePreventsDraftResurrection() {
+        val dispatcher = ManualDispatcher()
+        val queue = ConfigWriteQueue(dispatcher)
+        var writes = 0
+        queue.submit("profile:deleted") { writes++ }
+        queue.discard("profile:deleted")
+        dispatcher.drain()
+        assertEquals(0, writes)
+        assertEquals(ConfigWriteStatus(), queue.status.value)
+        queue.submit("profile:deleted") { writes++ }
+        dispatcher.drain()
+        assertEquals(1, writes)
+    }
+
+    @Test fun successfulWriteForOtherProfileDoesNotHideFailure() {
+        val dispatcher = ManualDispatcher()
+        val queue = ConfigWriteQueue(dispatcher)
+        var fail = true
+        var writes = 0
+        queue.submit("first") { if (fail) error("disk unavailable") else writes++ }
+        queue.submit("second") { writes++ }
+        dispatcher.drain()
+        assertEquals(1, writes)
+        assertEquals(ConfigWriteStatus(failed = true), queue.status.value)
+        fail = false
+        queue.retry()
+        dispatcher.drain()
+        assertEquals(2, writes)
+        assertEquals(ConfigWriteStatus(), queue.status.value)
+    }
+
     @Test fun queuedWritesSurviveCallerCancellationAndKeepOrder() {
         val dispatcher = ManualDispatcher()
         val queue = ConfigWriteQueue(dispatcher)

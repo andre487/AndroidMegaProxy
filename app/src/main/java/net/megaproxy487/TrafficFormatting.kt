@@ -36,3 +36,8 @@ internal fun formatTrafficRate(
     unitSystem: TrafficUnitSystem = TrafficUnitSystem.IEC,
     locale: Locale = Locale.getDefault(),
 ): String = "${formatTrafficBytes(bytesPerSecond.coerceAtLeast(0.0).toLong(), unitSystem, locale)}/s"
+
+/** Scheduler delays and slow JNI sampling must not inflate bytes per second. */
+internal fun sampledTrafficRate(currentBytes: Long, previousBytes: Long, elapsedMillis: Long): Double =
+    if (elapsedMillis <= 0 || currentBytes < previousBytes) 0.0
+    else (currentBytes - previousBytes).toDouble() * 1000.0 / elapsedMillis

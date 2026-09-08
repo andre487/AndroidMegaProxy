@@ -10,9 +10,12 @@ import (
 	"syscall"
 	"time"
 
+	"golang.org/x/sys/unix"
+
 	"github.com/xjasonlyu/tun2socks/v2/core"
 	"github.com/xjasonlyu/tun2socks/v2/core/device"
 	"github.com/xjasonlyu/tun2socks/v2/core/device/fdbased"
+	"github.com/xjasonlyu/tun2socks/v2/proxy/reject"
 	"github.com/xjasonlyu/tun2socks/v2/tunnel"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
@@ -22,13 +25,19 @@ var state struct {
 	generation  uint64
 	starting    bool
 	running     bool
+	stopping    bool
 	device      device.Device
 	stack       *stack.Stack
 	proxyCloser io.Closer
 }
 
-// Start takes ownership of a duplicate of tunFD held by Android's ParcelFileDescriptor.
-func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) error {
+// Start borrows tunFD for this call. Android keeps its ParcelFileDescriptor open;
+// Go owns only the duplicate made here, including every failure path.
+func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter Reporter) error {
+	tunFD, err := duplicateTunFD(tunFD)
+	if err != nil {
+		return err
+	}
 	c, err := parseConfig(rawConfig)
 	if err != nil {
 		if tunFD >= 0 {
@@ -36,14 +45,14 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 		}
 		return err
 	}
-	if tunFD < 0 || protector == nil {
+	if protector == nil || mtu < 1280 || mtu > 65535 {
 		if tunFD >= 0 {
 			_ = syscall.Close(tunFD)
 		}
 		return errors.New("invalid Android VPN bridge")
 	}
 	state.Lock()
-	if state.running || state.starting {
+	if state.running || state.starting || state.stopping {
 		state.Unlock()
 		_ = syscall.Close(tunFD)
 		return errors.New("proxy core is already running")
@@ -58,11 +67,13 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 			return
 		}
 		state.Lock()
+		// The global tunnel must not retain a failed dialer and its Java callbacks.
+		tunnel.T().SetProxy(&reject.Reject{})
 		state.starting = false
 		state.Unlock()
 	}()
 	resetStats()
-	dev, err := fdbased.Open(strconv.Itoa(tunFD), 1500, 0)
+	dev, err := fdbased.Open(strconv.Itoa(tunFD), uint32(mtu), 0)
 	if err != nil {
 		_ = syscall.Close(tunFD)
 		return err
@@ -89,11 +100,15 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 	netstack, err := core.CreateStack(&core.Config{LinkEndpoint: dev, TransportHandler: t})
 	if err != nil {
 		dev.Close()
+		if proxyCloser != nil {
+			_ = proxyCloser.Close()
+		}
 		return err
 	}
 	state.Lock()
 	if state.generation != generation || !state.starting {
 		state.Unlock()
+		dev.Close()
 		netstack.Close()
 		netstack.Wait()
 		if proxyCloser != nil {
@@ -109,21 +124,42 @@ func Start(tunFD int, rawConfig string, protector Protector, reporter Reporter) 
 	return nil
 }
 
+func duplicateTunFD(fd int) (int, error) {
+	if fd < 0 {
+		return -1, errors.New("invalid Android TUN descriptor")
+	}
+	return unix.FcntlInt(uintptr(fd), unix.F_DUPFD_CLOEXEC, 0)
+}
+
 func Stop() {
 	state.Lock()
 	state.generation++
+	if state.stopping {
+		state.Unlock()
+		return
+	}
+	state.stopping = true
+	// Drop the global strong reference to the dialer, config and JVM service callbacks.
+	// Late queued packets must fail closed rather than use a replacement connection.
+	tunnel.T().SetProxy(&reject.Reject{})
 	state.running = false
 	dev, netstack, proxyCloser := state.device, state.stack, state.proxyCloser
 	state.device, state.stack, state.proxyCloser = nil, nil, nil
 	state.Unlock()
+	defer func() {
+		state.Lock()
+		state.stopping = false
+		state.Unlock()
+	}()
+	// Wake blocked upstream operations before waiting for the stack to finish.
+	if proxyCloser != nil {
+		_ = proxyCloser.Close()
+	}
 	if dev != nil {
 		dev.Close()
 	}
 	if netstack != nil {
 		netstack.Close()
 		netstack.Wait()
-	}
-	if proxyCloser != nil {
-		_ = proxyCloser.Close()
 	}
 }

@@ -8,8 +8,8 @@ import net.megaproxy487.model.ProxyConfig
 import org.json.JSONObject
 
 object FoxyProxyParser {
-    fun parse(text: String): Result<ProxyListImportResult> = runCatching {
-        val root = JSONObject(text)
+    fun parse(text: String): Result<ProxyListImportResult> = operationResult {
+        val root = boundedJsonObject(text)
         requireUi(!ConfigTransfer.isSupportedSchema(root.optString("schema"))) {
             UiException(R.string.error_foxy_wrong)
         }

@@ -150,7 +150,7 @@ class ConfigStore(context: Context) {
         if (stored != null) {
             migrateGlobalIpv6ToProfiles(stored)
             val decoded = decodeGlobalConnectionSettings(stored)
-            if (!runCatching { JSONObject(stored).has("sshProfile") }.getOrDefault(false)) {
+            if (!operationResult { JSONObject(stored).has("sshProfile") }.getOrDefault(false)) {
                 val upgraded = decoded.copy(sshProfile = activeProfile().config.sshProfile)
                 saveGlobalConnectionSettings(upgraded)
                 return upgraded
@@ -174,7 +174,7 @@ class ConfigStore(context: Context) {
     @Synchronized
     private fun migrateGlobalIpv6ToProfiles(storedSettings: String) {
         if (prefs.getBoolean(IPV6_PROFILE_MIGRATED, false)) return
-        val enabled = runCatching { JSONObject(storedSettings).optBoolean("allowIpv6", false) }.getOrDefault(false)
+        val enabled = operationResult { JSONObject(storedSettings).optBoolean("allowIpv6", false) }.getOrDefault(false)
         writeProfiles(profiles().map { it.copy(config = it.config.copy(allowIpv6 = enabled)) })
         prefs.edit().putBoolean(IPV6_PROFILE_MIGRATED, true).apply()
     }
@@ -285,9 +285,7 @@ class ConfigStore(context: Context) {
             resolved
         }
         val missing = existing.filter { it.id !in importedById }
-        writeProfiles(existing.map { importedById[it.id]?.let { mergedProfile ->
-            merged.first { profile -> profile.id == mergedProfile.id }
-        } ?: it } + added)
+        writeProfiles(mergeResolvedProfiles(existing, merged, added))
         val editor = prefs.edit()
             .putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
         configuration.activeProfileId?.takeIf(importedById::containsKey)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
@@ -436,7 +434,7 @@ class ConfigStore(context: Context) {
     )
 
     private inline fun <reified T : Enum<T>> enumValue(value: String?, default: T): T =
-        runCatching { enumValueOf<T>(value ?: default.name) }.getOrDefault(default)
+        operationResult { enumValueOf<T>(value ?: default.name) }.getOrDefault(default)
 
     private fun nextColorIndex(profiles: List<ProxyProfile>): Int {
         val counts = IntArray(ProfileColors.argb.size)
@@ -490,7 +488,7 @@ class ConfigStore(context: Context) {
         put("bypassLocalNetworks", config.bypassLocalNetworks)
     }
 
-    private fun decodeProfiles(value: String?): List<ProxyProfile> = runCatching {
+    private fun decodeProfiles(value: String?): List<ProxyProfile> = operationResult {
         val array = JSONArray(value ?: return emptyList())
         List(array.length()) { index ->
             val item = array.getJSONObject(index)
@@ -552,7 +550,7 @@ class ConfigStore(context: Context) {
         put("bypassLocalNetworks", settings.bypassLocalNetworks)
     }.toString()
 
-    private fun decodeGlobalConnectionSettings(value: String): GlobalConnectionSettings = runCatching {
+    private fun decodeGlobalConnectionSettings(value: String): GlobalConnectionSettings = operationResult {
         val item = JSONObject(value)
         val parsedTls = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT)
         GlobalConnectionSettings(
@@ -576,16 +574,20 @@ class ConfigStore(context: Context) {
         )
     }.getOrDefault(GlobalConnectionSettings())
 
+    private var cachedKey: SecretKey? = null
+
+    @Synchronized
     private fun key(): SecretKey {
+        cachedKey?.let { return it }
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { return it }
+        (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { cachedKey = it; return it }
         return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
             init(KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .build())
             generateKey()
-        }
+        }.also { cachedKey = it }
     }
 
     private fun encrypt(plain: String): String {
@@ -594,7 +596,7 @@ class ConfigStore(context: Context) {
         return Base64.encodeToString(cipher.iv + cipher.doFinal(plain.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
     }
 
-    private fun decrypt(packed: String?): String = runCatching {
+    private fun decrypt(packed: String?): String = operationResult {
         if (packed == null) return ""
         val bytes = Base64.decode(packed, Base64.NO_WRAP)
         require(bytes.size > IV_SIZE)

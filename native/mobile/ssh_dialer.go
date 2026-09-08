@@ -25,6 +25,7 @@ type sshDialer struct {
 	reporter       Reporter
 	mu             sync.Mutex
 	client         *ssh.Client
+	closed         bool
 	jumpClient     *ssh.Client
 	channels       chan struct{}
 	sessionCreated time.Time
@@ -39,6 +40,12 @@ func (d *sshDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.
 }
 
 func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn, error) {
+	d.mu.Lock()
+	closed := d.closed
+	d.mu.Unlock()
+	if closed {
+		return nil, net.ErrClosed
+	}
 	if !d.config.AllowIPv6 {
 		host, _, _ := net.SplitHostPort(target)
 		if ip := net.ParseIP(host); ip != nil && ip.To4() == nil {
@@ -76,10 +83,19 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	}
 	started := time.Now()
 	dialContext, cancelDial := context.WithTimeout(ctx, 20*time.Second)
-	conn, err := client.DialContext(dialContext, "tcp", target)
+	conn, err, abandoned := dialSSHChannel(dialContext, client, target, func() { <-channels }, func() {
+		report(d.reporter, "event=ssh_session result=stalled reason=abandoned_channel_open")
+		d.invalidateClient(client)
+	}, 30*time.Second)
+	if abandoned {
+		release = false
+	} // The blocked worker keeps its slot until it actually ends.
 	cancelDial()
 	if err != nil {
-		d.invalidate()
+		var rejected *ssh.OpenChannelError
+		if !errors.As(err, &rejected) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			d.invalidateClient(client)
+		}
 		report(d.reporter, "event=connection mode=ssh stage=direct_tcpip result=failed reason=%s", errorClass(err))
 		recordConnectionOutcome(false)
 		return nil, fmt.Errorf("SSH direct-tcpip: %w", err)
@@ -94,6 +110,9 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	if d.closed {
+		return nil, net.ErrClosed
+	}
 	if d.client != nil {
 		return d.client, nil
 	}
@@ -376,9 +395,15 @@ func (d *sshDialer) sharedDoHResources() (*http.Client, chan struct{}) {
 	return d.dohClient, d.dohInFlight
 }
 
-func (d *sshDialer) invalidate() {
+func (d *sshDialer) invalidate() { d.invalidateClient(nil) }
+
+func (d *sshDialer) invalidateClient(expected *ssh.Client) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	// An error from an old channel must not tear down a replacement session.
+	if expected != nil && d.client != expected {
+		return
+	}
 	if d.client != nil {
 		d.client.Close()
 	}
@@ -393,6 +418,9 @@ func (d *sshDialer) invalidate() {
 }
 
 func (d *sshDialer) Close() error {
+	d.mu.Lock()
+	d.closed = true
+	d.mu.Unlock()
 	d.invalidate()
 	d.mu.Lock()
 	if d.dohClient != nil {
@@ -433,6 +461,8 @@ func (d *sshDialer) startKeepalive() {
 			select {
 			case <-ticker.C:
 				if _, _, err := client.SendRequest("keepalive@openssh.com", true, nil); err != nil {
+					report(d.reporter, "event=ssh_keepalive result=failed reason=%s", errorClass(err))
+					d.invalidateClient(client)
 					return
 				}
 			case <-stop:
@@ -460,3 +490,51 @@ func (c *sshTrackedConn) Write(p []byte) (int, error) {
 	return n, err
 }
 func (c *sshTrackedConn) Close() error { err := c.Conn.Close(); c.once.Do(c.release); return err }
+
+// x/crypto's DialContext returns on cancellation while its internal Dial may still
+// wait for CHANNEL_OPEN confirmation. Keep admission charged to that worker.
+func dialSSHChannel(ctx context.Context, client *ssh.Client, target string, releaseAbandoned, abortStalled func(), grace time.Duration) (net.Conn, error, bool) {
+	if err := ctx.Err(); err != nil {
+		return nil, err, false
+	}
+	type result struct {
+		conn net.Conn
+		err  error
+	}
+	results := make(chan result)
+	workerDone := make(chan struct{})
+	go func() {
+		defer close(workerDone)
+		conn, err := client.Dial("tcp", target)
+		select {
+		case results <- result{conn, err}:
+		case <-ctx.Done():
+			if conn != nil {
+				_ = conn.Close()
+			}
+			releaseAbandoned()
+		}
+	}()
+	select {
+	case outcome := <-results:
+		return outcome.conn, outcome.err, false
+	case <-ctx.Done():
+		// Cancellation must not release admission early, but a peer that never answers
+		// CHANNEL_OPEN must not consume the entire pool forever either.
+		go func() {
+			timer := time.NewTimer(grace)
+			defer timer.Stop()
+			select {
+			case <-workerDone:
+			case <-timer.C:
+				select {
+				case <-workerDone:
+					return
+				default:
+					abortStalled()
+				}
+			}
+		}()
+		return nil, ctx.Err(), true
+	}
+}

@@ -72,15 +72,12 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
     val state by TestDiagnosticLog.state
     val exitIp by TestDiagnosticLog.exitIp
     val countryCode by TestDiagnosticLog.countryCode
-    val pendingHostKey by SshHostKeyPromptState.pending
-    var vpnPermissionRequestedAt by remember { mutableStateOf(0L) }
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (VpnService.prepare(activity) == null) ProxyVpnService.test(activity)
         else {
             val status = readAlwaysOnVpnStatus(activity)
-            val dismissedImmediately = System.currentTimeMillis() - vpnPermissionRequestedAt < 1_000
-            if (status.hasOtherProvider || dismissedImmediately) {
+            if (status.hasOtherProvider) {
                 TestDiagnosticLog.fail(activity.uiText(R.string.other_always_on_vpn))
                 showAlwaysOnConflict = true
             } else {
@@ -88,10 +85,13 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
             }
         }
     }
-    val runTest = {
+    val runTest = runTest@{
+        if (TestDiagnosticLog.state.value == TestState.RUNNING) return@runTest
         val configStore = ConfigStore(activity)
-        val error = configStore.globalConnectionSettings().applyTo(configStore.activeProfile().config)
-            .connectionValidationError()?.let { activity.uiText(it) }
+        // A live VPN is tested with its actual runtime configuration in the service.
+        val error = if (ProxyVpnService.isRunning) null else
+            configStore.globalConnectionSettings().applyTo(configStore.activeProfile().config)
+                .connectionValidationError()?.let { activity.uiText(it) }
         if (error != null) {
             TestDiagnosticLog.fail(error)
         } else {
@@ -105,7 +105,6 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                 if (intent == null) {
                     ProxyVpnService.test(activity)
                 } else {
-                    vpnPermissionRequestedAt = System.currentTimeMillis()
                     permission.launch(intent)
                 }
             }
@@ -115,8 +114,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
     LaunchedEffect(autoStart) {
         if (autoStart && !autoStartConsumed) {
             autoStartConsumed = true
-            TestDiagnosticLog.reset()
-            runTest()
+            if (shouldAutoStartConnectionTest(state)) runTest()
         }
     }
 
@@ -206,45 +204,6 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
             },
             dismissButton = {
                 TextButton(shape = RoundedCornerShape(12.dp), onClick = { showAlwaysOnConflict = false }) { Text(stringResource(R.string.cancel)) }
-            },
-        )
-    }
-    pendingHostKey?.takeIf { it.testOnly }?.let { pending ->
-        AlertDialog(
-            onDismissRequest = {
-                SshHostKeyPromptState.clear()
-                ProxyVpnService.dismissHostKeyPrompt(activity)
-            },
-            title = { DialogTitle(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
-            text = { ScrollableDialogText(buildString {
-                if (pending.changed) {
-                    append(activity.uiText(R.string.ssh_changed_key_warning, activity.sshHopLabel(pending.hop)))
-                } else {
-                    append(activity.uiText(R.string.ssh_first_connection_warning, activity.sshHopLabel(pending.hop)))
-                }
-                append(activity.uiText(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
-            }) },
-            confirmButton = {
-                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
-                    val saved = ConfigStore(activity).trustSshHostKey(
-                        pending.profileId, pending.hop, pending.fingerprint,
-                    )
-                    SshHostKeyPromptState.clear()
-                    val persisted = ConfigStore(activity).profile(pending.profileId)?.config?.let { config ->
-                        if (pending.hop == "jump") config.jumpTrustedHostKey else config.trustedHostKey
-                    }
-                    if (saved && persisted == pending.fingerprint) {
-                        ProxyVpnService.test(activity)
-                    } else {
-                        TestDiagnosticLog.fail(activity.uiText(R.string.test_key_save_failed))
-                    }
-                }) { Text(stringResource(if (pending.changed) R.string.replace_and_test else R.string.trust_and_test)) }
-            },
-            dismissButton = {
-                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
-                    SshHostKeyPromptState.clear()
-                    ProxyVpnService.dismissHostKeyPrompt(activity)
-                }) { Text(stringResource(R.string.cancel)) }
             },
         )
     }

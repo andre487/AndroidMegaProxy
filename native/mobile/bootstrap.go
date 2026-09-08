@@ -10,6 +10,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"strings"
 	"syscall"
 	"time"
 )
@@ -33,7 +34,14 @@ var bootstrapResolvers = []bootstrapResolver{
 
 // ResolveProxy bootstraps the proxy address through protected encrypted DNS.
 func ResolveProxy(host string, protector Protector, reporter Reporter) (string, error) {
-	query, id, err := buildAQuery(host)
+	host = strings.TrimSpace(host)
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String(), nil
+	}
+	if protector == nil {
+		return "", errors.New("Android socket protector is required")
+	}
+	query, id, err := buildAQuery(strings.TrimSuffix(host, "."))
 	if err != nil {
 		return "", err
 	}
@@ -102,6 +110,9 @@ func resolveProxyWithResolver(query []byte, id uint16, resolver bootstrapResolve
 }
 
 func buildAQuery(host string) ([]byte, uint16, error) {
+	if len(host) == 0 || len(host) > 253 {
+		return nil, 0, errors.New("invalid proxy hostname length")
+	}
 	var idBytes [2]byte
 	if _, err := rand.Read(idBytes[:]); err != nil {
 		return nil, 0, err
@@ -163,7 +174,7 @@ func parseAResponse(message []byte, id uint16) (string, error) {
 
 func skipDNSName(message []byte, offset int) (int, error) {
 	for {
-		if offset >= len(message) {
+		if offset < 0 || offset >= len(message) {
 			return 0, io.ErrUnexpectedEOF
 		}
 		length := int(message[offset])
@@ -172,7 +183,7 @@ func skipDNSName(message []byte, offset int) (int, error) {
 			return offset, nil
 		}
 		if length&0xc0 == 0xc0 {
-			if offset >= len(message) {
+			if offset < 0 || offset >= len(message) {
 				return 0, io.ErrUnexpectedEOF
 			}
 			return offset + 1, nil

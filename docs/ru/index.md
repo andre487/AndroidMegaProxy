@@ -3,6 +3,11 @@
 Серверные конфигурации и инструкции по настройке перенесены в отдельный репозиторий
 [MegaProxyServer](https://github.com/andre487/MegaProxyServer).
 
+Документация клиента:
+
+- [Установка](installation.md)
+- [HTTPS через Jump](#https-через-jump)
+
 Документация для разработчиков:
 
 - [Работа с Fastlane](fastlane.md)

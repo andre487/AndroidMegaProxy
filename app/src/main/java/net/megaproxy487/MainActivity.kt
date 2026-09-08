@@ -100,7 +100,6 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.SshHostKeyPromptState
-import net.megaproxy487.vpn.PendingSshHostKey
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.VpnTransportProtocol
@@ -116,7 +115,6 @@ import net.megaproxy487.ui.theme.MegaProxyTheme
 class MainActivity : LocalizedActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        restoreHostKeyPrompt(intent)
         enableEdgeToEdge()
         BatteryOptimizationReminder.maybeRequest(this)
         setContent { MegaProxyTheme { MegaProxyNavHost(this) } }
@@ -125,21 +123,6 @@ class MainActivity : LocalizedActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        restoreHostKeyPrompt(intent)
-    }
-
-    private fun restoreHostKeyPrompt(intent: Intent?) {
-        if (intent?.action != ACTION_REVIEW_SSH_HOST_KEY) return
-        SshHostKeyPromptState.show(
-            PendingSshHostKey(
-                profileId = intent.getStringExtra(EXTRA_PROFILE_ID).orEmpty(),
-                hop = intent.getStringExtra(EXTRA_HOP).orEmpty(),
-                algorithm = intent.getStringExtra(EXTRA_ALGORITHM).orEmpty(),
-                fingerprint = intent.getStringExtra(EXTRA_FINGERPRINT).orEmpty(),
-                changed = intent.getBooleanExtra(EXTRA_CHANGED, false),
-                testOnly = intent.getBooleanExtra(EXTRA_TEST_ONLY, false),
-            ),
-        )
     }
 
     override fun onResume() {
@@ -147,7 +130,7 @@ class MainActivity : LocalizedActivity() {
         ProxyVpnService.refreshStatus(this)
         val status = readAlwaysOnVpnStatus(this)
         val store = ConfigStore(this)
-        val profileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id
+        val profileId = if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfileId()
         VpnRuntimeState.updateSystem(status.enabled, status.lockdown, profileId)
     }
 
@@ -244,6 +227,7 @@ internal fun MainScreen(
     onOpenSettings: () -> Unit,
     onOpenConnectionTest: () -> Unit,
     onEditProfile: (String) -> Unit,
+    readConnectionStats: () -> NativeConnectionStats? = ConnectionStatsReader::snapshot,
 ) {
     val connection by VpnRuntimeState.connection
     val runtimeAlwaysOn by VpnRuntimeState.alwaysOn
@@ -251,7 +235,6 @@ internal fun MainScreen(
     val runtimeProfileId by VpnRuntimeState.connectionProfileId
     val networkWarning by VpnRuntimeState.networkWarning
     val transportProtocol by VpnRuntimeState.transportProtocol
-    val pendingHostKey by SshHostKeyPromptState.pending
     val store = remember { ConfigStore(activity) }
     val writeStatus by ConfigWrites.status.collectAsState()
     var error by remember { mutableStateOf<String?>(null) }
@@ -259,10 +242,9 @@ internal fun MainScreen(
     var profileMenuExpanded by remember { mutableStateOf(false) }
     var profiles by remember { mutableStateOf(store.sortedProfiles()) }
     var activeProfileId by remember { mutableStateOf(store.activeProfileId()) }
-    var connectionProfileId by remember { mutableStateOf(store.connectionProfile().id) }
+    var connectionProfileId by remember { mutableStateOf(store.connectionProfileId()) }
     var connectionStats by remember { mutableStateOf<DisplayedConnectionStats?>(null) }
     var systemVpnStatus by remember { mutableStateOf(readAlwaysOnVpnStatus(activity)) }
-    var vpnPermissionRequestedAt by remember { mutableStateOf(0L) }
     var showCrashReport by remember { mutableStateOf(CrashHandler.hasPendingReport()) }
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
     var pendingReconnect by remember { mutableStateOf(store.hasPendingReconnect()) }
@@ -281,7 +263,7 @@ internal fun MainScreen(
                             status = status,
                             profiles = store.sortedProfiles(),
                             activeProfileId = store.activeProfileId(),
-                            connectionProfileId = if (status.enabled) store.alwaysOnProfileId() else store.connectionProfile().id,
+                            connectionProfileId = if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfileId(),
                             pendingReconnect = store.hasPendingReconnect(),
                             globalSettings = store.globalConnectionSettings(),
                         )
@@ -315,24 +297,27 @@ internal fun MainScreen(
         }
         lifecycleOwner.lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
             var previous: NativeConnectionStats? = null
+            var previousAt = 0L
             var smoothedDownload = 0.0
             var smoothedUpload = 0.0
             while (true) {
-                // JNI reflection and JSON decoding are small but not frame work. Some
+                // JNI calls and JSON decoding are small but not frame work. Some
                 // vendor devices expose their cost as visible input latency, so sample
                 // away from the main dispatcher.
                 val snapshot = withContext(Dispatchers.Default) {
-                    ConnectionStatsReader.snapshot()
+                    readConnectionStats()
                 }
+                val sampledAt = android.os.SystemClock.elapsedRealtime()
                 if (snapshot != null) {
                     previous?.let { old ->
-                        val download = (snapshot.downloadBytes - old.downloadBytes).coerceAtLeast(0).toDouble()
-                        val upload = (snapshot.uploadBytes - old.uploadBytes).coerceAtLeast(0).toDouble()
+                        val download = sampledTrafficRate(snapshot.downloadBytes, old.downloadBytes, sampledAt - previousAt)
+                        val upload = sampledTrafficRate(snapshot.uploadBytes, old.uploadBytes, sampledAt - previousAt)
                         val alpha = 0.35
                         smoothedDownload = if (smoothedDownload == 0.0) download else alpha * download + (1 - alpha) * smoothedDownload
                         smoothedUpload = if (smoothedUpload == 0.0) upload else alpha * upload + (1 - alpha) * smoothedUpload
                     }
                     previous = snapshot
+                    previousAt = sampledAt
                     connectionStats = DisplayedConnectionStats(snapshot, smoothedDownload, smoothedUpload)
                 }
                 delay(1_000)
@@ -344,8 +329,7 @@ internal fun MainScreen(
             if (!isAlwaysOnVpnActive(activity)) ProxyVpnService.start(activity) else error = null
         } else {
             val status = readAlwaysOnVpnStatus(activity)
-            val dismissedImmediately = System.currentTimeMillis() - vpnPermissionRequestedAt < 1_000
-            if (status.hasOtherProvider || dismissedImmediately) {
+            if (status.hasOtherProvider) {
                 error = null
                 showAlwaysOnConflict = true
             } else {
@@ -363,7 +347,6 @@ internal fun MainScreen(
             if (intent == null) {
                 ProxyVpnService.start(activity)
             } else {
-                vpnPermissionRequestedAt = System.currentTimeMillis()
                 vpnPermission.launch(intent)
             }
         }
@@ -403,6 +386,7 @@ internal fun MainScreen(
                         DropdownMenu(actionsMenuExpanded, { actionsMenuExpanded = false }) {
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.test_connection)) },
+                                enabled = connection != VpnConnectionState.CONNECTING,
                                 onClick = { actionsMenuExpanded = false; onOpenConnectionTest() },
                             )
                             DropdownMenuItem(
@@ -603,8 +587,7 @@ internal fun MainScreen(
                         connect()
                     }
                 },
-                enabled = !alwaysOn && writeStatus.pending == 0 && !writeStatus.failed &&
-                    (connection != VpnConnectionState.DISCONNECTED || activeProfileError == null),
+                enabled = connectionActionEnabled(connection, alwaysOn, writeStatus, activeProfileError == null),
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(
@@ -716,37 +699,7 @@ internal fun MainScreen(
         )
     }
 
-    pendingHostKey?.takeIf { !it.testOnly }?.let { pending ->
-        fun dismissHostKeyPrompt() {
-            SshHostKeyPromptState.clear()
-            ProxyVpnService.dismissHostKeyPrompt(activity)
-        }
-        AlertDialog(
-            onDismissRequest = ::dismissHostKeyPrompt,
-            title = { DialogTitle(stringResource(if (pending.changed) R.string.ssh_host_key_changed else R.string.trust_ssh_host_key)) },
-            text = { ScrollableDialogText(buildString {
-                if (pending.changed) {
-                    append(activity.uiText(R.string.ssh_changed_key_warning, activity.sshHopLabel(pending.hop)))
-                } else {
-                    append(activity.uiText(R.string.ssh_first_connection_warning, activity.sshHopLabel(pending.hop)))
-                }
-                append(activity.uiText(R.string.ssh_key_details, pending.algorithm, pending.fingerprint))
-            }) },
-            confirmButton = {
-                TextButton(shape = RoundedCornerShape(12.dp), onClick = {
-                    if (store.trustSshHostKey(pending.profileId, pending.hop, pending.fingerprint)) {
-                        SshHostKeyPromptState.clear()
-                        ProxyVpnService.reconnect(activity)
-                    } else {
-                        error = activity.uiText(R.string.ssh_key_save_failed)
-                    }
-                }) { Text(stringResource(if (pending.changed) R.string.replace_trusted_key else R.string.trust_and_connect)) }
-            },
-            dismissButton = {
-                TextButton(shape = RoundedCornerShape(12.dp), onClick = ::dismissHostKeyPrompt) { Text(stringResource(R.string.cancel)) }
-            },
-        )
-    }
+
 }
 
 private fun isAlwaysOnVpnActive(activity: Activity): Boolean =

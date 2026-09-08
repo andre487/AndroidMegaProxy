@@ -5,6 +5,7 @@ Server configurations and setup instructions have moved to the dedicated
 
 Client connections:
 
+- [Installation](../../README.md#installation)
 - [HTTPS with Jump](../../README.md#https-with-jump)
 
 Developer documentation:

@@ -25,7 +25,8 @@ func errorClass(err error) string {
 	if errors.Is(err, io.EOF) {
 		return "eof"
 	}
-	if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
 		return "timeout"
 	}
 	message := strings.ToLower(err.Error())

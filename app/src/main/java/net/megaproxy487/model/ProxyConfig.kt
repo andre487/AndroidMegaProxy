@@ -1,5 +1,6 @@
 package net.megaproxy487.model
 
+import java.net.URI
 import androidx.annotation.StringRes
 import net.megaproxy487.R
 
@@ -55,7 +56,7 @@ data class ProxyConfig(
         type == ProxyType.HTTPS_JUMP && !sameJumpAuthentication && jumpPassword.isBlank() -> R.string.validation_jump_basic_password
         type.isHttps && profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
             R.string.validation_ja3
-        dnsProvider == DnsProvider.CUSTOM && !customDohUrl.matches(Regex("https://[^/\\s]+/.+")) ->
+        dnsProvider == DnsProvider.CUSTOM && !validDohUrl(customDohUrl.trim()) ->
             R.string.validation_doh_url
         else -> null
     }
@@ -198,11 +199,28 @@ data class Ja3Spec(
 ) {
     companion object {
         fun parse(value: String): Ja3Spec? = runCatching {
+            require(value.length <= 8192)
             val fields = value.trim().split(',')
             require(fields.size == 5)
-            fun numbers(field: String): List<Int> = if (field.isBlank()) emptyList() else
-                field.split('-').map { it.toInt().also { number -> require(number in 0..65535) } }
-            Ja3Spec(fields[0].toInt(), numbers(fields[1]), numbers(fields[2]), numbers(fields[3]), numbers(fields[4]))
+            fun numbers(field: String): List<Int> = if (field.isEmpty()) emptyList() else
+                field.split('-').also { require(it.size <= 256) }.map {
+                    require(it.matches(Regex("[0-9]+")))
+                    it.toInt().also { number -> require(number in 0..65535) }
+                }
+            val version = numbers(fields[0]).single()
+            require(version == 771 || version == 772)
+            val ciphers = numbers(fields[1])
+            require(ciphers.isNotEmpty())
+            val points = numbers(fields[4])
+            require(points.all { it <= 255 })
+            Ja3Spec(version, ciphers, numbers(fields[2]), numbers(fields[3]), points)
         }.getOrNull()
     }
 }
+
+internal fun validDohUrl(value: String): Boolean = runCatching {
+    val uri = URI(value)
+    uri.scheme == "https" && !uri.host.isNullOrBlank() && !uri.rawPath.isNullOrEmpty() &&
+        uri.rawUserInfo == null && uri.rawFragment == null &&
+        (uri.port == -1 || uri.port in 1..65535)
+}.getOrDefault(false)

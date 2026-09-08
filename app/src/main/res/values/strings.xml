@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="privacy_policy">Privacy policy</string>
     <string name="app_name" translatable="false">MegaProxy</string>
     <string name="settings">Settings</string>
     <string name="connection">Connection</string>
@@ -456,4 +457,7 @@
     <string name="transfer_working">Processing configuration…</string>
     <string name="draft_profile_hint">This profile will be saved after your first change. Go back to cancel.</string>
     <string name="main_actions">More actions</string>
+    <string name="log_read_failed">Could not read the diagnostic log. Retrying…</string>
+    <string name="error_config_complex">The configuration is too deeply nested or contains too many JSON elements.</string>
+    <string name="vpn_command_failed">Could not complete the VPN command. Check the connection state and try again.</string>
 </resources>

@@ -172,6 +172,19 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
             }.onFailure { supportError = activity.uiText(R.string.no_browser) }
         }
         supportError?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+        TextButton(
+            onClick = {
+                try {
+                    activity.startActivity(Intent(Intent.ACTION_VIEW,
+                        Uri.parse("https://github.com/andre487/AndroidMegaProxy/blob/main/PRIVACY.md")))
+                } catch (_: Exception) {
+                    supportError = activity.uiText(R.string.no_browser)
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(R.string.privacy_policy))
+        }
     }
 
     if (showLanguageDialog) {
@@ -253,6 +266,7 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
 @Composable
 internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
+    val profiles = remember(store) { store.sortedProfiles() }
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
     var expanded by remember { mutableStateOf(false) }
@@ -277,7 +291,7 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
         if (settings.failoverMode == FailoverMode.SELECTED) {
             Text(stringResource(R.string.fallback_profiles), style = MaterialTheme.typography.titleMedium)
             Text(stringResource(R.string.fallback_profiles_order), style = MaterialTheme.typography.bodySmall)
-            store.sortedProfiles().forEach { profile ->
+            profiles.forEach { profile ->
                 val checked = profile.id in settings.failoverProfileIds
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
@@ -294,7 +308,7 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
                     Text(profile.localizedNameWithFlag(activity), modifier = Modifier.weight(1f))
                 }
             }
-            val usableFallbacks = store.sortedProfiles().count { it.id in settings.failoverProfileIds }
+            val usableFallbacks = profiles.count { it.id in settings.failoverProfileIds }
             if (usableFallbacks < 2) {
                 Text(
                     stringResource(R.string.failover_profiles_warning),
@@ -328,6 +342,7 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
 @Composable
 internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
+    val profiles = remember(store) { store.sortedProfiles() }
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(store.alwaysOnProfile()) }
@@ -341,7 +356,7 @@ internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
                 modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             )
             DropdownMenu(expanded, { expanded = false }) {
-                store.sortedProfiles().forEach { profile ->
+                profiles.forEach { profile ->
                     DropdownMenuItem(text = { Text(profile.localizedNameWithFlag(activity)) }, onClick = {
                         selected = profile
                         ConfigWrites.submit("always-on") { store.setAlwaysOnProfile(profile.id) }

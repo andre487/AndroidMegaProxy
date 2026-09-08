@@ -16,6 +16,8 @@ including JDK 21, Go, the Android SDK, and the Android NDK. Then install Ruby 3.
 `.ruby-version`. A Ruby version manager is recommended; do not depend on the old system Ruby
 included with macOS.
 
+Native and release build scripts discover JDK 21 from `JAVA_HOME`, macOS `java_home`, or `java` on `PATH`. An explicitly configured incompatible JDK fails early; no Homebrew installation path is assumed.
+
 Install a current Bundler and the repository-pinned Fastlane dependency from the project root:
 
 ```shell
@@ -35,6 +37,10 @@ That command lists the lanes available in the checked-out version of the project
 
 | Command | Result |
 | --- | --- |
+| `bundle exec fastlane android python_format` | Formats Python scripts with pinned Black and isort. |
+| `bundle exec fastlane android python_tests` | Runs Python unit tests. |
+| `bundle exec fastlane android python_checks` | Checks Python formatting/import order and runs unit tests. |
+| `bundle exec fastlane android native_fuzz` | Fuzzes native parsers for 20 seconds with two workers. |
 | `bundle exec fastlane android native_tests` | Runs all Go tests with the race detector. |
 | `bundle exec fastlane android android_checks` | Builds the native AAR, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
 | `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
@@ -81,10 +87,11 @@ suite. Failed, cancelled and skipped jobs do not count as successful coverage. C
 belong to the same PR and repository, use the same recorded PR base and precede the current run.
 Rebased-away commits are ignored. The history search examines the latest 30 completed CI runs on
 the branch through gh; missing history, API errors and old runs without a recorded base fall back
-to the full PR diff. Pushes to main compare push endpoints. Each suite's baseline and decision are
+to the full PR diff. Every push to main runs all suites without diff/history filtering; the README badge explicitly tracks
+`badge.svg?branch=main&event=push`. Each suite's baseline and decision are
 shown in the Actions summary. Reruns exclude their own run ID from baseline selection.
 
-Python-only changes run Python checks; documentation-only changes skip test jobs. Native production
+On initial PR runs, Python-only changes run Python checks; documentation-only changes skip test jobs. Native production
 changes enable Go and Android, while Go test-only changes enable Go. Shared CI/Fastlane inputs and
 unknown paths enable all suites. Failed diff calculation fails `Change scope` instead of silently
 skipping tests. Skipped Android builds do not publish APK artifacts.
@@ -112,7 +119,7 @@ python3 scripts/github_actions.py --dry-run
 python3 scripts/github_actions.py --yes
 ```
 
-Choose an open PR and either rerun all CI jobs or only failed jobs. Requires GitHub CLI (`gh`)
+Choose an open PR and either rerun all CI jobs **including skipped checks**, or only failed jobs. Requires GitHub CLI (`gh`)
 and its existing authentication (`gh auth login`, `GH_TOKEN` or `GITHUB_TOKEN`). The launcher uses
 native gh commands, no custom HTTP client or token storage. `--repo OWNER/REPO` overrides the repo.
 `--yes` / `-y` skips final confirmation but retains menu selection and the stale-head check;
@@ -120,5 +127,48 @@ native gh commands, no custom HTTP client or token storage. `--repo OWNER/REPO` 
 The script targets an existing completed CI run for the exact current PR commit. Running/queued
 jobs and missing runs are rejected; CI normally starts on pushes. Failed-only mode requires a failed
 run; cancelled runs can be rerun with all jobs. Launch failures/timeouts are never retried automatically.
-Rerunning preserves that run's original commit and diff baseline; push a new commit to reassess scope
-against an updated PR base. No device or release workflows are offered.
+A full rerun also reruns Change scope. On attempt 2 or later it enables Android (including
+Compose UI tests), native and Python suites without diff/history filtering. The same applies to
+GitHub's Re-run all jobs button. Failed-only reruns keep the existing scope unless Change scope
+itself failed and is rerun, in which case all suites are enabled.
+[GitHub reruns preserve the original commit](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/re-run-workflows-and-jobs).
+Runs created before this workflow change retain the old filtering; push a new commit first.
+No device or release workflows are offered.
+
+### Native parser fuzzing
+
+Run a bounded local fuzz campaign for native config, JA3 and DNS parsers (20 seconds, two workers). Seed inputs also run as part of `native_tests`. This campaign is not a device test.
+
+```shell
+bundle exec fastlane android native_fuzz
+```
+
+## Compose UI tests without an emulator
+
+`bundle exec fastlane android android_checks` (and `android test`) runs the Robolectric
+Compose tests in `app/src/test` together with the existing JVM tests. They also run in the
+normal Android PR check; no device, ADB or KVM is required.
+
+The interaction suite covers the main user flows:
+
+- Main screen: connect/reconnect/disconnect, permission approval and denial, invalid profiles,
+  Always-on conflicts, disabled actions while connecting, and profile selection.
+- Profiles: draft creation, editing and port validation, SSH/HTTPS Jump fields, certificate
+  bypass confirmation, cloning/deletion, file import errors, and export without passwords.
+- Settings: traffic units, TLS fingerprint, failover confirmation, and selected-app routing.
+- Navigation: settings destinations and Back, profile creation, diagnostics, and SSH prompts.
+- Diagnostics: running/success/failure states, exit IP, log copying and clear confirmation.
+- SSH trust: successful save, failed save and retry, disabled actions/Back during a pending
+  save, and test cancellation (`SshHostKeyUiTest`).
+
+`MainUiTestBase` uses the real screens and ConfigStore with an in-memory test Keystore
+provider. Robolectric records service commands and supplies permission/document-picker
+results; the connection statistics reader is injected. Tests do not start VPN forwarding,
+load Go JNI or access the device Keystore. A plain test Application, Android API 35 and
+English resources are pinned; Robolectric downloads its Android runtime from Maven Central
+on the first run.
+
+Add behavior tests using the same runner and Compose rule. Keep platform operations at the
+screen boundary and supply deterministic fakes; avoid sleeps and real network calls.
+These are interaction tests, not screenshot comparisons or device lifecycle certification.
+See [Robolectric setup](https://robolectric.org/getting-started/).

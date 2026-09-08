@@ -5,6 +5,7 @@ import (
 	"context"
 	stdtls "crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -38,6 +39,9 @@ type connectionTestResult struct {
 
 // TestConnection verifies the configured proxy path without starting a TUN device.
 func TestConnection(rawConfig string, protector Protector, reporter Reporter) (string, error) {
+	if protector == nil {
+		return "", errors.New("Android socket protector is required")
+	}
 	c, err := parseConfig(rawConfig)
 	if err != nil {
 		return "", err
@@ -143,6 +147,9 @@ func testHTTPSGet(ctx context.Context, connect func(context.Context, string) (ne
 		return "", err
 	}
 	defer tunnel.Close()
+	// Close the raw tunnel directly: TLS Close can wait to send close_notify.
+	stopCancellation := context.AfterFunc(ctx, func() { _ = tunnel.Close() })
+	defer stopCancellation()
 
 	connection := stdtls.Client(tunnel, &stdtls.Config{ServerName: host, MinVersion: stdtls.VersionTLS12})
 	if err := connection.HandshakeContext(ctx); err != nil {
@@ -151,6 +158,13 @@ func testHTTPSGet(ctx context.Context, connect func(context.Context, string) (ne
 	tlsState := connection.ConnectionState()
 	report(reporter, "event=connection_test stage=destination_tls result=success certificate=verified version=0x%04x cipher=0x%04x alpn=%s h2_negotiated=%t session_resumed=%t", tlsState.Version, tlsState.CipherSuite, normalizedALPN(tlsState.NegotiatedProtocol), tlsState.NegotiatedProtocol == "h2", tlsState.DidResume)
 
+	return testHTTPExchange(ctx, connection, host, path, readBody)
+}
+
+func testHTTPExchange(ctx context.Context, connection net.Conn, host, path string, readBody bool) (string, error) {
+	// Request.Write/ReadResponse use raw I/O and do not observe Request.Context.
+	stopCancellation := context.AfterFunc(ctx, func() { _ = connection.Close() })
+	defer stopCancellation()
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://"+host+path, nil)
 	if err != nil {
 		return "", err
@@ -160,7 +174,7 @@ func testHTTPSGet(ctx context.Context, connect func(context.Context, string) (ne
 	if err := request.Write(connection); err != nil {
 		return "", fmt.Errorf("write HTTPS request: %w", err)
 	}
-	response, err := http.ReadResponse(bufio.NewReader(connection), request)
+	response, err := http.ReadResponse(bufio.NewReader(&limitedHeaderReader{reader: connection, remaining: 64 * 1024}), request)
 	if err != nil {
 		return "", fmt.Errorf("read HTTPS response: %w", err)
 	}
