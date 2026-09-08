@@ -14,6 +14,8 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import net.megaproxy487.vpn.ConnectionStatsReader
+import net.megaproxy487.vpn.NativeConnectionStats
 
 internal object AppRoute {
     const val MAIN = "main"
@@ -72,7 +74,10 @@ internal val settingsDestinations = connectionSettingsDestinations + listOf(
 )
 
 @Composable
-internal fun MegaProxyNavHost(activity: Activity) {
+internal fun MegaProxyNavHost(
+    activity: Activity,
+    readConnectionStats: () -> NativeConnectionStats? = ConnectionStatsReader::snapshot,
+) {
     val navController = rememberNavController()
     val hostKeyPrompt by net.megaproxy487.vpn.SshHostKeyPromptState.pending
     val back = { navController.popBackStack(); Unit }
@@ -89,6 +94,7 @@ internal fun MegaProxyNavHost(activity: Activity) {
         composable(AppRoute.MAIN) {
             ScreenDestination(AppRoute.MAIN) { MainScreen(
                 activity = activity,
+                readConnectionStats = readConnectionStats,
                 onOpenSettings = { navController.navigate(AppRoute.SETTINGS) },
                 onOpenConnectionTest = { navController.navigate(AppRoute.CONNECTION_TEST) },
                 onEditProfile = { navController.navigate(AppRoute.profileEditor(it)) },

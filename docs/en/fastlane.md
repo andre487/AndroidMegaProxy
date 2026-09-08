@@ -139,11 +139,24 @@ bundle exec fastlane android native_fuzz
 Compose tests in `app/src/test` together with the existing JVM tests. They also run in the
 normal Android PR check; no device, ADB or KVM is required.
 
-`SshHostKeyUiTest` exercises the production SSH confirmation dialog: successful save,
-failed save and retry, disabled actions/Back during a pending save, and test cancellation.
-It uses a plain test Application and injected operations, so it does not start the VPN,
-load Go JNI or access Android Keystore. The test pins Android API 35 and English resources;
-Robolectric downloads its Android runtime from Maven Central on the first run.
+The interaction suite covers the main user flows:
+
+- Main screen: connect/reconnect/disconnect, permission approval and denial, invalid profiles,
+  Always-on conflicts, disabled actions while connecting, and profile selection.
+- Profiles: draft creation, editing and port validation, SSH/HTTPS Jump fields, certificate
+  bypass confirmation, cloning/deletion, file import errors, and export without passwords.
+- Settings: traffic units, TLS fingerprint, failover confirmation, and selected-app routing.
+- Navigation: settings destinations and Back, profile creation, diagnostics, and SSH prompts.
+- Diagnostics: running/success/failure states, exit IP, log copying and clear confirmation.
+- SSH trust: successful save, failed save and retry, disabled actions/Back during a pending
+  save, and test cancellation (`SshHostKeyUiTest`).
+
+`MainUiTestBase` uses the real screens and ConfigStore with an in-memory test Keystore
+provider. Robolectric records service commands and supplies permission/document-picker
+results; the connection statistics reader is injected. Tests do not start VPN forwarding,
+load Go JNI or access the device Keystore. A plain test Application, Android API 35 and
+English resources are pinned; Robolectric downloads its Android runtime from Maven Central
+on the first run.
 
 Add behavior tests using the same runner and Compose rule. Keep platform operations at the
 screen boundary and supply deterministic fakes; avoid sleeps and real network calls.

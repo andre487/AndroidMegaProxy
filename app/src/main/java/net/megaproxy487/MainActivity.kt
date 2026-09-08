@@ -227,6 +227,7 @@ internal fun MainScreen(
     onOpenSettings: () -> Unit,
     onOpenConnectionTest: () -> Unit,
     onEditProfile: (String) -> Unit,
+    readConnectionStats: () -> NativeConnectionStats? = ConnectionStatsReader::snapshot,
 ) {
     val connection by VpnRuntimeState.connection
     val runtimeAlwaysOn by VpnRuntimeState.alwaysOn
@@ -300,11 +301,11 @@ internal fun MainScreen(
             var smoothedDownload = 0.0
             var smoothedUpload = 0.0
             while (true) {
-                // JNI reflection and JSON decoding are small but not frame work. Some
+                // JNI calls and JSON decoding are small but not frame work. Some
                 // vendor devices expose their cost as visible input latency, so sample
                 // away from the main dispatcher.
                 val snapshot = withContext(Dispatchers.Default) {
-                    ConnectionStatsReader.snapshot()
+                    readConnectionStats()
                 }
                 val sampledAt = android.os.SystemClock.elapsedRealtime()
                 if (snapshot != null) {
