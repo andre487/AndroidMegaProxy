@@ -13,12 +13,17 @@ import org.robolectric.shadows.ShadowVpnService
 class MainScreenUiTest : MainUiTestBase() {
     private fun screen() = content { MainScreen(activity, {}, {}, {}, readConnectionStats = { null }) }
     private fun command(action: String) {
-        var received: Intent? = null
-        compose.waitUntil(10_000) {
-            received = shadowOf(activity.application as Application).nextStartedService
-            received?.action == "net.megaproxy487.$action"
-        }
+        drainConfigIo()
+        val application = shadowOf(activity.application as Application)
+        val received = application.nextStartedService
+        assertEquals("net.megaproxy487.$action", received?.action)
         assertEquals(ProxyVpnService::class.java.name, received?.component?.className)
+        assertNull("Unexpected extra service command", application.nextStartedService)
+    }
+
+    private fun noCommand() {
+        drainConfigIo()
+        assertNull(shadowOf(activity.application as Application).nextStartedService)
     }
 
     @Test fun connectDispatchesStartAndPersistsDesiredState() {
@@ -33,7 +38,7 @@ class MainScreenUiTest : MainUiTestBase() {
         ShadowVpnService.setPrepareResult(consent)
         screen()
         node(R.string.connect).performScrollTo().performClick()
-        assertNull(shadowOf(activity.application as Application).nextStartedService)
+        noCommand()
         compose.runOnIdle {
             ShadowVpnService.setPrepareResult(null)
             shadowOf(activity).receiveResult(consent, android.app.Activity.RESULT_OK, null)
@@ -51,7 +56,7 @@ class MainScreenUiTest : MainUiTestBase() {
         saved()
         assertEquals(other.id, store.activeProfileId())
         compose.onNodeWithText("Secondary").assertIsDisplayed()
-        assertNull(shadowOf(activity.application as Application).nextStartedService)
+        noCommand()
     }
 
     @Test fun invalidProfileRequiresConfigurationBeforeConnect() {
@@ -71,6 +76,7 @@ class MainScreenUiTest : MainUiTestBase() {
         compose.runOnIdle { activity.onBackPressedDispatcher.onBackPressed() }
         node(R.string.disconnect).performScrollTo().assertIsEnabled().performClick()
         command("STOP")
+        assertFalse(store.isConnectionDesired())
     }
 
     @Test fun connectedSessionOffersReconnectAndDisconnectWithoutLoadingJni() {
@@ -80,6 +86,7 @@ class MainScreenUiTest : MainUiTestBase() {
         command("RECONNECT")
         node(R.string.disconnect).performScrollTo().performClick()
         command("STOP")
+        assertFalse(store.isConnectionDesired())
     }
 
     @Test fun alwaysOnDisablesManualConnectionControl() {
@@ -93,7 +100,7 @@ class MainScreenUiTest : MainUiTestBase() {
         screen()
         node(R.string.connect).performScrollTo().performClick()
         node(R.string.always_on_conflict_title).assertIsDisplayed()
-        assertNull(shadowOf(activity.application as Application).nextStartedService)
+        noCommand()
     }
 
     @Test fun deniedPermissionShowsDenialRatherThanAlwaysOnConflict() {
@@ -104,5 +111,7 @@ class MainScreenUiTest : MainUiTestBase() {
         compose.runOnIdle { shadowOf(activity).receiveResult(consent, android.app.Activity.RESULT_CANCELED, null) }
         node(R.string.vpn_permission_denied).assertIsDisplayed()
         node(R.string.always_on_conflict_title).assertDoesNotExist()
+        noCommand()
+        assertFalse(store.isConnectionDesired())
     }
 }

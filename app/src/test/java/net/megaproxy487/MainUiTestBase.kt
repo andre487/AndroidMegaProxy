@@ -7,6 +7,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigWrites
 import net.megaproxy487.model.GlobalConnectionSettings
@@ -21,6 +22,9 @@ import org.robolectric.annotation.Config
 import org.robolectric.annotation.LooperMode
 import org.robolectric.shadows.ShadowVpnService
 import java.security.Security
+import java.util.concurrent.atomic.AtomicBoolean
+import kotlin.coroutines.EmptyCoroutineContext
+import org.junit.Assert.assertFalse
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class, qualifiers = "en-w411dp-h891dp")
@@ -33,9 +37,17 @@ abstract class MainUiTestBase {
     protected fun node(id: Int) = compose.onNodeWithText(text(id))
     protected fun icon(id: Int) = compose.onNodeWithContentDescription(text(id))
     protected fun content(block: @Composable () -> Unit) = compose.setContent { MaterialTheme { block() } }
-    protected fun saved() {
-        compose.waitUntil(10_000) { ConfigWrites.status.value.pending == 0 }
+    protected fun drainConfigIo() {
         compose.waitForIdle()
+        val completed = AtomicBoolean()
+        ConfigIoDispatcher.dispatch(EmptyCoroutineContext, Runnable { completed.set(true) })
+        compose.waitUntil(10_000) { completed.get() }
+        compose.waitForIdle()
+    }
+    protected fun saved() {
+        drainConfigIo()
+        compose.waitUntil(10_000) { ConfigWrites.status.value.pending == 0 }
+        assertFalse("Configuration write failed", ConfigWrites.status.value.failed)
     }
     protected fun waitForText(value: String) {
         compose.waitUntil(10_000) { compose.onAllNodesWithText(value).fetchSemanticsNodes().isNotEmpty() }
@@ -60,8 +72,11 @@ abstract class MainUiTestBase {
     }
 
     @After fun finishPlatform() {
-        saved()
-        Security.removeProvider("AndroidKeyStore")
-        UiTestKeyStore.keys.clear()
+        try {
+            saved()
+        } finally {
+            Security.removeProvider("AndroidKeyStore")
+            UiTestKeyStore.keys.clear()
+        }
     }
 }
