@@ -83,18 +83,20 @@ Cloud, создайте сервисный аккаунт и пригласит�
 См. [настройку Google API](https://developers.google.com/android-publisher/getting_started) и
 [настройку Fastlane supply](https://docs.fastlane.tools/actions/upload_to_play_store/#setup).
 
+Сохраните `export SUPPLY_JSON_KEY_DATA=...` с полным JSON в корректных shell-кавычках в локальном
+файле `~/.config/megaproxy/release.env`. Храните его вне репозитория с правами `0600`.
 Запускайте из корня репозитория:
 
 ```shell
-export SUPPLY_JSON_KEY_DATA="$(cat "$HOME/.my-tokens/megaproxy-play.json")"
+source "$HOME/.config/megaproxy/release.env"
 bundle exec fastlane android release_artifacts
 bundle exec fastlane android play_release validate_only:true
 bundle exec fastlane android play_release
 ```
 
 `SUPPLY_JSON_KEY_DATA` — штатная переменная окружения Fastlane с полным содержимым JSON-ключа,
-а не путём к файлу или строкой Base64. Если локальное окружение уже задаёт её, пропустите `export`
-выше. Файл в примере — лишь вариант локального хранения; сам lane файлы ключей не читает.
+а не путём к файлу или строкой Base64. Загрузка `release.env` экспортирует её для Fastlane;
+если окружение уже задаёт переменную, дополнительная настройка ключа не нужна.
 
 В GitHub создайте Actions secret `SUPPLY_JSON_KEY_DATA` с тем же полным JSON.
 Существующий release-workflow по тегу передаёт его только шагу загрузки:
@@ -110,17 +112,6 @@ bundle exec fastlane android play_release
 AAB и symbols из `dist/release` как internal-черновик. Отсутствие секрета или ошибка загрузки в Play
 завершает workflow с ошибкой; уже опубликованный GitHub Release остаётся доступным. Не передавайте
 ключ аргументом lane и не выводите его в логи. Workflow для PR не должны получать этот ключ.
-
-В существующий локальный shell env-файл добавьте `export SUPPLY_JSON_KEY_DATA=...` с JSON в
-корректных shell-кавычках и загрузите файл перед запуском Fastlane. Например, для локальной
-релизной конфигурации:
-
-```shell
-source "$HOME/.config/megaproxy/release.env"
-bundle exec fastlane android play_release
-```
-
-Храните env-файл вне репозитория с правами `0600`.
 
 По умолчанию создаётся **черновик в треке internal**. `validate_only:true` загружает файлы во
 временную транзакцию Google Play и проверяет её через API без сохранения релиза; нужны ключ

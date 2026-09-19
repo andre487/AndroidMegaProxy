@@ -80,18 +80,20 @@ for the intended test/production tracks. Keep the JSON key outside the repositor
 See [Google API setup](https://developers.google.com/android-publisher/getting_started) and
 [Fastlane supply setup](https://docs.fastlane.tools/actions/upload_to_play_store/#setup).
 
-Run from the repository root:
+Store `export SUPPLY_JSON_KEY_DATA=...` with the complete, shell-quoted JSON in the local
+`~/.config/megaproxy/release.env` file. Keep this file outside the repository with permissions
+`0600`. Run from the repository root:
 
 ```shell
-export SUPPLY_JSON_KEY_DATA="$(cat "$HOME/.my-tokens/megaproxy-play.json")"
+source "$HOME/.config/megaproxy/release.env"
 bundle exec fastlane android release_artifacts
 bundle exec fastlane android play_release validate_only:true
 bundle exec fastlane android play_release
 ```
 
 `SUPPLY_JSON_KEY_DATA` is Fastlane's standard environment variable for the complete JSON key,
-not a file path or Base64 string. If your local environment already supplies it, omit the `export`
-above. The file in that example is only a local storage option; the lane does not read key files.
+not a file path or Base64 string. Sourcing `release.env` exports it for Fastlane; if your
+environment already supplies it, no additional key setup is needed.
 
 In GitHub, create an Actions secret named `SUPPLY_JSON_KEY_DATA` containing the same complete JSON.
 The existing tag-triggered release workflow passes it only to the upload step:
@@ -107,16 +109,6 @@ After building and verifying the artifacts and publishing the GitHub Release, th
 the matching AAB and symbols from `dist/release` as an internal draft. A missing secret or failed
 Play upload fails the workflow; the already published GitHub Release remains available. Do not
 pass the key as a lane argument or print it in logs. PR workflows must not receive it.
-
-For an existing local shell env file, add `export SUPPLY_JSON_KEY_DATA=...` using a shell-quoted JSON
-value and source that file before running Fastlane. For example, with the local release configuration:
-
-```shell
-source "$HOME/.config/megaproxy/release.env"
-bundle exec fastlane android play_release
-```
-
-Keep the env file outside the repository with permissions `0600`.
 
 The default upload creates a **draft on the internal track**. `validate_only:true` uploads to a
 temporary Google Play edit and asks the API to validate it without committing a release; it needs
