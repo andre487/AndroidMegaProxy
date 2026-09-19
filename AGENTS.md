@@ -54,6 +54,9 @@ branch names, credentials, signing material, or other secrets.
 
 - Release builds and signing are separate from PR CI. Release artifacts are created only through
   the dedicated release workflow/Fastlane lane.
+- Google Play uploads use `SUPPLY_JSON_KEY_DATA` with the complete service-account JSON in both
+  local env and GitHub Actions secrets. The tag release workflow uploads an internal draft after
+  publishing GitHub artifacts; PR workflows must never receive this secret.
 - After creating and verifying a release, update the corresponding F-Droid submission/build recipe
   when required. The repository's F-Droid-related files are for reproducible verification, not an
   excuse to maintain a duplicate unused build path.

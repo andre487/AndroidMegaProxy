@@ -342,8 +342,15 @@ and `SHA256SUMS` are written to `dist/release`. The App Bundle contains every su
 stores generate and serve optimized device-specific APK splits from it. Go native symbols are
 provided as `mega-proxy-native-debug-symbols.zip` for upload in Play Console.
 
+To upload the AAB and native symbols through Fastlane, configure a Play service account and run
+`bundle exec fastlane android play_release` (internal draft by default). See the
+[Google Play release instructions](docs/en/fastlane.md#google-play-releases)
+([по-русски](docs/ru/fastlane.md#релизы-в-google-play)) for credentials, validation and production uploads.
+
 Pushing a version tag runs the same Fastlane release lane in GitHub Actions, builds and verifies
-every APK and the App Bundle, and attaches the artifacts to a GitHub Release. The tag must match
+every APK and the App Bundle, attaches the artifacts to a GitHub Release, then uploads the AAB
+and native symbols as a Google Play internal draft. Configure the repository Actions secret
+`SUPPLY_JSON_KEY_DATA` with the complete service-account JSON key for that upload. The tag must match
 `v` followed by the current `versionName` in `app/build.gradle.kts`. Create that tag with
 `git tag` and push the specific tag with `git push origin`; do not reuse a historical release tag.
 

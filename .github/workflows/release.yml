@@ -110,3 +110,8 @@ jobs:
               --generate-notes \
               --title "MegaProxy ${GITHUB_REF_NAME}"
           fi
+
+      - name: Upload Google Play internal draft
+        env:
+          SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
+        run: bundle exec fastlane android play_release track:internal release_status:draft

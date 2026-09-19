@@ -47,6 +47,7 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_artifacts` | Собирает и проверяет подписанные APK, AAB, native debug symbols и `SHA256SUMS` в `dist/release`. |
+| `bundle exec fastlane android play_release` | Загружает готовый подписанный AAB и native symbols в Google Play; по умолчанию создаёт internal-черновик. |
 
 Для release lane нужна конфигурация подписи из раздела
 [Signed release builds](../../README.md#signed-release-builds). Lane только собирает артефакты: он
@@ -66,6 +67,79 @@ Android, а сами файлы хранятся 14 дней. После усп�
 checkout, не скачивает и не исполняет код или артефакты из PR. Это только тестовые артефакты: ни
 один из APK не подписан официальным release-ключом MegaProxy, не публикуется в GitHub Releases и не
 отправляется в магазин приложений.
+
+## Релизы в Google Play
+
+`play_release` загружает готовый подписанный AAB и соответствующие native symbols для
+`net.megaproxy487`. Соберите их через `release_artifacts` или скачайте оба файла из одного
+проверенного GitHub Release. Lane не собирает и не подписывает файлы. Для нового релиза нужен
+неиспользованный возрастающий `versionCode`. AAB должен быть подписан upload key,
+зарегистрированным в Play Console.
+
+Перед первой загрузкой через API создайте приложение в Play Console, настройте Play App Signing
+и вручную загрузите первоначальную сборку. Включите Google Play Developer API в проекте Google
+Cloud, создайте сервисный аккаунт и пригласите его email в Play Console с доступом к приложению
+и правами для нужных тестовых/production-треков. Храните JSON-ключ вне репозитория и передавайте его содержимое через `SUPPLY_JSON_KEY_DATA`.
+См. [настройку Google API](https://developers.google.com/android-publisher/getting_started) и
+[настройку Fastlane supply](https://docs.fastlane.tools/actions/upload_to_play_store/#setup).
+
+Сохраните `export SUPPLY_JSON_KEY_DATA=...` с полным JSON в корректных shell-кавычках в локальном
+файле `~/.config/megaproxy/release.env`. Храните его вне репозитория с правами `0600`.
+Запускайте из корня репозитория:
+
+```shell
+source "$HOME/.config/megaproxy/release.env"
+bundle exec fastlane android release_artifacts
+bundle exec fastlane android play_release validate_only:true
+bundle exec fastlane android play_release
+```
+
+`SUPPLY_JSON_KEY_DATA` — штатная переменная окружения Fastlane с полным содержимым JSON-ключа,
+а не путём к файлу или строкой Base64. Загрузка `release.env` экспортирует её для Fastlane;
+если окружение уже задаёт переменную, дополнительная настройка ключа не нужна.
+
+В GitHub создайте Actions secret `SUPPLY_JSON_KEY_DATA` с тем же полным JSON.
+Существующий release-workflow по тегу передаёт его только шагу загрузки:
+
+```yaml
+- name: Upload Google Play draft
+  env:
+    SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
+  run: bundle exec fastlane android play_release track:internal release_status:draft
+```
+
+После сборки и проверки артефактов и публикации GitHub Release workflow загружает соответствующие
+AAB и symbols из `dist/release` как internal-черновик. Отсутствие секрета или ошибка загрузки в Play
+завершает workflow с ошибкой; уже опубликованный GitHub Release остаётся доступным. Не передавайте
+ключ аргументом lane и не выводите его в логи. Workflow для PR не должны получать этот ключ.
+
+По умолчанию создаётся **черновик в треке internal**. `validate_only:true` загружает файлы во
+временную транзакцию Google Play и проверяет её через API без сохранения релиза; нужны ключ
+и сеть, это не локальный dry run. Проверьте и завершите черновик в Play Console.
+Для нового AAB, который нужно сразу отправить тестировщикам или в production, явно укажите:
+
+```shell
+bundle exec fastlane android play_release track:internal release_status:completed
+bundle exec fastlane android play_release track:production release_status:completed
+```
+
+Выполняйте только команду для нужного направления. Проверка Google, доступность публикации для
+приложения и managed publishing могут задержать появление релиза. Уже загруженную версию
+продвигайте через Play Console: lane загружает новый AAB и не продвигает существующие релизы.
+
+| Параметр | Значение по умолчанию / поведение |
+| --- | --- |
+| `aab` | `dist/release/mega-proxy.aab` |
+| `symbols` | `dist/release/mega-proxy-native-debug-symbols.zip`; обязателен и должен соответствовать AAB |
+| `track` | `internal`; также принимает `alpha`, `beta`, `production` или ID пользовательского трека |
+| `release_status` | `draft`; поддерживаются `draft` и `completed` |
+| `validate_only` | `false`; принимает только `true` или `false` |
+
+`MEGAPROXY_RELEASE_DIR` меняет каталог артефактов по умолчанию. Относительные пути считаются от
+корня репозитория. Метаданные, changelog, изображения и скриншоты не загружаются; каталог F-Droid
+`fastlane/metadata/android` остаётся отдельным от управления карточкой Play.
+Workflow по тегу публикует GitHub Release и internal-черновик Google Play. CI для PR не должен
+получать JSON-ключ Play или вызывать `play_release`.
 
 ## Обновление Fastlane
 
