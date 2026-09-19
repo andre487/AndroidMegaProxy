@@ -94,18 +94,29 @@ not a file path or Base64 string. If your local environment already supplies it,
 above. The file in that example is only a local storage option; the lane does not read key files.
 
 In GitHub, create an Actions secret named `SUPPLY_JSON_KEY_DATA` containing the same complete JSON.
-Pass it to the upload step in a trusted release workflow:
+The existing tag-triggered release workflow passes it only to the upload step:
 
 ```yaml
 - name: Upload Google Play draft
   env:
     SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
-  run: bundle exec fastlane android play_release
+  run: bundle exec fastlane android play_release track:internal release_status:draft
 ```
 
-That step requires the AAB and symbols from the same release in `dist/release`. This is a configuration
-example; this PR does not add automatic Play uploads to the tag workflow. Do not pass the key as a
-lane argument or print it in logs. PR workflows must not receive it.
+After building and verifying the artifacts and publishing the GitHub Release, the workflow uploads
+the matching AAB and symbols from `dist/release` as an internal draft. A missing secret or failed
+Play upload fails the workflow; the already published GitHub Release remains available. Do not
+pass the key as a lane argument or print it in logs. PR workflows must not receive it.
+
+For an existing local shell env file, add `export SUPPLY_JSON_KEY_DATA=...` using a shell-quoted JSON
+value and source that file before running Fastlane. For example, with the local release configuration:
+
+```shell
+source "$HOME/.config/megaproxy/release.env"
+bundle exec fastlane android play_release
+```
+
+Keep the env file outside the repository with permissions `0600`.
 
 The default upload creates a **draft on the internal track**. `validate_only:true` uploads to a
 temporary Google Play edit and asks the API to validate it without committing a release; it needs
@@ -132,8 +143,8 @@ this lane uploads a new AAB and does not promote existing releases.
 `MEGAPROXY_RELEASE_DIR` overrides the default artifact directory. Relative file paths are resolved
 from the repository root. Metadata, changelogs, images and screenshots are not uploaded; the
 F-Droid listing under `fastlane/metadata/android` is left separate from Play listing management.
-The existing tag workflow still publishes only to GitHub. PR CI must not receive the Play JSON key
-or invoke `play_release`.
+The tag workflow publishes a GitHub Release and a Google Play internal draft. PR CI must not
+receive the Play JSON key or invoke `play_release`.
 
 ## Updating Fastlane
 

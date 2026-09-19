@@ -97,18 +97,30 @@ bundle exec fastlane android play_release
 выше. Файл в примере — лишь вариант локального хранения; сам lane файлы ключей не читает.
 
 В GitHub создайте Actions secret `SUPPLY_JSON_KEY_DATA` с тем же полным JSON.
-Передайте его шагу загрузки в доверенном release-workflow:
+Существующий release-workflow по тегу передаёт его только шагу загрузки:
 
 ```yaml
 - name: Upload Google Play draft
   env:
     SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
-  run: bundle exec fastlane android play_release
+  run: bundle exec fastlane android play_release track:internal release_status:draft
 ```
 
-Для шага нужны AAB и symbols одного релиза в `dist/release`. Это пример настройки;
-данный PR не добавляет автоматическую загрузку в Play в workflow по тегу. Не передавайте ключ
-аргументом lane и не выводите его в логи. Workflow для PR не должны получать этот ключ.
+После сборки и проверки артефактов и публикации GitHub Release workflow загружает соответствующие
+AAB и symbols из `dist/release` как internal-черновик. Отсутствие секрета или ошибка загрузки в Play
+завершает workflow с ошибкой; уже опубликованный GitHub Release остаётся доступным. Не передавайте
+ключ аргументом lane и не выводите его в логи. Workflow для PR не должны получать этот ключ.
+
+В существующий локальный shell env-файл добавьте `export SUPPLY_JSON_KEY_DATA=...` с JSON в
+корректных shell-кавычках и загрузите файл перед запуском Fastlane. Например, для локальной
+релизной конфигурации:
+
+```shell
+source "$HOME/.config/megaproxy/release.env"
+bundle exec fastlane android play_release
+```
+
+Храните env-файл вне репозитория с правами `0600`.
 
 По умолчанию создаётся **черновик в треке internal**. `validate_only:true` загружает файлы во
 временную транзакцию Google Play и проверяет её через API без сохранения релиза; нужны ключ
@@ -135,8 +147,8 @@ bundle exec fastlane android play_release track:production release_status:comple
 `MEGAPROXY_RELEASE_DIR` меняет каталог артефактов по умолчанию. Относительные пути считаются от
 корня репозитория. Метаданные, changelog, изображения и скриншоты не загружаются; каталог F-Droid
 `fastlane/metadata/android` остаётся отдельным от управления карточкой Play.
-Существующий workflow по тегу по-прежнему публикует только в GitHub. CI для PR не должен получать
-JSON-ключ Play или вызывать `play_release`.
+Workflow по тегу публикует GitHub Release и internal-черновик Google Play. CI для PR не должен
+получать JSON-ключ Play или вызывать `play_release`.
 
 ## Обновление Fastlane
 
