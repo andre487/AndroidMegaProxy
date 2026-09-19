@@ -76,18 +76,36 @@ The AAB must be signed with the upload key registered in Play Console.
 Before the first API upload, create the app in Play Console, configure Play App Signing and upload
 an initial build manually. Enable the Google Play Developer API in a Google Cloud project, create
 a service account and invite its email in Play Console with access to this app and permissions
-for the intended test/production tracks. Store its JSON key outside the repository.
+for the intended test/production tracks. Keep the JSON key outside the repository and supply its contents through `SUPPLY_JSON_KEY_DATA`.
 See [Google API setup](https://developers.google.com/android-publisher/getting_started) and
 [Fastlane supply setup](https://docs.fastlane.tools/actions/upload_to_play_store/#setup).
 
 Run from the repository root:
 
 ```shell
-export MEGAPROXY_PLAY_JSON_KEY="$HOME/.my-tokens/megaproxy-play.json"
+export SUPPLY_JSON_KEY_DATA="$(cat "$HOME/.my-tokens/megaproxy-play.json")"
 bundle exec fastlane android release_artifacts
 bundle exec fastlane android play_release validate_only:true
 bundle exec fastlane android play_release
 ```
+
+`SUPPLY_JSON_KEY_DATA` is Fastlane's standard environment variable for the complete JSON key,
+not a file path or Base64 string. If your local environment already supplies it, omit the `export`
+above. The file in that example is only a local storage option; the lane does not read key files.
+
+In GitHub, create an Actions secret named `SUPPLY_JSON_KEY_DATA` containing the same complete JSON.
+Pass it to the upload step in a trusted release workflow:
+
+```yaml
+- name: Upload Google Play draft
+  env:
+    SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
+  run: bundle exec fastlane android play_release
+```
+
+That step requires the AAB and symbols from the same release in `dist/release`. This is a configuration
+example; this PR does not add automatic Play uploads to the tag workflow. Do not pass the key as a
+lane argument or print it in logs. PR workflows must not receive it.
 
 The default upload creates a **draft on the internal track**. `validate_only:true` uploads to a
 temporary Google Play edit and asks the API to validate it without committing a release; it needs
@@ -107,7 +125,6 @@ this lane uploads a new AAB and does not promote existing releases.
 | --- | --- |
 | `aab` | `dist/release/mega-proxy.aab` |
 | `symbols` | `dist/release/mega-proxy-native-debug-symbols.zip`; required and must match the AAB |
-| `json_key` | JSON file path; falls back to `MEGAPROXY_PLAY_JSON_KEY` |
 | `track` | `internal`; also accepts `alpha`, `beta`, `production` or a custom track ID |
 | `release_status` | `draft`; supports `draft` or `completed` |
 | `validate_only` | `false`; accepts only `true` or `false` |

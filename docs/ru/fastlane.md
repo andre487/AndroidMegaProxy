@@ -79,18 +79,36 @@ checkout, не скачивает и не исполняет код или ар�
 Перед первой загрузкой через API создайте приложение в Play Console, настройте Play App Signing
 и вручную загрузите первоначальную сборку. Включите Google Play Developer API в проекте Google
 Cloud, создайте сервисный аккаунт и пригласите его email в Play Console с доступом к приложению
-и правами для нужных тестовых/production-треков. Храните JSON-ключ вне репозитория.
+и правами для нужных тестовых/production-треков. Храните JSON-ключ вне репозитория и передавайте его содержимое через `SUPPLY_JSON_KEY_DATA`.
 См. [настройку Google API](https://developers.google.com/android-publisher/getting_started) и
 [настройку Fastlane supply](https://docs.fastlane.tools/actions/upload_to_play_store/#setup).
 
 Запускайте из корня репозитория:
 
 ```shell
-export MEGAPROXY_PLAY_JSON_KEY="$HOME/.my-tokens/megaproxy-play.json"
+export SUPPLY_JSON_KEY_DATA="$(cat "$HOME/.my-tokens/megaproxy-play.json")"
 bundle exec fastlane android release_artifacts
 bundle exec fastlane android play_release validate_only:true
 bundle exec fastlane android play_release
 ```
+
+`SUPPLY_JSON_KEY_DATA` — штатная переменная окружения Fastlane с полным содержимым JSON-ключа,
+а не путём к файлу или строкой Base64. Если локальное окружение уже задаёт её, пропустите `export`
+выше. Файл в примере — лишь вариант локального хранения; сам lane файлы ключей не читает.
+
+В GitHub создайте Actions secret `SUPPLY_JSON_KEY_DATA` с тем же полным JSON.
+Передайте его шагу загрузки в доверенном release-workflow:
+
+```yaml
+- name: Upload Google Play draft
+  env:
+    SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
+  run: bundle exec fastlane android play_release
+```
+
+Для шага нужны AAB и symbols одного релиза в `dist/release`. Это пример настройки;
+данный PR не добавляет автоматическую загрузку в Play в workflow по тегу. Не передавайте ключ
+аргументом lane и не выводите его в логи. Workflow для PR не должны получать этот ключ.
 
 По умолчанию создаётся **черновик в треке internal**. `validate_only:true` загружает файлы во
 временную транзакцию Google Play и проверяет её через API без сохранения релиза; нужны ключ
@@ -110,7 +128,6 @@ bundle exec fastlane android play_release track:production release_status:comple
 | --- | --- |
 | `aab` | `dist/release/mega-proxy.aab` |
 | `symbols` | `dist/release/mega-proxy-native-debug-symbols.zip`; обязателен и должен соответствовать AAB |
-| `json_key` | Путь к JSON-файлу; при отсутствии используется `MEGAPROXY_PLAY_JSON_KEY` |
 | `track` | `internal`; также принимает `alpha`, `beta`, `production` или ID пользовательского трека |
 | `release_status` | `draft`; поддерживаются `draft` и `completed` |
 | `validate_only` | `false`; принимает только `true` или `false` |

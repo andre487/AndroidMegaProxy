@@ -122,7 +122,7 @@ platform :android do
 
   desc "Upload a signed release AAB and native symbols to Google Play (internal draft by default)"
   lane :play_release do |options|
-    allowed_options = %i[aab symbols json_key track release_status validate_only]
+    allowed_options = %i[aab symbols track release_status validate_only]
     unknown_options = options.keys - allowed_options
     UI.user_error!("Unknown play_release options: #{unknown_options.join(', ')}") unless unknown_options.empty?
 
@@ -137,13 +137,21 @@ platform :android do
       UI.user_error!("validate_only must be true or false")
     end
 
-    json_key = options[:json_key] || ENV["MEGAPROXY_PLAY_JSON_KEY"]
-    if json_key.to_s.strip.empty?
-      UI.user_error!("Set MEGAPROXY_PLAY_JSON_KEY or pass json_key with the service-account JSON file path")
+    json_key_data = ENV["SUPPLY_JSON_KEY_DATA"]
+    if json_key_data.to_s.strip.empty?
+      UI.user_error!("Set SUPPLY_JSON_KEY_DATA to the service-account JSON contents")
+    end
+    begin
+      credentials = JSON.parse(json_key_data)
+    rescue JSON::ParserError
+      UI.user_error!("SUPPLY_JSON_KEY_DATA must contain valid JSON")
+    end
+    unless credentials.is_a?(Hash) && credentials["type"] == "service_account" &&
+           %w[client_email private_key token_uri].all? { |key| credentials[key].is_a?(String) && !credentials[key].strip.empty? }
+      UI.user_error!("SUPPLY_JSON_KEY_DATA must contain a service-account key with client_email, private_key and token_uri")
     end
     release_dir = File.expand_path(ENV.fetch("MEGAPROXY_RELEASE_DIR", "dist/release"), project_root)
     files = {
-      json_key: File.expand_path(json_key, project_root),
       aab: File.expand_path(options.fetch(:aab, File.join(release_dir, "mega-proxy.aab")), project_root),
       mapping: File.expand_path(options.fetch(:symbols, File.join(release_dir, "mega-proxy-native-debug-symbols.zip")), project_root)
     }
@@ -157,6 +165,7 @@ platform :android do
 
     upload_to_play_store(
       **files,
+      json_key_data: json_key_data,
       package_name: "net.megaproxy487",
       track: track,
       release_status: release_status,
