@@ -119,4 +119,54 @@ platform :android do
     sh(File.join(project_root, "scripts", "build-release-bundle.sh"))
     UI.success("Release artifacts: dist/release")
   end
+
+  desc "Upload a signed release AAB and native symbols to Google Play (internal draft by default)"
+  lane :play_release do |options|
+    allowed_options = %i[aab symbols json_key track release_status validate_only]
+    unknown_options = options.keys - allowed_options
+    UI.user_error!("Unknown play_release options: #{unknown_options.join(', ')}") unless unknown_options.empty?
+
+    track = options.fetch(:track, "internal").to_s
+    UI.user_error!("track must not be empty") if track.strip.empty?
+    release_status = options.fetch(:release_status, "draft").to_s
+    unless %w[draft completed].include?(release_status)
+      UI.user_error!("release_status must be draft or completed")
+    end
+    validate_only = options.fetch(:validate_only, false).to_s
+    unless %w[true false].include?(validate_only)
+      UI.user_error!("validate_only must be true or false")
+    end
+
+    json_key = options[:json_key] || ENV["MEGAPROXY_PLAY_JSON_KEY"]
+    if json_key.to_s.strip.empty?
+      UI.user_error!("Set MEGAPROXY_PLAY_JSON_KEY or pass json_key with the service-account JSON file path")
+    end
+    release_dir = File.expand_path(ENV.fetch("MEGAPROXY_RELEASE_DIR", "dist/release"), project_root)
+    files = {
+      json_key: File.expand_path(json_key, project_root),
+      aab: File.expand_path(options.fetch(:aab, File.join(release_dir, "mega-proxy.aab")), project_root),
+      mapping: File.expand_path(options.fetch(:symbols, File.join(release_dir, "mega-proxy-native-debug-symbols.zip")), project_root)
+    }
+    files.each do |name, path|
+      unless File.file?(path) && File.readable?(path) && File.size?(path)
+        UI.user_error!("#{name} must be a readable, non-empty file: #{path}")
+      end
+    end
+    UI.user_error!("aab must have the .aab extension") unless File.extname(files[:aab]) == ".aab"
+    UI.user_error!("symbols must have the .zip extension") unless File.extname(files[:mapping]) == ".zip"
+
+    upload_to_play_store(
+      **files,
+      package_name: "net.megaproxy487",
+      track: track,
+      release_status: release_status,
+      validate_only: validate_only == "true",
+      skip_upload_apk: true,
+      skip_upload_aab: false,
+      skip_upload_metadata: true,
+      skip_upload_changelogs: true,
+      skip_upload_images: true,
+      skip_upload_screenshots: true
+    )
+  end
 end

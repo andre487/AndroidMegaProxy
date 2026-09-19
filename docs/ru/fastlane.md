@@ -47,6 +47,7 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_artifacts` | Собирает и проверяет подписанные APK, AAB, native debug symbols и `SHA256SUMS` в `dist/release`. |
+| `bundle exec fastlane android play_release` | Загружает готовый подписанный AAB и native symbols в Google Play; по умолчанию создаёт internal-черновик. |
 
 Для release lane нужна конфигурация подписи из раздела
 [Signed release builds](../../README.md#signed-release-builds). Lane только собирает артефакты: он
@@ -66,6 +67,59 @@ Android, а сами файлы хранятся 14 дней. После усп�
 checkout, не скачивает и не исполняет код или артефакты из PR. Это только тестовые артефакты: ни
 один из APK не подписан официальным release-ключом MegaProxy, не публикуется в GitHub Releases и не
 отправляется в магазин приложений.
+
+## Релизы в Google Play
+
+`play_release` загружает готовый подписанный AAB и соответствующие native symbols для
+`net.megaproxy487`. Соберите их через `release_artifacts` или скачайте оба файла из одного
+проверенного GitHub Release. Lane не собирает и не подписывает файлы. Для нового релиза нужен
+неиспользованный возрастающий `versionCode`. AAB должен быть подписан upload key,
+зарегистрированным в Play Console.
+
+Перед первой загрузкой через API создайте приложение в Play Console, настройте Play App Signing
+и вручную загрузите первоначальную сборку. Включите Google Play Developer API в проекте Google
+Cloud, создайте сервисный аккаунт и пригласите его email в Play Console с доступом к приложению
+и правами для нужных тестовых/production-треков. Храните JSON-ключ вне репозитория.
+См. [настройку Google API](https://developers.google.com/android-publisher/getting_started) и
+[настройку Fastlane supply](https://docs.fastlane.tools/actions/upload_to_play_store/#setup).
+
+Запускайте из корня репозитория:
+
+```shell
+export MEGAPROXY_PLAY_JSON_KEY="$HOME/.my-tokens/megaproxy-play.json"
+bundle exec fastlane android release_artifacts
+bundle exec fastlane android play_release validate_only:true
+bundle exec fastlane android play_release
+```
+
+По умолчанию создаётся **черновик в треке internal**. `validate_only:true` загружает файлы во
+временную транзакцию Google Play и проверяет её через API без сохранения релиза; нужны ключ
+и сеть, это не локальный dry run. Проверьте и завершите черновик в Play Console.
+Для нового AAB, который нужно сразу отправить тестировщикам или в production, явно укажите:
+
+```shell
+bundle exec fastlane android play_release track:internal release_status:completed
+bundle exec fastlane android play_release track:production release_status:completed
+```
+
+Выполняйте только команду для нужного направления. Проверка Google, доступность публикации для
+приложения и managed publishing могут задержать появление релиза. Уже загруженную версию
+продвигайте через Play Console: lane загружает новый AAB и не продвигает существующие релизы.
+
+| Параметр | Значение по умолчанию / поведение |
+| --- | --- |
+| `aab` | `dist/release/mega-proxy.aab` |
+| `symbols` | `dist/release/mega-proxy-native-debug-symbols.zip`; обязателен и должен соответствовать AAB |
+| `json_key` | Путь к JSON-файлу; при отсутствии используется `MEGAPROXY_PLAY_JSON_KEY` |
+| `track` | `internal`; также принимает `alpha`, `beta`, `production` или ID пользовательского трека |
+| `release_status` | `draft`; поддерживаются `draft` и `completed` |
+| `validate_only` | `false`; принимает только `true` или `false` |
+
+`MEGAPROXY_RELEASE_DIR` меняет каталог артефактов по умолчанию. Относительные пути считаются от
+корня репозитория. Метаданные, changelog, изображения и скриншоты не загружаются; каталог F-Droid
+`fastlane/metadata/android` остаётся отдельным от управления карточкой Play.
+Существующий workflow по тегу по-прежнему публикует только в GitHub. CI для PR не должен получать
+JSON-ключ Play или вызывать `play_release`.
 
 ## Обновление Fastlane
 

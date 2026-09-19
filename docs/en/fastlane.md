@@ -46,6 +46,7 @@ That command lists the lanes available in the checked-out version of the project
 | `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
 | `bundle exec fastlane android debug_artifact` | Builds `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_artifacts` | Builds and verifies the signed release APKs, AAB, native debug symbols, and `SHA256SUMS` in `dist/release`. |
+| `bundle exec fastlane android play_release` | Uploads an existing signed AAB and native symbols to Google Play; defaults to an internal draft. |
 
 The release lane requires the signing configuration described in
 [Signed release builds](../../README.md#signed-release-builds). It builds artifacts but does not
@@ -64,6 +65,58 @@ the files are retained for 14 days. After successful CI, a separate trusted `wor
 creates or updates one APK-links comment on the pull request. It does not check out, download, or
 execute pull-request code or artifacts. These are test artifacts only: neither APK is signed with
 the MegaProxy release key, and neither is published as a GitHub Release or sent to an app store.
+
+## Google Play releases
+
+`play_release` uploads an existing signed AAB and its matching native symbols for
+`net.megaproxy487`. Build them with `release_artifacts` or download both from the same verified
+GitHub Release. The lane does not build or sign files. Use an unused, increasing `versionCode`.
+The AAB must be signed with the upload key registered in Play Console.
+
+Before the first API upload, create the app in Play Console, configure Play App Signing and upload
+an initial build manually. Enable the Google Play Developer API in a Google Cloud project, create
+a service account and invite its email in Play Console with access to this app and permissions
+for the intended test/production tracks. Store its JSON key outside the repository.
+See [Google API setup](https://developers.google.com/android-publisher/getting_started) and
+[Fastlane supply setup](https://docs.fastlane.tools/actions/upload_to_play_store/#setup).
+
+Run from the repository root:
+
+```shell
+export MEGAPROXY_PLAY_JSON_KEY="$HOME/.my-tokens/megaproxy-play.json"
+bundle exec fastlane android release_artifacts
+bundle exec fastlane android play_release validate_only:true
+bundle exec fastlane android play_release
+```
+
+The default upload creates a **draft on the internal track**. `validate_only:true` uploads to a
+temporary Google Play edit and asks the API to validate it without committing a release; it needs
+credentials and network access and is not an offline dry run. Review/complete a draft in Play Console.
+For a new AAB that should be released directly to testers or production, explicitly select:
+
+```shell
+bundle exec fastlane android play_release track:internal release_status:completed
+bundle exec fastlane android play_release track:production release_status:completed
+```
+
+Run only the command for the intended destination. Google review, app eligibility and managed
+publishing can still delay availability. To promote an already uploaded version, use Play Console;
+this lane uploads a new AAB and does not promote existing releases.
+
+| Option | Default / behavior |
+| --- | --- |
+| `aab` | `dist/release/mega-proxy.aab` |
+| `symbols` | `dist/release/mega-proxy-native-debug-symbols.zip`; required and must match the AAB |
+| `json_key` | JSON file path; falls back to `MEGAPROXY_PLAY_JSON_KEY` |
+| `track` | `internal`; also accepts `alpha`, `beta`, `production` or a custom track ID |
+| `release_status` | `draft`; supports `draft` or `completed` |
+| `validate_only` | `false`; accepts only `true` or `false` |
+
+`MEGAPROXY_RELEASE_DIR` overrides the default artifact directory. Relative file paths are resolved
+from the repository root. Metadata, changelogs, images and screenshots are not uploaded; the
+F-Droid listing under `fastlane/metadata/android` is left separate from Play listing management.
+The existing tag workflow still publishes only to GitHub. PR CI must not receive the Play JSON key
+or invoke `play_release`.
 
 ## Updating Fastlane
 
