@@ -163,17 +163,22 @@ platform :android do
     UI.user_error!("aab must have the .aab extension") unless File.extname(files[:aab]) == ".aab"
     UI.user_error!("symbols must have the .zip extension") unless File.extname(files[:mapping]) == ".zip"
 
+    app_version = File.read(File.join(project_root, "app/build.gradle.kts"))[/^\s*versionName = "([^"]+)"/, 1]
+    UI.user_error!("Could not read versionName from app/build.gradle.kts") unless app_version
+
     upload_to_play_store(
       **files,
       json_key_data: json_key_data,
       package_name: "net.megaproxy487",
+      version_name: "Version #{app_version}",
+      metadata_path: File.join(project_root, "fastlane/metadata/android"),
       track: track,
       release_status: release_status,
       validate_only: validate_only == "true",
       skip_upload_apk: true,
       skip_upload_aab: false,
       skip_upload_metadata: true,
-      skip_upload_changelogs: true,
+      skip_upload_changelogs: false,
       skip_upload_images: true,
       skip_upload_screenshots: true
     )

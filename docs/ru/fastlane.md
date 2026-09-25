@@ -136,8 +136,18 @@ bundle exec fastlane android play_release track:production release_status:comple
 | `validate_only` | `false`; принимает только `true` или `false` |
 
 `MEGAPROXY_RELEASE_DIR` меняет каталог артефактов по умолчанию. Относительные пути считаются от
-корня репозитория. Метаданные, changelog, изображения и скриншоты не загружаются; каталог F-Droid
-`fastlane/metadata/android` остаётся отдельным от управления карточкой Play.
+корня репозитория. Выпуски Google Play получают имя `Version <versionName>`, например
+`Version 0.1.1`, из `app/build.gradle.kts`. Запускайте lane из checkout/тега, соответствующего AAB.
+
+Примечания к выпуску автоматически загружаются из существующих changelog на английском и русском:
+`fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` и
+`fastlane/metadata/android/ru-RU/changelogs/<versionCode>.txt`. Fastlane выбирает файлы по коду версии,
+который Google Play вернул для загруженного AAB (например, `14000.txt` для 0.1.1).
+Готовьте оба файла при каждом релизе: их содержимое становится локализованными примечаниями.
+Lane не генерирует текст из коммитов. См. [changelog Fastlane](https://docs.fastlane.tools/actions/upload_to_play_store/#changelogs-whats-new).
+
+Текст карточки магазина, изображения и скриншоты не загружаются. F-Droid и Google Play используют
+общие файлы примечаний, а управление карточкой Play остаётся отдельным.
 Workflow по тегу публикует GitHub Release и internal-черновик Google Play. CI для PR не должен
 получать JSON-ключ Play или вызывать `play_release`.
 

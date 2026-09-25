@@ -19,6 +19,7 @@ Fastlane is the supported entry point for tests and build artifacts. Install Rub
 The release lane deliberately delegates signing and artifact verification to the repository's
 existing release scripts. It requires the signing environment documented in the root README.
 `play_release` uploads an existing signed AAB and matching native symbols to Google Play. It
-defaults to an internal draft and requires the JSON key contents in `SUPPLY_JSON_KEY_DATA`; see the setup guides below.
+names releases `Version <versionName>`, uploads English/Russian changelogs, defaults to an internal draft,
+and requires the JSON key contents in `SUPPLY_JSON_KEY_DATA`; see the setup guides below.
 
 Full setup and CI scope rules: [English](../docs/en/fastlane.md) / [Русский](../docs/ru/fastlane.md).

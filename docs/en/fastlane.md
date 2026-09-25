@@ -133,8 +133,18 @@ this lane uploads a new AAB and does not promote existing releases.
 | `validate_only` | `false`; accepts only `true` or `false` |
 
 `MEGAPROXY_RELEASE_DIR` overrides the default artifact directory. Relative file paths are resolved
-from the repository root. Metadata, changelogs, images and screenshots are not uploaded; the
-F-Droid listing under `fastlane/metadata/android` is left separate from Play listing management.
+from the repository root. Google Play releases are named `Version <versionName>`, for example
+`Version 0.1.1`, using `app/build.gradle.kts`. Run the lane from the checkout/tag matching the AAB.
+
+Release notes are uploaded automatically from the existing English and Russian changelogs:
+`fastlane/metadata/android/en-US/changelogs/<versionCode>.txt` and
+`fastlane/metadata/android/ru-RU/changelogs/<versionCode>.txt`. Fastlane selects the files using the
+version code returned by Google Play for the uploaded AAB (for example, `14000.txt` for 0.1.1).
+Prepare both files with each release; their contents become the localized release notes. The lane
+does not generate text from commits. See [Fastlane changelogs](https://docs.fastlane.tools/actions/upload_to_play_store/#changelogs-whats-new).
+
+Store listing text, images and screenshots are not uploaded. F-Droid and Google Play share the
+release-note files, while Play listing management remains separate.
 The tag workflow publishes a GitHub Release and a Google Play internal draft. PR CI must not
 receive the Play JSON key or invoke `play_release`.
 
