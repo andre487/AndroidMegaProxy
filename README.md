@@ -1,6 +1,7 @@
 # MegaProxy
 
 [![CI](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
+[![Release](https://img.shields.io/github/v/release/andre487/AndroidMegaProxy)](https://github.com/andre487/AndroidMegaProxy/releases/latest)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Android 8+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
 
