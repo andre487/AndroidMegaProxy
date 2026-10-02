@@ -1,5 +1,7 @@
 <p>MegaProxy is an open-source Android VPN client for reliable and secure connections through proxy servers you control or trust.</p>
 
+<p>MegaProxy uses Android's VpnService to route TCP traffic from all apps or selected apps through an encrypted connection to a user-configured HTTPS or SSH proxy.</p>
+
 <p>It contains no advertising, analytics SDKs, tracking identifiers, or remote telemetry. Connection statistics and diagnostic logs remain on the device unless you explicitly choose to share them. Profiles are stored locally; connection credentials are used to authenticate to the configured servers.</p>
 
 <p>Features include:</p>
