@@ -36,6 +36,8 @@ Do not uninstall first; this preserves profiles and settings. If you previously 
 architecture-specific APK or a build from another source and the update fails, do not uninstall:
 see the update section below or ask a developer for help.
 
+Update checks, notifications, skipped versions, and installation: [App updates](updates.md).
+
 ## For developers: APK variants, verification, and troubleshooting
 
 The section above is sufficient for a normal installation. The following technical information

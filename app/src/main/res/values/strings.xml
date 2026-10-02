@@ -460,4 +460,34 @@
     <string name="log_read_failed">Could not read the diagnostic log. Retrying…</string>
     <string name="error_config_complex">The configuration is too deeply nested or contains too many JSON elements.</string>
     <string name="vpn_command_failed">Could not complete the VPN command. Check the connection state and try again.</string>
+
+    <string name="updates">App updates</string>
+    <string name="updates_description">Check F-Droid or GitHub for a new version</string>
+    <string name="update_installed">Installed version: %1$s</string>
+    <string name="update_manual_description">Checks run about once a day when online. An ignored update is announced again after a week. APKs are downloaded only with your consent.</string>
+    <string name="update_source">Update source</string>
+    <string name="update_choose_source">Android did not identify the installer. Choose an update source.</string>
+    <string name="update_fdroid">F-Droid</string>
+    <string name="update_github">GitHub</string>
+    <string name="update_selected_source">Selected: %1$s</string>
+    <string name="update_check">Check for updates</string>
+    <string name="update_current">No newer version is available from this source.</string>
+    <string name="update_not_published">The app or release is not published in this source yet. The source has not been changed.</string>
+    <string name="update_failed">Could not check or download the update safely. Check your connection and retry. The installed app has not been changed.</string>
+    <string name="update_open_error">Could not open the store, browser, or Android installer. If the download was cleared, check and download again.</string>
+    <string name="update_working">Checking or downloading…</string>
+    <string name="update_available">New version: %1$s</string>
+    <string name="update_in_fdroid">Update through F-Droid</string>
+    <string name="update_download">Download from GitHub</string>
+    <string name="update_ready">The APK has been downloaded and checked. Android will verify it during installation.</string>
+    <string name="update_install_permission">Tap Install update. If Android asks, allow installs from MegaProxy, return here and tap the button again. Confirm the update in the system installer.</string>
+    <string name="update_install">Install update</string>
+    <string name="update_github_consent">The APK will be downloaded from GitHub, outside F-Droid’s checks. It may not have been reviewed or reproduced by F-Droid. Continue only if you trust this source. You can cancel and keep using the installed version. Installation requires a separate action.</string>
+    <string name="update_automatic">Check for updates automatically</string>
+    <string name="update_notifications_disabled">Notifications are disabled. Allow them to receive update reminders.</string>
+    <string name="update_allow_notifications">Allow notifications</string>
+    <string name="update_notification_text">Available from %1$s. If ignored, we will remind you in a week.</string>
+    <string name="update_notification_open">Update</string>
+    <string name="update_skip">Skip this version</string>
+    <string name="update_disable">Disable auto-checks</string>
 </resources>

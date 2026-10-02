@@ -149,6 +149,11 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
                 ),
             ),
         ) { showTrafficUnitsDialog = true }
+        updatesSettingsDestination.let { destination ->
+            SettingsButton(stringResource(destination.titleRes), stringResource(destination.descriptionRes)) {
+                onNavigate(destination.route)
+            }
+        }
         Text(stringResource(R.string.support), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
         SettingsButton(stringResource(R.string.feedback), stringResource(R.string.feedback_description)) {
             scope.launch {
@@ -526,7 +531,7 @@ private fun IntegerSettingField(initialValue: Int, range: IntRange, label: Strin
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun SettingsScaffold(onBack: () -> Unit, title: String, content: @Composable ColumnScope.() -> Unit) {
+internal fun SettingsScaffold(onBack: () -> Unit, title: String, content: @Composable ColumnScope.() -> Unit) {
     Scaffold(
         topBar = {
             TopAppBar(

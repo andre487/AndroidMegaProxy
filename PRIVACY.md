@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: September 8, 2026**
+**Last updated: October 2, 2026**
 
 MegaProxy is an Android VPN client for proxy servers you choose. It does not provide a proxy
 service, require an account, or automatically send usage data or crash reports to the developer.
@@ -37,6 +37,14 @@ identify the proxy's apparent country, not your GPS location. The current servic
 [Network privacy details](README.md#privacy-and-security). These providers handle requests under
 their own policies; MegaProxy does not control their retention practices.
 
+Automatic update checks are enabled by default and contact the selected source (F-Droid or GitHub)
+about once a day when Android permits background work. If Android does not identify an installer,
+no automatic check runs until you choose a source. These services receive update requests and the
+source IP address, not your profiles, credentials, browsing history, or application inventory.
+You can change the source or disable automatic checks in Settings → App updates. APK downloads
+from GitHub require explicit confirmation and installation requires a separate user action.
+See [update behavior](docs/en/updates.md) for scheduling, reminders, and source selection.
+
 ## Sharing and contacting support
 
 Exporting or sharing a profile can disclose its settings and, if explicitly included, passwords
@@ -54,7 +62,7 @@ you send for handling your request. Uninstalling MegaProxy does not delete that 
 
 Profiles and settings remain locally until you change/delete them or clear app data. Diagnostic
 logs rotate within a configurable size limit; you can clear them in the diagnostic-log screen.
-Clearing app data or uninstalling removes local app files, including cached report attachments.
+Clearing app data or uninstalling removes local app files, including cached report attachments, downloaded update APKs, and update preferences.
 Exported files and copies shared with other applications must be deleted separately.
 
 Support emails, including the sender address, message and attachments, are retained until the

@@ -20,6 +20,7 @@ import net.megaproxy487.vpn.NativeConnectionStats
 internal object AppRoute {
     const val MAIN = "main"
     const val SETTINGS = "settings"
+    const val UPDATES = "updates"
     const val PROFILES = "profiles"
     const val PROFILE_EDITOR = "profile/{profileId}"
     const val ALWAYS_ON = "always-on"
@@ -34,6 +35,7 @@ internal object AppRoute {
     val registeredStaticRoutes = setOf(
         MAIN,
         SETTINGS,
+        UPDATES,
         PROFILES,
         ALWAYS_ON,
         FINGERPRINTS,
@@ -68,19 +70,28 @@ internal val visibilitySettingsDestination =
 internal val diagnosticLogSettingsDestination =
     SettingsDestination(R.string.diagnostic_log, R.string.diagnostic_log_description, AppRoute.DIAGNOSTIC_LOG)
 
+internal val updatesSettingsDestination =
+    SettingsDestination(R.string.updates, R.string.updates_description, AppRoute.UPDATES)
+
 internal val settingsDestinations = connectionSettingsDestinations + listOf(
     visibilitySettingsDestination,
     diagnosticLogSettingsDestination,
+    updatesSettingsDestination,
 )
 
 @Composable
 internal fun MegaProxyNavHost(
     activity: Activity,
+    updateRequest: Int = 0,
     readConnectionStats: () -> NativeConnectionStats? = ConnectionStatsReader::snapshot,
 ) {
     val navController = rememberNavController()
     val hostKeyPrompt by net.megaproxy487.vpn.SshHostKeyPromptState.pending
     val back = { navController.popBackStack(); Unit }
+
+    LaunchedEffect(updateRequest) {
+        if (updateRequest > 0) navController.navigate(AppRoute.UPDATES) { launchSingleTop = true }
+    }
 
     LaunchedEffect(hostKeyPrompt) {
         if (hostKeyPrompt != null && navController.currentDestination?.route != AppRoute.SSH_HOST_KEY) {
@@ -103,6 +114,7 @@ internal fun MegaProxyNavHost(
         composable(AppRoute.SETTINGS) {
             ScreenDestination(AppRoute.SETTINGS) { SettingsHomeScreen(activity, back) { navController.navigate(it) } }
         }
+        composable(AppRoute.UPDATES) { ScreenDestination(AppRoute.UPDATES) { UpdatesScreen(activity, back, checkRequest = updateRequest) } }
         composable(AppRoute.PROFILES) {
             ScreenDestination(AppRoute.PROFILES) { ProfilesScreen(activity, back) { navController.navigate(AppRoute.profileEditor(it)) } }
         }

@@ -113,6 +113,11 @@ updates without losing settings, and troubleshooting:
 **[English](docs/en/installation.md)** / **[Русский](docs/ru/installation.md)**.
 PR workflow artifacts are test builds; use release assets for everyday use.
 
+**Settings → App updates** checks the installer-selected source (F-Droid or GitHub), with daily
+background checks enabled by default, weekly reminders, and explicit consent before APK downloads.
+GitHub updates preserve the installed APK variant. Full behavior and controls:
+[English](docs/en/updates.md) / [Русский](docs/ru/updates.md).
+
 After installation:
 
 1. Create or import a connection profile.
