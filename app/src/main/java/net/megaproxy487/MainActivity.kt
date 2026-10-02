@@ -18,6 +18,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -419,7 +421,8 @@ internal fun MainScreen(
         },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
-        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+        BoxWithConstraints(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            val profileMenuMaxHeight = maxHeight
             Column(
                 Modifier.widthIn(max = 720.dp).fillMaxWidth().fillMaxHeight().verticalScroll(rememberScrollState()).padding(20.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -534,7 +537,7 @@ internal fun MainScreen(
                         DropdownMenu(
                             profileMenuExpanded,
                             { profileMenuExpanded = false },
-                            modifier = Modifier.widthIn(min = 280.dp),
+                            modifier = Modifier.widthIn(min = 280.dp).heightIn(max = profileMenuMaxHeight),
                         ) {
                             profiles.forEach { profile ->
                                 DropdownMenuItem(

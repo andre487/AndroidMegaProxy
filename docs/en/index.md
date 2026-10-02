@@ -11,5 +11,6 @@ Client connections:
 Developer documentation:
 
 - [Fastlane workflow](fastlane.md)
+- [Release verification](release-testing.md)
 
 [Русская версия](../ru/index.md)
