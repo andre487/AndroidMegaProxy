@@ -70,6 +70,9 @@ jobs:
           ruby-version: "3.4.10"
           bundler-cache: true
 
+      - name: Check Play metadata upload isolation without credentials
+        run: ruby scripts/test-play-metadata.rb
+
       - name: Run native tests with the race detector
         run: bundle exec fastlane android native_tests
 
