@@ -6,5 +6,5 @@ Use it as the visual source when regenerating derived application, store, or doc
 Derived assets live with the component that consumes them:
 
 - Android launcher resources: `app/src/main/res/mipmap-*`
-- Google Play icon and graphics: `fastlane/metadata/android/*/images/`
+- Store listing icon and graphics: `fastlane/metadata/android/*/images/`
 - Repository and documentation graphics: `docs/assets/`

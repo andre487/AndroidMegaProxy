@@ -1,4 +1,4 @@
-Google Play listing images for MegaProxy.
+Store listing listing images for MegaProxy.
 
 - `icon.png`: 512 x 512 store icon.
 - `featureGraphic.png`: 1024 x 500 feature graphic.

@@ -103,81 +103,15 @@ vendors may impose additional background-execution restrictions.
 
 ## Installation
 
-[Инструкция по установке на русском языке](docs/ru/installation.md)
+MegaProxy requires Android 8.0 (API 26) or newer. Download a signed APK from
+[GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest).
+For most users, choose **[mega-proxy-universal.apk](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**.
+The app is not yet available in F-Droid.
 
-MegaProxy requires Android 8.0 (API 26) or newer. Download the latest signed build from
-[GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest), expand the
-**Assets** section, and download the file ending in `universal.apk`. It is the recommended build:
-it supports every architecture listed below and is the artifact intended for reproducible
-F-Droid verification.
-
-**[Download the recommended universal APK](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**
-
-| APK | Intended device |
-| --- | --- |
-| [`mega-proxy-universal.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk) | Recommended for phones, tablets, and emulators; supports all listed architectures |
-| [`mega-proxy-arm64-v8a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-arm64-v8a.apk) | Smaller download for almost all modern Android phones and tablets |
-| [`mega-proxy-armeabi-v7a.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-armeabi-v7a.apk) | Older 32-bit ARM devices |
-| [`mega-proxy-x86_64.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86_64.apk) | 64-bit x86 Android emulators and uncommon x86 devices |
-| [`mega-proxy-x86.apk`](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-x86.apk) | Older 32-bit x86 Android emulators and devices |
-
-### Install a release APK on the device
-
-1. Open the [latest release](https://github.com/andre487/AndroidMegaProxy/releases/latest) on the
-   Android device.
-2. Under **Assets**, download the file ending in `universal.apk`. Architecture-specific APKs are
-   smaller alternatives when the device architecture is known.
-3. Open the downloaded file from the browser notification or the system Downloads application.
-4. If Android blocks the installation, open the settings offered by the warning and enable
-   **Allow from this source** for the browser or file manager that opened the APK. Return to the
-   installer and confirm **Install**. This permission can be disabled again after installation.
-5. Open MegaProxy. Android asks for VPN access when the first connection is started; approve the
-   system VPN confirmation dialog.
-
-Browsers may warn that APK files can be harmful because the application is installed outside an
-app store. Confirm the download only when the URL belongs to this repository. Do not download
-MegaProxy APKs from third-party mirrors.
-
-### Verify the download
-
-Each release includes a `SHA256SUMS` file. Download it alongside the APK and compare the APK hash
-before installation when the distribution channel is not trusted:
-
-```shell
-# macOS
-shasum -a 256 mega-proxy-universal.apk
-
-# Linux
-sha256sum mega-proxy-universal.apk
-```
-
-The printed value must exactly match the corresponding line in `SHA256SUMS`. Substitute the
-downloaded version and architecture in the filename.
-
-### Install with ADB
-
-Alternatively, download the APK to a computer. With USB debugging enabled and the device listed
-by `adb devices`, install or update MegaProxy with:
-
-```shell
-adb install -r mega-proxy-universal.apk
-```
-
-Use the APK filename that was actually downloaded. The `-r` option preserves existing application
-data during an update. Confirm the USB-debugging authorization prompt on the phone if Android
-shows one.
-
-### Update an existing installation
-
-Download the newer universal APK and install it over the existing application. An appropriate
-architecture-specific APK signed by the project key can also update the same installation.
-Do not uninstall MegaProxy first: uninstalling removes its profiles, trusted SSH host keys, and
-other local settings. Android accepts an in-place update only when the application ID and signing
-key match the installed build.
-
-Release APKs are signed by the project's release key. SHA-256 checksums are published alongside
-the APK files. Android will preserve application data across upgrades only when the package name
-and signing key remain unchanged.
+Detailed instructions cover choosing an APK, installation permissions, checksums, ADB,
+updates without losing settings, and troubleshooting:
+**[English](docs/en/installation.md)** / **[Русский](docs/ru/installation.md)**.
+PR workflow artifacts are test builds; use release assets for everyday use.
 
 After installation:
 
@@ -338,20 +272,12 @@ bundle exec fastlane android release_artifacts
 The scripts read the default signing key from `$HOME/AndroidApkKey` and its password from
 `$HOME/.my-tokens/android-key-password`. Override these with `MEGAPROXY_KEYSTORE_PATH`,
 `MEGAPROXY_KEY_ALIAS`, `MEGAPROXY_KEY_PASSWORD_FILE`, and `MEGAPROXY_KEY_PASSWORD`. The signed
-ABI-specific and universal APKs, the signed universal App Bundle, its native debug-symbol archive,
-and `SHA256SUMS` are written to `dist/release`. The App Bundle contains every supported ABI; app
-stores generate and serve optimized device-specific APK splits from it. Go native symbols are
-provided as `mega-proxy-native-debug-symbols.zip` for upload in Play Console.
-
-To upload the AAB and native symbols through Fastlane, configure a Play service account and run
-`bundle exec fastlane android play_release` (internal draft by default). See the
-[Google Play release instructions](docs/en/fastlane.md#google-play-releases)
-([по-русски](docs/ru/fastlane.md#релизы-в-google-play)) for credentials, validation and production uploads.
+ABI-specific and universal APKs and `SHA256SUMS` are written to `dist/release`.
 
 Pushing a version tag runs the same Fastlane release lane in GitHub Actions, builds and verifies
-every APK and the App Bundle, attaches the artifacts to a GitHub Release, then uploads the AAB
-and native symbols as a Google Play internal draft. Configure the repository Actions secret
-`SUPPLY_JSON_KEY_DATA` with the complete service-account JSON key for that upload. The tag must match
+all five APKs, then attaches them and their checksums to a GitHub Release. The workflow requires
+`ANDROID_SIGNING_KEY_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
+`ANDROID_KEY_PASSWORD` signing secrets. The tag must match
 `v` followed by the current `versionName` in `app/build.gradle.kts`. Create that tag with
 `git tag` and push the specific tag with `git push origin`; do not reuse a historical release tag.
 
