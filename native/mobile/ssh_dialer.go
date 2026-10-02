@@ -20,6 +20,7 @@ import (
 // sshDialer implements OpenSSH-style dynamic forwarding. SOCKS CONNECT semantics
 // are mapped directly to SSH direct-tcpip channels; SSH has no general UDP relay.
 type sshDialer struct {
+	stats          *connectionStats
 	config         config
 	protector      Protector
 	reporter       Reporter
@@ -77,7 +78,6 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	}()
 	client, err := d.session(ctx)
 	if err != nil {
-		recordConnectionOutcome(false)
 		report(d.reporter, "event=ssh_session result=failed detail=%s", err)
 		return nil, err
 	}
@@ -97,14 +97,14 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 			d.invalidateClient(client)
 		}
 		report(d.reporter, "event=connection mode=ssh stage=direct_tcpip result=failed reason=%s", errorClass(err))
-		recordConnectionOutcome(false)
+
 		return nil, fmt.Errorf("SSH direct-tcpip: %w", err)
 	}
-	recordConnectionOutcome(true)
+
 	report(d.reporter, "event=connection mode=ssh stage=direct_tcpip result=success elapsed_ms=%d", time.Since(started).Milliseconds())
 	release = false
 	tracked := &sshTrackedConn{Conn: conn, release: func() { <-channels }, bytes: &d.sessionBytes}
-	return &diagnosticConn{Conn: tracked, connectionID: nextDiagnosticConnectionID(), reporter: d.reporter}, nil
+	return &diagnosticConn{Conn: tracked, connectionID: nextDiagnosticConnectionID(), reporter: d.reporter, stats: d.stats}, nil
 }
 
 func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
@@ -118,7 +118,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 	}
 	if d.config.Type == "SSH_JUMP" {
 		started := time.Now()
-		raw, err := d.protectedDialer().DialContext(ctx, "tcp", d.config.jumpAddress())
+		raw, err := dialMeasuredTCP(ctx, d.protectedDialer(), d.config.jumpAddress(), d.stats)
 		if err != nil {
 			report(d.reporter, "event=ssh_transport hop=jump stage=tcp_connect result=failed reason=%s elapsed_ms=%d", errorClass(err), time.Since(started).Milliseconds())
 			return nil, fmt.Errorf("dial jump host: %w", err)
@@ -146,7 +146,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 		d.jumpClient, d.client = jump, client
 	} else {
 		started := time.Now()
-		raw, err := d.protectedDialer().DialContext(ctx, "tcp", d.config.address())
+		raw, err := dialMeasuredTCP(ctx, d.protectedDialer(), d.config.address(), d.stats)
 		if err != nil {
 			report(d.reporter, "event=ssh_transport hop=destination stage=tcp_connect result=failed reason=%s elapsed_ms=%d", errorClass(err), time.Since(started).Milliseconds())
 			return nil, fmt.Errorf("dial SSH host: %w", err)

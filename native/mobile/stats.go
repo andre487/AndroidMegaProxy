@@ -1,106 +1,142 @@
 package mobile
 
 import (
+	"context"
 	"encoding/json"
+	"net"
 	"sync"
 	"sync/atomic"
 	"time"
 )
 
-const connectionSampleWindow = 50
-
+// Each VPN generation owns its sockets and counters. Diagnostics have no stats.
 type connectionStats struct {
 	downloadBytes atomic.Uint64
 	uploadBytes   atomic.Uint64
-	totalOutcomes atomic.Uint64
-
-	mu             sync.Mutex
-	latencyMillis  float64
-	latencySamples uint64
-	latencyAt      time.Time
-	outcomes       [connectionSampleWindow]bool
-	outcomeCount   int
-	outcomeNext    int
+	mu            sync.Mutex
+	sockets       map[*measuredTCPConn]struct{}
+	retransmits   [300]retransmitBucket
+	lastSample    time.Time
+	done          chan struct{}
 }
+type retransmitBucket struct {
+	second int64
+	count  uint64
+}
+type tcpSample struct{ rttMicros, retransmits uint32 }
 
-var telemetry connectionStats
+var telemetry atomic.Pointer[connectionStats]
 
 type statsSnapshot struct {
-	DownloadBytes        uint64  `json:"downloadBytes"`
-	UploadBytes          uint64  `json:"uploadBytes"`
-	ProxyLatencyMillis   float64 `json:"proxyLatencyMillis"`
-	ProxyLatencyAtMillis int64   `json:"proxyLatencyAtMillis"`
-	ConnectionErrorRate  float64 `json:"connectionErrorRate"`
-	ConnectionSamples    int     `json:"connectionSamples"`
-	TotalOutcomes        uint64  `json:"totalOutcomes"`
+	DownloadBytes  uint64   `json:"downloadBytes"`
+	UploadBytes    uint64   `json:"uploadBytes"`
+	TCPRTTMillis   *float64 `json:"tcpRttMillis"`
+	TCPRetransmits *uint64  `json:"tcpRetransmits"`
 }
 
-func resetStats() {
-	telemetry.downloadBytes.Store(0)
-	telemetry.uploadBytes.Store(0)
-	telemetry.totalOutcomes.Store(0)
-	telemetry.mu.Lock()
-	telemetry.latencyMillis = 0
-	telemetry.latencySamples = 0
-	telemetry.latencyAt = time.Time{}
-	telemetry.outcomes = [connectionSampleWindow]bool{}
-	telemetry.outcomeCount = 0
-	telemetry.outcomeNext = 0
-	telemetry.mu.Unlock()
+func resetStats() *connectionStats {
+	s := &connectionStats{sockets: make(map[*measuredTCPConn]struct{}), done: make(chan struct{})}
+	telemetry.Store(s)
+	return s
 }
 
-func recordProxyLatency(elapsed time.Duration) {
-	millis := float64(elapsed.Microseconds()) / 1000
-	telemetry.mu.Lock()
-	if telemetry.latencySamples == 0 {
-		telemetry.latencyMillis = millis
-	} else {
-		const alpha = 0.2
-		telemetry.latencyMillis = alpha*millis + (1-alpha)*telemetry.latencyMillis
-	}
-	telemetry.latencySamples++
-	telemetry.latencyAt = time.Now()
-	telemetry.mu.Unlock()
+type measuredTCPConn struct {
+	net.Conn
+	stats    *connectionStats
+	readInfo func() (tcpSample, error)
+	previous uint32
+	once     sync.Once
 }
 
-func recordConnectionOutcome(success bool) {
-	telemetry.totalOutcomes.Add(1)
-	telemetry.mu.Lock()
-	telemetry.outcomes[telemetry.outcomeNext] = success
-	telemetry.outcomeNext = (telemetry.outcomeNext + 1) % connectionSampleWindow
-	if telemetry.outcomeCount < connectionSampleWindow {
-		telemetry.outcomeCount++
+func dialMeasuredTCP(ctx context.Context, dialer *net.Dialer, address string, stats *connectionStats) (net.Conn, error) {
+	conn, err := dialer.DialContext(ctx, "tcp", address)
+	if err != nil || stats == nil {
+		return conn, err
 	}
-	telemetry.mu.Unlock()
+	c := &measuredTCPConn{Conn: conn, stats: stats, readInfo: func() (tcpSample, error) { return readTCPInfo(conn) }}
+	stats.mu.Lock()
+	stats.sockets[c] = struct{}{}
+	c.sample(time.Now())
+	stats.mu.Unlock()
+	return c, nil
 }
 
-func snapshotStats() statsSnapshot {
-	result := statsSnapshot{
-		DownloadBytes: telemetry.downloadBytes.Load(),
-		UploadBytes:   telemetry.uploadBytes.Load(),
-		TotalOutcomes: telemetry.totalOutcomes.Load(),
+// Called under stats.mu. Count deltas once, including a final sample before close.
+func (c *measuredTCPConn) sample(now time.Time) (tcpSample, bool) {
+	info, err := c.readInfo()
+	if err != nil {
+		return tcpSample{}, false
 	}
-	telemetry.mu.Lock()
-	result.ProxyLatencyMillis = telemetry.latencyMillis
-	if !telemetry.latencyAt.IsZero() {
-		result.ProxyLatencyAtMillis = telemetry.latencyAt.UnixMilli()
+	delta := info.retransmits - c.previous // uint32 kernel counter can wrap.
+	c.previous = info.retransmits
+	second := now.Unix()
+	bucket := &c.stats.retransmits[second%300]
+	if bucket.second != second {
+		*bucket = retransmitBucket{second: second}
 	}
-	result.ConnectionSamples = telemetry.outcomeCount
-	failures := 0
-	for index := 0; index < telemetry.outcomeCount; index++ {
-		if !telemetry.outcomes[index] {
-			failures++
+	bucket.count += uint64(delta)
+	c.stats.lastSample = now
+	return info, true
+}
+
+func (c *measuredTCPConn) Close() error {
+	c.once.Do(func() {
+		c.stats.mu.Lock()
+		c.sample(time.Now())
+		delete(c.stats.sockets, c)
+		c.stats.mu.Unlock()
+	})
+	return c.Conn.Close()
+}
+
+func (s *connectionStats) snapshot(now time.Time) statsSnapshot {
+	result := statsSnapshot{DownloadBytes: s.downloadBytes.Load(), UploadBytes: s.uploadBytes.Load()}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var rttSum uint64
+	var rttCount uint64
+	for c := range s.sockets {
+		if info, ok := c.sample(now); ok && info.rttMicros > 0 {
+			rttSum += uint64(info.rttMicros)
+			rttCount++
 		}
 	}
-	if telemetry.outcomeCount > 0 {
-		result.ConnectionErrorRate = float64(failures) / float64(telemetry.outcomeCount)
+	if rttCount > 0 {
+		rtt := float64(rttSum) / float64(rttCount) / 1000
+		result.TCPRTTMillis = &rtt
 	}
-	telemetry.mu.Unlock()
+	if !s.lastSample.IsZero() && now.Sub(s.lastSample) < 5*time.Minute {
+		var retransmits uint64
+		for _, b := range s.retransmits {
+			if age := now.Unix() - b.second; age >= 0 && age < 300 {
+				retransmits += b.count
+			}
+		}
+		result.TCPRetransmits = &retransmits
+	}
 	return result
 }
 
-// GetStats returns a lightweight JSON snapshot for the Android UI.
-func GetStats() string {
-	encoded, _ := json.Marshal(snapshotStats())
-	return string(encoded)
+func snapshotStats() statsSnapshot {
+	if s := telemetry.Load(); s != nil {
+		return s.snapshot(time.Now())
+	}
+	return statsSnapshot{}
+}
+
+// GetStats returns passive TCP metrics without generating probe traffic.
+func GetStats() string { encoded, _ := json.Marshal(snapshotStats()); return string(encoded) }
+
+// Poll independently of the UI so background VPN traffic stays in its time window.
+func (s *connectionStats) run() {
+	ticker := time.NewTicker(time.Second)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-s.done:
+			return
+		case <-ticker.C:
+			s.snapshot(time.Now())
+		}
+	}
 }

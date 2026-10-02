@@ -78,7 +78,6 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import net.megaproxy487.uiStringResource as stringResource
-import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.liveRegion
@@ -711,7 +710,7 @@ internal fun MainScreen(
 private fun isAlwaysOnVpnActive(activity: Activity): Boolean =
     ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled
 
-private data class DisplayedConnectionStats(
+internal data class DisplayedConnectionStats(
     val native: NativeConnectionStats,
     val downloadBytesPerSecond: Double,
     val uploadBytesPerSecond: Double,
@@ -727,7 +726,7 @@ private data class RefreshedMainConfig(
 )
 
 @Composable
-private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
+internal fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val unitSystem = TrafficUnitPreferences.current(context)
     Card(Modifier.fillMaxWidth()) {
@@ -750,26 +749,26 @@ private fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
                 ),
                 modifier = statModifier,
             )
-            val latency = stats.native.proxyLatencyMillis
-            val ageMillis = System.currentTimeMillis() - stats.native.proxyLatencyAtMillis
+            val rtt = stats.native.tcpRttMillis
             StatValue(
-                label = stringResource(R.string.proxy_latency),
-                value = if (latency <= 0) "—" else stringResource(
+                label = stringResource(R.string.tcp_rtt),
+                value = if (rtt == null) "—" else stringResource(
                     R.string.latency_milliseconds,
-                    latency.toInt(),
+                    rtt.toInt(),
                 ),
-                supportingValue = if (latency <= 0) null else formatAge(ageMillis).ifEmpty { null },
                 modifier = statModifier,
             )
         }
-        val samples = stats.native.connectionSamples
         Text(
-            if (samples == 0) stringResource(R.string.connection_errors_no_samples)
-            else stringResource(
-                R.string.connection_errors,
-                stats.native.connectionErrorRate * 100,
-                pluralStringResource(R.plurals.connection_samples, samples, samples),
-            ),
+            stats.native.tcpRetransmits?.let {
+                stringResource(R.string.tcp_retransmits, it)
+            } ?: stringResource(R.string.tcp_retransmits_unavailable),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
+        )
+        Text(
+            stringResource(R.string.tcp_metrics_scope),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
@@ -840,19 +839,4 @@ private fun StatValue(
             )
         }
     }
-}
-
-@Composable
-private fun formatAge(ageMillis: Long): String = when {
-    ageMillis < 30_000 -> ""
-    ageMillis < 120_000 -> pluralStringResource(
-        R.plurals.latency_seconds_ago,
-        (ageMillis / 1_000).toInt(),
-        (ageMillis / 1_000).toInt(),
-    )
-    else -> pluralStringResource(
-        R.plurals.latency_minutes_ago,
-        (ageMillis / 60_000).toInt(),
-        (ageMillis / 60_000).toInt(),
-    )
 }

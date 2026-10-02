@@ -107,7 +107,7 @@ func TestHTTPSJumpTunnel(t *testing.T) {
 				host, port, _ := net.SplitHostPort(jump.Listener.Addr().String())
 				portNumber, _ := strconv.Atoi(port)
 				protector := &jumpTestProtector{}
-				d := &httpsConnectDialer{protector: protector, config: config{
+				d := &httpsConnectDialer{stats: resetStats(), protector: protector, config: config{
 					Type: "HTTPS_JUMP", Host: "exit.invalid", Port: 443,
 					// A direct dial to this address would fail. Only the jump can resolve exit.invalid.
 					DialHost: "192.0.2.1", Username: "exit", Password: "exit-secret",
@@ -141,8 +141,8 @@ func TestHTTPSJumpTunnel(t *testing.T) {
 				if after.DownloadBytes-before.DownloadBytes != wantBytes || after.UploadBytes-before.UploadBytes != wantBytes {
 					t.Fatal("intermediate TLS tunnel must not count application traffic twice")
 				}
-				if after.TotalOutcomes-before.TotalOutcomes != 2 {
-					t.Fatal("only end-to-end connection outcomes should be counted")
+				if d.jump.stats != d.stats {
+					t.Fatal("first hop must use the VPN stats")
 				}
 				if got := protector.calls.Load(); got < 1 || got > 2 {
 					t.Fatalf("protected sockets = %d", got)

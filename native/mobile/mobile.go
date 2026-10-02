@@ -29,6 +29,7 @@ var state struct {
 	device      device.Device
 	stack       *stack.Stack
 	proxyCloser io.Closer
+	stats       *connectionStats
 }
 
 // Start borrows tunFD for this call. Android keeps its ParcelFileDescriptor open;
@@ -72,7 +73,7 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		state.starting = false
 		state.Unlock()
 	}()
-	resetStats()
+	stats := resetStats()
 	dev, err := fdbased.Open(strconv.Itoa(tunFD), uint32(mtu), 0)
 	if err != nil {
 		_ = syscall.Close(tunFD)
@@ -81,11 +82,11 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 	t := tunnel.T()
 	var proxyCloser io.Closer
 	if c.isHTTPS() {
-		httpsProxy := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
+		httpsProxy := &httpsConnectDialer{config: c, protector: protector, reporter: reporter, stats: stats}
 		t.SetProxy(httpsProxy)
 		proxyCloser = httpsProxy
 	} else {
-		sshProxy := &sshDialer{config: c, protector: protector, reporter: reporter}
+		sshProxy := &sshDialer{config: c, protector: protector, reporter: reporter, stats: stats}
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 		_, sessionErr := sshProxy.session(ctx)
 		cancel()
@@ -117,6 +118,8 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		return errors.New("proxy core start was superseded")
 	}
 	state.device, state.stack, state.proxyCloser = dev, netstack, proxyCloser
+	state.stats = stats
+	go stats.run()
 	state.starting, state.running = false, true
 	committed = true
 	state.Unlock()
@@ -145,6 +148,10 @@ func Stop() {
 	state.running = false
 	dev, netstack, proxyCloser := state.device, state.stack, state.proxyCloser
 	state.device, state.stack, state.proxyCloser = nil, nil, nil
+	if state.stats != nil {
+		close(state.stats.done)
+		state.stats = nil
+	}
 	state.Unlock()
 	defer func() {
 		state.Lock()

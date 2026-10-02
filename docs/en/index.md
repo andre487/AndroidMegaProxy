@@ -15,3 +15,5 @@ Developer documentation:
 - [Release automation](release-automation.md)
 
 [Русская версия](../ru/index.md)
+
+- [Connection quality metrics](connection-metrics.md)

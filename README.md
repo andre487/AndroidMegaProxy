@@ -51,7 +51,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 - Per-profile IPv6 support; IPv4-only operation is the default.
 - Android Always-on VPN integration and a persistent foreground-service notification.
 - Automatic reconnect when the active profile or pending connection settings change.
-- Approximate upload speed, download speed, proxy latency, and recent connection-error rate.
+- Approximate upload/download speed, kernel TCP RTT to the first proxy, and outgoing TCP retransmits observed over the last five minutes.
 - Session traffic totals with selectable IEC/SI units, connection start time and elapsed duration.
 
 ### DNS and transport

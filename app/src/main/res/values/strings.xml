@@ -228,22 +228,7 @@
     <string name="traffic_units_description">Units used for speed and total traffic · %1$s</string>
     <string name="traffic_units_iec">IEC binary (KiB, MiB, GiB · 1024)</string>
     <string name="traffic_units_si">SI decimal (KB, MB, GB · 1000)</string>
-    <string name="proxy_latency">Proxy latency</string>
     <string name="latency_milliseconds">%1$d ms</string>
-    <string name="connection_errors_no_samples">Connection errors: no samples</string>
-    <string name="connection_errors">Connection errors: %1$.1f%% · %2$s</string>
-    <plurals name="connection_samples">
-        <item quantity="one">%1$d sample</item>
-        <item quantity="other">%1$d samples</item>
-    </plurals>
-    <plurals name="latency_seconds_ago">
-        <item quantity="one">%1$d sec ago</item>
-        <item quantity="other">%1$d sec ago</item>
-    </plurals>
-    <plurals name="latency_minutes_ago">
-        <item quantity="one">%1$d min ago</item>
-        <item quantity="other">%1$d min ago</item>
-    </plurals>
     <string name="https_with_jump">HTTPS with Jump</string>
     <string name="https_jump_route">Phone → jump HTTPS proxy → destination HTTPS proxy → website.</string>
     <string name="https_jump_proxy">Jump HTTPS proxy (first hop)</string>
@@ -408,10 +393,9 @@
     <string name="vpn_failover_disabled">%1$s Failover is disabled; the connection may remain unavailable.</string>
     <string name="vpn_failover_empty">%1$s No eligible fallback profile remains.</string>
     <string name="vpn_failover_active">Failover active: switched to %1$s. Location and exit IP may have changed.</string>
-    <string name="vpn_degraded">Connection is degraded: most recent proxy connections failed.</string>
     <string name="vpn_wifi_login">Wi-Fi sign-in is required before the VPN can reconnect.</string>
     <string name="vpn_channel_description">Persistent VPN status</string>
-    <string name="vpn_probably_blocked">Proxy probably blocked (%1$s).</string>
+    <string name="vpn_probably_blocked">Proxy may be blocked or unavailable (%1$s).</string>
     <string name="feedback_instructions">Please write your comments above this line.</string>
     <string name="crash_instructions">Please describe what happened before the crash above this line.</string>
     <string name="feedback_diagnostics">--- Diagnostic information ---</string>
@@ -490,4 +474,8 @@
     <string name="update_notification_open">Update</string>
     <string name="update_skip">Skip this version</string>
     <string name="update_disable">Disable auto-checks</string>
+    <string name="tcp_rtt">TCP RTT</string>
+    <string name="tcp_retransmits">TCP retransmits: %1$d · last 5 min</string>
+    <string name="tcp_retransmits_unavailable">TCP retransmits: no data</string>
+    <string name="tcp_metrics_scope">To the first proxy only. Retransmits count resent outgoing TCP segments, not packet loss.</string>
 </resources>
