@@ -12,6 +12,8 @@
 
 - [Работа с Fastlane](fastlane.md)
 
+- [Проверка релиза](release-testing.md)
+
 [English version](../en/index.md)
 
 ## HTTPS через Jump
