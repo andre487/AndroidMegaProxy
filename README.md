@@ -283,8 +283,10 @@ Pushing a version tag runs the same Fastlane release lane in GitHub Actions, bui
 all five APKs, then attaches them and their checksums to a GitHub Release. The workflow requires
 `ANDROID_SIGNING_KEY_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
 `ANDROID_KEY_PASSWORD` signing secrets. The tag must match
-`v` followed by the current `versionName` in `app/build.gradle.kts`. Create that tag with
-`git tag` and push the specific tag with `git push origin`; do not reuse a historical release tag.
+`v` followed by the current `versionName` in `app/build.gradle.kts`. The manual
+[Prepare and merge release workflow](docs/en/release-automation.md) can prepare the
+version/changelogs, wait for full PR CI, merge, and create this tag. Alternatively, create
+it with `git tag` and push the specific tag with `git push origin`; never reuse a historical tag.
 
 ## Contributing
 

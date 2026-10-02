@@ -46,6 +46,8 @@ That command lists the lanes available in the checked-out version of the project
 | `bundle exec fastlane android android_checks` | Builds the native AAR, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
 | `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
 | `bundle exec fastlane android debug_artifact` | Builds `app/build/outputs/apk/debug/app-debug.apk`. |
+| `bundle exec fastlane android release_prepare version:0.1.2` | Generates EN/RU notes, increments the version and creates a release PR (requires API/token setup). |
+| `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Requires full CI, squash merges the specified PR head and tags the merged commit. |
 | `bundle exec fastlane android release_artifacts` | Builds and verifies the signed release APKs and `SHA256SUMS` in `dist/release`. |
 
 The release lane requires the signing configuration described in
@@ -203,3 +205,7 @@ Add behavior tests using the same runner and Compose rule. Keep platform operati
 screen boundary and supply deterministic fakes; avoid sleeps and real network calls.
 These are interaction tests, not screenshot comparisons or device lifecycle certification.
 See [Robolectric setup](https://robolectric.org/getting-started/).
+
+[Release workflow setup and recovery](release-automation.md).
+
+Release branches `release/vX.Y.Z` always run all CI suites; skipped jobs cannot authorize release finalization.

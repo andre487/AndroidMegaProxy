@@ -120,6 +120,25 @@ platform :android do
     UI.success("Debug APK: app/build/outputs/apk/debug/app-debug.apk")
   end
 
+  desc "Generate EN/RU release notes, bump the version, and create a release PR"
+  lane :release_prepare do |options|
+    version = options[:version] || ENV.fetch("RELEASE_VERSION")
+    Dir.chdir(project_root) do
+      sh(ENV.fetch("PYTHON", "python3"), "scripts/release_automation.py", "prepare", "--version", version)
+    end
+  end
+
+  desc "Wait for full release PR CI, squash merge, and tag its verified merged commit"
+  lane :release_finish do |options|
+    version = options[:version] || ENV.fetch("RELEASE_VERSION")
+    pr = options[:pr] || ENV.fetch("RELEASE_PR")
+    head = options[:head] || ENV.fetch("RELEASE_HEAD")
+    Dir.chdir(project_root) do
+      sh(ENV.fetch("PYTHON", "python3"), "scripts/release_automation.py", "finish",
+         "--version", version.to_s, "--pr", pr.to_s, "--head", head.to_s)
+    end
+  end
+
   desc "Build and verify all signed release APK and checksum artifacts"
   lane :release_artifacts do
     sh(File.join(project_root, "scripts", "build-release-apks.sh"))

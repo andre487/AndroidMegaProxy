@@ -1,0 +1,75 @@
+name: Prepare and merge release
+run-name: Release v${{ inputs.version }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "New version X.Y.Z; merges after full CI, then publishes via the tag workflow"
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: prepare-release
+  cancel-in-progress: false
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      pr: ${{ steps.prepare.outputs.pr }}
+      head: ${{ steps.prepare.outputs.head }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+      - name: Prepare release PR
+        id: prepare
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          OPENAI_RELEASE_MODEL: ${{ vars.OPENAI_RELEASE_MODEL }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          test -n "$GH_TOKEN" || { echo 'Configure RELEASE_BOT_TOKEN'; exit 1; }
+          test -n "$OPENAI_API_KEY" || { echo 'Configure OPENAI_API_KEY'; exit 1; }
+          test -n "$OPENAI_RELEASE_MODEL" || { echo 'Configure OPENAI_RELEASE_MODEL'; exit 1; }
+          gh auth setup-git
+          bundle exec fastlane android release_prepare
+
+  finalize:
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 70
+    steps:
+      # Execute trusted workflow source, never code from the generated PR.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+      - name: Require full CI, merge, and tag
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
+          RELEASE_VERSION: ${{ inputs.version }}
+          RELEASE_PR: ${{ needs.prepare.outputs.pr }}
+          RELEASE_HEAD: ${{ needs.prepare.outputs.head }}
+        run: |
+          test -n "$GH_TOKEN" || { echo 'Configure RELEASE_BOT_TOKEN'; exit 1; }
+          gh auth setup-git
+          bundle exec fastlane android release_finish

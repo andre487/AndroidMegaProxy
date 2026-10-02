@@ -19,6 +19,23 @@ spec.loader.exec_module(m)
 
 
 class ChangeScopeTest(unittest.TestCase):
+    def test_release_pr_forces_full_ci_without_history_or_diff(self):
+        with (
+            patch.object(
+                sys,
+                "argv",
+                ["ci_changes.py", "--base", "a" * 40, "--head", "b" * 40, "--history"],
+            ),
+            patch.dict(os.environ, {"PR_BRANCH": "release/v0.1.2"}),
+            patch.object(m, "successful_baselines", side_effect=AssertionError),
+            patch.object(m, "changed_files", side_effect=AssertionError),
+            patch.object(sys, "stdout", io.StringIO()) as output,
+        ):
+            self.assertEqual(0, m.main())
+        result = json.loads(output.getvalue())
+        self.assertTrue(result["forced"])
+        self.assertTrue(all(result[suite] for suite in m.SUITES))
+
     def test_main_push_runs_every_suite_even_without_code_changes(self):
         with tempfile.TemporaryDirectory() as root:
             output = Path(root) / "output"

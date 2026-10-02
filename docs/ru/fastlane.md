@@ -47,6 +47,8 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android android_checks` | Собирает native AAR, запускает Android unit-тесты и lint, собирает debug APK, затем собирает и проверяет unsigned release APK. Команда отклоняет переменные release-подписи. |
 | `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
+| `bundle exec fastlane android release_prepare version:0.1.2` | Генерирует EN/RU changelog, повышает версию и создаёт release PR (нужна настройка API/токенов). |
+| `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Ждёт полного CI, выполняет squash merge указанного head PR и тегирует итоговый commit. |
 | `bundle exec fastlane android release_artifacts` | Собирает и проверяет подписанные APK и `SHA256SUMS` в `dist/release`. |
 
 Для release lane нужна конфигурация подписи из раздела
@@ -206,3 +208,7 @@ Robolectric фиксирует команды сервиса и подставл
 оставляйте на границе экрана и подставляйте управляемые реализации; избегайте sleep и сети.
 Это проверки взаимодействия, а не сравнение скриншотов или полная проверка на устройстве.
 См. [настройку Robolectric](https://robolectric.org/getting-started/).
+
+[Настройка workflow выпуска и восстановление после ошибок](release-automation.md).
+
+Release-ветки `release/vX.Y.Z` всегда запускают все наборы CI; skipped job не разрешает завершение выпуска.
