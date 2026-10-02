@@ -49,6 +49,9 @@ branch names, credentials, signing material, or other secrets.
 - Keep device-only tests out of required GitHub CI unless the project later adopts a dependable
   device farm or controlled self-hosted runner. Do not reintroduce a software-emulated Android
   fallback.
+- The native CI job also runs `native_integration`: real GOST/OpenSSH containers and a private
+  HTTP origin, using disposable credentials and the production dialers. Keep it separate from
+  ordinary local Go tests and Android TUN/JNI coverage; never use a public or personal proxy.
 
 ## Releases and distribution
 
