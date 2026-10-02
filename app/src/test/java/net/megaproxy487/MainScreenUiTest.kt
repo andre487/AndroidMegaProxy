@@ -1,6 +1,10 @@
 package net.megaproxy487
 
 import android.app.Application
+import androidx.core.graphics.Insets
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.compose.ui.unit.dp
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.ui.test.*
@@ -56,6 +60,30 @@ class MainScreenUiTest : MainUiTestBase() {
         saved()
         assertEquals(other.id, store.activeProfileId())
         compose.onNodeWithText("Secondary").assertIsDisplayed()
+        noCommand()
+    }
+
+    @Test fun longProfileMenuFitsSafeContentAndLastProfileCanBeSelected() {
+        val primary = store.activeProfile()
+        repeat(30) { index -> store.saveProfile(primary.copy(id = "menu-$index", name = "Menu profile $index"), createIfMissing = true) }
+        assertEquals(31, store.sortedProfiles().size)
+        screen()
+        compose.runOnIdle {
+            val density = activity.resources.displayMetrics.density
+            ViewCompat.dispatchApplyWindowInsets(activity.window.decorView,
+                WindowInsetsCompat.Builder()
+                    .setInsets(WindowInsetsCompat.Type.statusBars(), Insets.of(0, (100 * density).toInt(), 0, 0))
+                    .setInsets(WindowInsetsCompat.Type.navigationBars(), Insets.of(0, 0, 0, (200 * density).toInt()))
+                    .build())
+        }
+        compose.onNodeWithText("Primary").performClick()
+        val menuBounds = compose.onNode(isPopup()).getUnclippedBoundsInRoot()
+        val menuHeight = menuBounds.bottom - menuBounds.top
+        val screenHeight = activity.resources.displayMetrics.let { it.heightPixels / it.density }.dp
+        assertTrue("Menu must leave room for system bars and app bar: $menuHeight", menuHeight <= screenHeight - 364.dp)
+        compose.onNodeWithText("Menu profile 29").performScrollTo().assertIsDisplayed().performClick()
+        saved()
+        assertEquals("menu-29", store.activeProfileId())
         noCommand()
     }
 
