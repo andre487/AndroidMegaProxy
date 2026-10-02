@@ -19,3 +19,4 @@ app/libs/megaproxy-sources.jar
 
 __pycache__/
 .venv/
+.playwright-cli/
