@@ -144,7 +144,8 @@ func TestRealProxyServers(t *testing.T) {
 		{"openssh_password", sshConfig}, {"openssh_key", sshKeyConfig}, {"openssh_jump", sshJumpConfig},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			dial := realServerDialer(t, tc.cfg)
+			logs := &diagnosticRecorder{}
+			dial := realServerDialer(t, tc.cfg, logs)
 			transport := &http.Transport{DialContext: func(ctx context.Context, _, address string) (net.Conn, error) {
 				return dial(ctx, address)
 			}, DisableKeepAlives: true}
@@ -166,6 +167,27 @@ func TestRealProxyServers(t *testing.T) {
 					t.Fatalf("origin round trip failed: status=%d bytes=%d err=%v", response.StatusCode, len(body), err)
 				}
 			}
+			output := logs.text()
+			if tc.cfg.isHTTPS() {
+				if !strings.Contains(output, "tls_version=TLS1.") || !strings.Contains(output, "http_version=HTTP/") {
+					t.Fatal("missing HTTPS negotiation")
+				}
+			} else {
+				for _, field := range []string{"kex=", "host_key_algorithm=", "c2s_cipher=", "c2s_mac=", "s2c_cipher=", "s2c_mac="} {
+					if !strings.Contains(output, field) {
+						t.Fatalf("missing SSH negotiation field %s", field)
+					}
+				}
+				if strings.Contains(output, "=unknown") || strings.Contains(output, "algorithms=unavailable") {
+					t.Fatal("real SSH algorithms were not reported")
+				}
+			}
+			for _, secret := range []string{tc.cfg.Password, tc.cfg.JumpPassword, tc.cfg.PrivateKey, tc.cfg.TrustedHostKey, originAddress, "localhost", tc.cfg.DialHost} {
+				if secret != "" && strings.Contains(output, secret) {
+					t.Fatal("private data in native diagnostics")
+				}
+			}
+
 		})
 	}
 
@@ -206,7 +228,7 @@ func TestRealProxyServers(t *testing.T) {
 	}
 }
 
-func realServerDialer(t *testing.T, c config) func(context.Context, string) (net.Conn, error) {
+func realServerDialer(t *testing.T, c config, reporters ...Reporter) func(context.Context, string) (net.Conn, error) {
 	t.Helper()
 	raw, err := json.Marshal(c)
 	if err != nil {
@@ -217,12 +239,16 @@ func realServerDialer(t *testing.T, c config) func(context.Context, string) (net
 		t.Fatal(err)
 	}
 	protector := &jumpTestProtector{}
+	var reporter Reporter
+	if len(reporters) > 0 {
+		reporter = reporters[0]
+	}
 	if c.isHTTPS() {
-		d := &httpsConnectDialer{config: c, protector: protector}
+		d := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
 		t.Cleanup(func() { _ = d.Close() })
 		return d.connectTarget
 	}
-	d := &sshDialer{config: c, protector: protector}
+	d := &sshDialer{config: c, protector: protector, reporter: reporter}
 	t.Cleanup(func() { _ = d.Close() })
 	return d.connectTarget
 }

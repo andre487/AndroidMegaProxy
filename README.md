@@ -68,6 +68,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 - A staged connection test for proxy setup, `example.com`, and the observed exit IP and country.
 - Local, size-limited, rotating diagnostic and crash logs designed to omit credentials and traffic
   content.
+- [Negotiated TLS/HTTP/SSH parameters](docs/en/connection-metrics.md#negotiation-diagnostics) without peer identities or credentials.
 - On-device connection visibility checks and actionable connection warnings.
 - Optional feedback or crash reports opened in the user's email client; nothing is submitted
   automatically.
