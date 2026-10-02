@@ -120,7 +120,7 @@ platform :android do
     UI.success("Release artifacts: dist/release")
   end
 
-  desc "Upload a signed release AAB and native symbols to Google Play (internal draft by default)"
+  desc "Upload a signed release AAB, native symbols, and store text to Google Play (internal draft by default)"
   lane :play_release do |options|
     allowed_options = %i[aab symbols track release_status validate_only]
     unknown_options = options.keys - allowed_options
@@ -177,7 +177,7 @@ platform :android do
       validate_only: validate_only == "true",
       skip_upload_apk: true,
       skip_upload_aab: false,
-      skip_upload_metadata: true,
+      skip_upload_metadata: false,
       skip_upload_changelogs: false,
       skip_upload_images: true,
       skip_upload_screenshots: true

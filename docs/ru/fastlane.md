@@ -47,7 +47,7 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_artifacts` | Собирает и проверяет подписанные APK, AAB, native debug symbols и `SHA256SUMS` в `dist/release`. |
-| `bundle exec fastlane android play_release` | Загружает готовый подписанный AAB и native symbols в Google Play; по умолчанию создаёт internal-черновик. |
+| `bundle exec fastlane android play_release` | Загружает готовый подписанный AAB, native symbols и текст карточки магазина в Google Play; по умолчанию создаёт internal-черновик. |
 
 Для release lane нужна конфигурация подписи из раздела
 [Signed release builds](../../README.md#signed-release-builds). Lane только собирает артефакты: он
@@ -146,8 +146,11 @@ bundle exec fastlane android play_release track:production release_status:comple
 Готовьте оба файла при каждом релизе: их содержимое становится локализованными примечаниями.
 Lane не генерирует текст из коммитов. См. [changelog Fastlane](https://docs.fastlane.tools/actions/upload_to_play_store/#changelogs-whats-new).
 
-Текст карточки магазина, изображения и скриншоты не загружаются. F-Droid и Google Play используют
-общие файлы примечаний, а управление карточкой Play остаётся отдельным.
+Названия, краткие и полные описания карточки магазина загружаются из
+`fastlane/metadata/android/en-US` и `fastlane/metadata/android/ru-RU`. F-Droid и Google Play
+используют эти файлы и примечания к выпуску совместно. Обновляйте тексты в репозитории перед
+релизом: lane перезаписывает соответствующие тексты в Play Console. Изображения и скриншоты
+не загружаются.
 Workflow по тегу публикует GitHub Release и internal-черновик Google Play. CI для PR не должен
 получать JSON-ключ Play или вызывать `play_release`.
 
