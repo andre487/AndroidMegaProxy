@@ -207,7 +207,11 @@ func newSSHClient(ctx context.Context, conn net.Conn, hostname, username, passwo
 	if err != nil {
 		return nil, fmt.Errorf("SSH %s handshake: %w", hop, err)
 	}
-	report(reporter, "event=ssh_handshake hop=%s result=success profile=%s", hop, profile)
+	if metadata, ok := cc.(ssh.AlgorithmsConnMetadata); ok {
+		report(reporter, "event=ssh_handshake hop=%s result=success %s", hop, sshNegotiationDetails(metadata.Algorithms()))
+	} else {
+		report(reporter, "event=ssh_handshake hop=%s result=success algorithms=unavailable", hop)
+	}
 	report(reporter, "event=transport_capability transport=ssh hop=%s client_family=%s server_family=%s direct_tcpip=true multiplexed=true rekey_mb=%d", hop, sshClientFamily(profile), sshServerFamily(string(cc.ServerVersion())), sshRekeyBytes/(1024*1024))
 	return ssh.NewClient(cc, channels, requests), nil
 }

@@ -99,13 +99,13 @@ func lookupEndpointValue(ctx context.Context, reporter Reporter, stage string, e
 		cancel()
 		if err == nil {
 			if value, valid := endpoint.parse(body); valid {
-				report(reporter, "event=connection_test stage=%s_provider result=success attempt=%d provider=%s", stage, index+1, endpoint.host)
+				report(reporter, "event=connection_test stage=%s_provider result=success attempt=%d provider_index=%d", stage, index+1, index)
 				return value, nil
 			}
 			err = fmt.Errorf("invalid response")
 		}
 		lastErr = err
-		report(reporter, "event=connection_test stage=%s_provider result=failed attempt=%d provider=%s", stage, index+1, endpoint.host)
+		report(reporter, "event=connection_test stage=%s_provider result=failed attempt=%d provider_index=%d", stage, index+1, index)
 	}
 	return "", fmt.Errorf("all %d providers failed: %w", len(endpoints), lastErr)
 }
@@ -156,7 +156,7 @@ func testHTTPSGet(ctx context.Context, connect func(context.Context, string) (ne
 		return "", fmt.Errorf("destination TLS handshake: %w", err)
 	}
 	tlsState := connection.ConnectionState()
-	report(reporter, "event=connection_test stage=destination_tls result=success certificate=verified version=0x%04x cipher=0x%04x alpn=%s h2_negotiated=%t session_resumed=%t", tlsState.Version, tlsState.CipherSuite, normalizedALPN(tlsState.NegotiatedProtocol), tlsState.NegotiatedProtocol == "h2", tlsState.DidResume)
+	report(reporter, "event=connection_test stage=destination_tls result=success certificate=verified %s", tlsNegotiationDetails(tlsState.Version, tlsState.CipherSuite, tlsState.NegotiatedProtocol, tlsState.DidResume))
 
 	return testHTTPExchange(ctx, connection, host, path, readBody)
 }
@@ -180,7 +180,7 @@ func testHTTPExchange(ctx context.Context, connection net.Conn, host, path strin
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 400 {
-		return "", fmt.Errorf("HTTPS server returned %s", response.Status)
+		return "", fmt.Errorf("HTTPS server returned status %d", response.StatusCode)
 	}
 	if !readBody {
 		return "", nil

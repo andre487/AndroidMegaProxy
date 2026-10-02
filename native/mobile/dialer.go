@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"net/http"
-	"strings"
 	"sync"
 	"sync/atomic"
 	"syscall"
@@ -177,9 +176,11 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		return nil, err
 	}
 	tlsState := uconn.ConnectionState()
-	report(d.reporter, "event=connection conn=%d mode=proxy stage=tls_handshake result=success elapsed_ms=%d version=0x%04x cipher=0x%04x alpn=%q certificates=%d", connectionID, time.Since(tlsStarted).Milliseconds(), tlsState.Version, tlsState.CipherSuite, tlsState.NegotiatedProtocol, len(tlsState.PeerCertificates))
+	hop := d.logHop()
+	details := tlsNegotiationDetails(tlsState.Version, tlsState.CipherSuite, tlsState.NegotiatedProtocol, tlsState.DidResume)
+	report(d.reporter, "event=connection conn=%d mode=proxy hop=%s stage=tls_handshake result=success elapsed_ms=%d %s certificate_verification_enabled=%t certificates=%d", connectionID, hop, time.Since(tlsStarted).Milliseconds(), details, !d.config.AllowInvalidProxyCertificate, len(tlsState.PeerCertificates))
 	h2Negotiated := tlsState.NegotiatedProtocol == "h2"
-	report(d.reporter, "event=transport_capability transport=https_proxy tls_version=0x%04x outer_alpn=%s h2_negotiated=%t h2_connect_supported=true connect_protocol=%s session_resumed=%t", tlsState.Version, normalizedALPN(tlsState.NegotiatedProtocol), h2Negotiated, connectProtocol(h2Negotiated), tlsState.DidResume)
+	report(d.reporter, "event=transport_capability conn=%d transport=https_proxy hop=%s %s h2_negotiated=%t selected_connect_protocol=%s", connectionID, hop, details, h2Negotiated, connectProtocol(h2Negotiated))
 	if h2Negotiated {
 		session, sessionErr := newHTTP2ConnectSession(uconn)
 		if sessionErr != nil {
@@ -225,7 +226,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	}
 	if response.StatusCode != http.StatusOK {
 		_ = response.Body.Close()
-		err = fmt.Errorf("proxy CONNECT returned %s", response.Status)
+		err = fmt.Errorf("proxy CONNECT returned status %d", response.StatusCode)
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_response result=rejected status=%d status_class=%dxx", connectionID, response.StatusCode, response.StatusCode/100)
 		return nil, err
 	}
@@ -233,7 +234,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		return nil, fmt.Errorf("clear CONNECT deadline: %w", err)
 	}
 
-	report(d.reporter, "event=connection conn=%d mode=proxy stage=tunnel result=established total_ms=%d", connectionID, time.Since(totalStarted).Milliseconds())
+	report(d.reporter, "event=connection conn=%d mode=proxy hop=%s protocol=http1_1 http_version=HTTP/1.1 stage=tunnel result=established total_ms=%d", connectionID, hop, time.Since(totalStarted).Milliseconds())
 	closeOnError = false
 	var connection net.Conn = uconn
 	if reader.Buffered() > 0 {
@@ -364,15 +365,8 @@ func (d *httpsConnectDialer) openHTTP2Tunnel(ctx context.Context, session *http2
 		return nil, fmt.Errorf("HTTP/2 proxy CONNECT: %w", err)
 	}
 
-	report(d.reporter, "event=connection conn=%d mode=proxy protocol=http2 stage=tunnel result=established stream_multiplexed=true reused_session=%t total_ms=%d", connectionID, reused, time.Since(totalStarted).Milliseconds())
+	report(d.reporter, "event=connection conn=%d mode=proxy hop=%s protocol=http2 http_version=HTTP/2 stage=tunnel result=established stream_multiplexed=true reused_session=%t total_ms=%d", connectionID, d.logHop(), reused, time.Since(totalStarted).Milliseconds())
 	return d.trackConnection(tunnel, connectionID), nil
-}
-
-func normalizedALPN(value string) string {
-	if value == "" {
-		return "none"
-	}
-	return strings.ReplaceAll(value, " ", "_")
 }
 
 func forceHTTP11ALPN(connection *tls.UConn) error {
@@ -537,4 +531,11 @@ func (c *diagnosticConn) Write(p []byte) (int, error) {
 	}
 	c.reportError("write", err)
 	return n, err
+}
+
+func (d *httpsConnectDialer) logHop() string {
+	if d.intermediate {
+		return "jump"
+	}
+	return "destination"
 }

@@ -107,7 +107,8 @@ func TestHTTPSJumpTunnel(t *testing.T) {
 				host, port, _ := net.SplitHostPort(jump.Listener.Addr().String())
 				portNumber, _ := strconv.Atoi(port)
 				protector := &jumpTestProtector{}
-				d := &httpsConnectDialer{stats: resetStats(), protector: protector, config: config{
+				logs := &diagnosticRecorder{}
+				d := &httpsConnectDialer{stats: resetStats(), protector: protector, reporter: logs, config: config{
 					Type: "HTTPS_JUMP", Host: "exit.invalid", Port: 443,
 					// A direct dial to this address would fail. Only the jump can resolve exit.invalid.
 					DialHost: "192.0.2.1", Username: "exit", Password: "exit-secret",
@@ -146,6 +147,30 @@ func TestHTTPSJumpTunnel(t *testing.T) {
 				}
 				if got := protector.calls.Load(); got < 1 || got > 2 {
 					t.Fatalf("protected sockets = %d", got)
+				}
+				output := logs.text()
+				for hop, h2 := range map[string]bool{"jump": jumpH2, "destination": exitH2} {
+					version := "HTTP/1.1"
+					if h2 {
+						version = "HTTP/2"
+					}
+					found := false
+					for _, line := range strings.Split(output, "\n") {
+						if strings.Contains(line, "hop="+hop+" ") && strings.Contains(line, "http_version="+version+" ") && strings.Contains(line, "stage=tunnel result=established") {
+							found = true
+						}
+					}
+					if !found {
+						t.Fatalf("missing final HTTP version for %s: %s", hop, output)
+					}
+				}
+				for _, forbidden := range []string{"exit.invalid", "jump.invalid", "site.invalid", host, "exit-secret", "jump-secret", "Proxy-Authorization", "ServerName="} {
+					if strings.Contains(output, forbidden) {
+						t.Fatalf("private value in native log: %q", forbidden)
+					}
+				}
+				if !strings.Contains(output, "tls_version=TLS1.") || !strings.Contains(output, "cipher=TLS_") {
+					t.Fatal("missing negotiated TLS details")
 				}
 				if d.jump == nil || d.jump.config.BypassLocalNetworks {
 					t.Fatal("jump transport must not bypass CONNECT")

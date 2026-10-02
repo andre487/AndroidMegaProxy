@@ -31,3 +31,25 @@ its message says the proxy may be blocked **or unavailable**. It is a heuristic,
 not proof of filtering. RTT and retransmits do not trigger automatic failover.
 
 [Русская версия](../ru/connection-metrics.md)
+
+## Negotiation diagnostics
+
+Successful HTTPS proxy handshakes log the negotiated TLS version and cipher name,
+ALPN (`h2`, `http/1.1`, `none`, or `other`), session resumption, whether certificate
+verification is enabled, and certificate count. `hop=jump` / `hop=destination`
+distinguishes proxy hops without addresses. `http_version=HTTP/1.1` or `HTTP/2`
+on an established tunnel describes the actual CONNECT request protocol after
+fallback. ALPN and `selected_connect_protocol` alone do not prove CONNECT support.
+These fields describe the proxy transport, not applications' HTTPS traffic.
+
+SSH logs the initial negotiated key-exchange and host-key algorithms, plus cipher
+and MAC in each direction (`c2s` client to server, `s2c` server to client).
+`mac=aead` means integrity is provided by the cipher. Rekey negotiation is not
+reported by the current library metadata. Vendor suffixes use domain-free aliases:
+`@openssh.com` → `_openssh`, `@libssh.org` → `_libssh`, `@ssh.com` → `_sshcom`.
+Unknown algorithm strings are replaced with `unknown`.
+
+Negotiation events omit IPs, domains/SNI, usernames, passwords, key fingerprints,
+certificate identities, session IDs, key material and raw server banners. Do not
+log complete TLS/SSH state objects. HTTP rejection messages use numeric status
+codes, not server-provided reason text; connection-test providers use indices.
