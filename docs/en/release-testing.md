@@ -43,6 +43,16 @@ VirusTotal uploads, public services, issue posts or release publication.
 | A07 | Save existing app configuration and original system settings before mutation. Use synthetic profiles and dedicated ordinary test apps; on a personal phone restrict routing to those apps. Obtain applicable authorization for phone reboot/network changes. Do not clear/uninstall a pre-existing installation or change its lock credential. |
 | A08 | Establish controlled HTTP/HTTPS origins, GOST and OpenSSH endpoints, separate jump credentials/keys, logs and a capture point. Prove direct baseline and fixture health. Loopback/ADB reverse is suitable for tunnel correctness, but is not evidence of physical Wi-Fi/cellular routing or DNS leak resistance. Never route personal apps through the fixture. |
 
+## Priorities when the review budget is limited
+
+Complete artifact identity, basic forwarding on every supported test device,
+trust/authentication rejection, controlled DNS/UDP/routing checks, recovery and
+applicable migration first. Preserve restoration and evidence collection as
+mandatory final steps. Defer rare UI combinations, exhaustive permutations and
+long soaks explicitly; keep their cells NOT TESTED. A smaller review does not
+turn unexecuted release gates into PASS. Do not start a new scenario if it leaves
+insufficient time to restore personal devices and remove temporary access.
+
 ## Four-device execution matrix
 
 Run I01–I05, P01–P05, T01–T07, L01–L06, D01–D04, U01–U04 and E01–E03
@@ -81,7 +91,7 @@ visible in the matrix; an emulator result never silently substitutes for it.
 | T04 | All-app routing on an emulator; selected-app routing on every device with two ordinary UIDs (included/excluded). Toggle local-network bypass and probe controlled LAN/private and public targets. Confirm included/excluded decisions from observed route, not just checkboxes. |
 | T05 | IPv4 and, with a verified IPv6 uplink/origin, IPv6 allow/block. Probe arbitrary UDP/QUIC: MegaProxy intentionally blocks non-DNS UDP. Verify blocked tokens never reach the UDP origin with a working direct control; a browser falling back to HTTP/2 is not QUIC support. |
 | T06 | Run connection diagnostics: exit IP/country, latency, primary failure and fallback. Compare with controlled server egress. Check cancellation and invalid/offline profile behaviour; inspect logs for synthetic credential leakage. Distinguish failed external providers from broken tunnelling. |
-| T07 | Transfer a known amount, inspect upload/download totals, reset/limit behaviour and persistence. A configured MiB traffic limit must have the documented effect. Test selected/all failover with unavailable primary, healthy secondary and exhausted candidates; verify actual egress and Stop during failover. |
+| T07 | Transfer a known amount, inspect upload/download totals, reset/limit behaviour and persistence. The SSH session rotation threshold in MiB must rotate the session as documented; it is not a traffic quota and must not be tested as a VPN cutoff. Test selected/all failover with unavailable primary, healthy secondary and exhausted candidates; verify actual egress and Stop during failover. |
 
 ### Lifecycle, network changes and background operation
 
