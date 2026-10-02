@@ -15,5 +15,6 @@ class MegaProxyApplication : Application() {
         val store = ConfigStore(this)
         PersistentDiagnosticLog.initialize(this, store.diagnosticLogLimitMb())
         CrashHandler.install(this)
+        UpdateNotifications.schedule(this)
     }
 }

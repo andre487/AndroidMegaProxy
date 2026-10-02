@@ -465,4 +465,34 @@
     <string name="log_read_failed">Не удалось прочитать диагностический лог. Повторяем попытку…</string>
     <string name="error_config_complex">Конфигурация содержит слишком глубокую вложенность или слишком много элементов JSON.</string>
     <string name="vpn_command_failed">Не удалось выполнить команду VPN. Проверьте состояние соединения и повторите попытку.</string>
+
+    <string name="updates">Обновления приложения</string>
+    <string name="updates_description">Проверка новой версии в F-Droid или GitHub</string>
+    <string name="update_installed">Установленная версия: %1$s</string>
+    <string name="update_manual_description">Проверка выполняется примерно раз в сутки при наличии сети. О проигнорированном обновлении напомним через неделю. APK скачивается только с вашего согласия.</string>
+    <string name="update_source">Источник обновлений</string>
+    <string name="update_choose_source">Android не сообщил источник установки. Выберите источник обновлений.</string>
+    <string name="update_fdroid">F-Droid</string>
+    <string name="update_github">GitHub</string>
+    <string name="update_selected_source">Выбран: %1$s</string>
+    <string name="update_check">Проверить обновления</string>
+    <string name="update_current">В этом источнике нет более новой версии.</string>
+    <string name="update_not_published">Приложение или релиз ещё не опубликованы в этом источнике. Источник не изменён.</string>
+    <string name="update_failed">Не удалось проверить или безопасно скачать обновление. Проверьте соединение и повторите попытку. Установленное приложение не изменено.</string>
+    <string name="update_open_error">Не удалось открыть магазин, браузер или установщик Android. Если скачанный файл был удалён, проверьте и скачайте обновление заново.</string>
+    <string name="update_working">Проверка или скачивание…</string>
+    <string name="update_available">Новая версия: %1$s</string>
+    <string name="update_in_fdroid">Обновить через F-Droid</string>
+    <string name="update_download">Скачать с GitHub</string>
+    <string name="update_ready">APK скачан и проверен. Android проверит его при установке.</string>
+    <string name="update_install_permission">Нажмите «Установить обновление». Если Android запросит разрешение, разрешите установку из MegaProxy, вернитесь сюда и нажмите кнопку ещё раз. Подтвердите обновление в системном установщике.</string>
+    <string name="update_install">Установить обновление</string>
+    <string name="update_github_consent">APK будет скачан с GitHub в обход проверок F-Droid. Эта версия могла ещё не пройти проверку исходного кода и воспроизводимости в F-Droid. Продолжайте, только если доверяете этому источнику. Можно отменить скачивание и продолжить пользоваться установленной версией. Установка запускается отдельным действием.</string>
+    <string name="update_automatic">Проверять обновления автоматически</string>
+    <string name="update_notifications_disabled">Уведомления отключены. Разрешите их, чтобы получать напоминания об обновлениях.</string>
+    <string name="update_allow_notifications">Разрешить уведомления</string>
+    <string name="update_notification_text">Доступно в %1$s. Если проигнорировать, напомним через неделю.</string>
+    <string name="update_notification_open">Обновить</string>
+    <string name="update_skip">Пропустить версию</string>
+    <string name="update_disable">Отключить автопроверку</string>
 </resources>

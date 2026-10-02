@@ -47,6 +47,7 @@ android {
         // smaller compatible APK when both are available.
         versionCode = versionCodeBase * 1000 + versionVariantCode
         versionName = "0.1.1"
+        buildConfigField("String", "APK_VARIANT", "\"$versionVariant\"")
         buildConfigField("String", "GIT_COMMIT_HASH", "\"$gitCommitHash\"")
         if (versionVariant != "universal") {
             // Keep every ABI-specific APK genuinely single-ABI. Without this,

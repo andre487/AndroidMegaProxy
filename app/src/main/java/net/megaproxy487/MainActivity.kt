@@ -113,16 +113,19 @@ import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.ui.theme.MegaProxyTheme
 
 class MainActivity : LocalizedActivity() {
+    private var updateRequest by mutableStateOf(0)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         BatteryOptimizationReminder.maybeRequest(this)
-        setContent { MegaProxyTheme { MegaProxyNavHost(this) } }
+        if (intent?.action == OPEN_UPDATES_ACTION) updateRequest++
+        setContent { MegaProxyTheme { MegaProxyNavHost(this, updateRequest = updateRequest) } }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+        if (intent.action == OPEN_UPDATES_ACTION) updateRequest++
     }
 
     override fun onResume() {
