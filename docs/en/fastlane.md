@@ -68,6 +68,12 @@ creates or updates one APK-links comment on the pull request. It does not check 
 execute pull-request code or artifacts. These are test artifacts only: neither APK is signed with
 the MegaProxy release key, and neither is published as a GitHub Release or sent to an app store.
 
+The release lane builds one native AAR containing all four ABIs, then reuses it
+for the four architecture-specific APKs and the universal APK. Gradle's ABI filters
+select native libraries; intermediate outputs are retained between APKs. Version
+codes and `APK_VARIANT` remain variant-specific, so some compilation and R8 work
+still repeats. The universal AAR uses the same binding flags as the F-Droid recipe.
+
 ## Real proxy server tests
 
 Run `bundle exec fastlane android native_integration` with a running local Docker

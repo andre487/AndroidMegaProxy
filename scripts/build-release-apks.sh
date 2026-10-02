@@ -128,26 +128,13 @@ echo "Running native tests"
     go test ./...
 )
 
-# gomobile architecture names and their corresponding Android ABI names.
-targets=(
-    "arm64:arm64-v8a:$((version_code_base * 1000 + 2))"
-    "arm:armeabi-v7a:$((version_code_base * 1000 + 1))"
-    "amd64:x86_64:$((version_code_base * 1000 + 4))"
-    "386:x86:$((version_code_base * 1000 + 3))"
-)
-
-# A clean checkout has no app/libs/megaproxy.aar. Gradle resolves local AAR
-# dependencies while configuring Android unit tests, so build the first ABI
-# before invoking Gradle and reuse it for the first release APK below.
-first_target="${targets[0]}"
-first_go_arch="${first_target%%:*}"
-first_target_rest="${first_target#*:}"
-first_android_abi="${first_target_rest%%:*}"
-echo "Building initial native AAR for $first_android_abi"
+# Build every native ABI once. Gradle's abiFilters select the libraries for
+# each single-ABI APK; universal keeps the same inputs as the F-Droid recipe.
+echo "Building shared native AAR for all APKs"
 (
     cd "$project_dir/native"
     gomobile bind \
-        -target="android/$first_go_arch" \
+        -target=android \
         -androidapi 26 \
         -trimpath \
         -ldflags="-s -w -buildid= -X=runtime.modinfo=" \
@@ -163,36 +150,23 @@ echo "Running Android unit tests"
     ./gradlew testDebugUnitTest
 )
 
+targets=(
+    "arm64-v8a:2"
+    "armeabi-v7a:1"
+    "x86_64:4"
+    "x86:3"
+    "universal:0"
+)
 for target in "${targets[@]}"; do
-    go_arch="${target%%:*}"
-    target_rest="${target#*:}"
-    android_abi="${target_rest%%:*}"
-    version_code="${target_rest##*:}"
+    android_abi="${target%%:*}"
+    version_code="$((version_code_base * 1000 + ${target##*:}))"
     output_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-${android_abi}.apk"
-
-    if [[ "$android_abi" == "$first_android_abi" ]]; then
-        echo "Reusing initial native AAR for $android_abi"
-    else
-        echo "Building optimized native AAR for $android_abi"
-        (
-            cd "$project_dir/native"
-            gomobile bind \
-                -target="android/$go_arch" \
-                -androidapi 26 \
-                -trimpath \
-                -ldflags="-s -w -buildid= -X=runtime.modinfo=" \
-                -o ../app/libs/megaproxy.aar \
-                ./mobile
-        )
-    fi
 
     echo "Building and signing $android_abi APK"
     (
         cd "$project_dir"
-        # Keep clean and assemble in separate Gradle invocations. When both are
-        # requested in one task graph, Gradle does not guarantee that clean has
-        # finished before every generated-resource task starts.
-        ./gradlew clean
+        # Keep unchanged task outputs between variants. Gradle tracks the AAR,
+        # ABI filters, versionCode and BuildConfig fields as task inputs.
         ./gradlew assembleRelease -PmegaproxyVersionVariant="$android_abi"
     )
     built_apk="$project_dir/app/build/outputs/apk/release/app-release.apk"
@@ -205,37 +179,6 @@ for target in "${targets[@]}"; do
     verify_release_apk "$output_apk"
     verify_release_version_code "$output_apk" "$version_code"
 done
-
-# F-Droid verifies this universal APK against a clean source build before
-# publishing it with the upstream signature. Keep its gomobile and Gradle
-# inputs compatible with the recipe maintained in fdroiddata.
-echo "Building optimized native AAR for the universal APK"
-(
-    cd "$project_dir/native"
-    gomobile bind \
-        -target=android \
-        -androidapi 26 \
-        -trimpath \
-        -ldflags="-s -w -buildid= -X=runtime.modinfo=" \
-        -o ../app/libs/megaproxy.aar \
-        ./mobile
-)
-
-echo "Building and signing universal APK"
-(
-    cd "$project_dir"
-    ./gradlew clean
-    ./gradlew assembleRelease -PmegaproxyVersionVariant=universal
-)
-universal_apk="$MEGAPROXY_RELEASE_DIR/mega-proxy-universal.apk"
-built_apk="$project_dir/app/build/outputs/apk/release/app-release.apk"
-if [[ ! -f "$built_apk" ]]; then
-    echo "Gradle did not produce the expected APK: $built_apk" >&2
-    exit 1
-fi
-cp "$built_apk" "$universal_apk"
-verify_release_apk "$universal_apk"
-verify_release_version_code "$universal_apk" "$((version_code_base * 1000))"
 
 (
     cd "$MEGAPROXY_RELEASE_DIR"
