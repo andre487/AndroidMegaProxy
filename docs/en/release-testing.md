@@ -55,7 +55,7 @@ insufficient time to restore personal devices and remove temporary access.
 
 ## Four-device execution matrix
 
-Run I01–I05, P01–P05, T01–T07, L01–L06, D01–D04, U01–U04 and E01–E03
+Run I01–I05, P01–P05, T01–T09, L01–L06, D01–D04, U01–U04 and E01–E03
 on all four devices where applicable. Run advanced capture, Direct Boot, forced
 Doze and destructive-data cases on the dedicated emulators first. Repeat applicable
 cases on phones only within the recorded authorization. A phone exception remains
@@ -90,8 +90,10 @@ visible in the matrix; an emulator result never silently substitutes for it.
 | T03 | Proxy refused, timeout, reset, unreachable origin and truncated response; restore each. Application must report bounded errors and recover. No direct fallback unless the selected routing policy explicitly calls for it. |
 | T04 | All-app routing on an emulator; selected-app routing on every device with two ordinary UIDs (included/excluded). Toggle local-network bypass and probe controlled LAN/private and public targets. Confirm included/excluded decisions from observed route, not just checkboxes. |
 | T05 | IPv4 and, with a verified IPv6 uplink/origin, IPv6 allow/block. Probe arbitrary UDP/QUIC: MegaProxy intentionally blocks non-DNS UDP. Verify blocked tokens never reach the UDP origin with a working direct control; a browser falling back to HTTP/2 is not QUIC support. |
-| T06 | Run connection diagnostics: exit IP/country, latency, primary failure and fallback. Compare with controlled server egress. Check cancellation and invalid/offline profile behaviour; inspect logs for synthetic credential leakage. Distinguish failed external providers from broken tunnelling. |
+| T06 | Run connection diagnostics: exit IP/country, primary failure and fallback. Compare with controlled server egress. Check cancellation and invalid/offline profile behaviour; inspect logs for synthetic credential leakage. Distinguish failed external providers from broken tunnelling. |
 | T07 | Transfer a known amount, inspect upload/download totals, reset/limit behaviour and persistence. The SSH session rotation threshold in MiB must rotate the session as documented; it is not a traffic quota and must not be tested as a VPN cutoff. Test selected/all failover with unavailable primary, healthy secondary and exhausted candidates; verify actual egress and Stop during failover. |
+| T08 | Check [TCP metrics](connection-metrics.md) with controlled traffic: RTT is to the first proxy, not website latency; no data differs from zero. Induce loss on a dedicated fixture, correlate outgoing retransmits with independent capture, and verify expiry after five minutes without new readings. Check jump/multiplexed sockets are counted once, standalone diagnostics do not change these metrics, and a new VPN session resets them. Record native-test evidence separately from device observations. |
+| T09 | Inspect successful HTTPS and SSH negotiation logs against the controlled server: TLS version/cipher/ALPN, actual HTTP CONNECT version after fallback, and initial SSH algorithms in both directions. Exercise both jump hops. Verify events contain no IPs, domains, credentials, certificate identities or raw banners; use synthetic markers. RTT/retransmits alone must not trigger failover; timeout/reset recovery remains a separate check. |
 
 ### Lifecycle, network changes and background operation
 

@@ -30,8 +30,6 @@ Existing timeout/reset-based suspected-blocking detection and recovery remain;
 its message says the proxy may be blocked **or unavailable**. It is a heuristic,
 not proof of filtering. RTT and retransmits do not trigger automatic failover.
 
-[Русская версия](../ru/connection-metrics.md)
-
 ## Negotiation diagnostics
 
 Successful HTTPS proxy handshakes log the negotiated TLS version and cipher name,
@@ -53,3 +51,5 @@ Negotiation events omit IPs, domains/SNI, usernames, passwords, key fingerprints
 certificate identities, session IDs, key material and raw server banners. Do not
 log complete TLS/SSH state objects. HTTP rejection messages use numeric status
 codes, not server-provided reason text; connection-test providers use indices.
+
+[Русская версия](../ru/connection-metrics.md)

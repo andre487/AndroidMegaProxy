@@ -1,11 +1,13 @@
-# MegaProxy server setup
+# MegaProxy documentation
 
 Server configurations and setup instructions have moved to the dedicated
 [MegaProxyServer repository](https://github.com/andre487/MegaProxyServer).
 
-Client connections:
+Client documentation:
 
-- [Installation](../../README.md#installation)
+- [Installation](installation.md)
+- [App updates](updates.md)
+- [Connection quality metrics](connection-metrics.md)
 - [HTTPS with Jump](../../README.md#https-with-jump)
 
 Developer documentation:
@@ -15,5 +17,3 @@ Developer documentation:
 - [Release automation](release-automation.md)
 
 [Русская версия](../ru/index.md)
-
-- [Connection quality metrics](connection-metrics.md)

@@ -1,4 +1,4 @@
-# Настройка серверов для MegaProxy
+# Документация MegaProxy
 
 Серверные конфигурации и инструкции по настройке перенесены в отдельный репозиторий
 [MegaProxyServer](https://github.com/andre487/MegaProxyServer).
@@ -6,16 +6,15 @@
 Документация клиента:
 
 - [Установка](installation.md)
+- [Обновления приложения](updates.md)
+- [Метрики качества соединения](connection-metrics.md)
 - [HTTPS через Jump](#https-через-jump)
 
 Документация для разработчиков:
 
 - [Работа с Fastlane](fastlane.md)
-
 - [Проверка релиза](release-testing.md)
 - [Автоматизация релиза](release-automation.md)
-
-[English version](../en/index.md)
 
 ## HTTPS через Jump
 
@@ -35,4 +34,5 @@
 Старые версии приложения отклоняют этот формат, чтобы не превратить цепочку в одиночный прокси.
 Экспорт ProxyList пропускает цепочки, поскольку поддерживает только одиночные HTTPS-прокси.
 
-- [Метрики качества соединения](connection-metrics.md)
+
+[English version](../en/index.md)
