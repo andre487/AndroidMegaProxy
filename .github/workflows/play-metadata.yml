@@ -1,10 +1,10 @@
-name: Upload Google Play store text
+name: Upload Google Play store listing
 
 on:
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag whose descriptions match the production release (for example v0.1.1)"
+        description: "Release tag whose descriptions and artwork match the production release (for example v0.1.1)"
         required: true
         type: string
 
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   upload:
-    name: Prepare store text for review
+    name: Prepare store listing for review
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -34,7 +34,7 @@ jobs:
           ruby-version: "3.4.10"
           bundler-cache: true
 
-      - name: Upload descriptions from the selected tag
+      - name: Upload descriptions and artwork from the selected tag
         env:
           PLAY_METADATA_RELEASE_TAG: ${{ inputs.release_tag }}
           SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
@@ -42,4 +42,4 @@ jobs:
 
       - name: Summarize next step
         run: |
-          echo 'Store text uploaded. Check Publishing overview in Play Console and send it for review with the matching production release. Nothing was submitted for review by this workflow.' >> "$GITHUB_STEP_SUMMARY"
+          echo 'Store descriptions and artwork uploaded. Check Publishing overview in Play Console and send it for review with the matching production release. Nothing was submitted for review by this workflow.' >> "$GITHUB_STEP_SUMMARY"

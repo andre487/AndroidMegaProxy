@@ -142,7 +142,7 @@ platform :android do
     json_key_data
   end
 
-  desc "Upload store text from a release tag; leave submission to Play Console"
+  desc "Upload store text and artwork from a release tag; leave submission to Play Console"
   lane :play_metadata do |options|
     unknown_options = options.keys - [:release_tag]
     UI.user_error!("Unknown play_metadata options: #{unknown_options.join(', ')}") unless unknown_options.empty?
@@ -171,8 +171,27 @@ platform :android do
           end
           File.write(File.join(metadata_path, language, "#{field}.txt"), text)
         end
+        images_root = "fastlane/metadata/android/#{language}/images"
+        paths, _, result = Open3.capture3("git", "-C", project_root, "ls-tree", "-rz", "--name-only", "#{commit}:#{images_root}")
+        UI.user_error!("Missing #{language} images in #{tag}") unless result.success?
+        images = paths.split("\0").select do |path|
+          path.match?(%r{\A(?:(?:icon|featureGraphic|promoGraphic|tvBanner)|(?:phoneScreenshots|sevenInchScreenshots|tenInchScreenshots|tvScreenshots|wearScreenshots)/[^/]+)\.(?:png|jpe?g)\z}i)
+        end
+        unless %w[icon featureGraphic].all? { |name| images.any? { |path| path.match?(/\A#{name}\.(png|jpe?g)\z/i) } } &&
+               (2..8).cover?(images.count { |path| path.start_with?("phoneScreenshots/") })
+          UI.user_error!("#{language} requires an icon, feature graphic, and 2–8 phone screenshots")
+        end
+        images.each do |path|
+          data = read_at_commit.call("#{images_root}/#{path}").b
+          unless data.start_with?("\x89PNG\r\n\x1a\n".b, "\xff\xd8\xff".b)
+            UI.user_error!("#{language}/images/#{path} is not PNG/JPEG data (Git LFS pointers are not supported)")
+          end
+          destination = File.join(metadata_path, language, "images", path)
+          FileUtils.mkdir_p(File.dirname(destination))
+          File.binwrite(destination, data)
+        end
       end
-      UI.message("Store text source: #{tag} (#{commit})")
+      UI.message("Store listing source: #{tag} (#{commit})")
       upload_to_play_store(
         json_key_data: play_credentials,
         package_name: "net.megaproxy487",
@@ -181,8 +200,8 @@ platform :android do
         skip_upload_aab: true,
         skip_upload_metadata: false,
         skip_upload_changelogs: true,
-        skip_upload_images: true,
-        skip_upload_screenshots: true,
+        skip_upload_images: false,
+        skip_upload_screenshots: false,
         changes_not_sent_for_review: true,
         rescue_changes_not_sent_for_review: false
       )
