@@ -10,6 +10,7 @@ Fastlane is the supported entry point for tests and build artifacts. Install Rub
 | `bundle exec fastlane android python_checks` | Check Python style and run unit tests |
 | `bundle exec fastlane android native_fuzz` | Fuzz native parsers for 20 seconds with two workers |
 | `bundle exec fastlane android native_tests` | Run Go tests with the race detector |
+| `bundle exec fastlane android native_integration` | Test real GOST/OpenSSH servers with Docker and the race detector |
 | `bundle exec fastlane android android_checks` | Run Android tests and lint, build a debug APK and release APK, and prove that the release APK is unsigned |
 | `bundle exec fastlane android test` | Run all native and Android checks |
 | `bundle exec fastlane android debug_artifact` | Produce `app/build/outputs/apk/debug/app-debug.apk` |

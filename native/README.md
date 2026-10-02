@@ -18,10 +18,14 @@ Use the supported Fastlane commands from the repository root:
 ```shell
 bundle exec fastlane android native_tests
 bundle exec fastlane android native_fuzz
+bundle exec fastlane android native_integration
 bundle exec fastlane android debug_artifact
 ```
 
 `native_tests` includes the Go race detector; `native_fuzz` runs a bounded 20-second parser campaign.
+`native_integration` requires Docker and exercises production dialers against real GOST/OpenSSH
+servers and a private HTTP origin. It runs in the native CI job, with no Android emulator.
+See the [fixture and scenario details](../docs/en/fastlane.md#real-proxy-server-tests).
 Android build lanes prepare `app/libs/megaproxy.aar` through `scripts/build-fdroid-native.sh`, which
 installs the pinned gomobile/gobind version and uses the reproducible binding flags. Do not replace
 that build path with `gomobile@latest`. Go dependencies are pinned in `go.mod` and `go.sum`.

@@ -73,6 +73,9 @@ jobs:
       - name: Run native tests with the race detector
         run: bundle exec fastlane android native_tests
 
+      - name: Test real GOST and OpenSSH servers
+        run: bundle exec fastlane android native_integration
+
   python-tests:
     needs: changes
     if: needs.changes.outputs.python == 'true'

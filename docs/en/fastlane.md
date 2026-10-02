@@ -42,6 +42,7 @@ That command lists the lanes available in the checked-out version of the project
 | `bundle exec fastlane android python_checks` | Checks Python formatting/import order and runs unit tests. |
 | `bundle exec fastlane android native_fuzz` | Fuzzes native parsers for 20 seconds with two workers. |
 | `bundle exec fastlane android native_tests` | Runs all Go tests with the race detector. |
+| `bundle exec fastlane android native_integration` | Tests production dialers against real GOST/OpenSSH servers in Docker with the race detector. |
 | `bundle exec fastlane android android_checks` | Builds the native AAR, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
 | `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
 | `bundle exec fastlane android debug_artifact` | Builds `app/build/outputs/apk/debug/app-debug.apk`. |
@@ -64,6 +65,36 @@ the files are retained for 14 days. After successful CI, a separate trusted `wor
 creates or updates one APK-links comment on the pull request. It does not check out, download, or
 execute pull-request code or artifacts. These are test artifacts only: neither APK is signed with
 the MegaProxy release key, and neither is published as a GitHub Release or sent to an app store.
+
+## Real proxy server tests
+
+Run `bundle exec fastlane android native_integration` with a running local Docker
+Engine (Linux or a Docker VM on macOS). Compose, a public server, Android SDK,
+emulator, system SSH configuration and production credentials are not needed.
+The first run downloads GOST 3.3.0 (pinned image digest) and builds an Alpine fixture
+with OpenSSH and Python. Registry/package access is required for this setup.
+
+The lane creates a separate Docker network, two GOST proxies (HTTPS/HTTP2), two
+OpenSSH servers with temporary host/client keys, and an HTTP echo server with no
+published port. Proxy ports are allocated dynamically on host loopback only.
+Production configuration parsing and dialers send three different binary POST
+payloads through HTTPS, HTTP2, HTTPS Jump, SSH password, SSH private key, and SSH
+Jump. Responses must match byte for byte. Negative cases reject incorrect
+credentials and TLS/SSH trust. The origin hostname must not be reachable directly
+from the test host.
+
+The native CI job runs this lane after ordinary Go tests. Missing Docker is an
+error, not a skipped success. `native_tests` and the regular local `test` lane do
+not require Docker; integration tests have a separate Go build tag. Tests remove
+their containers, network and temporary image on success or failure and print
+container logs on failure. A forcibly killed process may need manual cleanup of
+its `megaproxy-test-*` resources. Docker's downloaded image/build cache is retained.
+
+These checks cover real server interoperability and tunneled HTTP payloads. They
+do not exercise Android TUN/JNI, VpnService lifecycle, device routing or DoH.
+GOST's generated self-signed certificates are explicitly allowed in successful
+fixture connections; separate rejection cases keep verification enabled at each hop.
+OpenSSH host fingerprints are pinned to the keys generated inside the containers.
 
 ## Updating Fastlane
 
