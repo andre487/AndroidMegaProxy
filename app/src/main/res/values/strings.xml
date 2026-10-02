@@ -49,7 +49,7 @@
     <string name="export_action">Export</string>
     <string name="config_import_summary">Added %1$d, updated %2$d, unchanged %3$d profile(s).</string>
     <string name="config_import_skipped">Skipped %1$d invalid profile(s).</string>
-    <string name="config_import_missing_passwords">%1$d profile(s) require a password.</string>
+    <string name="config_import_missing_passwords">%1$d profile(s) have no password.</string>
     <string name="config_import_always_on_reconnect">Reconnect the VPN to apply the imported Always-on profile selection.</string>
     <string name="config_import_removed">Removed %1$d profile(s).</string>
     <string name="remove_missing_profiles_title">Remove profiles missing from the configuration?</string>
