@@ -31,26 +31,23 @@ internal fun parseConnectionTestResult(raw: String): ConnectionTestResult {
 data class NativeConnectionStats(
     val downloadBytes: Long,
     val uploadBytes: Long,
-    val proxyLatencyMillis: Double,
-    val proxyLatencyAtMillis: Long,
-    val connectionErrorRate: Double,
-    val connectionSamples: Int,
-    val totalOutcomes: Long,
+    val tcpRttMillis: Double?,
+    val tcpRetransmits: Long?,
 )
+
+internal fun parseNativeConnectionStats(raw: String): NativeConnectionStats {
+    val json = JSONObject(raw)
+    return NativeConnectionStats(
+        downloadBytes = json.getLong("downloadBytes"),
+        uploadBytes = json.getLong("uploadBytes"),
+        tcpRttMillis = if (json.isNull("tcpRttMillis")) null else json.getDouble("tcpRttMillis"),
+        tcpRetransmits = if (json.isNull("tcpRetransmits")) null else json.getLong("tcpRetransmits"),
+    )
+}
 
 object ConnectionStatsReader {
     fun snapshot(): NativeConnectionStats? = operationResult {
-        val raw = Mobile.getStats()
-        val json = JSONObject(raw)
-        NativeConnectionStats(
-            downloadBytes = json.getLong("downloadBytes"),
-            uploadBytes = json.getLong("uploadBytes"),
-            proxyLatencyMillis = json.getDouble("proxyLatencyMillis"),
-            proxyLatencyAtMillis = json.getLong("proxyLatencyAtMillis"),
-            connectionErrorRate = json.getDouble("connectionErrorRate"),
-            connectionSamples = json.getInt("connectionSamples"),
-            totalOutcomes = json.getLong("totalOutcomes"),
-        )
+        parseNativeConnectionStats(Mobile.getStats())
     }.getOrNull()
 }
 

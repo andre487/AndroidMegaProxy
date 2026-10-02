@@ -44,12 +44,9 @@ class ProxyVpnService : VpnService() {
     @Volatile private var connectionBlockedForAction = false
     @Volatile private var reconnectAfterStart = false
     @Volatile private var serviceDestroyed = false
-    @Volatile private var healthWarningActive = false
     @Volatile private var consecutiveStartFailures = 0
     @Volatile private var nextStartAttemptAt = 0L
     @Volatile private var retryStatus: String? = null
-    private var lastHealthBytes = 0L
-    private var lastHealthOutcomes = 0L
     private val tunnelStateLock = Any()
     private val startGeneration = AtomicLong(0)
     private val probableFailureCounts = ConcurrentHashMap<String, Int>()
@@ -86,7 +83,6 @@ class ProxyVpnService : VpnService() {
         override fun run() {
             val desired = ConfigStore(this@ProxyVpnService).isConnectionDesired()
             if (desired) {
-                updatePassiveHealthState()
                 getSystemService(NotificationManager::class.java).notify(
                     NOTIFICATION_ID,
                     notification(failoverNotice ?: retryStatus ?: VpnRuntimeState.networkWarning.value ?: if (isRunning) this@ProxyVpnService.uiText(R.string.status_connected) else this@ProxyVpnService.uiText(R.string.status_reconnecting)),
@@ -630,37 +626,6 @@ class ProxyVpnService : VpnService() {
         }
     }
 
-    private fun updatePassiveHealthState() {
-        if (!isRunning) return
-        // The monitor runs on the main looper. Avoid JNI/reflection/JSON work here;
-        // health evaluation itself is safe on this short-lived worker.
-        thread(name = "megaproxy-health-snapshot") {
-            updatePassiveHealthStateOffMain()
-        }
-    }
-
-    private fun updatePassiveHealthStateOffMain() {
-        val stats = ConnectionStatsReader.snapshot() ?: return
-        val bytes = stats.downloadBytes + stats.uploadBytes
-        val trafficProgressed = bytes > lastHealthBytes
-        val newConnectionOutcomes = stats.totalOutcomes > lastHealthOutcomes
-        when {
-            trafficProgressed && healthWarningActive -> {
-                healthWarningActive = false
-                if (failoverNotice == null) VpnRuntimeState.updateNetworkWarning(null)
-                DiagnosticLog.add("event=connection_health state=recovered")
-            }
-            newConnectionOutcomes && stats.connectionSamples >= 3 && stats.connectionErrorRate >= 0.75 && !healthWarningActive -> {
-                healthWarningActive = true
-                val warning = this@ProxyVpnService.uiText(R.string.vpn_degraded)
-                VpnRuntimeState.updateNetworkWarning(warning)
-                DiagnosticLog.add("event=connection_health state=degraded error_rate_percent=${(stats.connectionErrorRate * 100).toInt()} samples=${stats.connectionSamples}")
-            }
-        }
-        lastHealthBytes = bytes
-        lastHealthOutcomes = stats.totalOutcomes
-    }
-
     private fun registerUnderlyingNetworkCallback() {
         val manager = getSystemService(ConnectivityManager::class.java)
         val request = NetworkRequest.Builder()
@@ -724,9 +689,6 @@ class ProxyVpnService : VpnService() {
             tunnelTestOnly = false
             activeSession = null
             isRunning = false
-            healthWarningActive = false
-            lastHealthBytes = 0L
-            lastHealthOutcomes = 0L
             result
         }
         if (stopped.first != null) {
