@@ -39,12 +39,12 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
-          OPENAI_RELEASE_MODEL: ${{ vars.OPENAI_RELEASE_MODEL }}
+          OPENAI_RELEASE_MODEL: ${{ vars.OPENAI_RELEASE_MODEL || secrets.OPENAI_RELEASE_MODEL }}
           RELEASE_VERSION: ${{ inputs.version }}
         run: |
           test -n "$GH_TOKEN" || { echo 'Configure RELEASE_BOT_TOKEN'; exit 1; }
           test -n "$OPENAI_API_KEY" || { echo 'Configure OPENAI_API_KEY'; exit 1; }
-          test -n "$OPENAI_RELEASE_MODEL" || { echo 'Configure OPENAI_RELEASE_MODEL'; exit 1; }
+          test -n "$OPENAI_RELEASE_MODEL" || { echo 'Configure OPENAI_RELEASE_MODEL in Actions Variables or Secrets'; exit 1; }
           gh auth setup-git
           bundle exec fastlane android release_prepare
 
