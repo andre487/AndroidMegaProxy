@@ -1,3 +1,8 @@
+require "open3"
+require "tmpdir"
+require "fileutils"
+require "json"
+
 default_platform(:android)
 
 opt_out_usage
@@ -120,7 +125,71 @@ platform :android do
     UI.success("Release artifacts: dist/release")
   end
 
-  desc "Upload a signed release AAB, native symbols, and store text to Google Play (internal draft by default)"
+  private_lane :play_credentials do
+    json_key_data = ENV["SUPPLY_JSON_KEY_DATA"]
+    if json_key_data.to_s.strip.empty?
+      UI.user_error!("Set SUPPLY_JSON_KEY_DATA to the service-account JSON contents")
+    end
+    begin
+      credentials = JSON.parse(json_key_data)
+    rescue JSON::ParserError
+      UI.user_error!("SUPPLY_JSON_KEY_DATA must contain valid JSON")
+    end
+    unless credentials.is_a?(Hash) && credentials["type"] == "service_account" &&
+           %w[client_email private_key token_uri].all? { |key| credentials[key].is_a?(String) && !credentials[key].strip.empty? }
+      UI.user_error!("SUPPLY_JSON_KEY_DATA must contain a service-account key with client_email, private_key and token_uri")
+    end
+    json_key_data
+  end
+
+  desc "Upload store text from a release tag; leave submission to Play Console"
+  lane :play_metadata do |options|
+    unknown_options = options.keys - [:release_tag]
+    UI.user_error!("Unknown play_metadata options: #{unknown_options.join(', ')}") unless unknown_options.empty?
+    tag = options.fetch(:release_tag, ENV["PLAY_METADATA_RELEASE_TAG"]).to_s
+    unless tag.match?(/\Av[0-9]+\.[0-9]+\.[0-9]+(?:[-+][0-9A-Za-z.-]+)?\z/)
+      UI.user_error!("release_tag must be a version tag such as v0.1.1")
+    end
+    commit, _, status = Open3.capture3("git", "-C", project_root, "rev-parse", "--verify", "refs/tags/#{tag}^{commit}")
+    UI.user_error!("Release tag #{tag} is unavailable; fetch tags first") unless status.success?
+    commit = commit.strip
+    read_at_commit = lambda do |path|
+      text, _, result = Open3.capture3("git", "-C", project_root, "show", "#{commit}:#{path}")
+      UI.user_error!("Missing #{path} in #{tag}") unless result.success?
+      text.force_encoding(Encoding::UTF_8)
+    end
+    version = read_at_commit.call("app/build.gradle.kts")[/^\s*versionName = "([^"]+)"/, 1]
+    UI.user_error!("Release tag does not match its Android versionName") unless tag == "v#{version}"
+
+    Dir.mktmpdir("megaproxy-play-metadata-") do |metadata_path|
+      %w[en-US ru-RU].each do |language|
+        FileUtils.mkdir_p(File.join(metadata_path, language))
+        { "title" => 30, "short_description" => 80, "full_description" => 4000 }.each do |field, limit|
+          text = read_at_commit.call("fastlane/metadata/android/#{language}/#{field}.txt").strip
+          unless text.valid_encoding? && !text.empty? && text.length <= limit
+            UI.user_error!("Invalid #{language}/#{field}: expected 1–#{limit} UTF-8 characters")
+          end
+          File.write(File.join(metadata_path, language, "#{field}.txt"), text)
+        end
+      end
+      UI.message("Store text source: #{tag} (#{commit})")
+      upload_to_play_store(
+        json_key_data: play_credentials,
+        package_name: "net.megaproxy487",
+        metadata_path: metadata_path,
+        skip_upload_apk: true,
+        skip_upload_aab: true,
+        skip_upload_metadata: false,
+        skip_upload_changelogs: true,
+        skip_upload_images: true,
+        skip_upload_screenshots: true,
+        changes_not_sent_for_review: true,
+        rescue_changes_not_sent_for_review: false
+      )
+    end
+  end
+
+  desc "Upload a signed release AAB and native symbols to Google Play (internal draft by default)"
   lane :play_release do |options|
     allowed_options = %i[aab symbols track release_status validate_only]
     unknown_options = options.keys - allowed_options
@@ -137,19 +206,7 @@ platform :android do
       UI.user_error!("validate_only must be true or false")
     end
 
-    json_key_data = ENV["SUPPLY_JSON_KEY_DATA"]
-    if json_key_data.to_s.strip.empty?
-      UI.user_error!("Set SUPPLY_JSON_KEY_DATA to the service-account JSON contents")
-    end
-    begin
-      credentials = JSON.parse(json_key_data)
-    rescue JSON::ParserError
-      UI.user_error!("SUPPLY_JSON_KEY_DATA must contain valid JSON")
-    end
-    unless credentials.is_a?(Hash) && credentials["type"] == "service_account" &&
-           %w[client_email private_key token_uri].all? { |key| credentials[key].is_a?(String) && !credentials[key].strip.empty? }
-      UI.user_error!("SUPPLY_JSON_KEY_DATA must contain a service-account key with client_email, private_key and token_uri")
-    end
+    json_key_data = play_credentials
     release_dir = File.expand_path(ENV.fetch("MEGAPROXY_RELEASE_DIR", "dist/release"), project_root)
     files = {
       aab: File.expand_path(options.fetch(:aab, File.join(release_dir, "mega-proxy.aab")), project_root),
@@ -177,7 +234,7 @@ platform :android do
       validate_only: validate_only == "true",
       skip_upload_apk: true,
       skip_upload_aab: false,
-      skip_upload_metadata: false,
+      skip_upload_metadata: true,
       skip_upload_changelogs: false,
       skip_upload_images: true,
       skip_upload_screenshots: true

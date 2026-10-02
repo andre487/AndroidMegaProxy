@@ -47,7 +47,8 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_artifacts` | Собирает и проверяет подписанные APK, AAB, native debug symbols и `SHA256SUMS` в `dist/release`. |
-| `bundle exec fastlane android play_release` | Загружает готовый подписанный AAB, native symbols и текст карточки магазина в Google Play; по умолчанию создаёт internal-черновик. |
+| `bundle exec fastlane android play_release` | Загружает готовый подписанный AAB и native symbols в Google Play; по умолчанию создаёт internal-черновик. |
+| `bundle exec fastlane android play_metadata release_tag:v0.1.1` | Загружает русский и английский тексты карточки из указанного тега без отправки на проверку. |
 
 Для release lane нужна конфигурация подписи из раздела
 [Signed release builds](../../README.md#signed-release-builds). Lane только собирает артефакты: он
@@ -146,13 +147,48 @@ bundle exec fastlane android play_release track:production release_status:comple
 Готовьте оба файла при каждом релизе: их содержимое становится локализованными примечаниями.
 Lane не генерирует текст из коммитов. См. [changelog Fastlane](https://docs.fastlane.tools/actions/upload_to_play_store/#changelogs-whats-new).
 
-Названия, краткие и полные описания карточки магазина загружаются из
-`fastlane/metadata/android/en-US` и `fastlane/metadata/android/ru-RU`. F-Droid и Google Play
-используют эти файлы и примечания к выпуску совместно. Обновляйте тексты в репозитории перед
-релизом: lane перезаписывает соответствующие тексты в Play Console. Изображения и скриншоты
-не загружаются.
+`play_release` не загружает текст карточки, изображения и скриншоты. Internal-черновик,
+создаваемый workflow по тегу, не должен обновлять публичное описание раньше production-релиза.
 Workflow по тегу публикует GitHub Release и internal-черновик Google Play. CI для PR не должен
 получать JSON-ключ Play или вызывать `play_release`.
+
+## Отдельная загрузка описаний
+
+В GitHub Actions выберите **Upload Google Play store text → Run workflow**, ветку `main`
+и укажите `release_tag` (например, `v0.1.1`). Workflow появится после слияния в `main`;
+запуски из других веток пропускаются. Используется существующий секрет репозитория
+`SUPPLY_JSON_KEY_DATA`; ключи подписи Android, SDK и артефакты сборки не нужны.
+
+Workflow выполняет Fastlane-код своей текущей ревизии, читает из выбранного тега только
+названия, краткие и полные описания для `en-US` и `ru-RU` и загружает эти шесть файлов.
+Код из выбранного тега не выполняется. Тег должен существовать и совпадать с Android
+`versionName`; отсутствующие, пустые или слишком длинные тексты отклоняются до загрузки.
+В журнал выводится точный коммит источника.
+
+Для локального запуска получите релизные теги и вызовите lane из текущей версии инструментов:
+
+```shell
+git fetch origin --tags
+bundle exec fastlane android play_metadata release_tag:v0.1.1
+```
+
+Нужен `SUPPLY_JSON_KEY_DATA`. APK, AAB, примечания к выпуску, изображения и скриншоты не загружаются.
+Lane всегда задаёт `changes_not_sent_for_review: true` и отключает автоматическую повторную
+попытку с разрешённой отправкой на проверку. Проверьте и отправьте изменения в Play Console сами.
+
+Тексты карточки относятся ко всему приложению, а не к отдельному треку. Выбирайте тег
+production-релиза, возможности которого должна описывать карточка. В старых тегах остаются
+старые тексты: правка описания в `main` не меняет содержимое старого тега. Готовьте описания
+до создания нового релизного тега. Для согласованного обновления отправляйте описание вместе
+с production-релизом, затем используйте Managed publishing (когда он доступен), чтобы
+опубликовать оба изменения после одобрения. Workflow не проверяет текущую опубликованную
+версию и не публикует production-релиз.
+
+Локальная проверка без загрузки Fastlane и обращения к Google:
+
+```shell
+ruby scripts/test-play-metadata.rb
+```
 
 ## Обновление Fastlane
 

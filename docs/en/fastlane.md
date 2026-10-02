@@ -46,7 +46,8 @@ That command lists the lanes available in the checked-out version of the project
 | `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
 | `bundle exec fastlane android debug_artifact` | Builds `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_artifacts` | Builds and verifies the signed release APKs, AAB, native debug symbols, and `SHA256SUMS` in `dist/release`. |
-| `bundle exec fastlane android play_release` | Uploads an existing signed AAB, native symbols, and store listing text to Google Play; defaults to an internal draft. |
+| `bundle exec fastlane android play_release` | Uploads an existing signed AAB and native symbols to Google Play; defaults to an internal draft. |
+| `bundle exec fastlane android play_metadata release_tag:v0.1.1` | Uploads English and Russian store text from the specified tag, without submitting it for review. |
 
 The release lane requires the signing configuration described in
 [Signed release builds](../../README.md#signed-release-builds). It builds artifacts but does not
@@ -143,12 +144,46 @@ version code returned by Google Play for the uploaded AAB (for example, `14000.t
 Prepare both files with each release; their contents become the localized release notes. The lane
 does not generate text from commits. See [Fastlane changelogs](https://docs.fastlane.tools/actions/upload_to_play_store/#changelogs-whats-new).
 
-Store listing titles, short descriptions, and full descriptions are uploaded from
-`fastlane/metadata/android/en-US` and `fastlane/metadata/android/ru-RU`. F-Droid and Google Play
-share these files and the release notes. Update the repository text before a release; the lane
-overwrites the corresponding text in Play Console. Images and screenshots are not uploaded.
+`play_release` does not upload store listing text, images, or screenshots. The tag workflow's
+internal draft must not update the public description ahead of the corresponding production release.
 The tag workflow publishes a GitHub Release and a Google Play internal draft. PR CI must not
 receive the Play JSON key or invoke `play_release`.
+
+## Upload store text separately
+
+In GitHub Actions, choose **Upload Google Play store text → Run workflow**, select branch `main`,
+and enter `release_tag` (for example `v0.1.1`). The workflow becomes available after it is merged
+into `main`; runs from other branches are skipped. It uses the existing `SUPPLY_JSON_KEY_DATA`
+repository secret and needs no Android signing keys, SDK, or build artifacts.
+
+The workflow runs the current workflow revision's Fastlane code, reads only titles and short/full
+descriptions for `en-US` and `ru-RU` from the selected tag, and uploads those six files. It never
+executes code from the selected tag. The tag must exist and match its Android `versionName`;
+missing, empty, or over-limit text fails before upload. The resolved commit is logged.
+
+For local use, fetch the release tags and run the lane from the current tooling checkout:
+
+```shell
+git fetch origin --tags
+bundle exec fastlane android play_metadata release_tag:v0.1.1
+```
+
+This requires `SUPPLY_JSON_KEY_DATA`. No APK, AAB, release notes, images, or screenshots are uploaded.
+The lane always sets `changes_not_sent_for_review: true` and disables automatic retry with a
+submission-enabled setting. Review and send the changes from Play Console yourself.
+
+Store text belongs to the application, not to an individual track. Select the tag matching the
+production release whose features the listing should describe. Old tags retain their old text;
+editing descriptions on `main` does not change what an old tag uploads. Prepare descriptions
+before creating a new release tag. For coordinated production updates, submit the description
+and production release together, then use Managed publishing (when available) to publish both
+after approval. This workflow does not check which version is live or publish a production release.
+
+Offline verification, without loading Fastlane or contacting Google:
+
+```shell
+ruby scripts/test-play-metadata.rb
+```
 
 ## Updating Fastlane
 
