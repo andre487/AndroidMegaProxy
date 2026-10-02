@@ -14,9 +14,14 @@ Fastlane is the supported entry point for tests and build artifacts. Install Rub
 | `bundle exec fastlane android android_checks` | Run Android tests and lint, build a debug APK and release APK, and prove that the release APK is unsigned |
 | `bundle exec fastlane android test` | Run all native and Android checks |
 | `bundle exec fastlane android debug_artifact` | Produce `app/build/outputs/apk/debug/app-debug.apk` |
+| `bundle exec fastlane android release_prepare version:0.1.2` | Generate EN/RU changelogs, bump the version and create a release PR |
+| `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Require full CI, squash merge the specified PR head and tag the merged commit |
 | `bundle exec fastlane android release_artifacts` | Produce signed APKs and checksums in `dist/release` |
 
 The release lane deliberately delegates signing and artifact verification to the repository's
 existing release scripts. It requires the signing environment documented in the root README.
 
 Full setup and CI scope rules: [English](../docs/en/fastlane.md) / [Русский](../docs/ru/fastlane.md).
+
+Release preparation requires API/token configuration; finalization merges and tags, not a dry run.
+See [release automation setup and recovery](../docs/en/release-automation.md).
