@@ -134,11 +134,22 @@ class ReleaseTests(unittest.TestCase):
             {
                 "name": name,
                 "conclusion": "success",
-                "steps": [{"name": m.BASE_STEP + "b" * 40, "conclusion": "success"}],
+                "steps": [
+                    {"name": m.BASE_STEP + "b" * 40, "conclusion": "success"},
+                    {"name": "Pull request: 7", "conclusion": "success"},
+                ],
             }
             for name in ["Change scope", *m.CHECKS.values()]
         ]
         m.full_ci(run, jobs, "a" * 40, "b" * 40, 7)
+        m.full_ci(dict(run, pull_requests=[]), jobs, "a" * 40, "b" * 40, 7)
+        missing_identity = copy.deepcopy(jobs)
+        missing_identity[0]["steps"] = missing_identity[0]["steps"][:1]
+        with self.assertRaisesRegex(RuntimeError, "another pull request"):
+            m.full_ci(
+                dict(run, pull_requests=[]), missing_identity, "a" * 40, "b" * 40, 7
+            )
+
         for conclusion in ["skipped", "neutral", "failure", "cancelled", None]:
             for i in range(len(jobs)):
                 changed = copy.deepcopy(jobs)
@@ -160,6 +171,49 @@ class ReleaseTests(unittest.TestCase):
                 m.full_ci(run, changed, "a" * 40, "b" * 40, 7)
         with self.assertRaises(RuntimeError):
             m.full_ci(run, jobs, "a" * 40, "c" * 40, 7)
+
+    def test_ci_wait_uses_recorded_identity_when_merged_run_loses_pr_links(self):
+        head, base = "a" * 40, "b" * 40
+        pr = {
+            "head": {
+                "sha": head,
+                "ref": "release/v0.1.2",
+                "repo": {"full_name": "owner/repo"},
+            },
+            "base": {"sha": base, "ref": "main", "repo": {"full_name": "owner/repo"}},
+            "draft": False,
+            "state": "closed",
+            "merged": True,
+        }
+        run = {
+            "id": 1,
+            "event": "pull_request",
+            "head_sha": head,
+            "head_branch": "release/v0.1.2",
+            "head_repository": {"full_name": "owner/repo"},
+            "pull_requests": [],
+            "status": "completed",
+            "conclusion": "success",
+        }
+        jobs = [
+            {
+                "name": name,
+                "conclusion": "success",
+                "steps": [
+                    {"name": m.BASE_STEP + base, "conclusion": "success"},
+                    {"name": "Pull request: 7", "conclusion": "success"},
+                ],
+            }
+            for name in ["Change scope", *m.CHECKS.values()]
+        ]
+        with (
+            patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}),
+            patch.object(
+                m, "api", side_effect=[pr, {"workflow_runs": [run]}, {"jobs": jobs}]
+            ),
+            patch.object(m.time, "sleep", side_effect=AssertionError),
+        ):
+            m.wait_ci(7, "0.1.2", head, base)
 
     def test_prepare_merge_and_retry_tag_with_real_git_and_fake_services(self):
         with (

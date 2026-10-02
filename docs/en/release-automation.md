@@ -63,7 +63,9 @@ allows PR CI and the tag-triggered release build to run normally.
 6. Wait up to 60 minutes for **CI / pull_request** for the exact PR and head commit.
    Release branches run every suite even on their first CI attempt. All four named
    jobs must finish with `success`; skipped, neutral, failed and cancelled jobs
-   are insufficient. The recorded comparison base must match the release parent.
+   are insufficient. The recorded comparison base must match the release parent. The PR number is
+   also recorded as a successful CI step because GitHub may remove run-to-PR
+   links after merge; this allows a verified retry of tag creation.
 7. Recheck PR identity and unchanged `main`, then request squash merge with the
    expected head SHA. GitHub protections still apply. Verify that the resulting
    commit belongs to `main` and has exactly the tested head's tree.

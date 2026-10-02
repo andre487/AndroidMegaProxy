@@ -293,7 +293,10 @@ def full_ci(run, jobs, head, base, number):
     require(
         run["event"] == "pull_request"
         and run["head_sha"] == head
-        and any(p["number"] == number for p in run.get("pull_requests", [])),
+        and (
+            not run.get("pull_requests")
+            or any(p["number"] == number for p in run["pull_requests"])
+        ),
         "CI belongs to another PR/commit",
     )
     require(run["conclusion"] == "success", "CI failed or was cancelled")
@@ -304,17 +307,14 @@ def full_ci(run, jobs, head, base, number):
             len(matching) == 1 and matching[0]["conclusion"] == "success",
             f"CI job must succeed, not skip: {name}",
         )
-    require(
-        any(
-            j["name"] == "Change scope"
-            and any(
-                s["name"] == BASE_STEP + base and s["conclusion"] == "success"
-                for s in j.get("steps", [])
-            )
-            for j in jobs
-        ),
-        "CI checked another base commit",
-    )
+    # GitHub may clear run.pull_requests after merge. Successful step names
+    # preserve the actual event identity for a later retry of tag creation.
+    scope = next(j for j in jobs if j["name"] == "Change scope")
+    recorded = {
+        s["name"] for s in scope.get("steps", []) if s["conclusion"] == "success"
+    }
+    require(BASE_STEP + base in recorded, "CI checked another base commit")
+    require(f"Pull request: {number}" in recorded, "CI checked another pull request")
 
 
 def wait_ci(number, version, head, base):
@@ -331,7 +331,13 @@ def wait_ci(number, version, head, base):
         runs = [
             r
             for r in runs
-            if any(p["number"] == number for p in r.get("pull_requests", []))
+            if r["head_branch"] == f"release/v{version}"
+            and r["head_sha"] == head
+            and r["head_repository"]["full_name"] == os.environ["GITHUB_REPOSITORY"]
+            and (
+                not r.get("pull_requests")
+                or any(p["number"] == number for p in r["pull_requests"])
+            )
         ]
         if runs:
             run = max(runs, key=lambda r: r["id"])
