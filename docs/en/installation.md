@@ -2,13 +2,48 @@
 
 [Русская инструкция](../ru/installation.md)
 
-MegaProxy requires Android 8.0 (API 26) or newer. Signed release APKs are available from
-[GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest), without a GitHub
-account. The app is not yet available in F-Droid.
+## For users: install on your phone
 
-## Choose a release APK
+You need a phone or tablet running Android 8.0 or newer. No computer, commands, or GitHub account
+are needed. An APK is an Android app installation file.
 
-Open the latest release and expand **Assets**. For a first installation, choose
+**[Download the latest MegaProxy for Android](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**
+
+This permanent link points to the latest universal APK and stays the same when a new version is released.
+
+1. Tap the link above **on your phone**. If the browser asks you to confirm downloading
+   `mega-proxy-universal.apk`, tap **Download** or **Save**.
+2. Wait for the download to finish, then tap **Open** in the browser notification. If the
+   notification has disappeared, open **Files** or **My Files**, go to **Downloads**, and tap
+   `mega-proxy-universal.apk`.
+3. If Android does not yet allow installation from this source, tap **Settings** in its message
+   and enable **Allow from this source**. Grant this permission to the browser or file manager
+   you used to open the file. The settings page may be called **Install unknown apps**.
+4. Go back to the installer, tap **Install**, then **Open**. You can turn off the browser or
+   file manager's installation permission afterward.
+5. If MegaProxy asks for notification permission, tap **Allow** to see connection status and
+   controls in notifications.
+6. Add or import connection settings for your server. MegaProxy does not provide servers or
+   passwords: if you do not have settings, ask the person who set up your server for them.
+7. Tap **Connect**. When Android asks to create a VPN connection, tap **OK** or **Allow**.
+   This permission lets the app route traffic through your server.
+
+Button names vary between phones. If a work device's administrator blocks installation, contact
+that administrator. The app is not yet available in F-Droid.
+
+**Updating:** download the new version using the same link, open the file, and confirm the update.
+Do not uninstall first; this preserves profiles and settings. If you previously installed an
+architecture-specific APK or a build from another source and the update fails, do not uninstall:
+see the update section below or ask a developer for help.
+
+## For developers: APK variants, verification, and troubleshooting
+
+The section above is sufficient for a normal installation. The following technical information
+is for developers and testers.
+
+### Choose a release APK
+
+Open the [latest release](https://github.com/andre487/AndroidMegaProxy/releases/latest) and expand **Assets**. For a first installation, choose
 **[mega-proxy-universal.apk](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**.
 It includes all supported architectures. If updating, keep the same APK variant where possible.
 
@@ -25,25 +60,7 @@ APK: these are standalone installers, not split packages. **Source code** archiv
 installers. Older releases also contain `.aab` and native-symbol ZIP files; neither can be opened
 on the phone to install the app.
 
-## Install on a phone or tablet
-
-1. Open the release page above on the device and download the selected APK from **Assets**.
-2. Open the completed download from the browser notification or the **Downloads** file manager.
-3. If Android asks to allow this source, open **Settings → Install unknown apps** and enable
-   **Allow from this source** for the browser or file manager that opened the APK.
-4. Return to the installer and tap **Install**, then **Open**. You can revoke that source's
-   installation permission afterward.
-5. Create or import a profile for your own SSH or HTTPS CONNECT server. MegaProxy does not provide
-   servers or access credentials. See [server setup](https://github.com/andre487/MegaProxyServer).
-6. Check the selected profile using **Test** in the main-screen menu, then tap **Connect**.
-   Accept Android's system VPN connection request when prompted. This allows MegaProxy to route
-   traffic through your configured proxy.
-
-System labels vary by Android version and manufacturer. Start downloads from this project's
-GitHub release page, not an APK mirror. If installation is restricted by a managed device's
-administrator, contact that administrator. See [Android's installation help](https://support.google.com/android/answer/9457058).
-
-## Check the downloaded file
+### Check the downloaded file
 
 Download `SHA256SUMS` from the **same release** as your APK. In a terminal opened in the download
 folder, calculate the file's SHA-256 using the command for your system:
@@ -65,7 +82,7 @@ that file's entry in `SHA256SUMS` (letter case does not matter). If they differ,
 that copy; download the APK and checksums again from the same release. Checksums detect a damaged
 or changed download; they do not independently authenticate the release source.
 
-## Install through ADB (optional)
+### Install through ADB (optional)
 
 Install [Android SDK Platform Tools](https://developer.android.com/tools/releases/platform-tools)
 on your computer. Enable **Developer options → USB debugging** on the phone, connect it by USB,
@@ -83,7 +100,7 @@ On Windows, use `adb.exe` from Platform Tools or add that directory to `PATH`.
 Disable USB debugging after use if you no longer need it.
 See the [ADB guide](https://developer.android.com/tools/adb#move).
 
-## Update without losing settings
+### Update without losing settings
 
 Check GitHub Releases for new versions and install the new APK over the existing app, using the
 same steps. **Do not uninstall first:** uninstalling removes local profiles, known SSH host keys,
@@ -99,7 +116,7 @@ codes than the universal APK of the same release. Switching to universal within 
 therefore fail as a downgrade. Use a newer release rather than forcing a downgrade or uninstalling.
 After updating, check the selected profile before connecting.
 
-## Test builds from pull requests
+### Test builds from pull requests
 
 For a requested test, open the pull request's APK-links comment or its successful Android check.
 The job summary links to artifacts; they are also listed under **Artifacts** on the workflow run.
@@ -115,7 +132,7 @@ also differ between CI runs. Do not remove your everyday installation merely to 
 `megaproxy-pr-<number>-unsigned-release-apk` contains `app-release-unsigned.apk` for build
 verification. It is not an installable signed release. For everyday use, return to GitHub Releases.
 
-## If installation fails
+### If installation fails
 
 | Symptom | What to check |
 | --- | --- |
