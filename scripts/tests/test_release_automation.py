@@ -243,6 +243,9 @@ class ReleaseTests(unittest.TestCase):
             git("config", "user.email", "test@example.invalid")
             git("config", "commit.gpgsign", "false")
             git("remote", "add", "origin", str(remote))
+            (work / ".gitignore").write_text(
+                (Path(__file__).parents[2] / ".gitignore").read_text()
+            )
             (work / "app").mkdir()
             (work / m.GRADLE).write_text(SOURCE)
             for locale in m.LOCALES:
@@ -318,6 +321,27 @@ class ReleaseTests(unittest.TestCase):
                     patch.object(m, "generate_notes", return_value=NOTES),
                     patch.object(m, "emit"),
                 ):
+                    # ruby/setup-ruby creates these before release preparation.
+                    for name in (
+                        ".bundle/config",
+                        "vendor/bundle/ruby/gems/fixture.rb",
+                    ):
+                        path = work / name
+                        path.parent.mkdir(parents=True, exist_ok=True)
+                        path.write_text("Bundler fixture\n")
+                    self.assertEqual("", git("status", "--porcelain"))
+                    for path in (work / m.GRADLE, work / "unexpected.txt"):
+                        original = path.read_text() if path.exists() else None
+                        path.write_text("Uncommitted change\n")
+                        with self.assertRaisesRegex(
+                            RuntimeError, "Use a clean checkout"
+                        ):
+                            m.prepare("0.1.2")
+                        self.assertEqual([], calls)
+                        if original is None:
+                            path.unlink()
+                        else:
+                            path.write_text(original)
                     m.prepare("0.1.2")
                     head = pr["head"]["sha"]
                     self.assertEqual(

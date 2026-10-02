@@ -20,3 +20,7 @@ app/libs/megaproxy-sources.jar
 __pycache__/
 .venv/
 .playwright-cli/
+
+# Local Bundler configuration and installed gems
+/.bundle/
+/vendor/bundle/
