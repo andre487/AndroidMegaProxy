@@ -104,9 +104,19 @@ jobs:
               --repo "$GITHUB_REPOSITORY" \
               --clobber
           else
+            version_code_base="$(sed -nE 's/^val versionCodeBase = ([0-9]+)/\1/p' app/build.gradle.kts)"
+            code="$((version_code_base * 1000))"
+            notes="$RUNNER_TEMP/release-notes.md"
+            en="fastlane/metadata/android/en-US/changelogs/$code.txt"
+            ru="fastlane/metadata/android/ru-RU/changelogs/$code.txt"
+            if [[ ! -s "$en" || ! -s "$ru" ]]; then
+              echo 'Both EN/RU release changelogs are required' >&2
+              exit 1
+            fi
+            { printf '## English\n\n'; cat "$en"; printf '\n## Русский\n\n'; cat "$ru"; } > "$notes"
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
-              --generate-notes \
+              --notes-file "$notes" \
               --title "MegaProxy ${GITHUB_REF_NAME}"
           fi

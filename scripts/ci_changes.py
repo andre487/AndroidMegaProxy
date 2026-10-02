@@ -128,7 +128,13 @@ def main():
     args = parser.parse_args()
     if args.run_attempt < 1:
         parser.error("--run-attempt must be positive")
-    force_all = args.push or args.run_attempt > 1
+    release_pr = bool(
+        re.fullmatch(
+            r"release/v(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)",
+            os.environ.get("PR_BRANCH", ""),
+        )
+    )
+    force_all = args.push or args.run_attempt > 1 or release_pr
     try:
         baselines = {}
         if args.history and not args.push and not force_all:
@@ -169,7 +175,11 @@ def main():
                         (
                             "push CI (change filtering disabled)"
                             if args.push
-                            else "full CI rerun (change filtering disabled)"
+                            else (
+                                "release PR (change filtering disabled)"
+                                if release_pr
+                                else "full CI rerun (change filtering disabled)"
+                            )
                         )
                         if force_all
                         else (

@@ -13,6 +13,7 @@
 - [Работа с Fastlane](fastlane.md)
 
 - [Проверка релиза](release-testing.md)
+- [Автоматизация релиза](release-automation.md)
 
 [English version](../en/index.md)
 

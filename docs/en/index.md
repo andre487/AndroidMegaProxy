@@ -12,5 +12,6 @@ Developer documentation:
 
 - [Fastlane workflow](fastlane.md)
 - [Release verification](release-testing.md)
+- [Release automation](release-automation.md)
 
 [Русская версия](../ru/index.md)
