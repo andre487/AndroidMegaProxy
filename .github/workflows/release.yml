@@ -98,7 +98,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          assets=(dist/release/*.apk dist/release/*.aab dist/release/*-native-debug-symbols.zip dist/release/SHA256SUMS)
+          assets=(dist/release/*.apk dist/release/SHA256SUMS)
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
@@ -110,8 +110,3 @@ jobs:
               --generate-notes \
               --title "MegaProxy ${GITHUB_REF_NAME}"
           fi
-
-      - name: Upload Google Play internal draft
-        env:
-          SUPPLY_JSON_KEY_DATA: ${{ secrets.SUPPLY_JSON_KEY_DATA }}
-        run: bundle exec fastlane android play_release track:internal release_status:draft
