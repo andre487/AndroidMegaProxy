@@ -59,9 +59,9 @@ branch names, credentials, signing material, or other secrets.
   the dedicated release workflow/Fastlane lane.
 - Tagged releases publish signed APKs and `SHA256SUMS` to GitHub Releases. Google Play integration
   is removed. Document installation from release assets; PR APKs are for testing only.
-- Update checks default to daily background checks: official F-Droid installer uses its API, any
-  other named installer uses GitHub, and unknown installers require a source choice. Preserve the
-  installed APK variant and existing version-code offsets. Downloads require explicit consent;
+- Update checks default to daily background checks: official F-Droid installers and installer packages handling
+  fdroidrepo/fdroidrepos links use its API; other named installers use GitHub. Unknown installers
+  or failed capability lookup require a source choice. Preserve the installed APK variant and existing version-code offsets. Downloads require explicit consent;
   ignored notifications repeat after a week, with skip-version and disable-checks actions.
 - The app is not yet available in F-Droid; do not document it as an installation source.
 - After creating and verifying a release, update the corresponding F-Droid submission/build recipe
