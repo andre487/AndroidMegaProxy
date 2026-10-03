@@ -123,7 +123,7 @@ Doze и разрушительные проверки данных сначал�
 
 | ID | Действия → требуемый результат |
 | --- | --- |
-| U01 | Installer F-Droid, другой, неизвестный; ручной выбор. Проверить API и persistence. Неопубликованный F-Droid пакет даёт понятную ошибку без перехода на GitHub. Подмена installer metadata не является установкой из репозитория. |
+| U01 | Официальный и сторонний F-Droid (обработчики fdroidrepo/fdroidrepos), браузер/файловый установщик, неизвестный; ручной выбор. Посторонний установленный клиент F-Droid не меняет источник установки из браузера. Проверить API и persistence. Неопубликованный F-Droid пакет даёт понятную ошибку без перехода на GitHub. Подмена installer metadata не является установкой из репозитория. |
 | U02 | Новая/та же/старая/повреждённая metadata, offline. Download consent/cancel; size/digest/package/version/signer/ABI, повреждение/обрыв APK. Заведомо неверные APK проверять unit-тестами и изолированными эмуляторами. |
 | U03 | Universal остаётся universal, ABI-specific — тем же ABI; отказ/выдача install permission, Cancel, возврат из Settings, установка. Прочитать обратно APK/version/signature и проверить передачу данных. |
 | U04 | Notification permission/channel; Update/Skip/Disable; manual после Skip; выключение при работающем job; восстановление job после reboot. Раннего напоминания нет, после семи дней есть — контролируемой правкой времени на эмуляторе. Forced jobs/time simulation не называть реальной суточной/недельной доставкой. |

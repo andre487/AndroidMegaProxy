@@ -10,6 +10,8 @@ class AppUpdatesTest {
     @Test fun installerSelectionDoesNotGuessWhenUnknown() {
         assertNull(updateSourceForInstaller(null))
         assertNull(updateSourceForInstaller(""))
+        assertEquals(UpdateSource.FDROID, updateSourceForInstaller("org.example.fdroid", true))
+        assertNull(updateSourceForInstaller("org.example.fdroid", null))
         assertEquals(UpdateSource.FDROID, updateSourceForInstaller("org.fdroid.fdroid"))
         assertEquals(UpdateSource.FDROID, updateSourceForInstaller("org.fdroid.fdroid.privileged"))
         for (installer in listOf("com.android.chrome", "com.android.documentsui", "org.example.other", "net.megaproxy487")) {

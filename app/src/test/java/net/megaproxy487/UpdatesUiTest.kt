@@ -51,6 +51,13 @@ class UpdatesUiTest : MainUiTestBase() {
         node(R.string.update_check).performScrollTo().performClick()
         node(R.string.update_in_fdroid).assertExists()
         node(R.string.update_download).assertDoesNotExist()
-        compose.runOnIdle { model.download(); assertNull(model.apk) }
+        node(R.string.update_in_fdroid).performScrollTo().performClick()
+        compose.runOnIdle {
+            val intent = org.robolectric.Shadows.shadowOf(activity).nextStartedActivity
+            assertEquals(FDROID_APP_URL, intent.data.toString())
+            assertNull(intent.`package`)
+            model.download()
+            assertNull(model.apk)
+        }
     }
 }

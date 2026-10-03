@@ -175,13 +175,7 @@ internal fun UpdatesScreen(activity: Activity, onBack: () -> Unit, model: Update
             if (update.source == UpdateSource.FDROID) {
                 Button(onClick = {
                     try {
-                        try {
-                            activity.startActivity(Intent(Intent.ACTION_VIEW,
-                                Uri.parse("fdroid.app://details?id=${activity.packageName}"))
-                                .setPackage("org.fdroid.fdroid"))
-                        } catch (_: android.content.ActivityNotFoundException) {
-                            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(FDROID_APP_URL)))
-                        }
+                        activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(FDROID_APP_URL)))
                     } catch (_: Exception) { model.reportOpenError() }
                 }) { Text(stringResource(R.string.update_in_fdroid)) }
             } else if (model.apk == null) {

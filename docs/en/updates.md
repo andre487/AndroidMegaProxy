@@ -14,11 +14,14 @@ which package installed it:
 | Installer reported by Android | Update source |
 | --- | --- |
 | Official F-Droid (`org.fdroid.fdroid`) or its privileged installer | F-Droid |
-| Any other named installer, including a browser or file manager | GitHub |
-| Missing, empty, or unreadable installer information | Ask the user to choose; no background requests until then |
+| Another installer that handles `fdroidrepo://` or `fdroidrepos://` links | F-Droid |
+| Another named installer without those handlers, including a browser or file manager | GitHub |
+| Missing, empty, or unreadable installer information, or failed handler lookup | Ask the user to choose; no background requests until then |
 
-The installer identifies an app, not the original download website. Other F-Droid clients count
-as other installers under this rule; select F-Droid manually if needed. Installing an APK downloaded
+Repository-link support is checked only in the installer package; an unrelated installed F-Droid
+client does not change the source. This is a capability heuristic, not proof of the APK's origin.
+Clients without these handlers need manual source selection. The installer identifies an app,
+not the original download website. Installing an APK downloaded
 from the F-Droid website through a browser also selects GitHub initially. This is a default choice,
 not proof of the APK's origin. Source changes do not bypass signature checks.
 
@@ -36,7 +39,7 @@ or use the notification permission button on the update screen.
 The notification offers:
 
 - **Update**: open the update screen and check the selected source again. F-Droid updates open
-  its client (or the app's web page if unavailable); GitHub updates require explicit download consent.
+  the package web link in a compatible client or browser; GitHub updates require explicit download consent.
 - **Skip this version**: suppress automatic notifications for this version in this source.
   Later versions can still notify. Manual checks still show a skipped update.
 - **Disable auto-checks**: stop scheduled checks and remove the notification. Manual checks remain

@@ -1,8 +1,10 @@
 package net.megaproxy487
 
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import androidx.core.content.pm.PackageInfoCompat
 import java.io.ByteArrayOutputStream
@@ -18,9 +20,11 @@ import org.json.JSONObject
 
 internal enum class UpdateSource { FDROID, GITHUB }
 
-internal fun updateSourceForInstaller(installer: String?): UpdateSource? = when {
+internal fun updateSourceForInstaller(installer: String?, handlesFdroidRepos: Boolean? = false): UpdateSource? = when {
     installer.isNullOrBlank() -> null
     installer == "org.fdroid.fdroid" || installer == "org.fdroid.fdroid.privileged" -> UpdateSource.FDROID
+    handlesFdroidRepos == null -> null
+    handlesFdroidRepos -> UpdateSource.FDROID
     else -> UpdateSource.GITHUB
 }
 
@@ -105,7 +109,17 @@ internal class AppUpdates(private val context: Context) {
             if (Build.VERSION.SDK_INT >= 30) manager.getInstallSourceInfo(context.packageName).installingPackageName
             else manager.getInstallerPackageName(context.packageName)
         } catch (_: Exception) { null }
-        return updateSourceForInstaller(installer)
+        if (installer.isNullOrBlank()) return null
+        val handlesRepos = try {
+            listOf("fdroidrepo", "fdroidrepos").any { scheme ->
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("$scheme://f-droid.org/repo"))
+                    .addCategory(Intent.CATEGORY_BROWSABLE)
+                    .setPackage(installer)
+                manager.queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+                    .any { it.activityInfo?.packageName == installer }
+            }
+        } catch (_: Exception) { null }
+        return updateSourceForInstaller(installer, handlesRepos)
     }
 
     fun select(source: UpdateSource) {
