@@ -58,7 +58,9 @@ allows PR CI and the tag-triggered release build to run normally.
    in `app/build.gradle.kts`. Keep `base * 1000 + ABI offset` unchanged for F-Droid
    and variant-preserving updates. For example base 14 → 15 produces universal
    `15000`, arm `15001`, arm64 `15002`, x86 `15003`, x86_64 `15004`.
-5. Add `fastlane/metadata/android/{en-US,ru-RU}/changelogs/15000.txt` for that example.
+5. Add `fastlane/metadata/android/{en-US,ru-RU}/changelogs/15000.txt` through `15004.txt`
+   for that example. Each locale uses the same text for universal and all ABI APKs,
+   so F-Droid can find the notes by the APK version code.
    Old changelogs and store descriptions are not rewritten. Open a PR to `main`.
 6. Wait up to 60 minutes for **CI / pull_request** for the exact PR and head commit.
    Release branches run every suite even on their first CI attempt. All four named
@@ -78,7 +80,7 @@ allows PR CI and the tag-triggered release build to run normally.
 The version must exceed both the version in code and the previous stable tag.
 Prereleases and automatic version selection are deliberately unsupported. Preparation
 and finalization execute trusted workflow source, not code fetched from the release PR.
-Only Gradle's two version fields and the two changelog files may be changed by the
+Only Gradle's two version fields and the ten changelog files (five APK codes per locale) may be changed by the
 release commit. Concurrent release preparations are serialized.
 
 ## Failure and recovery

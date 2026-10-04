@@ -352,6 +352,38 @@ class ReleaseTests(unittest.TestCase):
                         set([str(m.GRADLE), *map(str, m.notes_paths(15000))]),
                         set(git("diff", "--name-only", base, head).splitlines()),
                     )
+                    for locale in m.LOCALES:
+                        for offset in range(5):
+                            self.assertEqual(
+                                NOTES[locale] + "\n",
+                                (
+                                    work
+                                    / f"fastlane/metadata/android/{locale}/changelogs/{15000 + offset}.txt"
+                                ).read_text(),
+                            )
+                    original_command = m.command
+                    wrong_path = (
+                        f"{head}:fastlane/metadata/android/en-US/changelogs/15004.txt"
+                    )
+                    with (
+                        patch.object(
+                            m,
+                            "command",
+                            side_effect=lambda *args, **kwargs: (
+                                "Different notes"
+                                if args == ("git", "show", wrong_path)
+                                else original_command(*args, **kwargs)
+                            ),
+                        ),
+                        patch.object(m, "wait_ci") as ci,
+                        self.assertRaisesRegex(
+                            RuntimeError, "Variant changelog differs"
+                        ),
+                    ):
+                        m.finish("0.1.2", 7, head)
+                    ci.assert_not_called()
+                    self.assertNotIn("pulls/7/merge", calls)
+                    self.assertNotIn("git/refs", calls)
                     # A failed CI gate must not merge or tag.
                     with (
                         patch.object(

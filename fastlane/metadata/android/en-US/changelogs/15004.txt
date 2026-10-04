@@ -1,0 +1,3 @@
+• Check for updates from the app’s Updates screen and get update reminders. APK updates require your consent and preserve the installed app variant.
+• Connection statistics now show first-hop TCP round-trip time and retransmissions instead of connection error rate.
+• Connection logs include privacy-safe negotiated TLS, HTTP, and SSH parameters.
