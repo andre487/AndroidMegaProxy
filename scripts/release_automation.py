@@ -191,8 +191,9 @@ def generate_notes(version, previous):
 
 def notes_paths(code):
     return [
-        Path(f"fastlane/metadata/android/{locale}/changelogs/{code}.txt")
+        Path(f"fastlane/metadata/android/{locale}/changelogs/{code + offset}.txt")
         for locale in LOCALES
+        for offset in range(5)
     ]
 
 
@@ -239,8 +240,8 @@ def prepare(version):
     notes = generate_notes(version, previous)
     command("git", "switch", "-c", branch)
     GRADLE.write_text(updated)
-    for locale, path in zip(LOCALES, paths):
-        path.write_text(notes[locale] + "\n")
+    for path in paths:
+        path.write_text(notes[path.parent.parent.name] + "\n")
     command("git", "add", "--", str(GRADLE), *map(str, paths))
     command(
         "git",
@@ -377,12 +378,20 @@ def finish(version, number, head):
         changed == {str(GRADLE), *map(str, paths)},
         "Release commit must only change version and EN/RU changelogs",
     )
-    validate_notes(
-        {
-            locale: command("git", "show", f"{head}:{path}")
-            for locale, path in zip(LOCALES, paths)
-        }
-    )
+    notes = {
+        locale: command(
+            "git",
+            "show",
+            f"{head}:fastlane/metadata/android/{locale}/changelogs/{code}.txt",
+        )
+        for locale in LOCALES
+    }
+    validate_notes(notes)
+    for path in paths:
+        require(
+            command("git", "show", f"{head}:{path}") == notes[path.parent.parent.name],
+            "Variant changelog differs from the universal changelog",
+        )
     wait_ci(number, version, head, parent)
     if not pr["merged"]:
         pr = api(f"pulls/{number}")
