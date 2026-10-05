@@ -28,6 +28,13 @@ This permanent link points to the latest universal APK and stays the same when a
 7. Tap **Connect**. When Android asks to create a VPN connection, tap **OK** or **Allow**.
    This permission lets the app route traffic through your server.
 
+**Samsung Galaxy:** if installation is blocked by **Auto Blocker**, open **Settings →
+Security and privacy → Auto Blocker** and turn it off, then retry installation.
+You still need to allow installation from the browser or file manager as described above.
+You can turn Auto Blocker back on afterward, but it must be turned off again for each APK update,
+including updates downloaded within MegaProxy. Menu names may vary.
+[Samsung instructions](https://www.samsung.com/us/support/answer/ANS10003636/).
+
 Button names vary between phones. If a work device's administrator blocks installation, contact
 that administrator. The app is not yet available in F-Droid.
 
