@@ -76,6 +76,12 @@ instead of silently choosing another variant. Existing version codes are unchang
    screen and tap again. Android's system installer verifies the APK and asks you to confirm.
    You can revoke the installation permission afterward.
 
+**Samsung Galaxy:** before installing an APK update, turn off **Settings → Security and
+privacy → Auto Blocker** if it blocks installation. Allow installation from **MegaProxy**
+when prompted. You can turn Auto Blocker back on afterward; it will need to be turned off
+again for the next APK update.
+[Samsung installation instructions](installation.md).
+
 Downloads survive screen rotation while the update screen remains in the navigation stack.
 Leaving it can cancel the operation. Process death loses the pending installation state; check and
 download again. Cached APKs are temporary and may be cleared by Android or by clearing app data.
