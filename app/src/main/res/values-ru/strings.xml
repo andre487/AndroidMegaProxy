@@ -51,6 +51,8 @@
     <string name="config_import_skipped">Пропущено некорректных профилей: %1$d.</string>
     <string name="config_import_missing_passwords">Профилей без пароля: %1$d.</string>
     <string name="config_import_always_on_reconnect">Переподключите VPN, чтобы применить импортированный профиль постоянного VPN.</string>
+    <string name="config_import_browser_fields">Конфигурация содержит настройки для браузеров. На Android они игнорируются.</string>
+    <string name="config_import_unknown_fields">Конфигурация содержит поля, неизвестные спецификации MegaProxy. Они игнорируются.</string>
     <string name="config_import_removed">Удалено профилей: %1$d.</string>
     <string name="remove_missing_profiles_title">Удалить профили, отсутствующие в конфигурации?</string>
     <string name="remove_missing_profiles_message">Эти локальные профили отсутствуют в импортированном файле. Изначально ни один профиль не выбран — отметьте только те, которые действительно нужно удалить.</string>

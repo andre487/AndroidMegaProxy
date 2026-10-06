@@ -65,6 +65,12 @@ class DocumentsDeviceTest : DeviceTestBase() {
             appNode(By.text(text(R.string.passwords_omitted_message)))
             systemNode(By.text(text(R.string.export_action))).click()
             downloads()
+            // A fresh API 26 Gboard tutorial overlays the filename and hides it from accessibility.
+            device.waitForIdle()
+            if (device.hasObject(By.pkg("com.google.android.inputmethod.latin"))) {
+                device.pressBack()
+                device.waitForIdle()
+            }
             systemNode(By.clazz("android.widget.EditText")).text = filename
             systemNode(By.res("android:id/button1")).click()
             appNode(By.text(text(R.string.configuration_exported)))

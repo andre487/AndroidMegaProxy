@@ -51,6 +51,8 @@
     <string name="config_import_skipped">Skipped %1$d invalid profile(s).</string>
     <string name="config_import_missing_passwords">%1$d profile(s) have no password.</string>
     <string name="config_import_always_on_reconnect">Reconnect the VPN to apply the imported Always-on profile selection.</string>
+    <string name="config_import_browser_fields">The configuration contains browser settings. They are ignored on Android.</string>
+    <string name="config_import_unknown_fields">The configuration contains fields unknown to the MegaProxy specification. They are ignored.</string>
     <string name="config_import_removed">Removed %1$d profile(s).</string>
     <string name="remove_missing_profiles_title">Remove profiles missing from the configuration?</string>
     <string name="remove_missing_profiles_message">These local profiles were not present in the imported file. None are selected by default; select only profiles you really want to remove.</string>

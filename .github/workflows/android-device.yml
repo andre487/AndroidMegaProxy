@@ -48,7 +48,11 @@ jobs:
         env:
           DEVICE_API: ${{ inputs.api }}
         run: |
-          sdkmanager 'emulator' 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' "system-images;android-$DEVICE_API;google_apis;x86_64"
+          packages=('emulator' 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' "system-images;android-$DEVICE_API;google_apis;x86_64")
+          if ! sdkmanager "${packages[@]}"; then
+            echo 'SDK installation failed; retrying once.' >&2
+            sdkmanager "${packages[@]}"
+          fi
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
           "$ANDROID_HOME/emulator/emulator" -accel-check
           snapshot_hash=$(cat "$ANDROID_HOME/emulator/source.properties" "$ANDROID_HOME/system-images/android-$DEVICE_API/google_apis/x86_64/source.properties" | sha256sum | cut -d ' ' -f 1)
@@ -85,8 +89,10 @@ jobs:
       - name: Build debug and instrumentation APKs
         run: bundle exec fastlane android device_test_build
       - name: Run real Android tests
+        id: device_tests
+        continue-on-error: true
         uses: reactivecircus/android-emulator-runner@v2.38.0
-        with:
+        with: &device_test_options
           api-level: ${{ inputs.api }}
           target: google_apis
           arch: x86_64
@@ -95,7 +101,21 @@ jobs:
           force-avd-creation: false
           emulator-options: -accel on -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
-          script: bundle exec fastlane android device_tests api:${{ inputs.api }}
+          script: |
+            mkdir -p test-results/android-api${{ inputs.api }}
+            touch test-results/android-api${{ inputs.api }}/runner-started
+            bundle exec fastlane android device_tests api:${{ inputs.api }}
+      - name: Retry emulator startup before tests only
+        id: device_retry
+        if: ${{ !cancelled() && steps.device_tests.outcome == 'failure' && hashFiles(format('test-results/android-api{0}/runner-started', inputs.api)) == '' }}
+        continue-on-error: true
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with: *device_test_options
+      - name: Require successful device tests
+        if: ${{ !cancelled() && steps.device_tests.outcome == 'failure' && steps.device_retry.outcome != 'success' }}
+        run: |
+          echo 'Device tests failed, or emulator startup failed on both attempts.' >&2
+          exit 1
       - name: Upload Android evidence
         if: always()
         id: evidence

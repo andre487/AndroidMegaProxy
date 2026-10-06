@@ -1,0 +1,24 @@
+{
+  "schema": "net.megaproxy487.config",
+  "version": 8,
+  "passwordsIncluded": false,
+  "privateKeysIncluded": false,
+  "activeProfileId": null,
+  "routing": {
+    "bypassLocalNetworks": true
+  },
+  "profiles": [
+    {
+      "id": "example-proxy",
+      "name": "Example",
+      "color": 5,
+      "countryCode": "",
+      "proxy": {
+        "type": "HTTPS",
+        "host": "proxy.example.com",
+        "port": 443,
+        "username": "demo"
+      }
+    }
+  ]
+}

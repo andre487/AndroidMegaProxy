@@ -139,6 +139,14 @@ private-key fields preserve credentials already stored on the device, while expl
 clear them. After import, MegaProxy offers an unselected list of local profiles absent from the file
 so the user can optionally remove specific obsolete profiles.
 
+The portable contract is maintained in [MegaProxyConfig](https://github.com/andre487/MegaProxyConfig).
+Pinned schemas and examples live in `config-schema/`; update them explicitly with
+`bundle exec fastlane android renew_config_schema` (or `ref:FULL_SHA`). JVM checks validate real
+exports against both the Android baseline and shared schema. Import results report ignored browser
+settings and fields unknown to the pinned specification once each, without displaying values.
+Neither category is retained or included in later exports. See the
+[compatibility audit](docs/reviews/config-schema.md) for the canonical-format and legacy-import distinction.
+
 ### HTTPS with Jump
 
 Select **HTTPS with Jump** to use two HTTPS CONNECT proxies in sequence:

@@ -5,6 +5,7 @@ Fastlane is the supported entry point for tests and build artifacts. Install Rub
 
 | Command | Purpose |
 | --- | --- |
+| `bundle exec fastlane android renew_config_schema` | Explicitly update pinned config schemas/examples; optional `ref:FULL_SHA` |
 | `bundle exec fastlane android python_format` | Format Python with Black and isort |
 | `bundle exec fastlane android python_tests` | Run Python unit tests |
 | `bundle exec fastlane android python_checks` | Check Python style and run unit tests |

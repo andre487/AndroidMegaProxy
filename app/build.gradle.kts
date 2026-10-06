@@ -38,6 +38,12 @@ android {
     compileSdk = 36
     buildToolsVersion = "36.0.0"
 
+    sourceSets.getByName("main").resources.apply {
+        srcDir(rootProject.file("config-schema"))
+        include("*.schema.json")
+    }
+    sourceSets.getByName("test").resources.srcDir(rootProject.file("config-schema"))
+
     defaultConfig {
         applicationId = "net.megaproxy487"
         minSdk = 26
@@ -144,6 +150,7 @@ dependencies {
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test.uiautomator:uiautomator:2.3.0")
     testImplementation("org.json:json:20250107")
+    testImplementation("com.networknt:json-schema-validator:1.5.9")
     implementation(files("libs/megaproxy.aar"))
 }
 

@@ -69,6 +69,24 @@ class ConfigStoreIntegrationTest {
         assertEquals(original, store.profile(original.id))
     }
 
+    @Test fun actualExportsValidateForEveryTransportAndSecretChoice() {
+        val original = secretProfile()
+        for (type in ProxyType.entries) {
+            store.saveProfile(original.copy(config = original.config.copy(type = type, port = type.defaultPort, jumpPort = type.defaultPort)))
+            for (passwords in listOf(false, true)) for (keys in listOf(false, true)) {
+                val text = ConfigTransfer.exportJson(store, passwords, keys)
+                ConfigSchemas.assertValid(text)
+                val imported = ConfigTransfer.importJson(text)
+                assertEquals(ConfigImportNotice(), imported.notice)
+                assertEquals(type, imported.profiles.single().config.type)
+                assertEquals(passwords, text.contains("destination-secret"))
+                assertEquals(keys, text.contains("destination-private-key"))
+                assertEquals(passwords && type.hasJump, text.contains("jump-secret"))
+                assertEquals(keys && type.hasJump, text.contains("jump-private-key"))
+            }
+        }
+    }
+
     @Test fun importWithoutSecretsPreservesAllExistingCredentials() {
         val original = secretProfile()
         val updated = original.copy(name = "Updated")
