@@ -80,6 +80,14 @@ jobs:
       - name: Test real GOST and OpenSSH servers
         run: bundle exec fastlane android native_integration
 
+      - name: Upload native JUnit reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-Native Go
+          path: test-results/native/*.xml
+          retention-days: 7
+
   python-tests:
     needs: changes
     if: needs.changes.outputs.python == 'true'
@@ -107,6 +115,14 @@ jobs:
 
       - name: Check Python formatting and Python tests
         run: bundle exec fastlane android python_checks
+
+      - name: Upload Python JUnit reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-Python
+          path: test-results/python/*.xml
+          retention-days: 7
 
   android-tests:
     needs: changes
@@ -153,6 +169,14 @@ jobs:
 
       - name: Run Android checks and verify the unsigned APK
         run: bundle exec fastlane android android_checks
+
+      - name: Upload Android JVM JUnit reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-Android JVM
+          path: app/build/test-results/testDebugUnitTest/*.xml
+          retention-days: 7
 
       - name: Publish PR debug APK
         if: github.event_name == 'pull_request'
@@ -206,3 +230,16 @@ jobs:
     uses: ./.github/workflows/android-device.yml
     with:
       api: 35
+
+  test-reports:
+    name: Publish JUnit reports
+    needs: [native-tests, python-tests, android-tests, emulator26, emulator35]
+    if: >-
+      !cancelled() &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+    uses: ./.github/workflows/test-reports.yml

@@ -9,15 +9,19 @@ project_root = File.expand_path("..", __dir__)
 platform :android do
   desc "Run the native Go tests with the race detector"
   lane :native_tests do
+    report = File.join(project_root, "test-results/native/unit.xml")
+    FileUtils.mkdir_p(File.dirname(report))
     Dir.chdir(File.join(project_root, "native")) do
-      sh("go test -race ./...")
+      sh("go", "run", "gotest.tools/gotestsum@v1.13.0", "--junitfile", report, "--", "-race", "./...")
     end
   end
 
   desc "Test production dialers against disposable GOST and OpenSSH servers (requires Docker)"
   lane :native_integration do
+    report = File.join(project_root, "test-results/native/integration.xml")
+    FileUtils.mkdir_p(File.dirname(report))
     Dir.chdir(File.join(project_root, "native")) do
-      sh("go", "test", "-race", "-tags=integration", "./mobile", "-run=^TestRealProxyServers$", "-count=1", "-timeout=15m", "-v")
+      sh("go", "run", "gotest.tools/gotestsum@v1.13.0", "--junitfile", report, "--", "-race", "-tags=integration", "./mobile", "-run=^TestRealProxyServers$", "-count=1", "-timeout=15m", "-v")
     end
   end
 
@@ -100,7 +104,9 @@ platform :android do
   desc "Run Python unit tests"
   lane :python_tests do
     python = ENV.fetch("PYTHON", "python3")
-    sh(python, "-m", "unittest", "discover", "-s", File.join(project_root, "scripts", "tests"))
+    reports = File.join(project_root, "test-results/python")
+    FileUtils.rm_rf(reports)
+    sh(python, "-m", "xmlrunner", "discover", "-s", File.join(project_root, "scripts", "tests"), "-o", reports)
   end
 
   desc "Format Python scripts with isort and Black"

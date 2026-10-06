@@ -105,6 +105,13 @@ jobs:
           path: test-results/android-api${{ inputs.api }}/
           if-no-files-found: warn
           retention-days: 7
+      - name: Upload emulator JUnit report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: junit-Android API ${{ inputs.api }}
+          path: test-results/android-api${{ inputs.api }}/junit.xml
+          retention-days: 7
       - name: Link evidence in job summary
         if: always() && steps.evidence.outputs.artifact-url != ''
         env:

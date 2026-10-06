@@ -161,6 +161,26 @@ bundle exec fastlane android python_checks
 (по умолчанию `python3`). Скрипты используют только стандартную библиотеку Python. Задание CI
 `Python tests and style` выполняется независимо от Android-сборки.
 
+## JUnit-отчёты в GitHub Checks
+
+`native_tests` и `native_integration` используют закреплённый gotestsum v1.13.0 и сохраняют JUnit XML
+в `test-results/native/unit.xml` и `test-results/native/integration.xml`. При первом запуске Go
+скачивает runner без изменения модуля приложения. `python_tests` использует закреплённый xmlrunner
+из `requirements-dev.txt` и сохраняет XML в `test-results/python/`. Android JVM-тесты уже создают
+JUnit XML в `app/build/test-results/testDebugUnitTest/`; device-тесты сохраняют отдельные отчёты
+API 26/35. Ошибка тестов по-прежнему возвращает ненулевой код завершения.
+
+CI загружает XML каждого набора отдельным артефактом `junit-*`, в том числе при падении тестов,
+со сроком хранения семь дней. Отдельное задание создаёт GitHub Checks `Test results · …` с числом
+тестов и подробностями ошибок, а также summary Actions. Для пропущенных наборов отчёт не создаётся:
+они не показываются как заново пройденные тесты. Существующие required checks продолжают блокировать merge.
+
+Право `checks: write` есть у publisher; тестовые задания сохраняют доступ к репозиторию только на
+чтение. Внутренние PR и push публикуют отчёты после завершения заданий CI. PR из форков используют
+доверенный workflow `workflow_run`, который становится доступен после merge этого workflow в
+`main`. Он читает артефакты без checkout и исполнения кода PR. Разбираются только JUnit-артефакты;
+XML иерархии интерфейса эмулятора остаётся в отдельном артефакте диагностических данных.
+
 ## Интерактивный запуск GitHub Actions
 
 ```sh

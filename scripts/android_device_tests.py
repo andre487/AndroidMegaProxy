@@ -251,7 +251,13 @@ def main():
         ]
         for test, phase in tests:
             label = test.replace("#", ".") + ("." + phase if phase else "")
-            case = ET.SubElement(suite, "testcase", name=label)
+            class_name, method = test.split("#", 1)
+            case = ET.SubElement(
+                suite,
+                "testcase",
+                classname=PACKAGE + "." + class_name,
+                name=method + ("." + phase if phase else ""),
+            )
             started = time.monotonic()
             log_start = shell("date", "+%m-%d %H:%M:%S.000")
             try:
