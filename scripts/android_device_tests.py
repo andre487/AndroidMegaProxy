@@ -234,7 +234,9 @@ def main():
         # Pixel Launcher can leave an ANR dialog over every test after snapshot restore.
         # This disposable emulator launches activities directly and needs no launcher.
         shell("am", "force-stop", "com.google.android.apps.nexuslauncher")
-        shell("pm", "disable-user", "--user", "0", "com.google.android.apps.nexuslauncher")
+        shell(
+            "pm", "disable-user", "--user", "0", "com.google.android.apps.nexuslauncher"
+        )
     results = ROOT / "test-results" / f"android-api{args.api}"
     results.mkdir(parents=True, exist_ok=True)
     suite = ET.Element("testsuite", name=f"Android API {args.api}")
