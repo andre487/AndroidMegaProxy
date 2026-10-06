@@ -251,7 +251,13 @@ def main():
         ]
         for test, phase in tests:
             label = test.replace("#", ".") + ("." + phase if phase else "")
-            case = ET.SubElement(suite, "testcase", name=label)
+            class_name, method = test.split("#", 1)
+            case = ET.SubElement(
+                suite,
+                "testcase",
+                classname=PACKAGE + "." + class_name,
+                name=method + ("." + phase if phase else ""),
+            )
             started = time.monotonic()
             log_start = shell("date", "+%m-%d %H:%M:%S.000")
             try:
@@ -324,6 +330,10 @@ def main():
                 shell("am", "force-stop", PACKAGE)
                 suite.set("tests", str(len(suite)))
                 suite.set("failures", str(failures))
+                suite.set(
+                    "time",
+                    f"{sum(float(item.get('time', '0')) for item in suite):.3f}",
+                )
                 ET.ElementTree(suite).write(
                     results / "junit.xml", encoding="utf-8", xml_declaration=True
                 )

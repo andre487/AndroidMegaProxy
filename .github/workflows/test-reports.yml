@@ -1,0 +1,55 @@
+name: JUnit reports
+
+on:
+  workflow_call:
+    inputs:
+      artifact:
+        type: string
+        required: false
+        default: "/^junit-(.+)$/"
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+permissions:
+  contents: read
+  actions: read
+  checks: write
+
+jobs:
+  reports:
+    name: Test results
+    # Internal PRs and pushes call this workflow from CI. Fork PRs need a trusted
+    # workflow_run context because their CI token cannot write GitHub Checks.
+    if: >-
+      github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+       github.event.workflow_run.head_repository.full_name != github.repository)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Parse uploaded data only; never check out or run code from the tested PR.
+      - name: Publish JUnit results in GitHub Checks
+        uses: dorny/test-reporter@d1b5dff021aa968b288b02285a8bf47471c5928a # v3
+        with:
+          artifact: ${{ inputs.artifact || '/^junit-(.+)$/' }}
+          name: 'Test results · $1'
+          path: '**/*.xml'
+          reporter: java-junit
+          list-tests: all
+          max-annotations: 10
+          fail-on-empty: false
+          use-actions-summary: false
+      - name: Add collapsible test groups to Actions Summary
+        if: ${{ !cancelled() }}
+        uses: dorny/test-reporter@d1b5dff021aa968b288b02285a8bf47471c5928a # v3
+        with:
+          artifact: ${{ inputs.artifact || '/^junit-(.+)$/' }}
+          name: 'Test results · $1'
+          path: '**/*.xml'
+          reporter: java-junit
+          list-tests: all
+          max-annotations: 10
+          fail-on-empty: false
+          use-actions-summary: true
+          collapsed: always

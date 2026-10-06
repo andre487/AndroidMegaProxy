@@ -158,6 +158,27 @@ bundle exec fastlane android python_checks
 (default: `python3`). Runtime scripts use only Python's standard library. The CI job
 `Python tests and style` runs independently of Android builds.
 
+## JUnit reports in GitHub Checks
+
+`native_tests` and `native_integration` use pinned gotestsum v1.13.0 and write JUnit XML to
+`test-results/native/unit.xml` and `test-results/native/integration.xml`. The first run downloads
+the runner through Go without changing the app module. `python_tests` uses pinned xmlrunner from
+`requirements-dev.txt` and writes XML to `test-results/python/`. Android JVM tests already write
+JUnit XML under `app/build/test-results/testDebugUnitTest/`; device tests keep separate API 26/35
+reports. Test failures still return a nonzero exit status.
+
+CI uploads each suite's XML as a separate `junit-*` artifact even when tests fail, with seven-day
+retention. Each suite has a separate publisher that starts as soon as that suite finishes, without waiting
+for the rest of CI. It creates `Test results · …` GitHub Checks with test counts and failure
+details. Actions Summary also provides collapsible groups with all test names and statuses. Skipped suites have no report and are not presented as
+newly passed tests. Existing required checks continue to gate merges.
+
+The publisher has `checks: write`; test jobs retain read-only repository access. Internal PRs and
+pushes publish independently after each corresponding test job finishes. Fork PRs publish from the trusted `workflow_run` workflow,
+which becomes available after this workflow is merged into `main`. It reads artifacts without
+checking out or executing PR code. Only JUnit artifacts are parsed; device UI hierarchy XML stays
+in the separate evidence artifact.
+
 ## Interactive GitHub Actions launcher
 
 ```sh
