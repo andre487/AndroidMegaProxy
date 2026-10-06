@@ -11,6 +11,7 @@ import net.megaproxy487.model.GlobalConnectionSettings
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.vpn.PersistentDiagnosticLog
 import java.net.InetSocketAddress
 import java.net.Socket
 import java.util.UUID
@@ -71,6 +72,7 @@ class WaydroidSmokeInstrumentation : Instrumentation() {
         } catch (error: Exception) {
             result.putString("smoke", "failed")
             result.putString("reason", error.javaClass.simpleName + ": " + error.message)
+            result.putString("diagnostics", PersistentDiagnosticLog.readTail(16_384))
             resultCode = Activity.RESULT_CANCELED
         } finally {
             ProxyVpnService.stop(targetContext)
