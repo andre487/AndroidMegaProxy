@@ -13,15 +13,18 @@ permissions:
   pull-requests: write
 
 jobs:
-  comment:
+  description:
     name: Add APK links to the pull request
     if: >-
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'pull_request'
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    concurrency:
+      group: pr-apk-links-${{ github.event.workflow_run.pull_requests[0].number || github.event.workflow_run.id }}
+      cancel-in-progress: false
     steps:
-      - name: Create or update the APK artifact comment
+      - name: Create or update the APK artifact description block
         uses: actions/github-script@v9
         with:
           script: |
@@ -73,6 +76,7 @@ jobs:
             const marker = '<!-- megaproxy-pr-apks -->';
             const body = [
               marker,
+              `<!-- megaproxy-pr-apks-run: ${run.run_number}:${run.run_attempt || 1} -->`,
               '## APK artifacts',
               '',
               `- [Download debug APK](${artifactUrl(debugArtifact)}) — signed with the disposable Android debug key`,
@@ -80,30 +84,32 @@ jobs:
               '',
               `Built from commit \`${run.head_sha.slice(0, 8)}\` by [CI run #${run.run_number}](${run.html_url}).`,
               'Artifacts expire after 14 days. Neither APK uses the MegaProxy release key.',
+              '<!-- /megaproxy-pr-apks -->',
             ].join('\n');
 
-            const comments = await github.paginate(github.rest.issues.listComments, {
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: pullNumber,
-              per_page: 100,
+            const { data: pull } = await github.rest.pulls.get({
+              ...context.repo, pull_number: pullNumber,
             });
-            const previousComment = comments.find(
-              (comment) => comment.user.type === 'Bot' && comment.body.includes(marker)
-            );
-
-            if (previousComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: previousComment.id,
-                body,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: pullNumber,
-                body,
-              });
+            if (pull.state !== 'open' || pull.head.sha !== run.head_sha) {
+              core.notice('PR is closed or its head changed; keeping the existing description');
+              return;
             }
+            const description = pull.body || '';
+            const previousRun = description.match(/<!-- megaproxy-pr-apks-run: (\d+):(\d+) -->/);
+            if (previousRun && (
+              Number(previousRun[1]) > run.run_number ||
+              (Number(previousRun[1]) === run.run_number && Number(previousRun[2]) > (run.run_attempt || 1))
+            )) {
+              core.notice('A newer CI run already published its artifacts');
+              return;
+            }
+            const block = /<!-- megaproxy-pr-apks -->[\s\S]*?<!-- \/megaproxy-pr-apks -->/g;
+            const authorBody = description.replace(block, '').trimEnd();
+            if (authorBody.includes(marker) || authorBody.includes('<!-- /megaproxy-pr-apks -->')) {
+              core.setFailed('Malformed APK block markers; refusing to overwrite the PR description');
+              return;
+            }
+            await github.rest.pulls.update({
+              ...context.repo, pull_number: pullNumber,
+              body: authorBody ? `${authorBody}\n\n${body}` : body,
+            });

@@ -64,7 +64,9 @@ it does not use the MegaProxy release identity.
 For pull requests, GitHub Actions uploads the debug and unsigned release APKs as two separately
 named workflow artifacts. Direct download links are shown in the Android check's job summary, and
 the files are retained for 14 days. After successful CI, a separate trusted `workflow_run` workflow
-creates or updates one APK-links comment on the pull request. It does not check out, download, or
+creates or updates an APK-links block at the bottom of the pull request description, preserving
+the author's text. Stale runs cannot overwrite links from newer runs. Skipped Android builds retain
+the previous links, labelled with their original commit. It does not check out, download, or
 execute pull-request code or artifacts. These are test artifacts only: neither APK is signed with
 the MegaProxy release key, and neither is published as a GitHub Release or sent to an app store.
 
@@ -134,6 +136,9 @@ On initial PR runs, Python-only changes run Python checks; documentation-only ch
 changes enable Go and Android, while Go test-only changes enable Go. Shared CI/Fastlane inputs and
 unknown paths enable all suites. Failed diff calculation fails `Change scope` instead of silently
 skipping tests. Skipped Android builds do not publish APK artifacts.
+
+The artifact-workflow tests also require Node.js on PATH to execute the trusted JavaScript
+with mocked GitHub APIs; GitHub-hosted CI runners provide it.
 
 Install the pinned development tools in a virtual environment:
 
