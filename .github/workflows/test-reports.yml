@@ -37,7 +37,7 @@ jobs:
           path: '**/*.xml'
           reporter: java-junit
           list-tests: all
-          max-annotations: 0
+          max-annotations: 10
           fail-on-empty: false
           use-actions-summary: false
       - name: Add collapsible test groups to Actions Summary
@@ -49,7 +49,7 @@ jobs:
           path: '**/*.xml'
           reporter: java-junit
           list-tests: all
-          max-annotations: 0
+          max-annotations: 10
           fail-on-empty: false
           use-actions-summary: true
           collapsed: always
