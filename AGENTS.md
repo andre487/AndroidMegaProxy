@@ -135,4 +135,5 @@ branch names, credentials, signing material, or other secrets.
 - Keep required CI deterministic. If a check depends on unreliable hosted-runner capabilities,
   replace it with JVM coverage where practical or move it to purpose-built infrastructure rather
   than normalizing repeated reruns. Emulator startup may retry once before the test runner starts;
-  never retry runner/test failures or allow two failed startup attempts to pass.
+  never retry runner/test failures or allow two failed startup attempts to pass. SDK installation
+  may retry once for transient download failures.

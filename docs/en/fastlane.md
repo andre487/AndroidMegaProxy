@@ -253,6 +253,7 @@ Both use Ubuntu 24.04, explicit KVM permissions, mandatory hardware acceleration
 snapshots keyed by API, emulator/system-image versions and workflow content. No software fallback
 or automatic test retry is used. Emulator startup gets one retry only if the test runner has
 not started; a runner-started marker prevents retrying any test/setup failure inside the runner.
+SDK installation also gets one retry for transient download failures.
 Both startup attempts failing keeps the required check red. Main pushes and full reruns execute both scenarios.
 
 Locally, start a **disposable** Google APIs emulator with English system UI and set
