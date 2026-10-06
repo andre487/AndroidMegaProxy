@@ -330,6 +330,10 @@ def main():
                 shell("am", "force-stop", PACKAGE)
                 suite.set("tests", str(len(suite)))
                 suite.set("failures", str(failures))
+                suite.set(
+                    "time",
+                    f"{sum(float(item.get('time', '0')) for item in suite):.3f}",
+                )
                 ET.ElementTree(suite).write(
                     results / "junit.xml", encoding="utf-8", xml_declaration=True
                 )
