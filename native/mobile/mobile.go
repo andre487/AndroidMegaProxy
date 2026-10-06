@@ -26,6 +26,7 @@ var state struct {
 	starting    bool
 	running     bool
 	stopping    bool
+	startCancel context.CancelFunc
 	device      device.Device
 	stack       *stack.Stack
 	proxyCloser io.Closer
@@ -60,6 +61,9 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 	}
 	state.generation++
 	generation := state.generation
+	ctx, cancelStart := context.WithCancel(context.Background())
+	defer cancelStart()
+	state.startCancel = cancelStart
 	state.starting = true
 	state.Unlock()
 	committed := false
@@ -71,6 +75,7 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		// The global tunnel must not retain a failed dialer and its Java callbacks.
 		tunnel.T().SetProxy(&reject.Reject{})
 		state.starting = false
+		state.startCancel = nil
 		state.Unlock()
 	}()
 	stats := resetStats()
@@ -87,8 +92,8 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		proxyCloser = httpsProxy
 	} else {
 		sshProxy := &sshDialer{config: c, protector: protector, reporter: reporter, stats: stats}
-		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		_, sessionErr := sshProxy.session(ctx)
+		sessionContext, cancel := context.WithTimeout(ctx, 30*time.Second)
+		_, sessionErr := sshProxy.session(sessionContext)
 		cancel()
 		if sessionErr != nil {
 			dev.Close()
@@ -121,6 +126,7 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 	state.stats = stats
 	go stats.run()
 	state.starting, state.running = false, true
+	state.startCancel = nil
 	committed = true
 	state.Unlock()
 	report(reporter, "event=native_stack result=started type=%s fingerprint=%s ssh_profile=%s ipv6=%t bypass_local=%t", c.Type, c.Profile, c.SSHProfile, c.AllowIPv6, c.BypassLocalNetworks)
@@ -142,6 +148,7 @@ func Stop() {
 		return
 	}
 	state.stopping = true
+	cancelStart := state.startCancel
 	// Drop the global strong reference to the dialer, config and JVM service callbacks.
 	// Late queued packets must fail closed rather than use a replacement connection.
 	tunnel.T().SetProxy(&reject.Reject{})
@@ -153,6 +160,9 @@ func Stop() {
 		state.stats = nil
 	}
 	state.Unlock()
+	if cancelStart != nil {
+		cancelStart()
+	}
 	defer func() {
 		state.Lock()
 		state.stopping = false

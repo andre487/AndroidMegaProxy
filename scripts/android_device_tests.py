@@ -4,7 +4,6 @@
 import argparse
 import base64
 import contextlib
-import http.server
 import os
 import re
 import secrets
@@ -164,49 +163,37 @@ def fixture():
 
 
 @contextlib.contextmanager
-def stalled_ssh():
-    accepted, release = threading.Event(), threading.Event()
+def stalled_ssh(shell):
+    release = threading.Event()
+    prefix = "/data/local/tmp/megaproxy-device-" + uuid.uuid4().hex
+    accepted_path, release_path = prefix + "-accepted", prefix + "-release"
 
     class Stall(socketserver.BaseRequestHandler):
         def handle(self):
-            accepted.set()
-            release.wait(60)
+            shell("touch", accepted_path)
+            deadline = time.monotonic() + 60
+            while not release.wait(0.1) and time.monotonic() < deadline:
+                if (
+                    shell("sh", "-c", f"if test -f {release_path}; then echo yes; fi")
+                    == "yes"
+                ):
+                    break
 
-    class Control(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            if self.path == "/release":
-                release.set()
-            body = b"yes" if accepted.is_set() else b"no"
-            self.send_response(200)
-            self.send_header("Content-Length", str(len(body)))
-            self.end_headers()
-            self.wfile.write(body)
-
-        def log_message(self, *_args):
-            pass
-
-    with (
-        socketserver.ThreadingTCPServer(("127.0.0.1", 0), Stall) as server,
-        http.server.ThreadingHTTPServer(("127.0.0.1", 0), Control) as control,
-    ):
+    with socketserver.ThreadingTCPServer(("127.0.0.1", 0), Stall) as server:
         server.daemon_threads = True
-        workers = [
-            threading.Thread(target=s.serve_forever, daemon=True)
-            for s in (server, control)
-        ]
-        for worker in workers:
-            worker.start()
+        worker = threading.Thread(target=server.serve_forever, daemon=True)
+        worker.start()
         try:
             yield {
                 "stallPort": str(server.server_address[1]),
-                "controlPort": str(control.server_address[1]),
+                "sshAccepted": accepted_path,
+                "sshRelease": release_path,
             }
         finally:
             release.set()
             server.shutdown()
-            control.shutdown()
-            for worker in workers:
-                worker.join()
+            worker.join()
+            shell("rm", "-f", accepted_path, release_path)
 
 
 def main():
@@ -253,7 +240,7 @@ def main():
     shell("am", "force-stop", PACKAGE)
     if shell("pm", "clear", PACKAGE) != "Success":
         raise RuntimeError("Failed to reset disposable app data")
-    with fixture() as parameters, stalled_ssh() as stalled:
+    with fixture() as parameters, stalled_ssh(shell) as stalled:
         parameters.update(stalled)
         tests = [(name, None) for name in TESTS]
         if args.api >= 33:

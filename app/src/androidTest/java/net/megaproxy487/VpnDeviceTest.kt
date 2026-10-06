@@ -61,12 +61,12 @@ class VpnDeviceTest : DeviceTestBase() {
         }
         ProxyVpnService.start(context)
         await("JNI startup did not reach SSH fixture") {
-            SocketControl.accepted(context, argument("controlPort").toInt())
+            device.executeShellCommand("test -f ${argument("sshAccepted")} && echo yes").trim() == "yes"
         }
         assertEquals(VpnConnectionState.CONNECTING, VpnRuntimeState.connection.value)
         ProxyVpnService.stop(context)
         stopped()
-        SocketControl.release(context, argument("controlPort").toInt())
+        device.executeShellCommand("touch ${argument("sshRelease")}")
         val deadline = SystemClock.elapsedRealtime() + 35_000
         while (SystemClock.elapsedRealtime() < deadline) {
             assertFalse("A stale native start revived the VPN", ProxyVpnService.isRunning)
@@ -87,21 +87,4 @@ class VpnDeviceTest : DeviceTestBase() {
         assertEquals(PackageManager.PERMISSION_DENIED, context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS))
         roundTrip()
     }
-}
-
-private object SocketControl {
-    // Fixture coordination must remain reachable while the TUN is awaiting native startup.
-    private fun request(context: android.content.Context, port: Int, path: String): String {
-        val manager = context.getSystemService(android.net.ConnectivityManager::class.java)
-        val network = manager.allNetworks.first {
-            manager.getNetworkCapabilities(it)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == false
-        }
-        return network.socketFactory.createSocket("10.0.2.2", port).use {
-            it.soTimeout = 2_000
-            it.getOutputStream().write("GET /$path HTTP/1.0\r\n\r\n".toByteArray())
-            it.getInputStream().bufferedReader().readText().substringAfter("\r\n\r\n")
-        }
-    }
-    fun accepted(context: android.content.Context, port: Int) = request(context, port, "accepted") == "yes"
-    fun release(context: android.content.Context, port: Int) { assertEquals("yes", request(context, port, "release")) }
 }
