@@ -5,8 +5,9 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.SystemClock
-import androidx.compose.ui.test.*
-import androidx.compose.ui.test.junit4.createAndroidComposeRule
+import androidx.test.core.app.ActivityScenario
+import androidx.test.uiautomator.UiScrollable
+import androidx.test.uiautomator.UiSelector
 import androidx.test.platform.app.InstrumentationRegistry
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.UiDevice
@@ -22,10 +23,12 @@ import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import org.junit.Assert.*
-import org.junit.After
 import org.junit.Rule
 import org.junit.rules.ExternalResource
 import org.junit.rules.RuleChain
+import org.junit.rules.TestWatcher
+import org.junit.runner.Description
+import java.io.File
 import java.net.InetSocketAddress
 import java.net.Socket
 
@@ -36,10 +39,23 @@ abstract class DeviceTestBase {
     protected val arguments = InstrumentationRegistry.getArguments()
     protected val device = UiDevice.getInstance(instrumentation)
     protected val store get() = ConfigStore(context)
-    protected val compose = createAndroidComposeRule<MainActivity>()
+    protected lateinit var scenario: ActivityScenario<MainActivity>
     protected fun argument(name: String) = requireNotNull(arguments.getString(name)) { "Missing fixture argument: $name" }
     protected fun text(id: Int) = context.getString(id)
-    protected fun node(id: Int) = compose.onNodeWithText(text(id))
+    protected fun appNode(selector: androidx.test.uiautomator.BySelector): androidx.test.uiautomator.UiObject2 {
+        device.waitForIdle()
+        val result = device.wait(Until.findObject(selector), 10_000)
+        assertNotNull("Missing app control $selector", result)
+        return result
+    }
+    protected fun click(id: Int) {
+        if (!device.hasObject(By.text(text(id)))) {
+            device.findObject(UiSelector().scrollable(true)).let {
+                if (it.exists()) UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text(text(id)))
+            }
+        }
+        appNode(By.text(text(id))).click()
+    }
     protected fun io(block: () -> Unit) = runBlocking { withContext(ConfigIoDispatcher) { block() } }
     protected fun saved() {
         io {} // Barrier behind every ordered write, including service commands.
@@ -69,7 +85,7 @@ abstract class DeviceTestBase {
         device.waitForIdle()
     }
     protected fun connect() {
-        node(R.string.connect).performScrollTo().performClick()
+        click(R.string.connect)
         if (VpnService.prepare(context) != null) systemButton("android:id/button1")
         await("Real VPN did not connect") { ProxyVpnService.isRunning && vpnPresent() && VpnRuntimeState.connection.value == VpnConnectionState.CONNECTED }
         saved()
@@ -95,6 +111,7 @@ abstract class DeviceTestBase {
 
     private val platform = object : ExternalResource() {
         override fun before() {
+            listOf("png", "xml").forEach { File(context.getExternalFilesDir(null), "device-failure.$it").delete() }
             if (arguments.getString("phase") != "verify") io {
                 assertTrue(context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE).edit().clear().commit())
                 val profile = store.activeProfile()
@@ -106,9 +123,17 @@ abstract class DeviceTestBase {
             }
             assertTrue(context.getSharedPreferences("battery_optimization_reminder", Context.MODE_PRIVATE)
                 .edit().putLong("last_request_at", System.currentTimeMillis()).commit())
+            scenario = ActivityScenario.launch(MainActivity::class.java)
+            device.waitForIdle()
         }
     }
-    @After fun cleanup() {
+    private fun cleanup() {
+        repeat(3) {
+            if (device.currentPackageName != context.packageName) {
+                device.pressBack()
+                device.waitForIdle()
+            }
+        }
         try {
             ProxyVpnService.stop(context)
             stopped()
@@ -116,5 +141,18 @@ abstract class DeviceTestBase {
             saved()
         }
     }
-    @get:Rule val rules: RuleChain = RuleChain.outerRule(platform).around(compose)
+    private val evidence = object : TestWatcher() {
+        override fun failed(error: Throwable, description: Description) {
+            val directory = context.getExternalFilesDir(null)!!
+            device.takeScreenshot(File(directory, "device-failure.png"))
+            device.dumpWindowHierarchy(File(directory, "device-failure.xml"))
+        }
+    }
+    private val activity = object : ExternalResource() {
+        override fun after() { scenario.close() }
+    }
+    private val finish = object : ExternalResource() {
+        override fun after() { cleanup() }
+    }
+    @get:Rule val rules: RuleChain = RuleChain.outerRule(platform).around(activity).around(finish).around(evidence)
 }

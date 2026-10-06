@@ -6,6 +6,7 @@ import base64
 import contextlib
 import http.server
 import os
+import re
 import secrets
 import shlex
 import socket
@@ -223,6 +224,10 @@ def main():
 
     if int(shell("getprop", "ro.build.version.sdk")) != args.api:
         parser.error("Connected emulator API does not match --api")
+    if shell("getprop", "sys.boot_completed") != "1":
+        parser.error(
+            "Wait for the emulator to finish booting before running device_tests"
+        )
     if shell("getprop", "ro.kernel.qemu") != "1":
         parser.error("Device is not an emulator")
     results = ROOT / "test-results" / f"android-api{args.api}"
@@ -238,6 +243,9 @@ def main():
         "-r",
         str(ROOT / "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"),
     )
+    shell("am", "force-stop", PACKAGE)
+    if shell("pm", "clear", PACKAGE) != "Success":
+        raise RuntimeError("Failed to reset disposable app data")
     with fixture() as parameters, stalled_ssh() as stalled:
         parameters.update(stalled)
         tests = [(name, None) for name in TESTS]
@@ -253,14 +261,26 @@ def main():
             started = time.monotonic()
             try:
                 shell("am", "force-stop", PACKAGE)
-                if phase != "verify":
-                    if shell("pm", "clear", PACKAGE) != "Success":
-                        raise RuntimeError("Failed to reset disposable app data")
-                shell("appops", "set", PACKAGE, "ACTIVATE_VPN", "default")
-                if args.api >= 33 and "deniedNotifications" not in test:
+                # Test setup resets ConfigStore itself; clearing app data here can
+                # asynchronously remove an old task and kill the next test process.
+                if args.api >= 33:
+                    operation = "revoke" if "deniedNotifications" in test else "grant"
                     shell(
-                        "pm", "grant", PACKAGE, "android.permission.POST_NOTIFICATIONS"
+                        "pm",
+                        operation,
+                        PACKAGE,
+                        "android.permission.POST_NOTIFICATIONS",
                     )
+                # Force-stop/task removal can finish asynchronously and kill a newly
+                # started instrumentation process. Wait for actual Activity removal.
+                deadline = time.monotonic() + 15
+                while re.search(
+                    r"ActivityRecord\{[^\n]* net\.megaproxy487(?:\.test)?/",
+                    shell("dumpsys", "activity", "activities"),
+                ):
+                    if time.monotonic() >= deadline:
+                        raise RuntimeError("Previous Android activities did not finish")
+                    time.sleep(0.1)
                 shell("logcat", "-c")
                 options = [
                     "am",
@@ -283,6 +303,8 @@ def main():
             except (RuntimeError, subprocess.SubprocessError) as error:
                 failures += 1
                 # Tool failures can include command arguments; never publish the key/password.
+                if isinstance(error, subprocess.CalledProcessError):
+                    (results / (label + ".txt")).write_text(error.output or "")
                 message = (
                     str(error)
                     if isinstance(error, RuntimeError)
@@ -290,16 +312,16 @@ def main():
                 )
                 ET.SubElement(case, "failure", message=message)
                 print(f"FAIL API {args.api}: {label}: {message}", flush=True)
-                screenshot = subprocess.run(
-                    [*adb, "exec-out", "screencap", "-p"],
-                    capture_output=True,
-                    timeout=15,
-                )
-                (results / (label + ".png")).write_bytes(screenshot.stdout)
-                shell("uiautomator", "dump", "/sdcard/megaproxy-device-window.xml")
-                (results / (label + ".xml")).write_text(
-                    shell("cat", "/sdcard/megaproxy-device-window.xml")
-                )
+                for extension in ("png", "xml"):
+                    destination = results / (label + "." + extension)
+                    evidence = f"/sdcard/Android/data/{PACKAGE}/files/device-failure.{extension}"
+                    pulled = subprocess.run(
+                        [*adb, "pull", evidence, str(destination)],
+                        capture_output=True,
+                        timeout=15,
+                    )
+                    if pulled.returncode:
+                        print(f"Failure {extension} evidence unavailable", flush=True)
             finally:
                 case.set("time", f"{time.monotonic() - started:.3f}")
                 (results / (label + "-logcat.txt")).write_text(

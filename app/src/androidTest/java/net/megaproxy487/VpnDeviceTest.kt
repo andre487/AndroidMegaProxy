@@ -5,7 +5,6 @@ import android.content.pm.PackageManager
 import android.net.VpnService
 import android.os.Build
 import android.os.SystemClock
-import androidx.compose.ui.test.*
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.vpn.ProxyVpnService
@@ -21,7 +20,7 @@ class VpnDeviceTest : DeviceTestBase() {
         directOriginUnavailable()
         connect()
         roundTrip()
-        node(R.string.disconnect).performScrollTo().performClick()
+        click(R.string.disconnect)
         stopped()
         directOriginUnavailable()
         connect()
@@ -30,9 +29,9 @@ class VpnDeviceTest : DeviceTestBase() {
 
     @Test fun deniedVpnConsentDoesNotStartTunnel() {
         assertNotNull("Runner must revoke VPN consent before this test", VpnService.prepare(context))
-        node(R.string.connect).performScrollTo().performClick()
+        click(R.string.connect)
         systemButton("android:id/button2")
-        node(R.string.vpn_permission_denied).assertExists()
+        appNode(androidx.test.uiautomator.By.text(text(R.string.vpn_permission_denied)))
         stopped()
         assertNotNull(VpnService.prepare(context))
         directOriginUnavailable()
@@ -57,7 +56,7 @@ class VpnDeviceTest : DeviceTestBase() {
         }) }
         // Real JNI Start waits for this fixture's SSH banner; the host records acceptance.
         if (VpnService.prepare(context) != null) {
-            compose.activityRule.scenario.onActivity { it.startActivity(VpnService.prepare(it)) }
+            scenario.onActivity { it.startActivity(VpnService.prepare(it)) }
             systemButton("android:id/button1")
         }
         ProxyVpnService.start(context)
@@ -81,7 +80,7 @@ class VpnDeviceTest : DeviceTestBase() {
     @Test fun deniedNotificationsStillAllowVpn() {
         if (Build.VERSION.SDK_INT < 33) return // Permission does not exist on API 26.
         assertEquals(PackageManager.PERMISSION_DENIED, context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS))
-        node(R.string.connect).performScrollTo().performClick()
+        click(R.string.connect)
         systemButton("com.android.permissioncontroller:id/permission_deny_button")
         if (VpnService.prepare(context) != null) systemButton("android:id/button1")
         await("VPN failed after notification denial") { ProxyVpnService.isRunning && vpnPresent() }

@@ -41,8 +41,14 @@ class KeystoreProcessDeviceTest : DeviceTestBase() {
             assertTrue("SSH key did not survive process restart", config.privateKey == privateKey)
             assertEquals(argument("sshFingerprint"), config.trustedHostKey)
             directOriginUnavailable()
+            io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(sshAuthMode = SshAuthMode.PASSWORD_ONLY)) }
             connect()
-            roundTrip() // KEY_ONLY proves the recovered key works with real OpenSSH.
+            roundTrip() // No key fallback: the recovered password must authenticate.
+            click(R.string.disconnect)
+            stopped()
+            io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(sshAuthMode = SshAuthMode.KEY_ONLY)) }
+            connect()
+            roundTrip() // No password fallback: the recovered key must authenticate.
             marker.delete()
         }
     }

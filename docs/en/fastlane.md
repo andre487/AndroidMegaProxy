@@ -250,7 +250,7 @@ with data you want to keep. It rejects physical devices and API mismatches.
 
 Coverage: real HTTPS proxy traffic through TUN/JNI, stop/restart, stop while real JNI awaits an
 SSH handshake, denied VPN consent, notification Disconnect, notification permission denial on
-API 35, encrypted password/key persistence across a fresh app process and real KEY_ONLY OpenSSH
+API 35, encrypted password/key persistence across a fresh app process and real PASSWORD_ONLY/KEY_ONLY OpenSSH
 traffic, and system DocumentsUI export/import/cancellation. Exports omit passwords by default.
 System picker tests exercise the actual Downloads provider and returned content URI.
 
