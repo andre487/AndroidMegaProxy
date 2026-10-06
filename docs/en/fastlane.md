@@ -37,6 +37,7 @@ That command lists the lanes available in the checked-out version of the project
 
 | Command | Result |
 | --- | --- |
+| `bundle exec fastlane android renew_config_schema` | Downloads and pins the current MegaProxyConfig schemas and examples; use `ref:FULL_SHA` for a reviewed revision. |
 | `bundle exec fastlane android python_format` | Formats Python scripts with pinned Black and isort. |
 | `bundle exec fastlane android python_tests` | Runs Python unit tests. |
 | `bundle exec fastlane android python_checks` | Checks Python formatting/import order and runs unit tests. |
@@ -285,3 +286,13 @@ JUnit XML, instrumentation output and Logcat are saved under `test-results/andro
 separate seven-day artifacts and links them in each job summary. Pure logic, most Compose
 interactions and the full transport failure matrix remain in JVM/Robolectric/Go tests.
 These emulators do not certify OEM behavior, physical network handover or all Always-on modes.
+
+## Portable configuration schemas
+
+`renew_config_schema` uses authenticated `gh` and Python's standard library to resolve one
+MegaProxyConfig commit, download both draft 2020-12 schemas, examples and LICENSE, and record
+SHA-256 checksums in `config-schema/schema-lock.json`. Review and commit the whole directory.
+CI reads only these committed files; it never fetches a moving upstream branch.
+`android_checks` validates real exports against both schemas and checks examples, enums and
+checksums. The JVM validator is a test dependency only. Import remains compatible with versions
+1–8; it uses the bundled shared schema to recognize fields, without rejecting permissive legacy input.

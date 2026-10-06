@@ -38,6 +38,7 @@ bundle exec fastlane lanes
 
 | Команда | Результат |
 | --- | --- |
+| `bundle exec fastlane android renew_config_schema` | Загружает и фиксирует схемы и примеры MegaProxyConfig; `ref:FULL_SHA` выбирает проверенную ревизию. |
 | `bundle exec fastlane android python_format` | Форматирует Python зафиксированными Black и isort. |
 | `bundle exec fastlane android python_tests` | Запускает Python unit-тесты. |
 | `bundle exec fastlane android python_checks` | Проверяет форматирование, порядок импортов и Python-тесты. |
@@ -290,3 +291,13 @@ JUnit XML, instrumentation output и Logcat сохраняются в `test-resu
 отдельные артефакты на семь дней со ссылками в job summary. Чистая логика, большинство Compose
 взаимодействий и полная матрица сетевых ошибок остаются в JVM/Robolectric/Go-тестах.
 Эти эмуляторы не подтверждают поведение OEM, физическое переключение сетей и все Always-on режимы.
+
+## Схемы переносимой конфигурации
+
+`renew_config_schema` использует авторизованный `gh` и стандартную библиотеку Python: определяет
+один commit MegaProxyConfig, загружает обе схемы draft 2020-12, примеры и LICENSE, сохраняет
+SHA-256 в `config-schema/schema-lock.json`. Проверяйте diff и коммитьте каталог целиком.
+CI читает только зафиксированные файлы и не скачивает актуальную upstream-ветку.
+`android_checks` проверяет реальные экспорты по обеим схемам, примеры, перечисления и контрольные
+суммы. JVM-валидатор подключён только в тестах. Импорт сохраняет совместимость с версиями 1–8:
+встроенная общая схема служит для распознавания полей, без строгой проверки старого формата.

@@ -7,6 +7,11 @@ ruby_version("3.4.0")
 project_root = File.expand_path("..", __dir__)
 
 platform :android do
+  desc "Explicitly update pinned MegaProxyConfig schemas and examples"
+  lane :renew_config_schema do |options|
+    sh(ENV.fetch("PYTHON", "python3"), File.join(project_root, "scripts/renew_config_schema.py"), "--ref", options.fetch(:ref, "main").to_s)
+  end
+
   desc "Run the native Go tests with the race detector"
   lane :native_tests do
     report = File.join(project_root, "test-results/native/unit.xml")

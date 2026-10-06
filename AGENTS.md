@@ -56,6 +56,12 @@ branch names, credentials, signing material, or other secrets.
   HTTP origin, using disposable credentials and the production dialers. Keep it separate from
   ordinary local Go tests and Android TUN/JNI coverage; never use a public or personal proxy.
 
+- Vendor MegaProxyConfig schemas/examples with commit and SHA-256 in `config-schema/`. Update only
+  through `bundle exec fastlane android renew_config_schema [ref:FULL_SHA]`; CI never fetches upstream.
+  JVM checks validate real exports against both schemas. Keep permissive legacy imports; report
+  ignored browser settings and undocumented keys once each in the existing import result, without
+  field values. Unsupported fields are discarded and do not round-trip through Android.
+
 ## Releases and distribution
 
 - Release builds and signing are separate from PR CI. Release artifacts are created only through

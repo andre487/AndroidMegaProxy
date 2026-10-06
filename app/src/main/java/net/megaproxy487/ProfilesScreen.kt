@@ -335,6 +335,10 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                     .takeIf { missingPasswords > 0 },
                 activity.uiText(R.string.config_import_always_on_reconnect)
                     .takeIf { ProxyVpnService.isAlwaysOnMode && ProxyVpnService.isRunning },
+                activity.uiText(R.string.config_import_browser_fields)
+                    .takeIf { configuration.notice.browserFields },
+                activity.uiText(R.string.config_import_unknown_fields)
+                    .takeIf { configuration.notice.unknownFields },
             ).joinToString(" ")
             if (result.missing.isEmpty()) {
                 transferMessage = summary

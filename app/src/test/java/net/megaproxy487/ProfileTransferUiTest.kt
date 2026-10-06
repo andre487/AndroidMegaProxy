@@ -75,6 +75,30 @@ class ProfileTransferUiTest : MainUiTestBase() {
         assertEquals(1, store.profiles().size)
     }
 
+    @Test fun jsonImportReportsIgnoredFieldsInItsExistingResultAndDiscardsThem() {
+        val uri = Uri.parse("content://ui-test/portable.json")
+        val root = org.json.JSONObject(net.megaproxy487.data.ConfigTransfer.exportJson(store, true))
+            .put("browser", org.json.JSONObject().put("theme", "dark"))
+            .put("future", "unknown-secret")
+        shadowOf(activity.contentResolver).registerInputStream(uri, ByteArrayInputStream(root.toString().toByteArray()))
+        screen()
+        icon(R.string.import_action).performClick()
+        documentResult(uri)
+        compose.waitUntil(10_000) {
+            compose.onAllNodes(hasText(text(R.string.config_import_browser_fields), substring = true)).fetchSemanticsNodes().isNotEmpty()
+        }
+        saved()
+        val summary = compose.onNode(hasText(text(R.string.config_import_browser_fields), substring = true))
+        summary.assertTextContains(text(R.string.config_import_unknown_fields), substring = true)
+        assertFalse(summary.fetchSemanticsNode().config[androidx.compose.ui.semantics.SemanticsProperties.Text].joinToString().contains("unknown-secret"))
+        node(R.string.ok).performClick()
+        assertEquals(1, store.profiles().size)
+        val exported = net.megaproxy487.data.ConfigTransfer.exportJson(store, true)
+        assertFalse(exported.contains("browser"))
+        assertFalse(exported.contains("future"))
+        assertFalse(exported.contains("unknown-secret"))
+    }
+
     @Test fun defaultJsonExportOmitsSecrets() {
         val uri = Uri.parse("content://ui-test/export.json")
         val output = ByteArrayOutputStream()

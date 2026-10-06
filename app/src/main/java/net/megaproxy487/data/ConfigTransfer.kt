@@ -31,6 +31,7 @@ data class PortableConfiguration(
     val globalConnectionSettings: GlobalConnectionSettings? = null,
     val skippedProfiles: Int = 0,
     val secretPresence: Map<String, ProfileSecretPresence> = emptyMap(),
+    val notice: ConfigImportNotice = ConfigImportNotice(),
 )
 
 data class ProfileSecretPresence(
@@ -121,6 +122,7 @@ object ConfigTransfer {
             it.copy(config = it.config.copy(allowIpv6 = legacyIpv6))
         } else decodedProfiles
         return PortableConfiguration(
+            notice = ConfigImportNotices.inspect(root),
             profiles = profiles,
             activeProfileId = root.optString("activeProfileId").ifBlank { null },
             alwaysOnProfileId = root.optString("alwaysOnProfileId").ifBlank { null },
