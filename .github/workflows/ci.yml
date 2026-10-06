@@ -231,11 +231,11 @@ jobs:
     with:
       api: 35
 
-  test-reports:
-    name: Publish JUnit reports
-    needs: [native-tests, python-tests, android-tests, emulator26, emulator35]
+  report-native-tests:
+    name: Publish Native Go results
+    needs: native-tests
     if: >-
-      !cancelled() &&
+      !cancelled() && needs.native-tests.result != 'skipped' &&
       (github.event_name != 'pull_request' ||
        github.event.pull_request.head.repo.full_name == github.repository)
     permissions:
@@ -243,3 +243,65 @@ jobs:
       actions: read
       checks: write
     uses: ./.github/workflows/test-reports.yml
+    with:
+      artifact: '/^junit-(Native Go)$/'
+
+  report-python-tests:
+    name: Publish Python results
+    needs: python-tests
+    if: >-
+      !cancelled() && needs.python-tests.result != 'skipped' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+    uses: ./.github/workflows/test-reports.yml
+    with:
+      artifact: '/^junit-(Python)$/'
+
+  report-android-tests:
+    name: Publish Android JVM results
+    needs: android-tests
+    if: >-
+      !cancelled() && needs.android-tests.result != 'skipped' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+    uses: ./.github/workflows/test-reports.yml
+    with:
+      artifact: '/^junit-(Android JVM)$/'
+
+  report-emulator26:
+    name: Publish Android API 26 results
+    needs: emulator26
+    if: >-
+      !cancelled() && needs.emulator26.result != 'skipped' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+    uses: ./.github/workflows/test-reports.yml
+    with:
+      artifact: '/^junit-(Android API 26)$/'
+
+  report-emulator35:
+    name: Publish Android API 35 results
+    needs: emulator35
+    if: >-
+      !cancelled() && needs.emulator35.result != 'skipped' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    permissions:
+      contents: read
+      actions: read
+      checks: write
+    uses: ./.github/workflows/test-reports.yml
+    with:
+      artifact: '/^junit-(Android API 35)$/'

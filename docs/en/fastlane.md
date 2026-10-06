@@ -168,12 +168,13 @@ JUnit XML under `app/build/test-results/testDebugUnitTest/`; device tests keep s
 reports. Test failures still return a nonzero exit status.
 
 CI uploads each suite's XML as a separate `junit-*` artifact even when tests fail, with seven-day
-retention. A separate publisher creates `Test results · …` GitHub Checks with test counts and
-failure details, plus an Actions summary. Skipped suites have no report and are not presented as
+retention. Each suite has a separate publisher that starts as soon as that suite finishes, without waiting
+for the rest of CI. It creates `Test results · …` GitHub Checks with test counts and failure
+details, plus an Actions summary. Skipped suites have no report and are not presented as
 newly passed tests. Existing required checks continue to gate merges.
 
 The publisher has `checks: write`; test jobs retain read-only repository access. Internal PRs and
-pushes publish after CI jobs finish. Fork PRs publish from the trusted `workflow_run` workflow,
+pushes publish independently after each corresponding test job finishes. Fork PRs publish from the trusted `workflow_run` workflow,
 which becomes available after this workflow is merged into `main`. It reads artifacts without
 checking out or executing PR code. Only JUnit artifacts are parsed; device UI hierarchy XML stays
 in the separate evidence artifact.

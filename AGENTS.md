@@ -37,7 +37,7 @@ branch names, credentials, signing material, or other secrets.
 - Surface downloadable APK artifacts in the GitHub Actions job summary in addition to uploading
   them through `actions/upload-artifact`.
 - Test lanes produce JUnit XML. CI uploads separate `junit-*` artifacts on success or failure and
-  publishes GitHub Checks from a separate reporting job; fork reports use trusted `workflow_run`
+  publishes each suite's GitHub Check independently as soon as its job finishes; fork reports use trusted `workflow_run`
   without executing PR code. Keep original suite checks as merge requirements.
 - Prefer extracting UI-facing decisions into small production contracts and testing those with
   deterministic JVM unit tests. Resource parity, navigation destination wiring, preference
