@@ -11,7 +11,7 @@ from pathlib import Path, PurePosixPath
 
 from ci_history import successful_baselines
 
-SUITES = ("android", "native", "python")
+SUITES = ("android", "native", "python", "emulator26", "emulator35")
 
 
 def classify(paths):
@@ -38,6 +38,8 @@ def classify(paths):
             selected.add("native")
             if not path.endswith("_test.go"):
                 selected.add("android")
+        elif path == "scripts/android_device_tests.py":
+            selected.update(("python", "emulator26", "emulator35"))
         elif path.endswith(".py") or path in (
             "pyproject.toml",
             "requirements-dev.txt",
@@ -53,6 +55,8 @@ def classify(paths):
             selected.add("android")
         else:
             selected.update(SUITES)
+    if "android" in selected:
+        selected.update(("emulator26", "emulator35"))
     return {suite: suite in selected for suite in SUITES}
 
 

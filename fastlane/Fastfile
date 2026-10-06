@@ -78,6 +78,19 @@ platform :android do
     UI.success("Verified unsigned release APK: app/build/outputs/apk/release/app-release-unsigned.apk")
   end
 
+  desc "Build debug and instrumentation APKs for a disposable emulator"
+  lane :device_test_build do
+    native_library
+    gradle(tasks: %w[assembleDebug assembleDebugAndroidTest], flags: "--no-daemon", project_dir: project_root)
+  end
+
+  desc "Run real VPN, Keystore and document-provider tests on a disposable API 26 or 35 emulator"
+  lane :device_tests do |options|
+    api = options[:api].to_s
+    UI.user_error!("Use api:26 or api:35") unless %w[26 35].include?(api)
+    sh(ENV.fetch("PYTHON", "python3"), File.join(project_root, "scripts/android_device_tests.py"), "--api", api)
+  end
+
   desc "Run every native and Android test and check"
   lane :test do
     native_tests

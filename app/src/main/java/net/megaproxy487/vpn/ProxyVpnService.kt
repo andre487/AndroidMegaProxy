@@ -48,6 +48,7 @@ class ProxyVpnService : VpnService() {
     @Volatile private var nextStartAttemptAt = 0L
     @Volatile private var retryStatus: String? = null
     private val tunnelStateLock = Any()
+    private var pendingStart: Pair<ParcelFileDescriptor, ProxyCore>? = null
     private val startGeneration = AtomicLong(0)
     private val probableFailureCounts = ConcurrentHashMap<String, Int>()
     private val probableFailureTimes = ConcurrentHashMap<String, Long>()
@@ -352,6 +353,13 @@ class ProxyVpnService : VpnService() {
         val proxyCore = NativeProxyCore(this, diagnostics) {
             !serviceDestroyed && isStartCurrent(generation)
         }
+        synchronized(tunnelStateLock) {
+            if (!isStartCurrent(generation)) {
+                establishedTunnel.close()
+                return false
+            }
+            pendingStart = establishedTunnel to proxyCore
+        }
         var nativeStarted = false
         var tunnelCommitted = false
         try {
@@ -402,6 +410,7 @@ class ProxyVpnService : VpnService() {
             val committed = synchronized(tunnelStateLock) {
                 if (!isStartCurrent(generation) || tunnel != null) false else {
                     tunnelCommitted = true
+                    pendingStart = null
                     tunnel = establishedTunnel
                     core = proxyCore
                     tunnelTestOnly = testOnly
@@ -424,7 +433,10 @@ class ProxyVpnService : VpnService() {
             VpnRuntimeState.update(VpnConnectionState.CONNECTED)
             return true
         } finally {
-            // Until publication under tunnelStateLock, this attempt owns both resources.
+            synchronized(tunnelStateLock) {
+                if (pendingStart?.first === establishedTunnel) pendingStart = null
+            }
+            // Stop may cancel this pending attempt; failure still closes its resources.
             // Exceptions in DNS/cache/notification work must not leak them across retries.
             if (!tunnelCommitted) {
                 try {
@@ -682,7 +694,10 @@ class ProxyVpnService : VpnService() {
 
     private fun stopTunnel(removeForeground: Boolean = true) {
         startGeneration.incrementAndGet()
+        var pending: Pair<ParcelFileDescriptor, ProxyCore>? = null
         val stopped = synchronized(tunnelStateLock) {
+            pending = pendingStart
+            pendingStart = null
             val result = Triple(tunnel, core, tunnelTestOnly)
             tunnel = null
             core = null
@@ -698,9 +713,11 @@ class ProxyVpnService : VpnService() {
         VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
         resetRetryState()
         try {
+            pending?.second?.stop()
             stopped.second?.stop()
         } finally {
             try {
+                pending?.first?.close()
                 stopped.first?.close()
             } catch (error: java.io.IOException) {
                 DiagnosticLog.add("event=tun_close result=failed error=${error.javaClass.simpleName}")
@@ -771,6 +788,9 @@ class ProxyVpnService : VpnService() {
         .setOngoing(true)
         .setCategory(NotificationCompat.CATEGORY_SERVICE)
         .setContentIntent(hostKeyPrompt ?: PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
+        .also { builder -> if (!isAlwaysOnMode) builder.addAction(0, uiText(R.string.disconnect), PendingIntent.getService(
+            this, 1, Intent(this, ProxyVpnService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE,
+        )) }
         .also { builder -> hostKeyPrompt?.let { builder.addAction(0, uiText(R.string.review_ssh_key), it) } }
         .build()
 

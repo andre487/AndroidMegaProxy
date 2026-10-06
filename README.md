@@ -230,7 +230,9 @@ For optional local device testing on an ARM64 host, create the API 35 Google API
 ./scripts/create-android-emulator.sh
 ```
 
-Required CI and Robolectric Compose tests do not need an emulator.
+Robolectric Compose tests do not need an emulator. CI also runs independent hardware-accelerated
+API 26 and API 35 integration scenarios for real VPN/JNI, Keystore and system document providers.
+See the [Fastlane reference](docs/en/fastlane.md#android-emulator-integration-tests).
 
 The script installs missing components, configures host keyboard and mouse input, and can be run
 more than once. It creates `MegaProxy_API_35` by default; set `MEGAPROXY_AVD_NAME` to override the

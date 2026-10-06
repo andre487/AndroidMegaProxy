@@ -45,6 +45,9 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android native_tests` | Запускает все Go-тесты с race detector. |
 | `bundle exec fastlane android native_integration` | Проверяет сетевой код с настоящими GOST/OpenSSH в Docker и race detector. |
 | `bundle exec fastlane android android_checks` | Собирает native AAR, запускает Android unit-тесты и lint, собирает debug APK, затем собирает и проверяет unsigned release APK. Команда отклоняет переменные release-подписи. |
+| `bundle exec fastlane android device_test_build` | Собирает native AAR, debug APK и instrumentation APK. |
+| `bundle exec fastlane android device_tests api:26` | Проверяет интеграционные сценарии на запущенном одноразовом эмуляторе API 26. |
+| `bundle exec fastlane android device_tests api:35` | Проверяет интеграционные сценарии на запущенном одноразовом эмуляторе API 35. |
 | `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_prepare version:0.1.2` | Генерирует EN/RU changelog, повышает версию и создаёт release PR (нужна настройка API/токенов). |
@@ -223,3 +226,45 @@ Robolectric фиксирует команды сервиса и подставл
 [Настройка workflow выпуска и восстановление после ошибок](release-automation.md).
 
 Release-ветки `release/vX.Y.Z` всегда запускают все наборы CI; skipped job не разрешает завершение выпуска.
+
+## Интеграционные тесты на Android-эмуляторах
+
+CI запускает API 26 и API 35 отдельными заданиями с независимой историей успешных проверок.
+Оба используют Ubuntu 24.04, явные разрешения KVM, обязательное аппаратное ускорение и чистые
+снимки AVD. Ключ кеша включает API, версии эмулятора/system image и содержимое workflow.
+Программного fallback и автоматических повторов тестов нет. Push в main и полный rerun
+выполняют оба сценария.
+
+Локально запустите **одноразовый** Google APIs эмулятор с английским системным интерфейсом,
+задайте `ANDROID_SERIAL=emulator-5554` (фактический serial своего эмулятора) и выполните:
+
+```shell
+bundle exec fastlane android device_test_build
+bundle exec fastlane android device_tests api:35
+```
+
+Для отдельного эмулятора API 26 используйте `api:26`. Native AAR должен включать ABI эмулятора;
+CI задаёт `MEGAPROXY_ANDROID_ABI=x86_64`, локальная сборка по умолчанию включает все ABI.
+Нужен работающий Docker. На Linux стенду необходим `sudo iptables` без пароля для запрета прямого
+доступа хоста/эмулятора к origin без опубликованного порта; временное правило удаляется при выходе.
+На macOS origin внутри Docker VM недоступен напрямую. Сетевые сценарии проверяют этот запрет.
+Runner **очищает данные MegaProxy на выбранном эмуляторе**, использует одноразовые пароли/SSH-ключи
+и останавливает процесс между сценариями. Не выбирайте рабочий эмулятор с нужными данными.
+Физические устройства и несовпадающий API отклоняются.
+
+Покрытие: настоящий HTTPS-трафик через TUN/JNI, остановка/повторный запуск, остановка во время
+SSH handshake внутри настоящего JNI, отказ в VPN-согласии, отключение из уведомления, отказ в
+разрешении уведомлений на API 35, сохранение зашифрованных пароля/ключа между процессами с
+настоящими PASSWORD_ONLY/KEY_ONLY-подключениями к OpenSSH, экспорт/импорт/отмена через системный DocumentsUI.
+Экспорт по умолчанию не включает пароль. Проверяется настоящий Downloads provider и content URI.
+
+Проверка процесса состоит из отдельных instrumentation-запусков seed/verify с force-stop между
+ними; одного пересоздания Activity недостаточно. Перед проверкой конфигурации дожидаемся ordered
+executor и проверяем завершение и отсутствие ошибки записи. Сетевые тесты обращаются к приватному
+HTTP echo-origin, проверяют маркер ответа и точное совпадение payload, а не только CONNECTED.
+
+JUnit XML, instrumentation output и Logcat сохраняются в `test-results/android-api26/` либо
+`test-results/android-api35/`; при ошибке добавляются скриншот и UI hierarchy. CI публикует
+отдельные артефакты на семь дней со ссылками в job summary. Чистая логика, большинство Compose
+взаимодействий и полная матрица сетевых ошибок остаются в JVM/Robolectric/Go-тестах.
+Эти эмуляторы не подтверждают поведение OEM, физическое переключение сетей и все Always-on режимы.

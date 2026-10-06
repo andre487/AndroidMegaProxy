@@ -26,6 +26,8 @@ jobs:
       android: ${{ steps.scope.outputs.android }}
       native: ${{ steps.scope.outputs.native }}
       python: ${{ steps.scope.outputs.python }}
+      emulator26: ${{ steps.scope.outputs.emulator26 }}
+      emulator35: ${{ steps.scope.outputs.emulator35 }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -188,3 +190,19 @@ jobs:
             echo
             echo "Artifacts expire after 14 days. Neither APK uses the MegaProxy release key."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  emulator26:
+    name: Android emulator API 26
+    needs: changes
+    if: needs.changes.outputs.emulator26 == 'true'
+    uses: ./.github/workflows/android-device.yml
+    with:
+      api: 26
+
+  emulator35:
+    name: Android emulator API 35
+    needs: changes
+    if: needs.changes.outputs.emulator35 == 'true'
+    uses: ./.github/workflows/android-device.yml
+    with:
+      api: 35

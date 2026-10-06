@@ -21,13 +21,13 @@ branch names, credentials, signing material, or other secrets.
 
 ## CI and artifacts
 
-- Pull requests must run native tests and Android JVM unit/lint/build checks. Do not require an
-  Android emulator in GitHub Actions: hosted-runner KVM availability proved too unreliable for a
-  trustworthy required check.
+- Pull requests must run native tests, Android JVM unit/lint/build checks and independent
+  Android emulator API 26/API 35 integration scenarios. Use Ubuntu 24.04 with explicit KVM
+  permissions, acceleration checks and clean snapshot caches, following BrowserMegaProxy.
 - Compare each suite against its last successful ancestor check in the same PR and base.
   Failed/skipped/cancelled jobs do not advance coverage. Fall back to the full PR diff when
-  history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope` and `Python tests and style`
-  alongside native/Android checks when this workflow is adopted.
+  history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope`, `Python tests and style` and both emulator scenarios
+  alongside native/Android JVM checks when this workflow is adopted.
 - Every push to main runs all suites without diff/history filtering. The README CI badge is
   pinned to main/push; selective checks apply to initial PR runs.
 - A full CI rerun disables change filtering when Change scope executes on run attempt > 1,
@@ -46,9 +46,9 @@ branch names, credentials, signing material, or other secrets.
   service commands or their absence, drain ordered configuration writes and check both completion
   and failure state; `pending == 0` alone does not prove success. Recorded service intents do not
   establish VPN lifecycle/JNI coverage. See `docs/reviews/test-quality.md` for coverage gaps.
-- Keep device-only tests out of required GitHub CI unless the project later adopts a dependable
-  device farm or controlled self-hosted runner. Do not reintroduce a software-emulated Android
-  fallback.
+- Keep device tests focused on real TUN/JNI traffic, service lifecycle, system permissions,
+  Keystore process restarts and document providers. Keep deterministic logic in JVM/Go tests.
+  Never fall back to unaccelerated software emulation or retry failed tests to obtain green CI.
 - The native CI job also runs `native_integration`: real GOST/OpenSSH containers and a private
   HTTP origin, using disposable credentials and the production dialers. Keep it separate from
   ordinary local Go tests and Android TUN/JNI coverage; never use a public or personal proxy.
@@ -87,7 +87,7 @@ branch names, credentials, signing material, or other secrets.
 
 - Keep screens usable on narrow windows and with enlarged system fonts. Let actions and status
   rows wrap or stack; constrain app-bar titles and field labels, and make long dialog content
-  scrollable. Verify visual changes locally without adding emulator requirements to GitHub CI.
+  scrollable. Keep full visual configuration checks local; emulator CI covers the agreed integration scenarios.
 
 - Configuration writes must outlive individual screens and expose pending/failure state. Keep
   transfer operations across configuration changes; never put credentials or export payloads into

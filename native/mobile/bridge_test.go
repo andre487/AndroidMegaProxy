@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"context"
 	"os"
 	"strings"
 	"testing"
@@ -10,6 +11,25 @@ import (
 	"github.com/xjasonlyu/tun2socks/v2/tunnel"
 	"golang.org/x/sys/unix"
 )
+
+func TestBridgeStopCancelsPendingStart(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	state.Lock()
+	state.starting = true
+	state.startCancel = cancel
+	state.Unlock()
+	defer func() {
+		state.Lock()
+		state.starting = false
+		state.startCancel = nil
+		state.Unlock()
+	}()
+	Stop()
+	if ctx.Err() != context.Canceled {
+		t.Fatal("Stop left the pending native start running")
+	}
+}
 
 func TestBridgeOwnsOnlyDuplicatedDescriptor(t *testing.T) {
 	original, err := os.CreateTemp(t.TempDir(), "tun")

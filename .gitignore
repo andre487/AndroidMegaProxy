@@ -24,3 +24,6 @@ __pycache__/
 # Local Bundler configuration and installed gems
 /.bundle/
 /vendor/bundle/
+
+/test-results/
+/fastlane/report.xml
