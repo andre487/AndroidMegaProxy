@@ -25,3 +25,73 @@ jobs:
           fi
           sudo modprobe binder_linux
           modinfo binder_linux
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+      - name: Install Waydroid and headless compositor
+        run: |
+          mkdir -p dist/waydroid
+          curl -fsSL https://repo.waydro.id -o "$RUNNER_TEMP/waydroid-repo.sh"
+          sha256sum "$RUNNER_TEMP/waydroid-repo.sh" > dist/waydroid/repo-setup-sha256.txt
+          sudo bash "$RUNNER_TEMP/waydroid-repo.sh" noble
+          sudo apt-get update
+          sudo apt-get install -y waydroid weston dbus-x11
+          sudo waydroid init -s VANILLA
+          sudo python3 - <<'PY'
+          import configparser
+          path = "/var/lib/waydroid/waydroid.cfg"
+          config = configparser.ConfigParser()
+          config.read(path)
+          if not config.has_section("properties"):
+              config.add_section("properties")
+          config["properties"]["ro.hardware.gralloc"] = "default"
+          config["properties"]["ro.hardware.egl"] = "swiftshader"
+          with open(path, "w") as output:
+              config.write(output)
+          PY
+          sudo waydroid upgrade -o
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+      - name: Install Android build components
+        run: |
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"             "platforms;android-36" "build-tools;36.0.0" "ndk;29.0.14206865"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+      - name: Build and test the production VPN in Waydroid
+        id: smoke
+        run: bundle exec fastlane android waydroid_smoke
+      - name: Collect container diagnostics
+        if: always()
+        run: |
+          mkdir -p dist/waydroid
+          sudo journalctl -u waydroid-container --no-pager > dist/waydroid/container-journal.txt
+          sudo cp /var/lib/waydroid/waydroid.log dist/waydroid/waydroid.log || true
+          sudo chown -R "$(id -u):$(id -g)" dist/waydroid
+      - name: Upload experiment evidence
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: waydroid-experiment
+          path: dist/waydroid/
+          retention-days: 7
+      - name: Explain experimental coverage
+        if: always()
+        run: |
+          {
+            echo "## Optional Waydroid experiment"
+            echo "Smoke step: ${{ steps.smoke.outcome }}"
+            echo "Real Android VpnService/JNI/TUN, disposable OpenSSH and a private HTTP origin."
+            echo "The origin must fail before VPN startup and return a matching nonce through the VPN."
+            echo "VPN consent is pre-authorized; UI consent, OEM behavior and API 26 are not covered."
+            echo "This workflow is not a required PR check."
+          } >> "$GITHUB_STEP_SUMMARY"

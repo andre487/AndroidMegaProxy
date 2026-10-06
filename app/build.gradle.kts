@@ -42,6 +42,7 @@ android {
         applicationId = "net.megaproxy487"
         minSdk = 26
         targetSdk = 36
+        testInstrumentationRunner = "net.megaproxy487.WaydroidSmokeInstrumentation"
         // Each APK has a unique, monotonically ordered code. Keeping the
         // universal code below the ABI variants lets app stores prefer the
         // smaller compatible APK when both are available.

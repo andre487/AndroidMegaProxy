@@ -121,6 +121,19 @@ committing the lock file and using `bundle exec fastlane` locally and in CI.
 
 [Русская версия](../ru/fastlane.md)
 
+## Optional Waydroid experiment
+
+On a disposable Ubuntu host with Waydroid initialized for software rendering, Docker, Weston,
+D-Bus, Android SDK, Go and JDK 21, run `bundle exec fastlane android waydroid_smoke`.
+The lane builds debug and instrumentation APKs, boots Waydroid, and tests the production VPN
+against disposable OpenSSH and a private HTTP echo origin. Direct origin access must fail first;
+the VPN must then return an exact random payload. The script cleans up its containers,
+firewall rule and session. Logs/screenshots are in `dist/waydroid`.
+
+This is experimental, not a required PR check. The dedicated workflow provisions a disposable
+GitHub-hosted runner. VPN and notification permissions are pre-authorized; this does not test
+permission dialogs, OEM behavior, API 26, DNS leaks or the full release checklist.
+
 ## Selective CI and Python tooling
 
 For each suite, CI compares the current PR head with the last successful ancestor check for that
