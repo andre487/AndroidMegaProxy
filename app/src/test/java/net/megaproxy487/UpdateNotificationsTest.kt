@@ -78,4 +78,67 @@ class UpdateNotificationsTest {
         UpdateNotifications.show(app, AppUpdate(UpdateSource.FDROID, "0.1.2"))
         assertNull(shadowOf(notifications).getNotification(UPDATE_NOTIFICATION_ID))
     }
+    @Test fun detectionSurvivesDeniedNotificationsAndReminderAndSkipPersist() {
+        AppUpdates(app).select(UpdateSource.GITHUB)
+        val update = AppUpdate(UpdateSource.GITHUB, "99.0.0")
+        shadowOf(app).denyPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        kotlinx.coroutines.runBlocking { assertFalse(runBackgroundUpdateCheck(app, update.source) { update }) }
+        val prefs = UpdatePreferences(app)
+        assertTrue(prefs.lastBackgroundTime > 0)
+        assertEquals("available", prefs.lastBackgroundResult)
+        assertEquals(update, prefs.pending())
+        prefs.remindLater(update, 1000)
+        assertNull(UpdatePreferences(app).pending(1001))
+        assertFalse(prefs.shouldNotify(update, 1001))
+        assertEquals(update, prefs.pending(1000 + UPDATE_REMINDER_INTERVAL))
+        prefs.skip(UpdatePreferences.key(update))
+        assertNull(prefs.pending(1000 + UPDATE_REMINDER_INTERVAL * 2))
+        prefs.detected(update.source, update.copy(version = "99.0.1"))
+        assertEquals("99.0.1", prefs.pending(1001)?.version)
+        AppUpdates(app).select(UpdateSource.FDROID)
+        assertNull(prefs.pending())
+    }
+
+    @Test fun backgroundFailureRetriesOnlyTransientErrorsAndKeepsDetectedVersion() {
+        AppUpdates(app).select(UpdateSource.GITHUB)
+        val prefs = UpdatePreferences(app)
+        val update = AppUpdate(UpdateSource.GITHUB, "99.0.0")
+        prefs.detected(update.source, update)
+        kotlinx.coroutines.runBlocking {
+            assertTrue(runBackgroundUpdateCheck(app, update.source) { throw java.io.IOException() })
+            assertEquals("network_error", prefs.lastBackgroundResult)
+            assertEquals(update, prefs.pending())
+            assertFalse(runBackgroundUpdateCheck(app, update.source) { throw IllegalArgumentException() })
+            assertEquals("error", prefs.lastBackgroundResult)
+            assertFalse(runBackgroundUpdateCheck(app, update.source) { null })
+            assertEquals("current", prefs.lastBackgroundResult)
+            assertNull(prefs.pending())
+            assertFalse(runBackgroundUpdateCheck(app, update.source) {
+                prefs.automatic = false
+                throw java.io.IOException()
+            })
+        }
+        assertEquals(UPDATE_RETRY_INTERVAL, run {
+            prefs.automatic = true
+            UpdateNotifications.schedule(app)
+            scheduler.getPendingJob(UPDATE_JOB_ID)!!.initialBackoffMillis
+        })
+    }
+
+    @Test fun staleBackgroundResultDoesNotReplaceDetectedSourceAndCancellationIsRecorded() {
+        AppUpdates(app).select(UpdateSource.FDROID)
+        val prefs = UpdatePreferences(app)
+        val current = AppUpdate(UpdateSource.FDROID, "99.0.0")
+        prefs.detected(current.source, current)
+        kotlinx.coroutines.runBlocking {
+            runBackgroundUpdateCheck(app, UpdateSource.GITHUB) { AppUpdate(it, "99.0.1") }
+            assertEquals(current, prefs.pending())
+            try {
+                runBackgroundUpdateCheck(app, current.source) { throw kotlinx.coroutines.CancellationException() }
+                fail("Cancellation must propagate")
+            } catch (_: kotlinx.coroutines.CancellationException) { }
+        }
+        assertEquals("interrupted", prefs.lastBackgroundResult)
+    }
+
 }

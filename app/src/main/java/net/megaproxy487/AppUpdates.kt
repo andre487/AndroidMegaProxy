@@ -130,6 +130,8 @@ internal class AppUpdates(private val context: Context) {
         val url = if (source == UpdateSource.FDROID) FDROID_UPDATE_API else GITHUB_RELEASES_API
         val json = request(url) { connection ->
             if (connection.responseCode == 404) throw UiException(R.string.update_not_published)
+            if (connection.responseCode == 429 || connection.responseCode in 500..599)
+                throw java.io.IOException("Update service temporarily unavailable")
             require(connection.responseCode == 200)
             connection.inputStream.use { stream ->
                 String(readUpdateMetadata(stream), Charsets.UTF_8)
