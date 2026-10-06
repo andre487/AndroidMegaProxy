@@ -771,6 +771,9 @@ class ProxyVpnService : VpnService() {
         .setOngoing(true)
         .setCategory(NotificationCompat.CATEGORY_SERVICE)
         .setContentIntent(hostKeyPrompt ?: PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE))
+        .addAction(0, uiText(R.string.disconnect), PendingIntent.getService(
+            this, 1, Intent(this, ProxyVpnService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE,
+        ))
         .also { builder -> hostKeyPrompt?.let { builder.addAction(0, uiText(R.string.review_ssh_key), it) } }
         .build()
 

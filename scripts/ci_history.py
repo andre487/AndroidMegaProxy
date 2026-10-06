@@ -8,6 +8,8 @@ CHECKS = {
     "android": "Android tests and checks",
     "native": "Native Go tests",
     "python": "Python tests and style",
+    "emulator26": "Android emulator API 26 / Device tests",
+    "emulator35": "Android emulator API 35 / Device tests",
 }
 BASE_STEP = "Comparison base: "
 

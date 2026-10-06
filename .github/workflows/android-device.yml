@@ -1,0 +1,113 @@
+name: Android device tests
+
+on:
+  workflow_call:
+    inputs:
+      api:
+        required: true
+        type: number
+
+permissions:
+  contents: read
+
+jobs:
+  device:
+    name: Device tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      ANDROID_SERIAL: emulator-5554
+      MEGAPROXY_ANDROID_ABI: x86_64
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: gradle
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: native/go.mod
+          cache-dependency-path: native/go.sum
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.4.10"
+          bundler-cache: true
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools
+          log-accepted-android-sdk-licenses: false
+      - name: Enable hardware acceleration
+        run: |
+          test -e /dev/kvm
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install SDK and fingerprint snapshot dependencies
+        id: sdk
+        env:
+          DEVICE_API: ${{ inputs.api }}
+        run: |
+          sdkmanager 'emulator' 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' "system-images;android-$DEVICE_API;google_apis;x86_64"
+          echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
+          "$ANDROID_HOME/emulator/emulator" -accel-check
+          snapshot_hash=$(cat "$ANDROID_HOME/emulator/source.properties" "$ANDROID_HOME/system-images/android-$DEVICE_API/google_apis/x86_64/source.properties" | sha256sum | cut -d ' ' -f 1)
+          echo "snapshot-hash=$snapshot_hash" >> "$GITHUB_OUTPUT"
+      - name: Restore clean emulator snapshot
+        id: avd
+        uses: actions/cache/restore@v4
+        with:
+          path: |
+            ~/.android/avd/megaproxy-device.ini
+            ~/.android/avd/megaproxy-device.avd/
+          key: android-device-v1-${{ runner.os }}-api${{ inputs.api }}-google-apis-x86_64-${{ steps.sdk.outputs.snapshot-hash }}-${{ hashFiles('.github/workflows/android-device.yml') }}
+      - name: Generate clean snapshot on cache miss
+        if: steps.avd.outputs.cache-hit != 'true'
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: ${{ inputs.api }}
+          target: google_apis
+          arch: x86_64
+          avd-name: megaproxy-device
+          profile: pixel_5
+          force-avd-creation: false
+          emulator-options: -accel on -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: false
+          script: adb shell input keyevent 82
+      - name: Save clean snapshot before installing MegaProxy
+        if: steps.avd.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: |
+            ~/.android/avd/megaproxy-device.ini
+            ~/.android/avd/megaproxy-device.avd/
+          key: ${{ steps.avd.outputs.cache-primary-key }}
+      - name: Build debug and instrumentation APKs
+        run: bundle exec fastlane android device_test_build
+      - name: Run real Android tests
+        uses: reactivecircus/android-emulator-runner@v2.38.0
+        with:
+          api-level: ${{ inputs.api }}
+          target: google_apis
+          arch: x86_64
+          avd-name: megaproxy-device
+          profile: pixel_5
+          force-avd-creation: false
+          emulator-options: -accel on -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          disable-animations: true
+          script: bundle exec fastlane android device_tests api:${{ inputs.api }}
+      - name: Upload Android evidence
+        if: always()
+        id: evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: android-api${{ inputs.api }}-results
+          path: test-results/android-api${{ inputs.api }}/
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Link evidence in job summary
+        if: always() && steps.evidence.outputs.artifact-url != ''
+        env:
+          ARTIFACT_URL: ${{ steps.evidence.outputs.artifact-url }}
+          DEVICE_API: ${{ inputs.api }}
+        run: echo "[Android API $DEVICE_API reports, Logcat and failure screenshots]($ARTIFACT_URL)" >> "$GITHUB_STEP_SUMMARY"

@@ -44,6 +44,9 @@ That command lists the lanes available in the checked-out version of the project
 | `bundle exec fastlane android native_tests` | Runs all Go tests with the race detector. |
 | `bundle exec fastlane android native_integration` | Tests production dialers against real GOST/OpenSSH servers in Docker with the race detector. |
 | `bundle exec fastlane android android_checks` | Builds the native AAR, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
+| `bundle exec fastlane android device_test_build` | Build the native AAR, debug APK and instrumentation APK. |
+| `bundle exec fastlane android device_tests api:26` | Run integration scenarios on a running disposable API 26 emulator. |
+| `bundle exec fastlane android device_tests api:35` | Run integration scenarios on a running disposable API 35 emulator. |
 | `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
 | `bundle exec fastlane android debug_artifact` | Builds `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_prepare version:0.1.2` | Generates EN/RU notes, increments the version and creates a release PR (requires API/token setup). |
@@ -220,3 +223,44 @@ See [Robolectric setup](https://robolectric.org/getting-started/).
 [Release workflow setup and recovery](release-automation.md).
 
 Release branches `release/vX.Y.Z` always run all CI suites; skipped jobs cannot authorize release finalization.
+
+## Android emulator integration tests
+
+CI runs API 26 and API 35 as independent jobs with independent successful-history baselines.
+Both use Ubuntu 24.04, explicit KVM permissions, mandatory hardware acceleration and clean AVD
+snapshots keyed by API, emulator/system-image versions and workflow content. No software fallback
+or automatic test retry is used. Main pushes and full reruns execute both scenarios.
+
+Locally, start a **disposable** Google APIs emulator with English system UI and set
+`ANDROID_SERIAL=emulator-5554` (use its actual serial), then run:
+
+```shell
+bundle exec fastlane android device_test_build
+bundle exec fastlane android device_tests api:35
+```
+
+Use `api:26` for a separate API 26 emulator. Build the native AAR for the emulator ABI; CI sets
+`MEGAPROXY_ANDROID_ABI=x86_64`, while the default local build includes all ABIs. Docker must be
+running. On Linux the fixture requires passwordless `sudo iptables` to reject direct host/emulator
+connections to the unpublished origin; the disposable rule is removed on exit. Docker VM origins
+are inaccessible directly on macOS. Every network scenario verifies that direct access fails.
+The runner clears **MegaProxy app data on the selected emulator**, uses disposable passwords and
+SSH keys, and force-stops the app between scenarios. Do not point it at a development emulator
+with data you want to keep. It rejects physical devices and API mismatches.
+
+Coverage: real HTTPS proxy traffic through TUN/JNI, stop/restart, stop while real JNI awaits an
+SSH handshake, denied VPN consent, notification Disconnect, notification permission denial on
+API 35, encrypted password/key persistence across a fresh app process and real KEY_ONLY OpenSSH
+traffic, and system DocumentsUI export/import/cancellation. Exports omit passwords by default.
+System picker tests exercise the actual Downloads provider and returned content URI.
+
+The process test has separate seed/verify instrumentation invocations with an explicit force-stop
+between them; activity recreation alone cannot pass it. All configuration checks drain the
+ordered executor and assert both completion and absence of write failure. Network tests use an
+unpublished HTTP echo origin and assert the response marker and exact payload, not only CONNECTED.
+
+JUnit XML, instrumentation output and Logcat are saved under `test-results/android-api26/` or
+`test-results/android-api35/`; failures also capture a screenshot and UI hierarchy. CI uploads
+separate seven-day artifacts and links them in each job summary. Pure logic, most Compose
+interactions and the full transport failure matrix remain in JVM/Robolectric/Go tests.
+These emulators do not certify OEM behavior, physical network handover or all Always-on modes.

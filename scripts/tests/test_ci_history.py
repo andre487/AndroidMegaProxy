@@ -37,7 +37,9 @@ class HistoryTest(unittest.TestCase):
             }
         ] + [
             {"name": name, "conclusion": result}
-            for name, result in zip(m.CHECKS.values(), (android, native, python))
+            for name, result in zip(
+                m.CHECKS.values(), (android, native, python, android, android)
+            )
         ]
 
     def read(self, endpoint):
@@ -92,6 +94,16 @@ class HistoryTest(unittest.TestCase):
                 run["pull_requests"][0]["head"]["repo"]["id"] = 2
             self.runs = [run]
             self.assertEqual({}, self.select(), kind)
+
+    def test_emulator_failure_does_not_advance_other_api_or_jvm_baseline(self):
+        self.jobs[30] = self.job_data("success", "success", "success")
+        for job in self.jobs[30]:
+            if job["name"] == m.CHECKS["emulator26"]:
+                job["conclusion"] = "failure"
+        result = self.select()
+        self.assertEqual(20, result["emulator26"]["run_id"])
+        self.assertEqual(30, result["emulator35"]["run_id"])
+        self.assertEqual(30, result["android"]["run_id"])
 
     def test_gh_failure_does_not_expose_token_or_response(self):
         with patch.object(

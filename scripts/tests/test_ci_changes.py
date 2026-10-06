@@ -67,7 +67,8 @@ class ChangeScopeTest(unittest.TestCase):
                 self.assertEqual(0, m.main())
             self.assertTrue(json.loads(stdout.getvalue())["forced"])
             self.assertEqual(
-                "android=true\nnative=true\npython=true\n", output.read_text()
+                "android=true\nnative=true\npython=true\nemulator26=true\nemulator35=true\n",
+                output.read_text(),
             )
             self.assertIn("push CI (change filtering disabled)", summary.read_text())
 
@@ -102,7 +103,8 @@ class ChangeScopeTest(unittest.TestCase):
             result = json.loads(stdout.getvalue())
             self.assertTrue(result["forced"])
             self.assertEqual(
-                "android=true\nnative=true\npython=true\n", output.read_text()
+                "android=true\nnative=true\npython=true\nemulator26=true\nemulator35=true\n",
+                output.read_text(),
             )
             self.assertIn("change filtering disabled", summary.read_text())
 
@@ -131,7 +133,13 @@ class ChangeScopeTest(unittest.TestCase):
 
     def test_python_and_markdown_do_not_run_android(self):
         self.assertEqual(
-            {"android": False, "native": False, "python": True},
+            {
+                "android": False,
+                "native": False,
+                "python": True,
+                "emulator26": False,
+                "emulator35": False,
+            },
             m.classify(["scripts/github_actions.py", "docs/ru/fastlane.md"]),
         )
 
@@ -149,11 +157,23 @@ class ChangeScopeTest(unittest.TestCase):
 
     def test_native_production_changes_rebuild_android(self):
         self.assertEqual(
-            {"android": True, "native": True, "python": False},
+            {
+                "android": True,
+                "native": True,
+                "python": False,
+                "emulator26": True,
+                "emulator35": True,
+            },
             m.classify(["native/mobile/dialer.go"]),
         )
         self.assertEqual(
-            {"android": False, "native": True, "python": False},
+            {
+                "android": False,
+                "native": True,
+                "python": False,
+                "emulator26": False,
+                "emulator35": False,
+            },
             m.classify(["native/mobile/dialer_test.go"]),
         )
 
