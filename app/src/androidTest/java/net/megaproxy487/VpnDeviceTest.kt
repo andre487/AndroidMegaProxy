@@ -42,7 +42,7 @@ class VpnDeviceTest : DeviceTestBase() {
         roundTrip()
         device.openNotification()
         val action = device.wait(androidx.test.uiautomator.Until.findObject(
-            androidx.test.uiautomator.By.text(text(R.string.disconnect))), 10_000)
+            androidx.test.uiautomator.By.desc(text(R.string.disconnect))), 10_000)
         assertNotNull("VPN notification must expose Disconnect", action)
         action.click()
         stopped()

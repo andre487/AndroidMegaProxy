@@ -230,6 +230,11 @@ def main():
         )
     if shell("getprop", "ro.kernel.qemu") != "1":
         parser.error("Device is not an emulator")
+    if args.api == 35:
+        # Pixel Launcher can leave an ANR dialog over every test after snapshot restore.
+        # This disposable emulator launches activities directly and needs no launcher.
+        shell("am", "force-stop", "com.google.android.apps.nexuslauncher")
+        shell("pm", "disable-user", "--user", "0", "com.google.android.apps.nexuslauncher")
     results = ROOT / "test-results" / f"android-api{args.api}"
     results.mkdir(parents=True, exist_ok=True)
     suite = ET.Element("testsuite", name=f"Android API {args.api}")
@@ -259,6 +264,7 @@ def main():
             label = test.replace("#", ".") + ("." + phase if phase else "")
             case = ET.SubElement(suite, "testcase", name=label)
             started = time.monotonic()
+            log_start = shell("date", "+%m-%d %H:%M:%S.000")
             try:
                 shell("am", "force-stop", PACKAGE)
                 # Test setup resets ConfigStore itself; clearing app data here can
@@ -281,7 +287,6 @@ def main():
                     if time.monotonic() >= deadline:
                         raise RuntimeError("Previous Android activities did not finish")
                     time.sleep(0.1)
-                shell("logcat", "-c")
                 options = [
                     "am",
                     "instrument",
@@ -325,7 +330,7 @@ def main():
             finally:
                 case.set("time", f"{time.monotonic() - started:.3f}")
                 (results / (label + "-logcat.txt")).write_text(
-                    shell("logcat", "-d", "-v", "threadtime")
+                    shell("logcat", "-d", "-v", "threadtime", "-T", log_start)
                 )
                 shell("am", "force-stop", PACKAGE)
                 suite.set("tests", str(len(suite)))
