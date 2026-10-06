@@ -477,4 +477,12 @@
     <string name="tcp_retransmits">TCP-ретрансляции: %1$d · за 5 мин</string>
     <string name="tcp_retransmits_unavailable">TCP-ретрансляции: нет данных</string>
     <string name="tcp_metrics_scope">Только до первого прокси. Ретрансляции — повторно отправленные TCP-сегменты, а не потеря пакетов.</string>
+    <string name="update_remind_later">Напомнить через неделю</string>
+    <string name="update_background_never">Фоновая проверка ещё не запускалась. Время запуска выбирает Android.</string>
+    <string name="update_background_time">Последняя фоновая попытка: %1$s</string>
+    <string name="update_background_running">Последняя попытка началась, но её результат ещё не записан.</string>
+    <string name="update_background_available">Найдена новая версия. Показ уведомления зависит от системных разрешений и настроек напоминания.</string>
+    <string name="update_background_retry">Ошибка сети или временная ошибка сервера. Повтор запрошен через 30 минут с увеличением интервала; Android может отложить запуск.</string>
+    <string name="update_background_interrupted">Android прервал проверку. Запрошена повторная попытка.</string>
+    <string name="update_background_error">Проверка не удалась. Повторите вручную; выбранный источник не изменён.</string>
 </resources>

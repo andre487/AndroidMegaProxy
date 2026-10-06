@@ -45,6 +45,12 @@ internal class UpdatesViewModel @JvmOverloads constructor(
     private val checkUpdate: suspend (UpdateSource) -> AppUpdate? = updates::check,
     private val downloadUpdate: suspend (AppUpdate) -> File = updates::download,
 ) : AndroidViewModel(application) {
+    var backgroundTime by mutableStateOf(UpdatePreferences(application).lastBackgroundTime)
+        private set
+    var backgroundResult by mutableStateOf(UpdatePreferences(application).lastBackgroundResult)
+        private set
+    var backgroundSource by mutableStateOf(UpdatePreferences(application).lastBackgroundSource)
+        private set
     var automatic by mutableStateOf(UpdatePreferences(application).automatic)
         private set
     var source by mutableStateOf(updates.source())
@@ -84,6 +90,7 @@ internal class UpdatesViewModel @JvmOverloads constructor(
         apk = null
         runOperation {
             update = checkUpdate(selected)
+            UpdatePreferences(getApplication()).detected(selected, update)
             if (update == null) message = R.string.update_current
         }
     }
@@ -101,7 +108,11 @@ internal class UpdatesViewModel @JvmOverloads constructor(
     }
 
     fun refresh() {
-        automatic = UpdatePreferences(getApplication()).automatic
+        val prefs = UpdatePreferences(getApplication())
+        automatic = prefs.automatic
+        backgroundTime = prefs.lastBackgroundTime
+        backgroundResult = prefs.lastBackgroundResult
+        backgroundSource = prefs.lastBackgroundSource
     }
 
     fun reportOpenError() { message = R.string.update_open_error }
@@ -139,6 +150,22 @@ internal fun UpdatesScreen(activity: Activity, onBack: () -> Unit, model: Update
     SettingsScaffold(onBack, stringResource(R.string.updates)) {
         Text(stringResource(R.string.update_installed, BuildConfig.VERSION_NAME))
         Text(stringResource(R.string.update_manual_description))
+        if (model.backgroundTime == 0L) Text(stringResource(R.string.update_background_never))
+        else {
+            val time = java.text.DateFormat.getDateTimeInstance().format(java.util.Date(model.backgroundTime))
+            Text(stringResource(R.string.update_background_time, time))
+            val label = if (model.backgroundSource == UpdateSource.FDROID.name) R.string.update_fdroid else R.string.update_github
+            Text(stringResource(R.string.update_selected_source, stringResource(label)))
+            val result = when (model.backgroundResult) {
+                "running" -> R.string.update_background_running
+                "current" -> R.string.update_current
+                "available" -> R.string.update_background_available
+                "network_error" -> R.string.update_background_retry
+                "interrupted" -> R.string.update_background_interrupted
+                else -> R.string.update_background_error
+            }
+            Text(stringResource(result))
+        }
         Text(stringResource(R.string.update_automatic))
         Switch(checked = model.automatic, onCheckedChange = model::automatic,
             modifier = Modifier.semantics { contentDescription = activity.uiText(R.string.update_automatic) })

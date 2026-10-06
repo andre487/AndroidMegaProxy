@@ -120,7 +120,10 @@ class MainActivity : LocalizedActivity() {
         enableEdgeToEdge()
         BatteryOptimizationReminder.maybeRequest(this)
         if (intent?.action == OPEN_UPDATES_ACTION) updateRequest++
-        setContent { MegaProxyTheme { MegaProxyNavHost(this, updateRequest = updateRequest) } }
+        setContent { MegaProxyTheme {
+            MegaProxyNavHost(this, updateRequest = updateRequest)
+            UpdateAvailableDialog(this, updateRequest) { updateRequest++ }
+        } }
     }
 
     override fun onNewIntent(intent: Intent) {

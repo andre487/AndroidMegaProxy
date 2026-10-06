@@ -32,6 +32,20 @@ Battery restrictions, Doze, no network, force-stop, or disabled background work 
 these are not exact alarms. Nothing is downloaded except release metadata during a check.
 If the source is unknown, choose it in settings before automatic checks can start.
 
+The update screen shows the time, source, and result of the latest background attempt, including
+checks that have never run or were interrupted. Manual checks do not overwrite this diagnostic.
+Network failures and HTTP 429/5xx responses request a retry after 30 minutes with exponential
+backoff; Android can defer retries. Other failures wait for the next daily check. Error text,
+URLs, and credentials are not stored in this diagnostic.
+
+A detected newer version is saved even if notifications are blocked. On entering the app,
+MegaProxy offers an update dialog: **Update** opens the GitHub update screen for a fresh check
+and explicit download consent; **Update through F-Droid** opens the package link in a compatible
+client or browser. **Remind me in a week** (also dismissing the dialog) postpones both the dialog
+and notification for that version by a week. **Skip this version** suppresses both for that
+version and source, but does not hide it from manual checks. A successful check with no update,
+an installed newer version, or a different selected source prevents a stale dialog.
+
 A new version produces a notification, subject to Android's notification permission and the
 **App updates** notification channel. On Android 13 or newer, allow notifications when prompted,
 or use the notification permission button on the update screen.

@@ -60,4 +60,59 @@ class UpdatesUiTest : MainUiTestBase() {
             assertNull(model.apk)
         }
     }
+    @Test fun launchDialogOffersGithubNavigationAndSnoozesWithoutDownloading() {
+        AppUpdates(activity).select(UpdateSource.GITHUB)
+        val prefs = UpdatePreferences(activity)
+        prefs.detected(UpdateSource.GITHUB, AppUpdate(UpdateSource.GITHUB, "99.0.0"))
+        var opened = 0
+        content { UpdateAvailableDialog(activity, 0) { opened++ } }
+        node(R.string.update_skip).assertIsDisplayed()
+        node(R.string.update_remind_later).assertIsDisplayed()
+        node(R.string.update_notification_open).performClick()
+        compose.runOnIdle {
+            assertEquals(1, opened)
+            assertNull(prefs.pending())
+        }
+        compose.onNode(isDialog()).assertDoesNotExist()
+    }
+
+    @Test fun launchDialogFdroidOpensPackagePage() {
+        AppUpdates(activity).select(UpdateSource.FDROID)
+        val prefs = UpdatePreferences(activity)
+        val update = AppUpdate(UpdateSource.FDROID, "99.0.0")
+        prefs.detected(update.source, update)
+        content { UpdateAvailableDialog(activity, 0) { error("F-Droid must not download") } }
+        node(R.string.update_in_fdroid).performClick()
+        compose.runOnIdle {
+            assertEquals(FDROID_APP_URL, org.robolectric.Shadows.shadowOf(activity).nextStartedActivity.data.toString())
+            assertNull(prefs.pending())
+        }
+    }
+
+    @Test fun launchDialogSkipSuppressesVersionAcrossRecreation() {
+        AppUpdates(activity).select(UpdateSource.GITHUB)
+        val prefs = UpdatePreferences(activity)
+        prefs.detected(UpdateSource.GITHUB, AppUpdate(UpdateSource.GITHUB, "99.0.0"))
+        content { UpdateAvailableDialog(activity, 0) {} }
+        node(R.string.update_skip).performClick()
+        compose.runOnIdle { assertNull(UpdatePreferences(activity).pending(Long.MAX_VALUE)) }
+        compose.onNode(isDialog()).assertDoesNotExist()
+    }
+
+    @Test fun backgroundDiagnosticIsVisibleAndManualCheckDoesNotOverwriteIt() {
+        AppUpdates(activity).select(UpdateSource.GITHUB)
+        val prefs = UpdatePreferences(activity)
+        prefs.backgroundStarted(UpdateSource.GITHUB, 1000)
+        prefs.backgroundFinished("network_error")
+        val model = UpdatesViewModel(activity.application, checkUpdate = { null })
+        content { UpdatesScreen(activity, {}, model) }
+        node(R.string.update_background_retry).performScrollTo().assertIsDisplayed()
+        node(R.string.update_check).performScrollTo().performClick()
+        node(R.string.update_current).assertExists()
+        compose.runOnIdle {
+            assertEquals(1000, prefs.lastBackgroundTime)
+            assertEquals("network_error", prefs.lastBackgroundResult)
+        }
+    }
+
 }
