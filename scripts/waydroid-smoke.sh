@@ -13,6 +13,7 @@ cleanup() {
     sudo iptables -D FORWARD -i waydroid0 -d "$origin" -p tcp --dport 8080 -j REJECT || true
   fi
   sudo waydroid shell -- logcat -d > dist/waydroid/logcat.txt 2>&1 || true
+  sudo waydroid shell -- run-as net.megaproxy487 cat files/logs/diagnostic.log > dist/waydroid/megaproxy.log 2>&1 || true
   docker logs megaproxy-waydroid-ssh > dist/waydroid/sshd.log 2>&1 || true
   waydroid session stop || true
   sudo waydroid container stop || true
@@ -64,7 +65,7 @@ for _ in {1..30}; do
 done
 fingerprint=$(docker exec megaproxy-waydroid-ssh ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub | awk '{print $2}')
 sudo iptables -I FORWARD 1 -i waydroid0 -d "$origin" -p tcp --dport 8080 -j REJECT
-sudo waydroid shell -- am instrument -w -r   -e server "$server" -e origin "$origin" -e password "$TEST_PASSWORD" -e fingerprint "$fingerprint"   net.megaproxy487.test/net.megaproxy487.WaydroidSmokeInstrumentation   | tee dist/waydroid/instrumentation.txt
+timeout 180s sudo waydroid shell -- am instrument -w -r   -e server "$server" -e origin "$origin" -e password "$TEST_PASSWORD" -e fingerprint "$fingerprint"   net.megaproxy487.test/net.megaproxy487.WaydroidSmokeInstrumentation   | tee dist/waydroid/instrumentation.txt
 grep -q 'INSTRUMENTATION_RESULT: smoke=passed' dist/waydroid/instrumentation.txt
 sudo waydroid shell -- screencap -p /sdcard/waydroid-smoke.png
 sudo waydroid shell -- cat /sdcard/waydroid-smoke.png > dist/waydroid/screenshot.png
