@@ -123,7 +123,7 @@ committing the lock file and using `bundle exec fastlane` locally and in CI.
 
 ## Optional Waydroid experiment
 
-On a disposable Ubuntu host with Waydroid initialized for software rendering, Docker, Weston,
+On a disposable Ubuntu host with Waydroid initialized for software rendering, Docker, Weston, PulseAudio,
 D-Bus, Android SDK, Go and JDK 21, run `bundle exec fastlane android waydroid_smoke`.
 The lane builds debug and instrumentation APKs, boots Waydroid, and tests the production VPN
 against disposable OpenSSH and a private HTTP echo origin. Direct origin access must fail first;

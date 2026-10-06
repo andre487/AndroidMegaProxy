@@ -125,7 +125,7 @@ bundle exec fastlane android test
 
 ## Необязательный эксперимент Waydroid
 
-На одноразовом Ubuntu-хосте с Waydroid, настроенным на программный рендеринг, Docker, Weston,
+На одноразовом Ubuntu-хосте с Waydroid, настроенным на программный рендеринг, Docker, Weston, PulseAudio,
 D-Bus, Android SDK, Go и JDK 21 запустите `bundle exec fastlane android waydroid_smoke`.
 Lane собирает debug и instrumentation APK, запускает Waydroid и проверяет рабочий VPN
 с временным OpenSSH и закрытым HTTP echo-сервером. Прямой доступ к серверу сначала должен

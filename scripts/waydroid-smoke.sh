@@ -18,6 +18,7 @@ cleanup() {
   sudo waydroid container stop || true
   docker rm -f megaproxy-waydroid-ssh megaproxy-waydroid-origin >/dev/null 2>&1 || true
   docker network rm megaproxy-waydroid >/dev/null 2>&1 || true
+  pulseaudio --kill || true
   kill "$weston_pid" 2>/dev/null || true
 }
 trap cleanup EXIT
@@ -26,10 +27,18 @@ for _ in {1..30}; do
   sleep 1
 done
 [[ -S "$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY" ]]
+# Waydroid bind-mounts the audio socket even in a headless session.
+pulseaudio --start --exit-idle-time=-1
+[[ -S "$XDG_RUNTIME_DIR/pulse/native" ]]
 sudo systemctl start waydroid-container
 waydroid session start > dist/waydroid/session.log 2>&1 &
+session_pid=$!
 for _ in {1..90}; do
-  if [[ "$(sudo waydroid shell -- getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; then break; fi
+  if ! kill -0 "$session_pid" 2>/dev/null; then
+    cat dist/waydroid/session.log >&2
+    exit 1
+  fi
+  if [[ "$(timeout 10s sudo waydroid shell -- getprop sys.boot_completed 2>/dev/null | tr -d '\r')" == 1 ]]; then break; fi
   sleep 2
 done
 [[ "$(sudo waydroid shell -- getprop sys.boot_completed | tr -d '\r')" == 1 ]]

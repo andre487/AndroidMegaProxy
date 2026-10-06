@@ -35,7 +35,7 @@ jobs:
           sha256sum "$RUNNER_TEMP/waydroid-repo.sh" > dist/waydroid/repo-setup-sha256.txt
           sudo bash "$RUNNER_TEMP/waydroid-repo.sh" noble
           sudo apt-get update
-          sudo apt-get install -y waydroid weston dbus-x11
+          sudo apt-get install -y waydroid weston dbus-x11 pulseaudio
           sudo waydroid init -s VANILLA
           sudo python3 - <<'PY'
           import configparser
