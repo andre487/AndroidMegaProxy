@@ -170,7 +170,7 @@ reports. Test failures still return a nonzero exit status.
 CI uploads each suite's XML as a separate `junit-*` artifact even when tests fail, with seven-day
 retention. Each suite has a separate publisher that starts as soon as that suite finishes, without waiting
 for the rest of CI. It creates `Test results · …` GitHub Checks with test counts and failure
-details, plus an Actions summary. Skipped suites have no report and are not presented as
+details. Actions Summary also provides collapsible groups with all test names and statuses. Skipped suites have no report and are not presented as
 newly passed tests. Existing required checks continue to gate merges.
 
 The publisher has `checks: write`; test jobs retain read-only repository access. Internal PRs and
