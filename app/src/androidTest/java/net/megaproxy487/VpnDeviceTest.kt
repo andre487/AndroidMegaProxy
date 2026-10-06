@@ -61,7 +61,7 @@ class VpnDeviceTest : DeviceTestBase() {
         }
         ProxyVpnService.start(context)
         await("JNI startup did not reach SSH fixture") {
-            device.executeShellCommand("test -f ${argument("sshAccepted")} && echo yes").trim() == "yes"
+            device.executeShellCommand("ls ${argument("sshAccepted")}").trim() == argument("sshAccepted")
         }
         assertEquals(VpnConnectionState.CONNECTING, VpnRuntimeState.connection.value)
         ProxyVpnService.stop(context)
