@@ -48,6 +48,33 @@ def require_success(output):
         raise RuntimeError("Instrumentation did not report exactly one successful test")
 
 
+def finish_case(shell, results, label, case, suite, log_start):
+    error_message = None
+    for name, words in (
+        ("logcat", ("logcat", "-d", "-v", "threadtime", "-T", log_start)),
+        ("force-stop", ("am", "force-stop", PACKAGE)),
+    ):
+        try:
+            output = shell(*words)
+        except subprocess.SubprocessError as error:
+            output = getattr(error, "output", None) or ""
+            if isinstance(output, bytes):
+                output = output.decode(errors="replace")
+            message = f"{name} failed ({type(error).__name__}, exit {getattr(error, 'returncode', 'unknown')})"
+            ET.SubElement(case, "failure", message=message)
+            error_message = error_message or message
+        if name == "logcat" or error_message:
+            (results / (label + f"-{name}.txt")).write_text(output)
+    suite.set("tests", str(len(suite)))
+    suite.set("failures", str(sum(c.find("failure") is not None for c in suite)))
+    suite.set("time", f"{sum(float(c.get('time', '0')) for c in suite):.3f}")
+    ET.ElementTree(suite).write(
+        results / "junit.xml", encoding="utf-8", xml_declaration=True
+    )
+    if error_message:
+        raise RuntimeError(error_message + "; see collected evidence")
+
+
 @contextlib.contextmanager
 def fixture():
     name = "megaproxy-device-" + uuid.uuid4().hex[:12]
@@ -193,7 +220,9 @@ def stalled_ssh(shell):
             release.set()
             server.shutdown()
             worker.join()
-            shell("rm", "-f", accepted_path, release_path)
+            # The disposable emulator is discarded on failure; preserve the cause.
+            if sys.exc_info()[0] is None:
+                shell("rm", "-f", accepted_path, release_path)
 
 
 def main():
@@ -324,19 +353,7 @@ def main():
                         print(f"Failure {extension} evidence unavailable", flush=True)
             finally:
                 case.set("time", f"{time.monotonic() - started:.3f}")
-                (results / (label + "-logcat.txt")).write_text(
-                    shell("logcat", "-d", "-v", "threadtime", "-T", log_start)
-                )
-                shell("am", "force-stop", PACKAGE)
-                suite.set("tests", str(len(suite)))
-                suite.set("failures", str(failures))
-                suite.set(
-                    "time",
-                    f"{sum(float(item.get('time', '0')) for item in suite):.3f}",
-                )
-                ET.ElementTree(suite).write(
-                    results / "junit.xml", encoding="utf-8", xml_declaration=True
-                )
+                finish_case(shell, results, label, case, suite, log_start)
     return bool(failures)
 
 

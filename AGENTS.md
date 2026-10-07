@@ -23,7 +23,8 @@ branch names, credentials, signing material, or other secrets.
 
 - Pull requests must run native tests, Android JVM unit/lint/build checks and independent
   Android emulator API 26/API 35 integration scenarios. Use Ubuntu 24.04 with explicit KVM
-  permissions, acceleration checks and clean snapshot caches, following BrowserMegaProxy.
+  permissions and acceleration checks, following BrowserMegaProxy. Both APIs cold boot without
+  snapshot caches to avoid restored-state startup failures and ADB disconnects.
 - Compare each suite against its last successful ancestor check in the same PR and base.
   Failed/skipped/cancelled jobs do not advance coverage. Fall back to the full PR diff when
   history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope`, `Python tests and style` and both emulator scenarios

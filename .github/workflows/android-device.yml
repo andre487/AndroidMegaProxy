@@ -43,8 +43,7 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Install SDK and fingerprint snapshot dependencies
-        id: sdk
+      - name: Install SDK and check acceleration
         env:
           DEVICE_API: ${{ inputs.api }}
         run: |
@@ -55,37 +54,6 @@ jobs:
           fi
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
           "$ANDROID_HOME/emulator/emulator" -accel-check
-          snapshot_hash=$(cat "$ANDROID_HOME/emulator/source.properties" "$ANDROID_HOME/system-images/android-$DEVICE_API/google_apis/x86_64/source.properties" | sha256sum | cut -d ' ' -f 1)
-          echo "snapshot-hash=$snapshot_hash" >> "$GITHUB_OUTPUT"
-      - name: Restore clean emulator snapshot
-        id: avd
-        uses: actions/cache/restore@v4
-        with:
-          path: |
-            ~/.android/avd/megaproxy-device.ini
-            ~/.android/avd/megaproxy-device.avd/
-          key: android-device-v1-${{ runner.os }}-api${{ inputs.api }}-google-apis-x86_64-${{ steps.sdk.outputs.snapshot-hash }}-${{ hashFiles('.github/workflows/android-device.yml') }}
-      - name: Generate clean snapshot on cache miss
-        if: steps.avd.outputs.cache-hit != 'true'
-        uses: reactivecircus/android-emulator-runner@v2.38.0
-        with:
-          api-level: ${{ inputs.api }}
-          target: google_apis
-          arch: x86_64
-          avd-name: megaproxy-device
-          profile: pixel_5
-          force-avd-creation: false
-          emulator-options: -accel on -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
-          disable-animations: false
-          script: adb shell input keyevent 82
-      - name: Save clean snapshot before installing MegaProxy
-        if: steps.avd.outputs.cache-hit != 'true'
-        uses: actions/cache/save@v4
-        with:
-          path: |
-            ~/.android/avd/megaproxy-device.ini
-            ~/.android/avd/megaproxy-device.avd/
-          key: ${{ steps.avd.outputs.cache-primary-key }}
       - name: Build debug and instrumentation APKs
         run: bundle exec fastlane android device_test_build
       - name: Run real Android tests
@@ -99,7 +67,7 @@ jobs:
           avd-name: megaproxy-device
           profile: pixel_5
           force-avd-creation: false
-          emulator-options: -accel on -no-snapshot-save -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          emulator-options: -accel on -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
           disable-animations: true
           script: |
             mkdir -p test-results/android-api${{ inputs.api }}

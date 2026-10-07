@@ -249,8 +249,9 @@ Release branches `release/vX.Y.Z` always run all CI suites; skipped jobs cannot 
 ## Android emulator integration tests
 
 CI runs API 26 and API 35 as independent jobs with independent successful-history baselines.
-Both use Ubuntu 24.04, explicit KVM permissions, mandatory hardware acceleration and clean AVD
-snapshots keyed by API, emulator/system-image versions and workflow content. No software fallback
+Both use Ubuntu 24.04, explicit KVM permissions and mandatory hardware acceleration. Both APIs
+cold boot without snapshot caches to avoid the failures observed after snapshot restore:
+pre-test input failures on API 26 and ADB disconnects during diagnostics on API 35. No software fallback
 or automatic test retry is used. Emulator startup gets one retry only if the test runner has
 not started; a runner-started marker prevents retrying any test/setup failure inside the runner.
 SDK installation also gets one retry for transient download failures.
