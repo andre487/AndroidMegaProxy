@@ -1,0 +1,2 @@
+• See detected app updates when you open MegaProxy; background update checks are recorded.
+• Imported portable configurations are checked against their schema, with a notice about fields that were ignored.
