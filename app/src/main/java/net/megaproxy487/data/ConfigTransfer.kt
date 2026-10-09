@@ -49,7 +49,7 @@ object ConfigTransfer {
     fun isSupportedSchema(value: String): Boolean = value == SCHEMA_ID || value == LEGACY_SCHEMA_ID
 
     fun exportProxyList(profiles: List<ProxyProfile>, includePasswords: Boolean): String =
-        profiles.filter { it.config.type == ProxyType.HTTPS }.joinToString("\n", postfix = "\n") { profile ->
+        profiles.filter { it.config.type == ProxyType.HTTPS || it.config.type == ProxyType.MASQUE }.joinToString("\n", postfix = "\n") { profile ->
             val config = profile.config
             val password = if (includePasswords) config.password else ""
             val userInfo = "${encode(config.username)}:${encode(password)}"
@@ -58,7 +58,7 @@ object ConfigTransfer {
                 if (profile.countryCode.isNotBlank()) add("cc=${encode(profile.countryCode.uppercase())}")
             }.joinToString("&")
             buildString {
-                append("https://").append(userInfo).append('@').append(config.host.trim())
+                append(if (config.type == ProxyType.MASQUE) "masque://" else "https://").append(userInfo).append('@').append(config.host.trim())
                 if (config.port != 443) append(':').append(config.port)
                 if (query.isNotEmpty()) append('?').append(query)
             }

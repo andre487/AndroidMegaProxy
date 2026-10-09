@@ -30,6 +30,9 @@ Existing timeout/reset-based suspected-blocking detection and recovery remain;
 its message says the proxy may be blocked **or unavailable**. It is a heuristic,
 not proof of filtering. RTT and retransmits do not trigger automatic failover.
 
+MASQUE uses a UDP socket for QUIC, so kernel TCP RTT and retransmit readings are unavailable.
+Traffic totals and rates still include forwarded TCP and UDP payloads.
+
 ## Negotiation diagnostics
 
 Successful HTTPS proxy handshakes log the negotiated TLS version and cipher name,
@@ -39,6 +42,10 @@ distinguishes proxy hops without addresses. `http_version=HTTP/1.1` or `HTTP/2`
 on an established tunnel describes the actual CONNECT request protocol after
 fallback. ALPN and `selected_connect_protocol` alone do not prove CONNECT support.
 These fields describe the proxy transport, not applications' HTTPS traffic.
+
+MASQUE reports the selected TLS/QUIC preset, certificate-verification setting and
+`protocol=http3` on established TCP/UDP tunnels. These events do not attest to an exact
+full-browser fingerprint.
 
 SSH logs the initial negotiated key-exchange and host-key algorithms, plus cipher
 and MAC in each direction (`c2s` client to server, `s2c` server to client).

@@ -55,7 +55,10 @@ class ConfigSchemaTest {
             val defs = schema.getJSONObject("\$defs")
             fun check(definition: String, field: String, values: Set<String>) {
                 val array = defs.getJSONObject(definition).getJSONObject("properties").getJSONObject(field).getJSONArray("enum")
-                assertEquals("$name: $definition.$field", values, (0 until array.length()).map { array.getString(it) }.toSet())
+                val supported = (0 until array.length()).map { array.getString(it) }.toSet()
+                if (name == "megaproxy-v8.schema.json" && definition == "proxy" && field == "type") {
+                    assertTrue("Shared schema must include every Android transport", supported.containsAll(values))
+                } else assertEquals("$name: $definition.$field", values, supported)
             }
             check("proxy", "type", ProxyType.entries.map { it.name }.toSet())
             check("proxy", "sshProfile", SshProfile.entries.map { it.name }.toSet())

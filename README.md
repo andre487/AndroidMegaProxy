@@ -10,7 +10,7 @@
 </p>
 
 MegaProxy is an open-source Android VPN client for reliable, secure connections through proxy
-servers you control or trust. It supports HTTPS and SSH transports, per-app routing, encrypted DNS,
+servers you control or trust. It supports HTTPS, MASQUE (HTTP/3) and SSH transports, per-app routing, encrypted DNS,
 connection diagnostics, and automatic failover in one privacy-focused application.
 
 MegaProxy contains no advertising, analytics SDKs, tracking, or remote telemetry. Connection
@@ -37,6 +37,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 - Multiple named, colored, reorderable profiles.
 - HTTPS proxies over TLS with Basic authentication, including two-proxy HTTPS with Jump chains.
+- MASQUE over HTTP/3 with Basic authentication, TCP CONNECT and CONNECT-UDP.
 - HTTP/2 CONNECT multiplexing when supported by the proxy, with automatic HTTP/1.1 fallback.
 - SSH `direct-tcpip` transport and SSH through a jump host.
 - SSH password and unencrypted private-key authentication.
@@ -61,7 +62,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 - DNS-provider fallback where it does not weaken an explicitly selected filtering policy.
 - HTTPS ClientHello profiles powered by uTLS, plus manual JA3 configuration.
 - Configurable SSH client profiles, keepalives, channel limits, and session rotation.
-- Arbitrary UDP is intentionally not forwarded; QUIC/HTTP/3 clients normally fall back to TCP.
+- MASQUE forwards UDP; HTTPS and SSH block arbitrary UDP so QUIC clients fall back to TCP.
 
 ### Diagnostics
 
@@ -147,6 +148,30 @@ settings and fields unknown to the pinned specification once each, without displ
 Neither category is retained or included in later exports. See the
 [compatibility audit](docs/reviews/config-schema.md) for the canonical-format and legacy-import distinction.
 
+### MASQUE with GOST
+
+Select **MASQUE (HTTP/3)**, enter the proxy hostname, UDP port and Basic credentials.
+The proxy certificate is verified by default. For GOST 3.3.0 use:
+
+```shell
+gost -L 'masque+http3://USER:PASSWORD@:8443?enableDatagrams=true'
+```
+
+GOST's `http3` listener handles MASQUE; its `h3` listener is a different transport.
+Global app routing, local-network bypass, traffic accounting, DoH/fallback providers,
+connection checks, reconnect/failover and credential storage also apply to MASQUE.
+JSON uses `proxy.type: "MASQUE"`; ProxyList uses `masque://user:password@host:port`.
+
+QUIC uses the uQUIC Chrome 146 or Firefox 116 presets, independently of the TCP TLS
+preset versions. Custom JA3 requires TLS 1.3 suites and extensions 16, 43, 51 and 57;
+QUIC transport-parameter payloads come from the Chrome preset. Randomized uses the
+Chrome QUIC preset with randomized extension/parameter order. These approximate
+browser TLS/QUIC handshakes; HTTP/3 SETTINGS and congestion behavior remain those
+of the networking library. Firefox's 1200-byte datagram-frame limit cannot carry
+an inner QUIC Initial of 1200 bytes plus MASQUE framing; use Chrome for that traffic.
+The pinned uQUIC production sources include two compatibility fixes, documented in
+[native/third_party/uquic/MEGAPROXY.md](native/third_party/uquic/MEGAPROXY.md).
+
 ### HTTPS with Jump
 
 Select **HTTPS with Jump** to use two HTTPS CONNECT proxies in sequence:
@@ -166,7 +191,7 @@ JSON schema version 8 stores this mode as `proxy.type: "HTTPS_JUMP"`, with first
 `proxy.jump`: `host`, `port`, `sameAuthentication`, `username`, `password`, and
 `allowInvalidProxyCertificate`. Export passwords only when needed. Older application versions
 reject version 8 files, preventing a chain from being imported as a single proxy. ProxyList
-exports support single HTTPS proxies only and omit chain profiles.
+exports support single HTTPS and MASQUE proxies and omit chain profiles.
 
 ### Experimental MASQUE α
 
@@ -177,8 +202,10 @@ with Basic authentication and browser TLS/QUIC presets. Setup and known limits:
 
 ## Current limitations
 
-- Only TCP application traffic is forwarded. General SOCKS5 UDP and QUIC forwarding are not
-  implemented.
+- HTTPS and SSH forward TCP only. MASQUE UDP packets must fit the negotiated QUIC datagram
+  size and path MTU; GOST 3.3.0 has no reliable capsule fallback for larger packets.
+- GOST 3.3.0 rejects IPv6 literal targets in CONNECT-UDP. TCP IPv6 and local-network UDP bypass
+  retain the existing IPv6 policy.
 - SSH private keys protected by a passphrase are not supported yet.
 - Browser and SSH fingerprint presets are version-specific approximations. A preset name is not a
   permanent guarantee of an exact client fingerprint.

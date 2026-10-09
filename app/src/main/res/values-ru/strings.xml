@@ -66,8 +66,8 @@
     <string name="clone">Клонировать</string>
     <string name="delete_profile_title">Удалить профиль «%1$s»?</string>
     <string name="delete_profile_message">Профиль и его зашифрованные учётные данные будут удалены.</string>
-    <string name="only_https_imported_title">Импортированы только HTTPS-прокси</string>
-    <string name="only_https_imported_message">Импортировано HTTPS-профилей: %1$d. Пропущено URL других типов: %2$d.</string>
+    <string name="only_https_imported_title">Импортированы поддерживаемые прокси</string>
+    <string name="only_https_imported_message">Импортировано профилей прокси: %1$d. Пропущено неподдерживаемых URL: %2$d.</string>
     <string name="continue_action">Продолжить</string>
     <string name="export_configuration_title">Экспорт конфигурации</string>
     <string name="format">Формат</string>
@@ -87,7 +87,7 @@
     <string name="configuration_exported">Конфигурация успешно экспортирована.</string>
     <string name="imported_foxyproxy">Импортировано HTTPS-профилей из FoxyProxy: %1$d.</string>
     <string name="imported_super_proxy">Импортировано HTTPS-профилей из Super Proxy: %1$d. Привязки сертификатов не импортированы.</string>
-    <string name="imported_https_profiles">Импортировано HTTPS-профилей: %1$d.</string>
+    <string name="imported_https_profiles">Импортировано профилей прокси: %1$d.</string>
     <string name="ok">ОК</string>
     <string name="configuration_export_failed">Не удалось экспортировать конфигурацию: %1$s</string>
     <string name="configuration_import_failed">Не удалось импортировать конфигурацию: %1$s</string>
@@ -141,7 +141,7 @@
     <string name="reconnect_apply_changes">Переподключитесь, чтобы применить изменения к активному VPN.</string>
     <string name="always_on_changes_next_connection">Постоянный VPN активен. Изменения применятся при следующем подключении.</string>
     <string name="allow_untrusted_certificate_title">Разрешить недоверенный сертификат прокси?</string>
-    <string name="allow_untrusted_certificate_message">Проверка цепочки сертификатов и имени HTTPS-прокси будет отключена. Злоумышленник сможет выдать себя за прокси и получить данные Basic Auth. Сертификаты конечных HTTPS-сайтов по-прежнему проверяются.</string>
+    <string name="allow_untrusted_certificate_message">Проверка цепочки сертификатов и имени TLS-прокси будет отключена. Злоумышленник сможет выдать себя за прокси и получить данные Basic Auth. Сертификаты конечных HTTPS-сайтов по-прежнему проверяются.</string>
     <string name="accept_any_ssh_key_title">Принимать любой ключ SSH-сервера?</string>
     <string name="accept_any_ssh_key_message">Проверка подлинности SSH-сервера %1$s будет отключена, что допускает атаку посредника. Учётные данные и туннелируемый трафик могут быть перехвачены.</string>
     <string name="accept_any_key">Принять любой ключ</string>
@@ -161,9 +161,9 @@
     <string name="global_vpn">Глобальный VPN</string>
     <string name="selected_apps_routing_description">Только выбранные приложения используют прокси.</string>
     <string name="global_vpn_description">Все приложения используют прокси. Это режим по умолчанию.</string>
-    <string name="udp_quic_blocked_description">UDP и QUIC блокируются; DNS использует настроенный в профиле DoH-сервер.</string>
+    <string name="udp_quic_blocked_description">MASQUE передаёт UDP и QUIC; HTTPS и SSH блокируют их. DNS использует настроенный в профиле DoH-сервер.</string>
     <string name="bypass_local_networks">Обходить локальные сети</string>
-    <string name="bypass_local_networks_description">Прямой TCP-доступ к частным и локальным IP-адресам.</string>
+    <string name="bypass_local_networks_description">Прямой доступ по TCP к частным и link-local IP-адресам; MASQUE также пропускает локальный UDP.</string>
     <string name="search_applications">Поиск приложений</string>
     <string name="rotated_log_limit">Размер журнала с ротацией (MiB)</string>
     <string name="rotated_log_limit_description">Общий размер двух сегментов журнала: 1–100 MiB.</string>
@@ -239,7 +239,7 @@
     <string name="https_jump_same_auth">Использовать те же данные входа</string>
     <string name="https_jump_same_auth_description">Использовать имя пользователя и пароль конечного прокси.</string>
     <string name="allow_proxy_certificate">Разрешить самоподписанный сертификат прокси</string>
-    <string name="allow_proxy_certificate_description">Отключает проверку сертификата только конечного HTTPS-прокси.</string>
+    <string name="allow_proxy_certificate_description">Отключает проверку сертификата только конечного TLS-прокси.</string>
     <string name="allow_jump_proxy_certificate">Разрешить самоподписанный сертификат промежуточного прокси</string>
     <string name="allow_jump_proxy_certificate_description">Отключает проверку сертификата только промежуточного HTTPS-прокси.</string>
     <string name="allow_untrusted_jump_certificate_message">Это отключает проверку цепочки сертификатов и имени промежуточного HTTPS-прокси. Злоумышленник сможет выдать себя за него и получить его данные Basic Auth. Проверка сертификата конечного прокси определяется отдельной настройкой.</string>
@@ -487,4 +487,9 @@
     <string name="update_background_retry">Ошибка сети или временная ошибка сервера. Повтор запрошен через 30 минут с увеличением интервала; Android может отложить запуск.</string>
     <string name="update_background_interrupted">Android прервал проверку. Запрошена повторная попытка.</string>
     <string name="update_background_error">Проверка не удалась. Повторите вручную; выбранный источник не изменён.</string>
+    <string name="option_proxytype_masque">MASQUE (HTTP/3)</string>
+    <string name="masque_proxy_hostname">Адрес MASQUE-прокси</string>
+    <string name="transport_http_3">HTTP/3</string>
+    <string name="validation_quic_ja3">Для MASQUE JA3 должен содержать шифры TLS 1.3 и расширения 16, 43, 51, 57.</string>
+    <string name="masque_fingerprint_description">Для QUIC используются отпечатки Chrome 146 или Firefox 116. JA3 для TLS поверх TCP и QUIC различаются.</string>
 </resources>

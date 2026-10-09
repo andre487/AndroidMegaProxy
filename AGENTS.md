@@ -121,6 +121,8 @@ branch names, credentials, signing material, or other secrets.
   snapshots, not proof of current coverage or external store compliance; see
   `docs/reviews/privacy-policy.md` for privacy follow-ups.
 
+- MASQUE uses protected HTTP/3 QUIC sockets with Basic Auth; DNS remains DoH. GOST uses the `http3` listener, not `h3`. Pinned uQUIC sources and compatibility patches live in `native/third_party/uquic`; keep packet-size and GOST IPv6 UDP limitations documented.
+
 ## Architecture landmarks
 
 - `ProxyVpnService` extends Android's standard `android.net.VpnService`. It owns VPN lifecycle,

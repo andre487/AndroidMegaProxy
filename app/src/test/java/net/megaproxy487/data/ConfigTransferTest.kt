@@ -13,6 +13,27 @@ import org.junit.Test
 
 class ConfigTransferTest {
     @Test
+    fun `MASQUE survives JSON and URI export without becoming HTTPS`() {
+        val profile = ProxyProfile(id = "masque", colorIndex = 0, config = ProxyConfig(
+            type = ProxyType.MASQUE, host = "proxy.example", port = 8443,
+            username = "user", password = "p@ss:word", allowIpv6 = true,
+        ))
+        for (includePasswords in listOf(false, true)) {
+            val raw = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID).put("version", 8)
+                .put("profiles", JSONArray().put(ConfigTransfer.encodeProfile(profile, includePasswords, false))).toString()
+            ConfigSchemas.assertValid(raw)
+            assertEquals(profile.config.copy(password = if (includePasswords) profile.config.password else ""),
+                ConfigTransfer.importJson(raw).profiles.single().config)
+            val uri = ConfigTransfer.exportProxyList(listOf(profile), includePasswords)
+            assertTrue(uri.startsWith("masque://"))
+            val imported = ProxyListParser.parse(uri).getOrThrow()
+            assertEquals(0, imported.skippedNonHttps)
+            assertEquals(ProxyType.MASQUE, imported.proxies.single().config.type)
+            assertEquals(if (includePasswords) profile.config.password else "", imported.proxies.single().config.password)
+        }
+    }
+
+    @Test
     fun `HTTPS jump JSON round trip preserves both hops and certificate settings`() {
         val profile = ProxyProfile(id = "chain", colorIndex = 0, config = ProxyConfig(
             type = ProxyType.HTTPS_JUMP, host = "exit.example", username = "exit", password = "exit-secret",

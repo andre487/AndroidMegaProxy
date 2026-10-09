@@ -1,5 +1,7 @@
 """HTTP origin reachable only inside the disposable Docker network."""
 
+import socket
+import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 
@@ -17,4 +19,13 @@ class Echo(BaseHTTPRequestHandler):
         self.wfile.write(payload)
 
 
+def udp_echo():
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
+        sock.bind(("0.0.0.0", 8081))
+        while True:
+            payload, address = sock.recvfrom(65535)
+            sock.sendto(payload, address)
+
+
+threading.Thread(target=udp_echo, daemon=True).start()
 ThreadingHTTPServer(("0.0.0.0", 8080), Echo).serve_forever()

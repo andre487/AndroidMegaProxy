@@ -67,8 +67,8 @@
     <string name="clone">Clone</string>
     <string name="delete_profile_title">Delete %1$s?</string>
     <string name="delete_profile_message">The profile and its encrypted credentials will be removed.</string>
-    <string name="only_https_imported_title">Only HTTPS proxies were imported</string>
-    <string name="only_https_imported_message">Imported %1$d HTTPS proxy profile(s). Skipped %2$d non-HTTPS URL(s).</string>
+    <string name="only_https_imported_title">Supported proxies were imported</string>
+    <string name="only_https_imported_message">Imported %1$d proxy profile(s). Skipped %2$d unsupported URL(s).</string>
     <string name="continue_action">Continue</string>
     <string name="export_configuration_title">Export configuration</string>
     <string name="format">Format</string>
@@ -88,7 +88,7 @@
     <string name="configuration_exported">Configuration exported successfully.</string>
     <string name="imported_foxyproxy">Imported %1$d HTTPS proxy profile(s) from FoxyProxy.</string>
     <string name="imported_super_proxy">Imported %1$d HTTPS proxy profile(s) from Super Proxy. Certificate pins were not imported.</string>
-    <string name="imported_https_profiles">Imported %1$d HTTPS proxy profile(s).</string>
+    <string name="imported_https_profiles">Imported %1$d proxy profile(s).</string>
     <string name="ok">OK</string>
     <string name="configuration_export_failed">Could not export the configuration: %1$s</string>
     <string name="configuration_import_failed">Could not import the configuration: %1$s</string>
@@ -142,7 +142,7 @@
     <string name="reconnect_apply_changes">Reconnect to apply these changes to the active VPN.</string>
     <string name="always_on_changes_next_connection">Always-on is active. Changes apply on the next connection.</string>
     <string name="allow_untrusted_certificate_title">Allow an untrusted proxy certificate?</string>
-    <string name="allow_untrusted_certificate_message">This disables certificate-chain and hostname verification between your phone and the HTTPS proxy. An attacker could impersonate the proxy and obtain its Basic Auth credentials. Destination HTTPS certificates remain verified.</string>
+    <string name="allow_untrusted_certificate_message">This disables certificate-chain and hostname verification between your phone and the TLS proxy. An attacker could impersonate the proxy and obtain its Basic Auth credentials. Destination HTTPS certificates remain verified.</string>
     <string name="accept_any_ssh_key_title">Accept any SSH host key?</string>
     <string name="accept_any_ssh_key_message">This disables identity verification for the %1$s SSH host and permits man-in-the-middle attacks. Credentials and tunneled traffic could be intercepted.</string>
     <string name="accept_any_key">Accept any key</string>
@@ -162,9 +162,9 @@
     <string name="global_vpn">Global VPN</string>
     <string name="selected_apps_routing_description">Only selected applications use the proxy.</string>
     <string name="global_vpn_description">All applications use the proxy. This is the default mode.</string>
-    <string name="udp_quic_blocked_description">UDP and QUIC are blocked; DNS uses the profile\'s configured DoH endpoint.</string>
+    <string name="udp_quic_blocked_description">MASQUE forwards UDP and QUIC; HTTPS and SSH block them. DNS uses the profile\'s configured DoH endpoint.</string>
     <string name="bypass_local_networks">Bypass local networks</string>
-    <string name="bypass_local_networks_description">Direct TCP access to private and link-local IP addresses.</string>
+    <string name="bypass_local_networks_description">Direct TCP access to private and link-local IP addresses; MASQUE also bypasses local UDP.</string>
     <string name="search_applications">Search applications</string>
     <string name="rotated_log_limit">Rotated log limit (MiB)</string>
     <string name="rotated_log_limit_description">Total size across both log segments; 1–100 MiB.</string>
@@ -240,7 +240,7 @@
     <string name="https_jump_same_auth">Use the same authentication</string>
     <string name="https_jump_same_auth_description">Reuse the destination proxy username and password.</string>
     <string name="allow_proxy_certificate">Allow self-signed proxy certificate</string>
-    <string name="allow_proxy_certificate_description">Disables certificate verification only for the destination HTTPS proxy.</string>
+    <string name="allow_proxy_certificate_description">Disables certificate verification only for the destination TLS proxy.</string>
     <string name="allow_jump_proxy_certificate">Allow self-signed jump proxy certificate</string>
     <string name="allow_jump_proxy_certificate_description">Disables certificate verification only for the jump HTTPS proxy.</string>
     <string name="allow_untrusted_jump_certificate_message">This disables certificate-chain and hostname verification for the jump HTTPS proxy. An attacker could impersonate it and obtain its Basic Auth credentials. The destination proxy certificate remains subject to its own setting.</string>
@@ -488,4 +488,9 @@
     <string name="update_background_retry">A network or temporary server error occurred. A retry is requested after 30 minutes, with increasing delays; Android may defer it.</string>
     <string name="update_background_interrupted">Android interrupted the check. A retry was requested.</string>
     <string name="update_background_error">The check failed. Retry manually; the selected source has not changed.</string>
+    <string name="option_proxytype_masque">MASQUE (HTTP/3)</string>
+    <string name="masque_proxy_hostname">MASQUE proxy hostname</string>
+    <string name="transport_http_3">HTTP/3</string>
+    <string name="validation_quic_ja3">MASQUE JA3 requires TLS 1.3 cipher suites and extensions 16, 43, 51, 57.</string>
+    <string name="masque_fingerprint_description">QUIC uses Chrome 146 or Firefox 116 fingerprints. JA3 for TLS over TCP and QUIC differs.</string>
 </resources>

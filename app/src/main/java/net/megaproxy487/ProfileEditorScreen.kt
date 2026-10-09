@@ -311,20 +311,21 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             }
           }
           item {
-            OutlinedTextField(config.host, { value -> acceptText(value, 253) { updateConfig(config.copy(host = it)) } }, label = { FieldLabel(stringResource(if (config.type == ProxyType.HTTPS_JUMP) R.string.destination_https_proxy_hostname else if (config.type.isHttps) R.string.https_proxy_hostname else R.string.destination_ssh_hostname)) }, isError = fieldError(R.string.validation_proxy_host, R.string.validation_ssh_host, R.string.validation_host_format) != null, supportingText = fieldError(R.string.validation_proxy_host, R.string.validation_ssh_host, R.string.validation_host_format)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(config.host, { value -> acceptText(value, 253) { updateConfig(config.copy(host = it)) } }, label = { FieldLabel(stringResource(if (config.type == ProxyType.HTTPS_JUMP) R.string.destination_https_proxy_hostname else if (config.type == ProxyType.MASQUE) R.string.masque_proxy_hostname else if (config.type.isHttpProxy) R.string.https_proxy_hostname else R.string.destination_ssh_hostname)) }, isError = fieldError(R.string.validation_proxy_host, R.string.validation_ssh_host, R.string.validation_host_format) != null, supportingText = fieldError(R.string.validation_proxy_host, R.string.validation_ssh_host, R.string.validation_host_format)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
             IntegerInputField(portText, { portText = it }, 1..65535, stringResource(R.string.port),
                     onValidValue = { updateConfig(config.copy(port = it)) }, modifier = Modifier.fillMaxWidth())
           }
           item {
-            OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { FieldLabel(stringResource(if (config.type.isHttps) R.string.basic_auth_username else R.string.ssh_username)) }, isError = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username) != null, supportingText = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { FieldLabel(stringResource(if (config.type.isHttpProxy) R.string.basic_auth_username else R.string.ssh_username)) }, isError = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username) != null, supportingText = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
-            PasswordField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it)) } }, label = stringResource(if (config.type.isHttps) R.string.password else R.string.ssh_password_optional),
+            PasswordField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it)) } }, label = stringResource(if (config.type.isHttpProxy) R.string.password else R.string.ssh_password_optional),
                     error = fieldError(R.string.validation_basic_password), modifier = Modifier.fillMaxWidth())
           }
-          if (config.type.isHttps) item { SettingCheckboxRow(
+          if (config.type == ProxyType.MASQUE) item { Text(stringResource(R.string.masque_fingerprint_description), style = MaterialTheme.typography.bodySmall) }
+          if (config.type.isHttpProxy) item { SettingCheckboxRow(
                 checked = config.allowInvalidProxyCertificate,
                 title = stringResource(R.string.allow_proxy_certificate),
                 description = stringResource(R.string.allow_proxy_certificate_description),
@@ -335,7 +336,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             )
           }
 
-            if (!config.type.isHttps) {
+            if (!config.type.isHttpProxy) {
               item {
                 OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it)) } }, label = { FieldLabel(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
               }

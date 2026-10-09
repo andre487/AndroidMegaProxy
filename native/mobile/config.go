@@ -76,10 +76,10 @@ func parseConfig(raw string) (config, error) {
 	if c.Port < 1 || c.Port > 65535 {
 		return c, errors.New("invalid proxy port")
 	}
-	if c.isHTTPS() && (c.Username == "" || c.Password == "") {
+	if c.isHTTPProxy() && (c.Username == "" || c.Password == "") {
 		return c, errors.New("basic auth credentials are required")
 	}
-	if !c.isHTTPS() && c.Username == "" {
+	if !c.isHTTPProxy() && c.Username == "" {
 		return c, errors.New("SSH username is required")
 	}
 	if c.Type == "SSH_JUMP" || c.Type == "HTTPS_JUMP" {
@@ -110,12 +110,16 @@ func parseConfig(raw string) (config, error) {
 			return c, fmt.Errorf("invalid fallback DoH URL: %w", err)
 		}
 	}
-	if c.isHTTPS() {
+	if c.Type == "MASQUE" {
+		if _, err := c.quicSpec(); err != nil {
+			return c, err
+		}
+	} else if c.isHTTPS() {
 		if _, err := c.helloID(); err != nil {
 			return c, err
 		}
 	}
-	if !c.isHTTPS() && c.Type != "SSH" && c.Type != "SSH_JUMP" {
+	if !c.isHTTPProxy() && c.Type != "SSH" && c.Type != "SSH_JUMP" {
 		return c, fmt.Errorf("unsupported proxy type %q", c.Type)
 	}
 	if c.SSHAuthMode == "" {
@@ -132,6 +136,8 @@ func parseConfig(raw string) (config, error) {
 	}
 	return c, nil
 }
+
+func (c config) isHTTPProxy() bool { return c.isHTTPS() || c.Type == "MASQUE" }
 
 func (c config) isHTTPS() bool { return c.Type == "HTTPS" || c.Type == "HTTPS_JUMP" }
 

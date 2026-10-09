@@ -6,7 +6,12 @@ import android.net.VpnService
 import android.os.Build
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.vpn.VpnTransportProtocol
+import java.net.DatagramPacket
+import java.net.DatagramSocket
+import java.net.InetAddress
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
@@ -25,6 +30,51 @@ class VpnDeviceTest : DeviceTestBase() {
         directOriginUnavailable()
         connect()
         roundTrip()
+    }
+
+    @Test fun masqueTrafficStopAndRestart() {
+        useMasque(TlsProfile.CHROME_ANDROID)
+        saved()
+        directOriginUnavailable()
+        repeat(2) {
+            connect()
+            roundTrip()
+            udpRoundTrip(1200)
+            assertEquals(VpnTransportProtocol.HTTP_3, VpnRuntimeState.transportProtocol.value)
+            click(R.string.disconnect)
+            stopped()
+            directOriginUnavailable()
+        }
+    }
+
+    @Test fun masqueFirefoxTraffic() {
+        useMasque(TlsProfile.FIREFOX_ANDROID)
+        saved()
+        connect()
+        roundTrip()
+        udpRoundTrip(512)
+        assertEquals(VpnTransportProtocol.HTTP_3, VpnRuntimeState.transportProtocol.value)
+    }
+
+    private fun useMasque(fingerprint: TlsProfile) = io {
+        store.saveProfile(store.activeProfile().let {
+            it.copy(config = it.config.copy(type = ProxyType.MASQUE, port = argument("masquePort").toInt()))
+        })
+        store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(tlsProfile = fingerprint))
+    }
+
+    private fun udpRoundTrip(size: Int) {
+        val payload = ByteArray(size) { (it % 251).toByte() }
+        DatagramSocket().use { socket ->
+            socket.soTimeout = 15_000
+            val host = InetAddress.getByName(argument("originHost"))
+            socket.send(DatagramPacket(payload, payload.size, host, 8081))
+            val reply = DatagramPacket(ByteArray(size + 1), size + 1)
+            socket.receive(reply)
+            assertEquals(host, reply.address)
+            assertEquals(8081, reply.port)
+            assertArrayEquals(payload, reply.data.copyOf(reply.length))
+        }
     }
 
     @Test fun deniedVpnConsentDoesNotStartTunnel() {

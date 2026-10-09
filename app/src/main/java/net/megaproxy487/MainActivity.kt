@@ -473,6 +473,7 @@ internal fun MainScreen(
                     if (connected && transportProtocol != VpnTransportProtocol.UNKNOWN) {
                         val transportLabel = when (transportProtocol) {
                             VpnTransportProtocol.HTTP_1_1 -> stringResource(R.string.transport_http_1_1)
+                            VpnTransportProtocol.HTTP_3 -> stringResource(R.string.transport_http_3)
                             VpnTransportProtocol.HTTP_2 -> stringResource(R.string.transport_http_2)
                             VpnTransportProtocol.SSH_MULTIPLEXED -> stringResource(R.string.transport_ssh_multiplexed)
                             VpnTransportProtocol.UNKNOWN -> ""

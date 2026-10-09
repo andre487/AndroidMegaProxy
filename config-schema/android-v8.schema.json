@@ -125,6 +125,7 @@
           "type": "string",
           "enum": [
             "HTTPS",
+            "MASQUE",
             "HTTPS_JUMP",
             "SSH",
             "SSH_JUMP"

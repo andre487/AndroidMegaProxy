@@ -11,12 +11,14 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"net/netip"
 	"os/exec"
 	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	M "github.com/xjasonlyu/tun2socks/v2/metadata"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -66,6 +68,7 @@ func TestRealProxyServers(t *testing.T) {
 	start("origin", "", image, "python3", "/fixture/origin.py")
 	h1 := start("gost-h1", "8443", gostTestImage, "-L", "http+tls://exit:exit-test-password@:8443")
 	h2 := start("gost-h2", "8443", gostTestImage, "-L", "http2://jump:jump-test-password@:8443")
+	masque := start("gost-masque", "8443/udp", gostTestImage, "-L", "masque+http3://exit:exit-test-password@:8443?enableDatagrams=true")
 	sshExit := start("ssh-exit", "2222", image)
 	sshJump := start("ssh-jump", "2222", image)
 
@@ -99,6 +102,19 @@ func TestRealProxyServers(t *testing.T) {
 	h2Config := base
 	h2Config.DialHost, h2Config.Port = endpoint(h2, "8443")
 	h2Config.Username, h2Config.Password = "jump", "jump-test-password"
+	masqueConfig := base
+	masqueConfig.Type = "MASQUE"
+	masquePublished := strings.TrimSpace(dockerTest(t, "port", masque, "8443/udp"))
+	masqueConfig.DialHost, _, _ = net.SplitHostPort(masquePublished)
+	_, masquePort, _ := net.SplitHostPort(masquePublished)
+	masqueConfig.Port, _ = strconv.Atoi(masquePort)
+	if masqueConfig.DialHost != "127.0.0.1" || masqueConfig.Port == 0 {
+		t.Fatal("invalid MASQUE published port")
+	}
+	masqueFirefox := masqueConfig
+	masqueFirefox.Profile = "FIREFOX_ANDROID"
+	masqueCustom := masqueConfig
+	masqueCustom.Profile, masqueCustom.CustomJA3 = "CUSTOM", "771,4865-4866-4867,0-10-13-16-43-51-57,29-23,0"
 	httpsJump := base
 	httpsJump.Type, httpsJump.Host, httpsJump.Port = "HTTPS_JUMP", "gost-h1", 8443
 	httpsJump.DialHost = "192.0.2.1" // Only the jump may reach the destination proxy.
@@ -140,7 +156,7 @@ func TestRealProxyServers(t *testing.T) {
 		name string
 		cfg  config
 	}{
-		{"gost_https", base}, {"gost_http2", h2Config}, {"gost_https_jump", httpsJump},
+		{"gost_masque", masqueConfig}, {"gost_masque_firefox", masqueFirefox}, {"gost_masque_custom", masqueCustom}, {"gost_https", base}, {"gost_http2", h2Config}, {"gost_https_jump", httpsJump},
 		{"openssh_password", sshConfig}, {"openssh_key", sshKeyConfig}, {"openssh_jump", sshJumpConfig},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -168,7 +184,11 @@ func TestRealProxyServers(t *testing.T) {
 				}
 			}
 			output := logs.text()
-			if tc.cfg.isHTTPS() {
+			if tc.cfg.Type == "MASQUE" {
+				if !strings.Contains(output, "protocol=http3") {
+					t.Fatal("missing HTTP/3 negotiation")
+				}
+			} else if tc.cfg.isHTTPS() {
 				if !strings.Contains(output, "tls_version=TLS1.") || !strings.Contains(output, "http_version=HTTP/") {
 					t.Fatal("missing HTTPS negotiation")
 				}
@@ -191,12 +211,49 @@ func TestRealProxyServers(t *testing.T) {
 		})
 	}
 
+	originIP := strings.TrimSpace(dockerTest(t, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", id+"-origin"))
+	for _, cfg := range []config{masqueConfig, masqueFirefox, masqueCustom} {
+		t.Run("gost_udp_"+cfg.Profile, func(t *testing.T) {
+			d := &masqueDialer{config: cfg, protector: &jumpTestProtector{}}
+			defer d.Close()
+			udp, err := d.DialUDP(&M.Metadata{DstIP: netip.MustParseAddr(originIP), DstPort: 8081})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer udp.Close()
+			target := &net.UDPAddr{IP: net.ParseIP(originIP), Port: 8081}
+			sizes := []int{0, 512, 1100}
+			if cfg.Profile != "FIREFOX_ANDROID" {
+				sizes = append(sizes, 1200)
+			}
+			for _, size := range sizes {
+				_ = udp.SetDeadline(time.Now().Add(3 * time.Second))
+				payload := make([]byte, size)
+				_, _ = rand.Read(payload)
+				if _, err := udp.WriteTo(payload, target); err != nil {
+					t.Fatal(err)
+				}
+				got := make([]byte, size+1)
+				n, addr, err := udp.ReadFrom(got)
+				if err != nil || addr.String() != target.String() || !bytes.Equal(got[:n], payload) {
+					t.Fatalf("UDP round trip size=%d: %v", size, err)
+				}
+			}
+			_ = d.Close()
+			if _, err := udp.WriteTo([]byte("closed"), target); err == nil {
+				t.Fatal("closed MASQUE UDP stream accepted data")
+			}
+		})
+	}
+
 	for _, tc := range []struct {
 		name   string
 		cfg    config
 		change func(*config)
 		want   string
 	}{
+		{"masque_password", masqueConfig, func(c *config) { c.Password = "wrong" }, "407"},
+		{"masque_certificate", masqueConfig, func(c *config) { c.AllowInvalidProxyCertificate = false }, "certificate"},
 		{"https_password", base, func(c *config) { c.Password = "wrong" }, "407"},
 		{"http2_password", h2Config, func(c *config) { c.Password = "wrong" }, "407"},
 		{"https_certificate", base, func(c *config) { c.AllowInvalidProxyCertificate = false }, "certificate"},
@@ -245,6 +302,11 @@ func realServerDialer(t *testing.T, c config, reporters ...Reporter) func(contex
 	}
 	if c.isHTTPS() {
 		d := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
+		t.Cleanup(func() { _ = d.Close() })
+		return d.connectTarget
+	}
+	if c.Type == "MASQUE" {
+		d := &masqueDialer{config: c, protector: protector, reporter: reporter}
 		t.Cleanup(func() { _ = d.Close() })
 		return d.connectTarget
 	}

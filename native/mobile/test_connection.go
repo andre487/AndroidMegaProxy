@@ -52,6 +52,10 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 		dialer := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
 		connect, testReporter = dialer.connectTarget, dialer.reporter
 		defer dialer.Close()
+	} else if c.Type == "MASQUE" {
+		dialer := &masqueDialer{config: c, protector: protector, reporter: reporter}
+		connect, testReporter = dialer.connectTarget, reporter
+		defer dialer.Close()
 	} else {
 		dialer := &sshDialer{config: c, protector: protector, reporter: reporter}
 		connect, testReporter = dialer.connectTarget, dialer.reporter

@@ -89,14 +89,16 @@ emulator, system SSH configuration and production credentials are not needed.
 The first run downloads GOST 3.3.0 (pinned image digest) and builds an Alpine fixture
 with OpenSSH and Python. Registry/package access is required for this setup.
 
-The lane creates a separate Docker network, two GOST proxies (HTTPS/HTTP2), two
-OpenSSH servers with temporary host/client keys, and an HTTP echo server with no
+The lane creates a separate Docker network, three GOST proxies (HTTPS/HTTP2/MASQUE), two
+OpenSSH servers with temporary host/client keys, and an HTTP/UDP echo server with no
 published port. Proxy ports are allocated dynamically on host loopback only.
 Production configuration parsing and dialers send three different binary POST
-payloads through HTTPS, HTTP2, HTTPS Jump, SSH password, SSH private key, and SSH
+payloads through HTTPS, HTTP2, HTTPS Jump, MASQUE, SSH password, SSH private key, and SSH
 Jump. Responses must match byte for byte. Negative cases reject incorrect
 credentials and TLS/SSH trust. The origin hostname must not be reachable directly
 from the test host.
+
+MASQUE checks Chrome, Firefox and custom JA3 fingerprints, TCP, UDP, Basic authentication and certificate verification. The fixture uses `masque+http3`; GOST `h3` is a different transport. MASQUE needs access to the published Docker UDP port. If a macOS VM does not forward UDP, run the test inside the Linux VM. API 26/35 Android scenarios include MASQUE TCP/UDP and stop/reconnect.
 
 The native CI job runs this lane after ordinary Go tests. Missing Docker is an
 error, not a skipped success. `native_tests` and the regular local `test` lane do

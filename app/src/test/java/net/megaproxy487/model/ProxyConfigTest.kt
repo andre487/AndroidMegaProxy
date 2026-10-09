@@ -2,10 +2,25 @@ package net.megaproxy487.model
 
 import net.megaproxy487.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ProxyConfigTest {
+    @Test
+    fun `MASQUE requires Basic credentials and QUIC compatible custom JA3`() {
+        val config = ProxyConfig(type = ProxyType.MASQUE, host = "proxy.example", username = "user", password = "password")
+        assertNull(config.validationError())
+        assertEquals(R.string.validation_basic_password, config.copy(password = "").validationError())
+        assertEquals(R.string.validation_quic_ja3, config.copy(profile = TlsProfile.CUSTOM,
+            customJa3 = "771,4865,0-10-13-16-43-51,29,0").validationError())
+        assertNull(config.copy(profile = TlsProfile.CUSTOM,
+            customJa3 = "771,4865-4866-4867,0-10-13-16-43-51-57,29,0").validationError())
+        assertTrue(ProxyType.MASQUE.isHttpProxy)
+        assertFalse(ProxyType.MASQUE.hasJump)
+    }
+
     @Test
     fun `default TLS fingerprint currently resolves to Chrome Android`() {
         val resolved = GlobalConnectionSettings(tlsProfile = TlsProfile.DEFAULT)

@@ -166,9 +166,11 @@
           "type": "string",
           "enum": [
             "HTTPS",
+            "SOCKS5",
             "HTTPS_JUMP",
             "SSH",
-            "SSH_JUMP"
+            "SSH_JUMP",
+            "MASQUE"
           ]
         },
         "host": {
@@ -479,6 +481,10 @@
             "auto",
             "challenge"
           ]
+        },
+        "masqueTemplate": {
+          "type": "string",
+          "maxLength": 2048
         }
       },
       "required": [],
