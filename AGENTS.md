@@ -67,6 +67,9 @@ branch names, credentials, signing material, or other secrets.
 
 - Release builds and signing are separate from PR CI. Release artifacts are created only through
   the dedicated release workflow/Fastlane lane.
+- Tagged releases scan all five signed APKs with VirusTotal before publication; keep report links
+  in release notes and `VIRUSTOTAL.md`. API errors, incomplete scans and malicious/suspicious
+  detections stop publication. Only the tag workflow receives `VIRUSTOTAL_API_KEY`.
 - Tagged releases publish signed APKs and `SHA256SUMS` to GitHub Releases. Google Play integration
   is removed. Document installation from release assets; PR APKs are for testing only.
 - Update checks default to daily background checks: official F-Droid installers and installer packages handling

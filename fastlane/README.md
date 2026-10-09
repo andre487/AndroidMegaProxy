@@ -21,6 +21,7 @@ Fastlane is the supported entry point for tests and build artifacts. Install Rub
 | `bundle exec fastlane android release_prepare version:0.1.2` | Generate EN/RU changelogs, bump the version and create a release PR |
 | `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Require full CI, squash merge the specified PR head and tag the merged commit |
 | `bundle exec fastlane android release_artifacts` | Produce signed APKs and checksums in `dist/release` |
+| `bundle exec fastlane android release_virustotal` | Scan signed APKs and write VirusTotal report links; requires `VIRUSTOTAL_API_KEY` |
 
 The release lane deliberately delegates signing and artifact verification to the repository's
 existing release scripts. It requires the signing environment documented in the root README.

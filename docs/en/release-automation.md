@@ -83,6 +83,36 @@ and finalization execute trusted workflow source, not code fetched from the rele
 Only Gradle's two version fields and the ten changelog files (five APK codes per locale) may be changed by the
 release commit. Concurrent release preparations are serialized.
 
+## VirusTotal
+
+Add the repository Actions secret `VIRUSTOTAL_API_KEY` from your
+[VirusTotal account](https://www.virustotal.com/gui/my-apikey). Only the tag-triggered
+release workflow receives it; preparation and PR CI do not upload APKs or use this key.
+Use an API plan appropriate to your usage: the
+[Public API](https://docs.virustotal.com/reference/public-vs-premium-api) allows
+four requests per minute and 500 per day and excludes commercial products/services.
+The script spaces requests by 16 seconds and does not retry failed API calls.
+
+After signature/version verification, `bundle exec fastlane android release_virustotal`
+uploads each of the five final signed APKs, including the universal APK. Large APKs use
+the [upload URL endpoint](https://docs.virustotal.com/reference/files-upload-url).
+These release binaries become available to VirusTotal's community; signing keys,
+passwords and user configurations are not uploaded.
+
+Each analysis must complete within ten minutes and return usable engine verdicts
+with the exact uploaded file's SHA-256. Missing keys/files, API errors, timeouts,
+hash mismatches or any `malicious`/`suspicious` verdict stop publication. Resolve
+errors or review detections before rerunning the tag build; do not move the tag.
+A completed scan does not mean every engine supports APKs, and zero detections
+does not guarantee safety or remove device installation warnings.
+
+`VIRUSTOTAL.md` contains per-APK report links and detection counts in EN/RU. It is
+attached to the GitHub Release and appended to its notes. Reruns replace the marked
+VirusTotal notes block while preserving other release text. Available reports also
+appear in the Actions summary and `virustotal-report` artifact on failure; a partial
+report lists only analyses that completed successfully. Local scans accept
+`MEGAPROXY_RELEASE_DIR` (default `dist/release`) and `PYTHON` through Fastlane.
+
 ## Failure and recovery
 
 No retry force-pushes branches, moves tags or rewrites historical notes. A failed

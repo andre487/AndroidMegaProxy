@@ -291,7 +291,11 @@ The scripts read the default signing key from `$HOME/AndroidApkKey` and its pass
 ABI-specific and universal APKs and `SHA256SUMS` are written to `dist/release`.
 
 Pushing a version tag runs the same Fastlane release lane in GitHub Actions, builds and verifies
-all five APKs, then attaches them and their checksums to a GitHub Release. The workflow requires
+all five APKs, scans each signed APK with VirusTotal, then attaches APKs, checksums and
+`VIRUSTOTAL.md` to a GitHub Release with report links in its notes. Configure the
+`VIRUSTOTAL_API_KEY` repository secret; missing credentials, API errors, incomplete analyses or
+malicious/suspicious detections stop publication. See [VirusTotal setup](docs/en/release-automation.md#virustotal).
+The workflow also requires
 `ANDROID_SIGNING_KEY_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, and
 `ANDROID_KEY_PASSWORD` signing secrets. The tag must match
 `v` followed by the current `versionName` in `app/build.gradle.kts`. The manual

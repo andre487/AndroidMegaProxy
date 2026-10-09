@@ -18,6 +18,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 90
     steps:
+      - name: Validate VirusTotal credentials
+        env:
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: |
+          if [[ -z "$VIRUSTOTAL_API_KEY" ]]; then
+            echo "Configure the VIRUSTOTAL_API_KEY repository secret" >&2
+            exit 1
+          fi
+
       - name: Check out release tag
         uses: actions/checkout@v6
         with:
@@ -94,15 +103,45 @@ jobs:
           MEGAPROXY_GIT_COMMIT: ${{ github.sha }}
         run: bundle exec fastlane android release_artifacts
 
+      - name: Scan signed APKs with VirusTotal
+        timeout-minutes: 60
+        env:
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: bundle exec fastlane android release_virustotal
+
+      - name: Preserve VirusTotal report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: virustotal-report
+          path: dist/release/VIRUSTOTAL.md
+          if-no-files-found: ignore
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          assets=(dist/release/*.apk dist/release/SHA256SUMS)
+          assets=(dist/release/*.apk dist/release/SHA256SUMS dist/release/VIRUSTOTAL.md)
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            notes="$RUNNER_TEMP/release-notes.md"
+            gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --json body --jq .body > "$notes"
+            python3 - "$notes" dist/release/VIRUSTOTAL.md <<'PY'
+          import pathlib
+          import sys
+          notes, report = map(pathlib.Path, sys.argv[1:])
+          body = notes.read_text()
+          start = "<!-- megaproxy-virustotal -->"
+          end = "<!-- /megaproxy-virustotal -->"
+          if start in body:
+              before, rest = body.split(start, 1)
+              _, after = rest.split(end, 1)
+              body = before.rstrip() + after
+          notes.write_text(body.rstrip() + "\n\n" + start + "\n" + report.read_text() + end + "\n")
+          PY
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --clobber
+            gh release edit "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --notes-file "$notes"
           else
             version_code_base="$(sed -nE 's/^val versionCodeBase = ([0-9]+)/\1/p' app/build.gradle.kts)"
             code="$((version_code_base * 1000))"
@@ -114,6 +153,7 @@ jobs:
               exit 1
             fi
             { printf '## English\n\n'; cat "$en"; printf '\n## Русский\n\n'; cat "$ru"; } > "$notes"
+            { printf '\n<!-- megaproxy-virustotal -->\n'; cat dist/release/VIRUSTOTAL.md; printf '<!-- /megaproxy-virustotal -->\n'; } >> "$notes"
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \

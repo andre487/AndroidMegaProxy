@@ -168,4 +168,11 @@ platform :android do
     sh(File.join(project_root, "scripts", "build-release-apks.sh"))
     UI.success("Release artifacts: dist/release")
   end
+
+  desc "Scan all signed release APKs with VirusTotal and write report links"
+  lane :release_virustotal do
+    Dir.chdir(project_root) do
+      sh(ENV.fetch("PYTHON", "python3"), "scripts/virustotal_release.py")
+    end
+  end
 end
