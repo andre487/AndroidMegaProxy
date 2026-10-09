@@ -40,7 +40,7 @@ class VpnDeviceTest : DeviceTestBase() {
             connect()
             roundTrip()
             udpRoundTrip(1200)
-            assertEquals(VpnTransportProtocol.HTTP_3, VpnRuntimeState.transportProtocol.value)
+            await("HTTP/3 badge did not update") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.HTTP_3 }
             click(R.string.disconnect)
             stopped()
             directOriginUnavailable()
@@ -53,7 +53,7 @@ class VpnDeviceTest : DeviceTestBase() {
         connect()
         roundTrip()
         udpRoundTrip(512)
-        assertEquals(VpnTransportProtocol.HTTP_3, VpnRuntimeState.transportProtocol.value)
+        await("HTTP/3 badge did not update") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.HTTP_3 }
     }
 
     private fun useMasque(fingerprint: TlsProfile) = io {

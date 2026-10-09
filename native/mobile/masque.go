@@ -100,6 +100,10 @@ func (d *masqueDialer) getSession(ctx context.Context) (*masqueSession, error) {
 		d.mu.Unlock()
 		s, err := d.dialSession(handshake)
 		cancel()
+		if err != nil {
+			reason := errorClass(err)
+			report(d.reporter, "event=connection protocol=http3 stage=tls_handshake result=failed reason=%s dpi_hint=%s", reason, tlsInterferenceHint(reason))
+		}
 		d.mu.Lock()
 		close(d.opening)
 		d.opening, d.openingCancel = nil, nil
@@ -222,13 +226,19 @@ func (d *masqueDialer) checkTarget(target string) error {
 	return nil
 }
 
-func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) (*masqueStreamConn, error) {
+func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) (result *masqueStreamConn, err error) {
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	s, err := d.getSession(ctx)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if err != nil {
+			reason := errorClass(err)
+			report(d.reporter, "event=connection protocol=http3 stage=connect_response result=failed reason=%s dpi_hint=%s", reason, tlsInterferenceHint(reason))
+		}
+	}()
 	stream, err := s.client.OpenRequestStream(ctx)
 	if err != nil {
 		return nil, err
@@ -341,7 +351,7 @@ func (d *masqueDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 		return nil, err
 	}
 	remote := &net.UDPAddr{IP: net.IP(metadata.DstIP.AsSlice()), Port: int(metadata.DstPort)}
-	p := &masquePacketConn{masqueStreamConn: stream, remote: remote, packets: make(chan dnsReply, 16), stats: d.stats}
+	p := &masquePacketConn{masqueStreamConn: stream, remote: remote, packets: make(chan dnsReply, 16), stats: d.stats, reporter: d.reporter}
 	go p.receive()
 	return p, nil
 }
@@ -368,6 +378,7 @@ type masquePacketConn struct {
 	packets                     chan dnsReply
 	readDeadline, writeDeadline packetDeadline
 	stats                       *connectionStats
+	reporter                    Reporter
 }
 
 func (p *masquePacketConn) receive() {
@@ -377,6 +388,8 @@ func (p *masquePacketConn) receive() {
 	for {
 		data, err := p.ReceiveDatagram(p.Context())
 		if err != nil {
+			reason := errorClass(err)
+			report(p.reporter, "event=connection protocol=http3 stage=connect_response result=failed reason=%s dpi_hint=%s", reason, tlsInterferenceHint(reason))
 			return
 		}
 		reader := bytes.NewReader(data)

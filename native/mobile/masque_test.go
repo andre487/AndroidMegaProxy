@@ -165,6 +165,15 @@ func TestMASQUETrustAuthenticationAndCancellation(t *testing.T) {
 	}
 	defer blackhole.Close()
 	base.Port = blackhole.LocalAddr().(*net.UDPAddr).Port
+	recorder := &diagnosticRecorder{}
+	timed := &masqueDialer{config: base, protector: &jumpTestProtector{}, reporter: recorder}
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	_, err = timed.getSession(ctx)
+	cancel()
+	_ = timed.Close()
+	if err == nil || !strings.Contains(recorder.text(), "stage=tls_handshake result=failed reason=timeout dpi_hint=possible_tls_interference") {
+		t.Fatalf("QUIC timeout was not exposed to recovery: %s", recorder.text())
+	}
 	d := &masqueDialer{config: base, protector: &jumpTestProtector{}}
 	done := make(chan error, 1)
 	go func() { _, err := d.getSession(context.Background()); done <- err }()
