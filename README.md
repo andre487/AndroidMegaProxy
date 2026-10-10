@@ -10,7 +10,7 @@
 </p>
 
 MegaProxy is an open-source Android VPN client for reliable, secure connections through proxy
-servers you control or trust. It supports HTTPS, MASQUE (HTTP/3) and SSH transports, per-app routing, encrypted DNS,
+servers you control or trust. It supports HTTPS, MASQUE α (HTTP/3) and SSH transports, per-app routing, encrypted DNS,
 connection diagnostics, and automatic failover in one privacy-focused application.
 
 MegaProxy contains no advertising, analytics SDKs, tracking, or remote telemetry. Connection
@@ -22,7 +22,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 ## Why MegaProxy
 
 - **Private by design.** No account, ads, analytics, tracking identifiers, or background telemetry.
-- **Your infrastructure.** Connect to your HTTPS or SSH servers, directly or through a jump server.
+- **Your infrastructure.** Connect to your HTTPS, MASQUE or SSH servers, directly or through a jump server.
 - **Preserves application TLS.** HTTPS proxying uses CONNECT without intercepting or
   decrypting application TLS; plain application protocols still need their own encryption.
 - **Flexible routing.** Route the whole device or only selected applications through the VPN.
@@ -37,7 +37,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 - Multiple named, colored, reorderable profiles.
 - HTTPS proxies over TLS with Basic authentication, including two-proxy HTTPS with Jump chains.
-- MASQUE over HTTP/3 with Basic authentication, TCP CONNECT and CONNECT-UDP.
+- MASQUE α over HTTP/3 with Basic authentication, multiplexed TCP CONNECT and CONNECT-UDP.
 - HTTP/2 CONNECT multiplexing when supported by the proxy, with automatic HTTP/1.1 fallback.
 - SSH `direct-tcpip` transport and SSH through a jump host.
 - SSH password and unencrypted private-key authentication.
@@ -60,7 +60,8 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 - DNS-over-HTTPS through the configured transport.
 - Cloudflare, Google, Quad9, Yandex Basic, Yandex Safe, Yandex Family, and custom DoH endpoints.
 - DNS-provider fallback where it does not weaken an explicitly selected filtering policy.
-- HTTPS ClientHello profiles powered by uTLS, plus manual JA3 configuration.
+- HTTPS ClientHello profiles powered by uTLS, MASQUE TLS/QUIC presets powered by uQUIC,
+  plus manual JA3 configuration.
 - Configurable SSH client profiles, keepalives, channel limits, and session rotation.
 - MASQUE forwards UDP; HTTPS and SSH block arbitrary UDP so QUIC clients fall back to TCP.
 
@@ -84,7 +85,7 @@ DoH resolvers directly before the tunnel exists. The explicit connection test co
 and uses fallback providers for exit IP (`ifconfig.me`, `api.ipify.org`, `icanhazip.com`) and country
 (`ifconfig.co`, `ipapi.co`, `api.country.is`) through the proxy. See [PRIVACY.md](PRIVACY.md).
 
-- HTTPS proxy certificates are checked against the Android trust store, including hostname and
+- HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and
   validity. Normal CA certificate renewal does not require certificate pinning.
 - Application TLS remains between the application and its destination. MegaProxy does not install
   a CA certificate and does not perform TLS interception.
@@ -94,7 +95,7 @@ and uses fallback providers for exit IP (`ifconfig.me`, `api.ipify.org`, `icanha
 - Every upstream socket is protected from recursive routing through the VPN.
 - SSH host keys are verified and unknown keys require explicit user confirmation.
 
-Two compatibility options deliberately reduce these protections: accepting an invalid HTTPS
+Two compatibility options deliberately reduce these protections: accepting an invalid HTTPS or MASQUE
 proxy certificate and accepting any SSH host key. MegaProxy displays a warning before enabling
 them. Use either option only when you understand and control the associated risk.
 
@@ -150,12 +151,16 @@ Neither category is retained or included in later exports. See the
 
 ### MASQUE with GOST
 
-Select **MASQUE (HTTP/3)**, enter the proxy hostname, UDP port and Basic credentials.
+Select **MASQUE α (HTTP/3)**, enter the proxy hostname, UDP port and Basic credentials.
 The proxy certificate is verified by default. For GOST 3.3.0 use:
 
 ```shell
 gost -L 'masque+http3://USER:PASSWORD@:8443?enableDatagrams=true'
 ```
+
+This short command uses GOST-generated self-signed certificates. For normal verified
+connections, configure `listener.tls.certFile` and `listener.tls.keyFile` with a valid
+certificate chain and key for the proxy hostname.
 
 GOST's `http3` listener handles MASQUE; its `h3` listener is a different transport.
 Global app routing, local-network bypass, traffic accounting, DoH/fallback providers,

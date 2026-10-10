@@ -1,6 +1,6 @@
 <p>MegaProxy is an open-source Android VPN client for reliable and secure connections through proxy servers you control or trust.</p>
 
-<p>MegaProxy uses Android's VpnService to route TCP traffic from all apps or selected apps through an encrypted connection to a user-configured HTTPS or SSH proxy.</p>
+<p>MegaProxy uses Android's VpnService to route application traffic from all apps or selected apps through an encrypted connection to a user-configured HTTPS, MASQUE (HTTP/3), or SSH proxy.</p>
 
 <p>It contains no advertising, analytics SDKs, tracking identifiers, or remote telemetry. Connection statistics and diagnostic logs remain on the device unless you explicitly choose to share them. Profiles are stored locally; connection credentials are used to authenticate to the configured servers.</p>
 
@@ -8,6 +8,7 @@
 
 <ul>
 <li>HTTPS proxies over TLS using CONNECT without intercepting application traffic</li>
+<li>Experimental MASQUE α over HTTP/3 with multiplexed TCP CONNECT and CONNECT-UDP</li>
 <li>HTTP/2 CONNECT multiplexing with automatic HTTP/1.1 fallback</li>
 <li>Two HTTPS proxies in sequence with HTTPS with Jump</li>
 <li>SSH transport and SSH through a jump host</li>
@@ -15,11 +16,11 @@
 <li>Global VPN and per-application split tunneling</li>
 <li>Android Always-on VPN integration</li>
 <li>DNS-over-HTTPS with configurable providers and fallback</li>
-<li>Configurable HTTPS and SSH client fingerprints</li>
+<li>Configurable HTTPS, MASQUE TLS/QUIC and SSH client fingerprints</li>
 <li>Multiple profiles, import, export, diagnostics, and automatic failover</li>
 <li>English and Russian interfaces</li>
 </ul>
 
-<p>MegaProxy does not provide a proxy service. You need HTTPS or SSH servers that you operate or trust; both transports support a jump server.</p>
+<p>MegaProxy does not provide a proxy service. You need HTTPS, MASQUE or SSH servers that you operate or trust. HTTPS and SSH support a jump server.</p>
 
-<p>Only TCP application traffic is forwarded. General UDP and QUIC forwarding are not supported.</p>
+<p>HTTPS and SSH forward TCP only. MASQUE α also forwards UDP, with QUIC datagram-size and server interoperability limits. Browser fingerprints approximate TLS/QUIC handshakes; they do not reproduce all browser behavior.</p>
