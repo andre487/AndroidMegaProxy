@@ -36,7 +36,7 @@ class ProfileEditorUiTest : MainUiTestBase() {
         field(R.string.jump_host).assertExists()
     }
 
-    @Test fun http3PreferencePersistsAndIsOnlyOfferedForDirectHttps() {
+    @Test fun http3PreferencePersistsAndIsOnlyOfferedForHttps() {
         val id = store.activeProfileId()
         content { ProfileEditorScreen(activity, id, {}) }
         field(R.string.prefer_http3).performClick()
@@ -50,7 +50,7 @@ class ProfileEditorUiTest : MainUiTestBase() {
         field(R.string.profile_type).performClick()
         node(ProxyType.HTTPS_JUMP.titleRes).performClick()
         saved()
-        node(R.string.prefer_http3).assertDoesNotExist()
+        field(R.string.prefer_http3).assertExists()
     }
 
     @Test fun certificateBypassRequiresExplicitConfirmation() {

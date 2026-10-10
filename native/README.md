@@ -40,3 +40,10 @@ uses the existing DoH implementation. See the root README for GOST listener setu
 fingerprint versions and UDP limitations. The pinned local uQUIC package closure
 retains uTLS 1.8.2; provenance and the two compatibility patches are recorded in
 `third_party/uquic/MEGAPROXY.md`.
+
+Optional HTTPS HTTP/3 preference also supports HTTPS Jump: nested QUIC travels
+through the first node's CONNECT-UDP association, with remote exit-host DNS.
+Both hops must support MASQUE and a usable path MTU. Otherwise the entire chain
+retains HTTPS/TCP through Jump. Credentials/certificate failures remain terminal;
+Firefox Jump falls back because its DATAGRAM limit is too small. Nested QUIC
+uses a 1280-byte path limit and adapted padding while retaining its TLS preset.

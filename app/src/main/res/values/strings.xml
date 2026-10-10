@@ -507,6 +507,6 @@
     <string name="masque_fingerprint_description">QUIC uses Chrome 146 or Firefox 116 fingerprints. In Manual JA3 mode, set QUIC JA3 in this profile; HTTPS uses the JA3 from Settings.</string>
     <string name="masque_custom_ja3">MASQUE QUIC JA3</string>
     <string name="prefer_http3">Prefer HTTP/3 α</string>
-    <string name="prefer_http3_description">Try MASQUE on the same host and UDP port, then use HTTPS if unavailable. HTTPS fallback blocks ordinary UDP; DNS still uses DoH. Unsupported QUIC fingerprints use HTTPS.</string>
+    <string name="prefer_http3_description">Try MASQUE on the same host and UDP port. With Jump, both nodes must support it; otherwise the whole chain uses HTTPS. HTTPS fallback blocks ordinary UDP; DNS still uses DoH. Unsupported QUIC fingerprints or tunnel MTU use HTTPS.</string>
     <string name="http3_fallback_warning">HTTP/3 unavailable: using HTTPS. Ordinary UDP is blocked; DNS uses DoH.</string>
 </resources>

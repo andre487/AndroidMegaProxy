@@ -3026,6 +3026,13 @@ func (c *Conn) SendDatagram(p []byte) error {
 	return c.SendDatagramWithCancel(p, nil)
 }
 
+// DatagramPayloadLimit returns the conservative DATAGRAM payload limit currently
+// used by SendDatagram. Call only after handshake completion. [MegaProxy]
+func (c *Conn) DatagramPayloadLimit() int64 {
+	f := &wire.DatagramFrame{DataLenPresent: true}
+	return int64(min(f.MaxDataLen(c.peerParams.MaxDatagramFrameSize, c.version), protocol.ByteCount(c.currentMTUEstimate.Load())))
+}
+
 // SendDatagramWithCancel is SendDatagram with cancellable queue admission.
 // Closing cancel prevents a blocked send from later entering the send queue.
 func (c *Conn) SendDatagramWithCancel(p []byte, cancel <-chan struct{}) error {
@@ -3033,17 +3040,11 @@ func (c *Conn) SendDatagramWithCancel(p []byte, cancel <-chan struct{}) error {
 		return errors.New("datagram support disabled")
 	}
 
-	f := &wire.DatagramFrame{DataLenPresent: true}
-	// The payload size estimate is conservative.
-	// Under many circumstances we could send a few more bytes.
-	maxDataLen := min(
-		f.MaxDataLen(c.peerParams.MaxDatagramFrameSize, c.version),
-		protocol.ByteCount(c.currentMTUEstimate.Load()),
-	)
+	maxDataLen := protocol.ByteCount(c.DatagramPayloadLimit())
 	if protocol.ByteCount(len(p)) > maxDataLen {
 		return &DatagramTooLargeError{MaxDatagramPayloadSize: int64(maxDataLen)}
 	}
-	f.Data = make([]byte, len(p))
+	f := &wire.DatagramFrame{DataLenPresent: true, Data: make([]byte, len(p))}
 	copy(f.Data, p)
 	return c.datagramQueue.AddWithCancel(f, cancel)
 }

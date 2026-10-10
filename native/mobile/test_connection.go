@@ -103,7 +103,7 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 		})
 		probeCancel()
 	}
-	encoded, err := json.Marshal(connectionTestResult{ExitIP: ip, CountryCode: countryCode, HTTP3: h3Results, HTTP3Fallback: c.Type == "HTTPS" && c.PreferHTTP3 && preferred == nil})
+	encoded, err := json.Marshal(connectionTestResult{ExitIP: ip, CountryCode: countryCode, HTTP3: h3Results, HTTP3Fallback: c.isHTTPS() && c.PreferHTTP3 && preferred == nil})
 	if err != nil {
 		return "", fmt.Errorf("encode connection test result: %w", err)
 	}

@@ -45,7 +45,21 @@ func TestRealProxyServers(t *testing.T) {
 		name := id + "-" + alias
 		command := []string{"run", "-d", "--name", name, "--network", id, "--network-alias", alias,
 			"--label", "net.megaproxy487.integration=true"}
-		if port != "" {
+		if port == "8443/both" {
+			tcp, err := net.Listen("tcp4", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			udp, err := net.ListenPacket("udp4", tcp.Addr().String())
+			if err != nil {
+				tcp.Close()
+				t.Fatal(err)
+			}
+			address := tcp.Addr().String()
+			tcp.Close()
+			udp.Close()
+			command = append(command, "-p", address+":8443/tcp", "-p", address+":8443/udp")
+		} else if port != "" {
 			command = append(command, "-p", "127.0.0.1::"+port)
 		}
 		if strings.HasPrefix(alias, "ssh") {
@@ -69,6 +83,9 @@ func TestRealProxyServers(t *testing.T) {
 	h1 := start("gost-h1", "8443", gostTestImage, "-L", "http+tls://exit:exit-test-password@:8443")
 	h2 := start("gost-h2", "8443", gostTestImage, "-L", "http2://jump:jump-test-password@:8443")
 	masque := start("gost-masque", "8443/udp", gostTestImage, "-L", "masque+http3://exit:exit-test-password@:8443?enableDatagrams=true")
+	fallbackHTTPS := start("gost-fallback", "8443", gostTestImage, "-L", "http+tls://exit:exit-test-password@:8443")
+	dualJump := start("gost-dual-jump", "8443/both", gostTestImage, "-L", "http2://jump:jump-test-password@:8443", "-L", "masque+http3://jump:jump-test-password@:8443?enableDatagrams=true")
+	dualExit := start("gost-dual-exit", "8443/both", gostTestImage, "-L", "http2://exit:exit-test-password@:8443", "-L", "masque+http3://exit:exit-test-password@:8443?enableDatagrams=true")
 	sshExit := start("ssh-exit", "2222", image)
 	sshJump := start("ssh-jump", "2222", image)
 
@@ -115,6 +132,7 @@ func TestRealProxyServers(t *testing.T) {
 	preferredMasque.Type, preferredMasque.PreferHTTP3 = "HTTPS", true
 	preferredHTTPS := base
 	preferredHTTPS.PreferHTTP3 = true
+	preferredHTTPS.DialHost, preferredHTTPS.Port = endpoint(fallbackHTTPS, "8443")
 	preferredH2 := h2Config
 	preferredH2.PreferHTTP3 = true
 	masqueFirefox := masqueConfig
@@ -129,6 +147,17 @@ func TestRealProxyServers(t *testing.T) {
 	httpsJump.JumpHost, httpsJump.JumpDialHost, httpsJump.JumpPort = "localhost", h2Config.DialHost, h2Config.Port
 	httpsJump.JumpUsername, httpsJump.JumpPassword = h2Config.Username, h2Config.Password
 	httpsJump.JumpAllowInvalidProxyCertificate = true
+
+	jumpBoth := httpsJump
+	jumpBoth.PreferHTTP3, jumpBoth.Host = true, "gost-dual-exit"
+	jumpBoth.JumpDialHost, jumpBoth.JumpPort = endpoint(dualJump, "8443")
+	jumpOnlyFirst := jumpBoth
+	jumpOnlyFirst.Host = "gost-h1"
+	jumpOnlyExit := jumpBoth
+	jumpOnlyExit.JumpDialHost, jumpOnlyExit.JumpPort = h2Config.DialHost, h2Config.Port
+	jumpNeither := httpsJump
+	jumpNeither.PreferHTTP3 = true
+	_ = endpoint(dualExit, "8443")
 
 	httpsJumpCustom := httpsJump
 	httpsJumpCustom.Profile, httpsJumpCustom.CustomJA3 = httpsCustom.Profile, httpsCustom.CustomJA3
@@ -167,6 +196,7 @@ func TestRealProxyServers(t *testing.T) {
 		name string
 		cfg  config
 	}{
+		{"gost_jump_h3_both", jumpBoth}, {"gost_jump_h3_first_only", jumpOnlyFirst}, {"gost_jump_h3_exit_only", jumpOnlyExit}, {"gost_jump_h3_neither", jumpNeither},
 		{"gost_prefer_http3", preferredMasque}, {"gost_prefer_https_fallback", preferredHTTPS}, {"gost_prefer_h2_fallback", preferredH2}, {"gost_masque", masqueConfig}, {"gost_masque_firefox", masqueFirefox}, {"gost_masque_custom", masqueCustom}, {"gost_https", base}, {"gost_https_custom", httpsCustom}, {"gost_https_jump_custom", httpsJumpCustom}, {"gost_http2", h2Config}, {"gost_https_jump", httpsJump},
 		{"openssh_password", sshConfig}, {"openssh_key", sshKeyConfig}, {"openssh_jump", sshJumpConfig},
 	} {
@@ -195,7 +225,10 @@ func TestRealProxyServers(t *testing.T) {
 				}
 			}
 			output := logs.text()
-			if tc.cfg.Type == "MASQUE" || tc.name == "gost_prefer_http3" {
+			if strings.HasPrefix(tc.name, "gost_jump_h3_") && (strings.Contains(output, "result=fallback") != (tc.name != "gost_jump_h3_both")) {
+				t.Fatalf("wrong chain selection: %s", output)
+			}
+			if tc.cfg.Type == "MASQUE" || tc.name == "gost_prefer_http3" || tc.name == "gost_jump_h3_both" {
 				if !strings.Contains(output, "protocol=http3") {
 					t.Fatal("missing HTTP/3 negotiation")
 				}

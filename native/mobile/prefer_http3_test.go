@@ -61,7 +61,7 @@ func TestHTTPSPreferenceFallbackAndFatalErrors(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer blackhole.Close()
-	for _, name := range []string{"unavailable", "certificate", "canceled", "protect", "fingerprint", "disabled", "jump"} {
+	for _, name := range []string{"unavailable", "certificate", "canceled", "protect", "fingerprint", "disabled"} {
 		t.Run(name, func(t *testing.T) {
 			c := base
 			ctx := context.Background()
@@ -87,8 +87,6 @@ func TestHTTPSPreferenceFallbackAndFatalErrors(t *testing.T) {
 				wantFallback = true
 			case "disabled":
 				c.PreferHTTP3 = false
-			case "jump":
-				c.Type = "HTTPS_JUMP"
 			}
 			logs := &diagnosticRecorder{}
 			d, err := preferredHTTP3(ctx, c, protector, logs, nil)

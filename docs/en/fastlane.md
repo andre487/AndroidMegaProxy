@@ -304,4 +304,4 @@ CI reads only these committed files; it never fetches a moving upstream branch.
 checksums. The JVM validator is a test dependency only. Import remains compatible with versions
 1–8; it uses the bundled shared schema to recognize fields, without rejecting permissive legacy input.
 
-The HTTPS profile preference is also tested through real TUN/JNI: HTTP/3 selection with UDP, HTTPS fallback and warning reset on disconnect.
+The HTTPS profile preference is also tested through real TUN/JNI: HTTP/3 selection with UDP, HTTPS fallback and warning reset on disconnect. HTTPS Jump additionally covers all four combinations of HTTP/3 support on the two hops: nested TCP/UDP when both support it, and whole-chain HTTPS fallback when either or both do not.

@@ -101,7 +101,7 @@ CONNECT while keeping the response direction open.
 
 ## Optional HTTP/3 for HTTPS
 
-A direct HTTPS profile can enable **Prefer HTTP/3 α** while keeping its HTTPS
+An HTTPS profile can enable **Prefer HTTP/3 α** while keeping its HTTPS
 type. The app attempts MASQUE on the same host and numeric UDP port for up to
 three seconds. The server must also provide HTTPS over TCP for fallback.
 Unsupported QUIC fingerprints or server settings and unavailable QUIC select the
@@ -111,8 +111,14 @@ show a warning: fallback blocks ordinary UDP; intercepted DNS still uses DoH.
 Certificate, authentication, socket protection and unknown failures do not
 trigger fallback. Once HTTP/3 is selected, failures remain on that transport;
 active streams are never migrated. Selection is repeated on a new VPN/test
-session. The preference is off by default and ignored for HTTPS with Jump and
-other types. Explicit MASQUE profiles still require HTTP/3 without fallback.
+session. The preference is off by default and ignored for non-HTTPS types. Explicit MASQUE profiles still require HTTP/3 without fallback.
 The selected global browser fingerprint is reused where QUIC supports it;
 unsupported Edge/custom JA3 presets select HTTPS. JSON exports preserve
 `profiles[].proxy.preferHttp3`; plain proxy URLs omit this setting.
+
+With HTTPS Jump, both hops must support MASQUE. The exit hostname is resolved
+remotely through CONNECT-UDP. If either hop is unavailable, the entire chain
+uses HTTPS/TCP through the jump. Each hop retains its credentials and certificate
+policy. The outer path MTU is checked; inner QUIC uses 1280-byte packets and
+adjusted padding/receive-MTU while preserving the TLS fingerprint. Firefox
+Jump falls back because its DATAGRAM limit is too small for nested QUIC.
