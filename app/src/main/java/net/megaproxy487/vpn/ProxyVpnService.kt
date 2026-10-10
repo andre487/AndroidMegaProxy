@@ -243,6 +243,16 @@ class ProxyVpnService : VpnService() {
                 startService(Intent(this, ProxyVpnService::class.java).setAction(ACTION_RECONNECT)
                     .putExtra(EXTRA_RECONNECT_REASON, "profile_changed_during_connect"))
             }
+        } else scheduleRecovery()
+    }
+
+    private fun scheduleRecovery() {
+        monitorHandler.post {
+            if (serviceDestroyed || tunnel != null || !ConfigStore(this).isConnectionDesired()) return@post
+            // Polling every ten seconds can miss a retry deadline by milliseconds
+            // and add another full interval. Wake at the actual recovery deadline.
+            monitorHandler.removeCallbacks(monitor)
+            monitorHandler.postDelayed(monitor, (nextStartAttemptAt - SystemClock.elapsedRealtime()).coerceAtLeast(0L))
         }
     }
 
@@ -472,6 +482,8 @@ class ProxyVpnService : VpnService() {
                 DiagnosticLog.add("event=blocking_detection result=suspected signal=${signal.name.lowercase()} consecutive=$count network=${networkKind()} profile_type=${ConfigStore(this).profile(profileId)?.config?.type?.name?.lowercase() ?: "unknown"}")
                 if (count >= 2) handleProbableBlocking(profileId, signal)
             }
+            // A failure of the previous profile must not penalize its replacement.
+            if (profileId.isNotEmpty() && ConfigStore(this).connectionProfileId() != profileId) return
             if (signal == null && requiresUserAction(detail)) {
                 val notice = if (isAlwaysOnMode)
                     this@ProxyVpnService.uiText(R.string.vpn_auth_always_on)
@@ -607,6 +619,7 @@ class ProxyVpnService : VpnService() {
         VpnRuntimeState.updateNetworkWarning(notice)
         VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, next.id)
         if (tunnel != null) stopTunnel(removeForeground = false)
+        scheduleRecovery()
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
     }
 
