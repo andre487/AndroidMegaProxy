@@ -272,6 +272,15 @@ func (s *RequestStream) SendDatagram(b []byte) error {
 	return s.str.SendDatagram(b)
 }
 
+// SendDatagramWithCancel supports cancellation while waiting for send queue space.
+// The caller must close cancel when the stream is closed.
+func (s *RequestStream) SendDatagramWithCancel(b []byte, cancel <-chan struct{}) error {
+	if err := s.Context().Err(); err != nil {
+		return err
+	}
+	return s.str.conn.sendDatagramWithCancel(s.StreamID(), b, cancel)
+}
+
 // ReceiveDatagram receives HTTP Datagrams (RFC 9297).
 //
 // It is only possible if support for HTTP Datagrams was enabled, using the EnableDatagram

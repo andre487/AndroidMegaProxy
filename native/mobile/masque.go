@@ -13,6 +13,7 @@ import (
 	"os"
 	"strconv"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	quic "github.com/refraction-networking/uquic"
@@ -21,6 +22,9 @@ import (
 	tls "github.com/refraction-networking/utls"
 	M "github.com/xjasonlyu/tun2socks/v2/metadata"
 )
+
+var errMasqueSettings = errors.New("MASQUE server missing datagram or extended CONNECT settings")
+var errMasqueCapsuleProtocol = errors.New("MASQUE response missing Capsule-Protocol")
 
 type masqueDialer struct {
 	config        config
@@ -32,22 +36,28 @@ type masqueDialer struct {
 	opening       chan struct{}
 	openingCancel context.CancelFunc
 	session       *masqueSession
+	draining      map[*masqueSession]struct{}
 	dohClient     *http.Client
 	dohInFlight   chan struct{}
 	connections   chan struct{}
 }
 
 type masqueSession struct {
-	transport *quic.UTransport
-	packet    net.PacketConn
-	conn      *quic.Conn
-	client    *http3.ClientConn
+	once                 sync.Once
+	id                   uint64
+	transport            *quic.UTransport
+	packet               net.PacketConn
+	conn                 *quic.Conn
+	client               *http3.ClientConn
+	maxDatagramFrameSize uint64
 }
 
 func (s *masqueSession) close() {
-	_ = s.conn.CloseWithError(0, "")
-	_ = s.transport.Close()
-	_ = s.packet.Close()
+	s.once.Do(func() {
+		_ = s.conn.CloseWithError(0, "")
+		_ = s.transport.Close()
+		_ = s.packet.Close()
+	})
 }
 
 func (d *masqueDialer) Close() error {
@@ -57,6 +67,8 @@ func (d *masqueDialer) Close() error {
 		d.openingCancel()
 	}
 	s, client := d.session, d.dohClient
+	draining := d.draining
+	d.draining = nil
 	d.session, d.dohClient = nil, nil
 	d.mu.Unlock()
 	if client != nil {
@@ -64,6 +76,9 @@ func (d *masqueDialer) Close() error {
 	}
 	if s != nil {
 		s.close()
+	}
+	for old := range draining {
+		old.close()
 	}
 	return nil
 }
@@ -77,7 +92,7 @@ func (d *masqueDialer) getSession(ctx context.Context) (*masqueSession, error) {
 			d.mu.Unlock()
 			return nil, net.ErrClosed
 		}
-		if s := d.session; s != nil && s.conn.Context().Err() == nil {
+		if s := d.session; s != nil && s.client.CanTakeNewRequest() {
 			d.mu.Unlock()
 			return s, nil
 		}
@@ -91,7 +106,22 @@ func (d *masqueDialer) getSession(ctx context.Context) (*masqueSession, error) {
 			}
 		}
 		if d.session != nil {
-			d.session.close()
+			old := d.session
+			if old.conn.Context().Err() == nil {
+				if d.draining == nil {
+					d.draining = make(map[*masqueSession]struct{})
+				}
+				d.draining[old] = struct{}{}
+				context.AfterFunc(old.conn.Context(), func() {
+					old.close()
+					d.mu.Lock()
+					delete(d.draining, old)
+					d.mu.Unlock()
+				})
+				report(d.reporter, "event=masque_session result=draining reason=goaway quic_session=%d", old.id)
+			} else {
+				old.close()
+			}
 			d.session = nil
 		}
 		d.opening = make(chan struct{})
@@ -102,7 +132,11 @@ func (d *masqueDialer) getSession(ctx context.Context) (*masqueSession, error) {
 		cancel()
 		if err != nil {
 			reason := errorClass(err)
-			report(d.reporter, "event=connection protocol=http3 stage=tls_handshake result=failed reason=%s dpi_hint=%s", reason, tlsInterferenceHint(reason))
+			stage := "tls_handshake"
+			if errors.Is(err, errMasqueSettings) {
+				stage = "server_settings"
+			}
+			report(d.reporter, "event=connection protocol=http3 stage=%s result=failed reason=%s dpi_hint=%s %s", stage, reason, tlsInterferenceHint(reason), quicErrorDetails(err))
 		}
 		d.mu.Lock()
 		close(d.opening)
@@ -149,7 +183,16 @@ func (d *masqueDialer) dialSession(ctx context.Context) (*masqueSession, error) 
 		return nil, fmt.Errorf("MASQUE QUIC handshake: %w", err)
 	}
 	h3 := &http3.Transport{EnableDatagrams: true, DisableCompression: true, MaxResponseHeaderBytes: 64 * 1024}
-	s := &masqueSession{transport: transport, packet: packet, conn: conn, client: h3.NewClientConn(conn)}
+	s := &masqueSession{id: nextDiagnosticConnectionID(), transport: transport, packet: packet, conn: conn, client: h3.NewClientConn(conn)}
+	for _, extension := range spec.ClientHelloSpec.Extensions {
+		if params, ok := extension.(*tls.QUICTransportParametersExtension); ok {
+			for _, param := range params.TransportParameters {
+				if maximum, ok := param.(tls.MaxDatagramFrameSize); ok {
+					s.maxDatagramFrameSize = uint64(maximum)
+				}
+			}
+		}
+	}
 	select {
 	case <-s.client.ReceivedSettings():
 	case <-ctx.Done():
@@ -162,9 +205,10 @@ func (d *masqueDialer) dialSession(ctx context.Context) (*masqueSession, error) 
 	}
 	if !s.client.Settings().EnableDatagrams || !s.client.Settings().EnableExtendedConnect {
 		s.close()
-		return nil, fmt.Errorf("MASQUE server settings: datagrams=%t extended_connect=%t", s.client.Settings().EnableDatagrams, s.client.Settings().EnableExtendedConnect)
+		return nil, fmt.Errorf("%w: datagrams=%t extended_connect=%t", errMasqueSettings, s.client.Settings().EnableDatagrams, s.client.Settings().EnableExtendedConnect)
 	}
-	report(d.reporter, "event=masque_session result=established protocol=http3 multiplexed=true fingerprint=%s certificate_verification_enabled=%t", d.config.Profile, !d.config.AllowInvalidProxyCertificate)
+	state := conn.ConnectionState()
+	report(d.reporter, "event=masque_session result=established protocol=http3 multiplexed=true fingerprint=%s certificate_verification_enabled=%t %s quic_version=%d datagrams=true extended_connect=true quic_session=%d", d.config.Profile, !d.config.AllowInvalidProxyCertificate, tlsNegotiationDetails(state.TLS.Version, state.TLS.CipherSuite, state.TLS.NegotiatedProtocol, state.TLS.DidResume), state.Version, s.id)
 	return s, nil
 }
 
@@ -227,23 +271,40 @@ func (d *masqueDialer) checkTarget(target string) error {
 }
 
 func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) (result *masqueStreamConn, err error) {
+	started := time.Now()
+	connectionID := nextDiagnosticConnectionID()
+	stage := "stream_open"
 	ctx, cancel := context.WithTimeout(ctx, 15*time.Second)
 	defer cancel()
 	s, err := d.getSession(ctx)
 	if err != nil {
 		return nil, err
 	}
+	sessionID := s.id
 	defer func() {
 		if err != nil {
 			reason := errorClass(err)
-			report(d.reporter, "event=connection protocol=http3 stage=connect_response result=failed reason=%s dpi_hint=%s", reason, tlsInterferenceHint(reason))
+			var rejected *masqueConnectError
+			if errors.As(err, &rejected) {
+				report(d.reporter, "event=connection protocol=http3 conn=%d quic_session=%d stage=connect_response result=rejected status=%d reason=%s udp=%t", connectionID, sessionID, rejected.status, reason, udp)
+			} else {
+				report(d.reporter, "event=connection protocol=http3 conn=%d quic_session=%d stage=%s result=failed reason=%s dpi_hint=%s udp=%t elapsed_ms=%d %s", connectionID, sessionID, stage, reason, tlsInterferenceHint(reason), udp, time.Since(started).Milliseconds(), quicErrorDetails(err))
+			}
 		}
 	}()
 	stream, err := s.client.OpenRequestStream(ctx)
+	if err != nil && !s.client.CanTakeNewRequest() && ctx.Err() == nil {
+		// GOAWAY can race the session lookup. Retry only before sending CONNECT.
+		s, err = d.getSession(ctx)
+		if err == nil {
+			sessionID = s.id
+			stream, err = s.client.OpenRequestStream(ctx)
+		}
+	}
 	if err != nil {
 		return nil, err
 	}
-	c := &masqueStreamConn{RequestStream: stream, local: s.conn.LocalAddr(), remote: s.conn.RemoteAddr()}
+	c := &masqueStreamConn{RequestStream: stream, connectionID: connectionID, sessionID: s.id, local: s.conn.LocalAddr(), remote: s.conn.RemoteAddr(), maxDatagramFrameSize: s.maxDatagramFrameSize}
 	stop := context.AfterFunc(ctx, func() { _ = c.Close() })
 	defer stop()
 	request := &http.Request{Method: http.MethodConnect, URL: &url.URL{Scheme: "https", Host: target}, Host: target, Header: make(http.Header)}
@@ -256,10 +317,12 @@ func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) 
 		request.Header.Set("Capsule-Protocol", "?1")
 	}
 	request.Header.Set("Proxy-Authorization", "Basic "+base64.StdEncoding.EncodeToString([]byte(d.config.Username+":"+d.config.Password)))
+	stage = "connect_write"
 	if err = stream.SendRequestHeader(request); err != nil {
 		_ = c.Close()
 		return nil, err
 	}
+	stage = "connect_response"
 	response, err := stream.ReadResponse()
 	if err != nil {
 		_ = c.Close()
@@ -267,17 +330,17 @@ func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) 
 	}
 	if response.StatusCode != http.StatusOK {
 		_ = c.Close()
-		return nil, fmt.Errorf("MASQUE CONNECT returned status %d", response.StatusCode)
+		return nil, &masqueConnectError{status: response.StatusCode}
 	}
 	if udp && response.Header.Get("Capsule-Protocol") != "?1" {
 		_ = c.Close()
-		return nil, errors.New("MASQUE response missing Capsule-Protocol")
+		return nil, errMasqueCapsuleProtocol
 	}
 	if !stop() || ctx.Err() != nil {
 		_ = c.Close()
 		return nil, ctx.Err()
 	}
-	report(d.reporter, "event=connection protocol=http3 http_version=HTTP/3 stage=tunnel result=established stream_multiplexed=true udp=%t", udp)
+	report(d.reporter, "event=connection protocol=http3 http_version=HTTP/3 stage=tunnel result=established stream_multiplexed=true udp=%t conn=%d quic_session=%d elapsed_ms=%d", udp, connectionID, s.id, time.Since(started).Milliseconds())
 	return c, nil
 }
 
@@ -295,7 +358,11 @@ func (d *masqueDialer) connectTarget(ctx context.Context, target string) (net.Co
 	if err != nil {
 		return nil, err
 	}
-	return &diagnosticConn{Conn: c, connectionID: nextDiagnosticConnectionID(), reporter: d.reporter, stats: d.stats}, nil
+	id := nextDiagnosticConnectionID()
+	if stream, ok := c.(*masqueStreamConn); ok {
+		id = stream.connectionID
+	}
+	return &diagnosticConn{Conn: c, connectionID: id, reporter: d.reporter, stats: d.stats}, nil
 }
 
 func (d *masqueDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
@@ -356,16 +423,43 @@ func (d *masqueDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 	return p, nil
 }
 
+type masqueConnectError struct{ status int }
+
+func (e *masqueConnectError) Error() string {
+	if e.status == http.StatusProxyAuthRequired {
+		return "MASQUE proxy authentication failed (status 407)"
+	}
+	return fmt.Sprintf("MASQUE CONNECT returned status %d", e.status)
+}
+
 type masqueStreamConn struct {
 	*http3.RequestStream
-	local, remote net.Addr
-	once          sync.Once
+	local, remote           net.Addr
+	connectionID, sessionID uint64
+	maxDatagramFrameSize    uint64
+	closed                  atomic.Bool
+	once                    sync.Once
 }
 
 func (c *masqueStreamConn) LocalAddr() net.Addr  { return c.local }
 func (c *masqueStreamConn) RemoteAddr() net.Addr { return c.remote }
+func (c *masqueStreamConn) Read(b []byte) (int, error) {
+	n, err := c.RequestStream.Read(b)
+	if err != nil && c.closed.Load() {
+		return n, net.ErrClosed
+	}
+	return n, err
+}
+func (c *masqueStreamConn) Write(b []byte) (int, error) {
+	n, err := c.RequestStream.Write(b)
+	if err != nil && c.closed.Load() {
+		return n, net.ErrClosed
+	}
+	return n, err
+}
 func (c *masqueStreamConn) Close() error {
 	c.once.Do(func() {
+		c.closed.Store(true)
 		c.CancelRead(quic.StreamErrorCode(http3.ErrCodeRequestCanceled))
 		c.CancelWrite(quic.StreamErrorCode(http3.ErrCodeRequestCanceled))
 	})
@@ -379,17 +473,30 @@ type masquePacketConn struct {
 	readDeadline, writeDeadline packetDeadline
 	stats                       *connectionStats
 	reporter                    Reporter
+	oversized                   sync.Once
 }
 
 func (p *masquePacketConn) receive() {
 	defer close(p.packets)
 	// Drain the reliable capsule stream as well: EOF/reset ends the UDP tunnel.
-	go func() { _, _ = io.Copy(io.Discard, p.RequestStream); _ = p.Close() }()
+	go func() {
+		_, err := io.Copy(io.Discard, p.RequestStream)
+		if !p.closed.Load() && p.Context().Err() == nil {
+			reason := errorClass(err)
+			if err == nil {
+				reason = "eof"
+			}
+			report(p.reporter, "event=masque_udp conn=%d quic_session=%d result=closed reason=%s %s", p.connectionID, p.sessionID, reason, quicErrorDetails(err))
+		}
+		_ = p.Close()
+	}()
 	for {
 		data, err := p.ReceiveDatagram(p.Context())
 		if err != nil {
-			reason := errorClass(err)
-			report(p.reporter, "event=connection protocol=http3 stage=connect_response result=failed reason=%s dpi_hint=%s", reason, tlsInterferenceHint(reason))
+			if !p.closed.Load() && p.Context().Err() == nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
+				reason := errorClass(err)
+				report(p.reporter, "event=connection protocol=http3 stage=tunnel_io result=failed operation=udp_receive reason=%s dpi_hint=%s conn=%d quic_session=%d %s", reason, tlsInterferenceHint(reason), p.connectionID, p.sessionID, quicErrorDetails(err))
+			}
 			return
 		}
 		reader := bytes.NewReader(data)
@@ -411,6 +518,9 @@ func (p *masquePacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	case <-p.Context().Done():
 		return 0, nil, net.ErrClosed
 	case <-p.readDeadline.wait():
+		if p.closed.Load() {
+			return 0, nil, net.ErrClosed
+		}
 		return 0, nil, os.ErrDeadlineExceeded
 	case packet, ok := <-p.packets:
 		if !ok {
@@ -431,12 +541,35 @@ func (p *masquePacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	case <-p.Context().Done():
 		return 0, net.ErrClosed
 	case <-p.writeDeadline.wait():
+		if p.closed.Load() {
+			return 0, net.ErrClosed
+		}
 		return 0, os.ErrDeadlineExceeded
 	default:
 	}
+	// Keep packets within our advertised receive limit too: an echo-sized
+	// response exceeding Firefox's limit makes GOST close the UDP association.
+	size := uint64(len(b)+1) + uint64(quicvarint.Len(uint64(p.StreamID()/4)))
+	if size+1+uint64(quicvarint.Len(size)) > p.maxDatagramFrameSize {
+		maximum := int64(p.maxDatagramFrameSize) - 1 - int64(quicvarint.Len(p.maxDatagramFrameSize)) - int64(quicvarint.Len(uint64(p.StreamID()/4))) - 1
+		p.reportOversized(maximum)
+		return len(b), nil
+	}
 	data := make([]byte, len(b)+1)
 	copy(data[1:], b)
-	if err := p.SendDatagram(data); err != nil {
+	if err := p.SendDatagramWithCancel(data, p.writeDeadline.wait()); err != nil {
+		if p.closed.Load() || p.Context().Err() != nil {
+			return 0, net.ErrClosed
+		}
+		if errors.Is(err, context.Canceled) {
+			return 0, os.ErrDeadlineExceeded
+		}
+		var tooLarge *quic.DatagramTooLargeError
+		if errors.As(err, &tooLarge) {
+			// UDP is lossy: dropping one unsupported packet must not stop tun2socks.
+			p.reportOversized(tooLarge.MaxDatagramPayloadSize - 1)
+			return len(b), nil
+		}
 		return 0, err
 	}
 	if p.stats != nil {
@@ -444,10 +577,17 @@ func (p *masquePacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 	}
 	return len(b), nil
 }
+func (p *masquePacketConn) reportOversized(maximum int64) {
+	p.oversized.Do(func() {
+		report(p.reporter, "event=masque_udp result=dropped reason=datagram_too_large max_payload_bytes=%d conn=%d quic_session=%d", maximum, p.connectionID, p.sessionID)
+	})
+}
+
 func (p *masquePacketConn) Close() error {
+	err := p.masqueStreamConn.Close()
 	p.readDeadline.stop()
 	p.writeDeadline.stop()
-	return p.masqueStreamConn.Close()
+	return err
 }
 func (p *masquePacketConn) SetReadDeadline(t time.Time) error  { p.readDeadline.set(t); return nil }
 func (p *masquePacketConn) SetWriteDeadline(t time.Time) error { p.writeDeadline.set(t); return nil }

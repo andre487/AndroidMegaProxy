@@ -180,7 +180,7 @@ data class GlobalConnectionSettings(
 ) {
     fun applyTo(config: ProxyConfig): ProxyConfig = config.copy(
         profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.CHROME_ANDROID else tlsProfile,
-        customJa3 = customJa3,
+        customJa3 = if (config.type == ProxyType.MASQUE) config.customJa3 else customJa3,
         sshProfile = sshProfile,
         sshAuthMode = sshAuthMode,
         sshKeepaliveSeconds = sshKeepaliveSeconds,

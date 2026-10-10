@@ -2,6 +2,7 @@ package net.megaproxy487.vpn
 
 import android.content.Context
 import android.os.Build
+import android.os.SystemClock
 import java.io.IOException
 import java.io.File
 import java.io.OutputStream
@@ -30,6 +31,7 @@ object PersistentDiagnosticLog {
     private val lock = Any()
     private val revisionCounter = AtomicLong()
     val revision: Long get() = revisionCounter.get()
+    private val limiter = DiagnosticLogLimiter()
     private val sessionId = UUID.randomUUID().toString().take(8)
     @Volatile private var directory: File? = null
     @Volatile private var limitMb = DEFAULT_LIMIT_MB
@@ -48,7 +50,7 @@ object PersistentDiagnosticLog {
     }
 
     fun write(rawMessage: String) {
-        val safeMessage = PrivacyLogSanitizer.sanitize(rawMessage)
+        val safeMessage = limiter.filter(PrivacyLogSanitizer.sanitize(rawMessage), SystemClock.elapsedRealtime()) ?: return
         val line = "${Instant.now()} session=$sessionId $safeMessage\n"
         enqueue {
             synchronized(lock) {
@@ -65,13 +67,13 @@ object PersistentDiagnosticLog {
         val logDirectory = directory ?: return
         val entry = buildString {
             append("${Instant.now()} session=$sessionId event=uncaught_exception api=${Build.VERSION.SDK_INT}")
-            append(" thread=${PrivacyLogSanitizer.sanitize(thread.name)}\n")
+            append(" thread_id=${thread.id}\n")
             var current: Throwable? = throwable
             var causeDepth = 0
             while (current != null && causeDepth < 8) {
                 val prefix = if (causeDepth == 0) "exception" else "cause_$causeDepth"
                 append("$prefix=${safeCrashClass(current.javaClass.name)}")
-                append(" message=${PrivacyLogSanitizer.sanitize(current.message.orEmpty())}\n")
+                append(" reason=${nativeFailureReason(current.message.orEmpty())}\n")
                 current.stackTrace.take(256).forEach { frame ->
                     append("at ${safeCrashClass(frame.className)}.${frame.methodName}")
                     append("(${frame.fileName ?: "unknown"}:${frame.lineNumber})\n")
@@ -188,13 +190,50 @@ object PersistentDiagnosticLog {
     }
 }
 
+/** Bound repetitive traffic/error records after delivering every event to recovery/UI. */
+internal class DiagnosticLogLimiter {
+    private data class Bucket(var start: Long, var emitted: Int = 0, var suppressed: Int = 0)
+    private val buckets = LinkedHashMap<String, Bucket>()
+    private val limitedEvents = setOf("connection", "doh", "ssh_transport", "masque_udp")
+    private val fields = Regex("(?:^| )(event|protocol|mode|hop|stage|result|reason|operation|provider_index|status)=([^ ]+)")
+
+    @Synchronized
+    fun filter(message: String, nowMillis: Long): String? {
+        // Lifecycle, host-key decisions, crashes and user actions stay unthrottled.
+        val event = fields.findAll(message).firstOrNull { it.groupValues[1] == "event" }?.groupValues?.get(2)
+        if (event !in limitedEvents) return message
+        val key = fields.findAll(message).joinToString(" ") { it.value.trim() }
+        val bucket = buckets[key] ?: Bucket(nowMillis).also {
+            if (buckets.size >= 128) buckets.remove(buckets.keys.first())
+            buckets[key] = it
+        }
+        var suppressed = 0
+        if (nowMillis - bucket.start >= 10_000) {
+            suppressed = bucket.suppressed
+            bucket.start = nowMillis
+            bucket.emitted = 0
+            bucket.suppressed = 0
+        }
+        if (bucket.emitted >= 20) {
+            if (bucket.suppressed < Int.MAX_VALUE) bucket.suppressed++
+            return null
+        }
+        bucket.emitted++
+        return if (suppressed > 0) "$message suppressed=$suppressed" else message
+    }
+}
+
 object PrivacyLogSanitizer {
     private val email = Regex("(?i)[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}")
-    private val url = Regex("(?i)https?://[^\\s]+")
+    private val url = Regex("(?i)\\b[a-z][a-z0-9+.-]*://[^\\s]+")
     private val ipv4 = Regex("(?<![A-Za-z0-9])(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d{1,5})?")
     private val bracketedIpv6 = Regex("\\[[0-9A-Fa-f:]+](?::\\d{1,5})?")
     private val hostname = Regex("(?i)(?<![A-Za-z0-9_.-])(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}(?::\\d{1,5})?")
-    private val credentials = Regex("(?i)(username|password|authorization|proxy-authorization)=\\S+")
+    private val credentials = Regex("(?i)\\b(username|password|authorization|proxy-authorization|privateKey|private_key|token|secret)\\s*[:=]\\s*(?:\"[^\"]*\"|'[^']*'|(?:Basic|Bearer)\\s+\\S+|\\S+)")
+    private val bareIpv6 = Regex("(?<![A-Za-z0-9_])(?:[0-9A-Fa-f]*:){2,}[0-9A-Fa-f:.]*(?:%[A-Za-z0-9_.-]+)?")
+    private val privateKey = Regex("-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----[\\s\\S]*?(?:-----END (?:[A-Z]+ )?PRIVATE KEY-----|\\z)")
+    private val hostKeyDecision = Regex("SSH_HOST_KEY_(?:UNKNOWN|CHANGED)\\|[^\\r\\n]*")
+    private val hostKey = Regex("SHA256:[A-Za-z0-9+/=]+")
     private val macAddress = Regex("(?i)(?<![0-9A-F])(?:[0-9A-F]{2}:){5}[0-9A-F]{2}(?![0-9A-F])")
     private val uuid = Regex("(?i)(?<![0-9A-F])[0-9A-F]{8}-[0-9A-F]{4}-[1-5][0-9A-F]{3}-[89AB][0-9A-F]{3}-[0-9A-F]{12}(?![0-9A-F])")
     private val privatePath = Regex("(?i)/(?:data|storage|sdcard|mnt)/[^\\s]+")
@@ -203,6 +242,9 @@ object PrivacyLogSanitizer {
     private val lineBreaks = Regex("[\\r\\n]+")
 
     fun sanitize(message: String): String = message.take(16_000)
+        .replace(privateKey, "[private_key]")
+        .replace(hostKeyDecision) { it.value.substringBefore('|') + " [host_key_redacted]" }
+        .replace(hostKey, "[host_key]")
         .replace(credentials) { "${it.groupValues[1]}=[redacted]" }
         .replace(email, "[email]")
         .replace(url, "[url]")
@@ -210,6 +252,7 @@ object PrivacyLogSanitizer {
         .replace(uuid, "[id]")
         .replace(privatePath, "[path]")
         .replace(bracketedIpv6, "[ip]")
+        .replace(bareIpv6) { if ("::" in it.value || it.value.count { char -> char == ':' } >= 7) "[ip]" else it.value }
         .replace(ipv4, "[ip]")
         .replace(hostname, "[host]")
         .replace(packageName, "[package]")

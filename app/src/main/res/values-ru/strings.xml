@@ -491,5 +491,6 @@
     <string name="masque_proxy_hostname">Адрес MASQUE-прокси</string>
     <string name="transport_http_3">HTTP/3</string>
     <string name="validation_quic_ja3">Для MASQUE JA3 должен содержать шифры TLS 1.3 и расширения 16, 43, 51, 57.</string>
-    <string name="masque_fingerprint_description">Для QUIC используются отпечатки Chrome 146 или Firefox 116. JA3 для TLS поверх TCP и QUIC различаются.</string>
+    <string name="masque_fingerprint_description">Для QUIC используются отпечатки Chrome 146 или Firefox 116. В режиме ручного JA3 задайте QUIC JA3 в этом профиле; HTTPS использует JA3 из настроек.</string>
+    <string name="masque_custom_ja3">QUIC JA3 для MASQUE</string>
 </resources>

@@ -89,6 +89,13 @@ func ja3ClientHelloSpec(raw, serverName string, quicParameters *tls.QUICTranspor
 		extensions = append(extensions, extension)
 	}
 	minimum, maximum := uint16(tls.VersionTLS12), spec.Version
+	// JA3 records ClientHello.legacy_version, not the supported_versions maximum.
+	for _, id := range spec.Extensions {
+		if id == 43 {
+			maximum = tls.VersionTLS13
+			break
+		}
+	}
 	if quicParameters != nil {
 		minimum, maximum = tls.VersionTLS13, tls.VersionTLS13
 	}

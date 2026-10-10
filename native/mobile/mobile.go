@@ -106,7 +106,7 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		cancel()
 		if sessionErr != nil {
 			dev.Close()
-			report(reporter, "event=ssh_session result=failed detail=%s", sessionErr)
+			report(reporter, "event=ssh_session result=failed %s", sshFailureDetails(sessionErr))
 			return sessionErr
 		}
 		t.SetProxy(sshProxy)

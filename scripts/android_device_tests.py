@@ -27,6 +27,14 @@ TESTS = (
     "VpnDeviceTest#trafficStopAndRestart",
     "VpnDeviceTest#masqueTrafficStopAndRestart",
     "VpnDeviceTest#masqueFirefoxTraffic",
+    "VpnDeviceTest#masqueRandomizedTraffic",
+    "VpnDeviceTest#masqueCustomTraffic",
+    "VpnDeviceTest#masqueChromeOversizedUdpPreservesFlow",
+    "VpnDeviceTest#masqueFirefoxOversizedUdpPreservesFlow",
+    "VpnDeviceTest#masqueWrongCredentialsRejectedAndCorrected",
+    "VpnDeviceTest#masqueUntrustedCertificateRejected",
+    "VpnDeviceTest#masqueSplitRoutingIncludesAndExcludesApplication",
+    "VpnDeviceTest#masqueCustomFailoverToHttps",
     "VpnDeviceTest#notificationActionStopsRealService",
     "VpnDeviceTest#stopDuringSshHandshakeCannotReviveVpn",
     "DocumentsDeviceTest#cancelledDocumentSelectionPreservesConfiguration",
@@ -86,7 +94,9 @@ def fixture():
     image = name + ":fixture"
     network_created = False
     image_built = False
+    blackhole = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
+        blackhole.bind(("127.0.0.1", 0))
         command("docker", "build", "-t", image, str(ROOT / "native/integration"))
         image_built = True
         command("docker", "network", "create", name)
@@ -177,6 +187,7 @@ def fixture():
             "originHost": origin_ip,
             "proxyPort": https_port,
             "masquePort": masque_port,
+            "blackholeMasquePort": str(blackhole.getsockname()[1]),
             "proxyPassword": password,
             "sshPort": ssh_port,
             "sshPassword": password,
@@ -184,6 +195,7 @@ def fixture():
             "sshFingerprint": fingerprint,
         }
     finally:
+        blackhole.close()
         # Cleanup is attempted independently so one failed removal cannot leak siblings.
         for container in reversed(containers):
             subprocess.run(

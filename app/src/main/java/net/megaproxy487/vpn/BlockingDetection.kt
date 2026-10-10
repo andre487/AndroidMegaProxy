@@ -29,3 +29,21 @@ object BlockingDetection {
         }
     }
 }
+
+/** Error strings may contain certificate identities or peer-controlled text. */
+internal fun nativeFailureReason(message: String): String {
+    val value = message.lowercase()
+    return when {
+        "ssh_host_key_unknown" in value -> "host_key_unknown"
+        "ssh_host_key_changed" in value -> "host_key_changed"
+        "certificate" in value || "x509" in value -> "certificate"
+        listOf("authentication", "authenticate", "credentials", "status 407").any(value::contains) -> "authentication"
+        "protect rejected" in value -> "vpn_protect"
+        "timeout" in value || "timed out" in value -> "timeout"
+        "reset" in value || "broken pipe" in value -> "reset"
+        "refused" in value -> "refused"
+        "unreachable" in value -> "unreachable"
+        "eof" in value -> "eof"
+        else -> "other"
+    }
+}

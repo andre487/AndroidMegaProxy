@@ -115,12 +115,17 @@ func TestRealProxyServers(t *testing.T) {
 	masqueFirefox.Profile = "FIREFOX_ANDROID"
 	masqueCustom := masqueConfig
 	masqueCustom.Profile, masqueCustom.CustomJA3 = "CUSTOM", "771,4865-4866-4867,0-10-13-16-43-51-57,29-23,0"
+	httpsCustom := base
+	httpsCustom.Profile, httpsCustom.CustomJA3 = "CUSTOM", "771,4865-4866-4867,0-10-13-16-43-51,29-23,0"
 	httpsJump := base
 	httpsJump.Type, httpsJump.Host, httpsJump.Port = "HTTPS_JUMP", "gost-h1", 8443
 	httpsJump.DialHost = "192.0.2.1" // Only the jump may reach the destination proxy.
 	httpsJump.JumpHost, httpsJump.JumpDialHost, httpsJump.JumpPort = "localhost", h2Config.DialHost, h2Config.Port
 	httpsJump.JumpUsername, httpsJump.JumpPassword = h2Config.Username, h2Config.Password
 	httpsJump.JumpAllowInvalidProxyCertificate = true
+
+	httpsJumpCustom := httpsJump
+	httpsJumpCustom.Profile, httpsJumpCustom.CustomJA3 = httpsCustom.Profile, httpsCustom.CustomJA3
 
 	fingerprint := func(container string) string {
 		t.Helper()
@@ -156,7 +161,7 @@ func TestRealProxyServers(t *testing.T) {
 		name string
 		cfg  config
 	}{
-		{"gost_masque", masqueConfig}, {"gost_masque_firefox", masqueFirefox}, {"gost_masque_custom", masqueCustom}, {"gost_https", base}, {"gost_http2", h2Config}, {"gost_https_jump", httpsJump},
+		{"gost_masque", masqueConfig}, {"gost_masque_firefox", masqueFirefox}, {"gost_masque_custom", masqueCustom}, {"gost_https", base}, {"gost_https_custom", httpsCustom}, {"gost_https_jump_custom", httpsJumpCustom}, {"gost_http2", h2Config}, {"gost_https_jump", httpsJump},
 		{"openssh_password", sshConfig}, {"openssh_key", sshKeyConfig}, {"openssh_jump", sshJumpConfig},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -222,6 +227,16 @@ func TestRealProxyServers(t *testing.T) {
 			}
 			defer udp.Close()
 			target := &net.UDPAddr{IP: net.ParseIP(originIP), Port: 8081}
+			// Drop an oversized packet before exercising the same association.
+			// Firefox also needs its advertised receive limit to protect echo replies.
+			tooLarge := 4096
+			if cfg.Profile == "FIREFOX_ANDROID" {
+				tooLarge = 1200
+			}
+			_ = udp.SetWriteDeadline(time.Now().Add(3 * time.Second))
+			if _, err := udp.WriteTo(make([]byte, tooLarge), target); err != nil {
+				t.Fatal(err)
+			}
 			sizes := []int{0, 512, 1100}
 			if cfg.Profile != "FIREFOX_ANDROID" {
 				sizes = append(sizes, 1200)

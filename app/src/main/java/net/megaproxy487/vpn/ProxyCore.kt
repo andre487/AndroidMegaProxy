@@ -107,7 +107,7 @@ class NativeProxyCore(
         Mobile.resolveProxy(host, protector(), reporter(diagnostics))
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
-        diagnostics("event=bootstrap_dns result=failed detail=$message")
+        diagnostics("event=bootstrap_dns result=failed reason=${nativeFailureReason(message)}")
         status("Proxy DNS failed: $message")
     }.getOrNull()
 
@@ -146,7 +146,7 @@ class NativeProxyCore(
         status("Test passed: exit IP ${it.exitIp}")
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
-        diagnostics("event=connection_test result=failed detail=$message")
+        diagnostics("event=connection_test result=failed reason=${nativeFailureReason(message)}")
         status("Test failed: $message")
     }.getOrNull()
 

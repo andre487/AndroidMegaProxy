@@ -15,12 +15,22 @@ import (
 	"testing"
 	"time"
 
+	quic "github.com/refraction-networking/uquic"
 	"github.com/refraction-networking/uquic/http3"
 	tls "github.com/refraction-networking/utls"
 	M "github.com/xjasonlyu/tun2socks/v2/metadata"
 )
 
-func masqueTestServer(t *testing.T) config {
+type masqueFixture struct {
+	config   config
+	server   *http3.Server
+	listener *quic.Listener
+	serving  <-chan error
+}
+
+func masqueTestServer(t *testing.T) config { return newMasqueFixture(t, nil).config }
+
+func newMasqueFixture(t *testing.T, wrap func(net.PacketConn) net.PacketConn) masqueFixture {
 	t.Helper()
 	certificateServer := httptest.NewTLSServer(nil)
 	certificate := certificateServer.TLS.Certificates[0]
@@ -28,6 +38,9 @@ func masqueTestServer(t *testing.T) config {
 	packet, err := net.ListenPacket("udp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
+	}
+	if wrap != nil {
+		packet = wrap(packet)
 	}
 	server := &http3.Server{EnableDatagrams: true, TLSConfig: &tls.Config{Certificates: []tls.Certificate{{Certificate: certificate.Certificate, PrivateKey: certificate.PrivateKey}}}}
 	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -54,9 +67,15 @@ func masqueTestServer(t *testing.T) config {
 		}
 		_, _ = io.Copy(stream, stream)
 	})
-	go func() { _ = server.Serve(packet) }()
-	t.Cleanup(func() { _ = server.Close(); _ = packet.Close() })
-	return config{Type: "MASQUE", Host: "localhost", DialHost: "127.0.0.1", Port: packet.LocalAddr().(*net.UDPAddr).Port, Username: "user", Password: "password", AllowInvalidProxyCertificate: true, Profile: "CHROME_ANDROID", DoHURL: "https://dns.google/dns-query"}
+	transport := &quic.Transport{Conn: packet}
+	listener, err := transport.Listen(http3.ConfigureTLSConfig(server.TLSConfig), &quic.Config{EnableDatagrams: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	serving := make(chan error, 1)
+	go func() { serving <- server.ServeListener(listener) }()
+	t.Cleanup(func() { _ = server.Close(); _ = listener.Close(); _ = transport.Close(); _ = packet.Close() })
+	return masqueFixture{server: server, listener: listener, serving: serving, config: config{Type: "MASQUE", Host: "localhost", DialHost: "127.0.0.1", Port: packet.LocalAddr().(*net.UDPAddr).Port, Username: "user", Password: "password", AllowInvalidProxyCertificate: true, Profile: "CHROME_ANDROID", DoHURL: "https://dns.google/dns-query"}}
 }
 
 func TestMASQUEStreamsAndDatagrams(t *testing.T) {

@@ -80,7 +80,7 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	if countryErr != nil {
 		report(reporter, "event=connection_test stage=exit_country result=unavailable")
 	} else {
-		report(reporter, "event=connection_test stage=exit_country result=success country=%s", countryCode)
+		report(reporter, "event=connection_test stage=exit_country result=success")
 	}
 	encoded, err := json.Marshal(connectionTestResult{ExitIP: ip, CountryCode: countryCode})
 	if err != nil {

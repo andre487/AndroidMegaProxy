@@ -69,6 +69,7 @@ import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProfileColorMatcher
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
@@ -324,7 +325,19 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             PasswordField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it)) } }, label = stringResource(if (config.type.isHttpProxy) R.string.password else R.string.ssh_password_optional),
                     error = fieldError(R.string.validation_basic_password), modifier = Modifier.fillMaxWidth())
           }
-          if (config.type == ProxyType.MASQUE) item { Text(stringResource(R.string.masque_fingerprint_description), style = MaterialTheme.typography.bodySmall) }
+          if (config.type == ProxyType.MASQUE) {
+            item { Text(stringResource(R.string.masque_fingerprint_description), style = MaterialTheme.typography.bodySmall) }
+            if (globalSettings.tlsProfile == TlsProfile.CUSTOM) item {
+                OutlinedTextField(
+                    config.customJa3,
+                    { value -> acceptText(value, 8 * 1024) { updateConfig(config.copy(customJa3 = it)) } },
+                    label = { FieldLabel(stringResource(R.string.masque_custom_ja3)) },
+                    isError = fieldError(R.string.validation_ja3, R.string.validation_quic_ja3) != null,
+                    supportingText = fieldError(R.string.validation_ja3, R.string.validation_quic_ja3)?.let { { Text(it) } },
+                    minLines = 2, modifier = Modifier.fillMaxWidth(),
+                )
+            }
+          }
           if (config.type.isHttpProxy) item { SettingCheckboxRow(
                 checked = config.allowInvalidProxyCertificate,
                 title = stringResource(R.string.allow_proxy_certificate),

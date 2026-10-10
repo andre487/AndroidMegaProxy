@@ -492,5 +492,6 @@
     <string name="masque_proxy_hostname">MASQUE proxy hostname</string>
     <string name="transport_http_3">HTTP/3</string>
     <string name="validation_quic_ja3">MASQUE JA3 requires TLS 1.3 cipher suites and extensions 16, 43, 51, 57.</string>
-    <string name="masque_fingerprint_description">QUIC uses Chrome 146 or Firefox 116 fingerprints. JA3 for TLS over TCP and QUIC differs.</string>
+    <string name="masque_fingerprint_description">QUIC uses Chrome 146 or Firefox 116 fingerprints. In Manual JA3 mode, set QUIC JA3 in this profile; HTTPS uses the JA3 from Settings.</string>
+    <string name="masque_custom_ja3">MASQUE QUIC JA3</string>
 </resources>

@@ -6,8 +6,10 @@ import android.net.VpnService
 import android.os.Build
 import android.os.SystemClock
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.VpnTransportProtocol
 import java.net.DatagramPacket
 import java.net.DatagramSocket
@@ -56,25 +58,159 @@ class VpnDeviceTest : DeviceTestBase() {
         await("HTTP/3 badge did not update") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.HTTP_3 }
     }
 
-    private fun useMasque(fingerprint: TlsProfile) = io {
-        store.saveProfile(store.activeProfile().let {
-            it.copy(config = it.config.copy(type = ProxyType.MASQUE, port = argument("masquePort").toInt()))
-        })
-        store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(tlsProfile = fingerprint))
+    @Test fun masqueRandomizedTraffic() = masqueFingerprintTraffic(TlsProfile.RANDOMIZED)
+
+    @Test fun masqueCustomTraffic() = masqueFingerprintTraffic(TlsProfile.CUSTOM)
+
+    private fun masqueFingerprintTraffic(fingerprint: TlsProfile) {
+        useMasque(fingerprint)
+        saved()
+        directOriginUnavailable()
+        connect()
+        roundTrip()
+        udpRoundTrip(512)
+        await("HTTP/3 badge did not update") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.HTTP_3 }
     }
 
-    private fun udpRoundTrip(size: Int) {
-        val payload = ByteArray(size) { (it % 251).toByte() }
+    @Test fun masqueChromeOversizedUdpPreservesFlow() = oversizedUdpPreservesFlow(TlsProfile.CHROME_ANDROID, 4096)
+
+    @Test fun masqueFirefoxOversizedUdpPreservesFlow() = oversizedUdpPreservesFlow(TlsProfile.FIREFOX_ANDROID, 1200)
+
+    private fun oversizedUdpPreservesFlow(fingerprint: TlsProfile, oversized: Int) {
+        useMasque(fingerprint)
+        saved()
+        connect()
         DatagramSocket().use { socket ->
             socket.soTimeout = 15_000
-            val host = InetAddress.getByName(argument("originHost"))
-            socket.send(DatagramPacket(payload, payload.size, host, 8081))
-            val reply = DatagramPacket(ByteArray(size + 1), size + 1)
-            socket.receive(reply)
-            assertEquals(host, reply.address)
-            assertEquals(8081, reply.port)
-            assertArrayEquals(payload, reply.data.copyOf(reply.length))
+            udpRoundTrip(512, socket)
+            val payload = ByteArray(oversized)
+            socket.send(DatagramPacket(payload, payload.size, InetAddress.getByName(argument("originHost")), 8081))
+            // Same socket and five-tuple: creating a fresh socket would hide a broken association.
+            repeat(3) { udpRoundTrip(512, socket) }
         }
+        roundTrip()
+        await("Oversized UDP drop missing from diagnostics") {
+            PersistentDiagnosticLog.readTail(64 * 1024).contains("reason=datagram_too_large")
+        }
+    }
+
+    @Test fun masqueWrongCredentialsRejectedAndCorrected() {
+        useMasque(TlsProfile.CHROME_ANDROID)
+        io { store.saveProfile(store.activeProfile().let { it.copy(config = it.config.copy(password = "wrong-device-password")) }) }
+        saved()
+        PersistentDiagnosticLog.clear()
+        connect() // QUIC handshake precedes CONNECT authentication.
+        assertTrue("Wrong credentials reached the private origin", runCatching { roundTrip() }.isFailure)
+        await("Authentication failure missing from diagnostics") {
+            PersistentDiagnosticLog.readTail(64 * 1024).let { it.contains("status=407") && it.contains("reason=proxy_authentication") }
+        }
+        val logs = PersistentDiagnosticLog.readTail(64 * 1024)
+        assertFalse(logs.contains("wrong-device-password"))
+        assertFalse(logs.contains(argument("proxyPassword")))
+        ProxyVpnService.stop(context)
+        stopped()
+        io { store.saveProfile(store.activeProfile().let { it.copy(config = it.config.copy(password = argument("proxyPassword"))) }) }
+        saved()
+        connect()
+        roundTrip()
+        udpRoundTrip(512)
+    }
+
+    @Test fun masqueUntrustedCertificateRejected() {
+        useMasque(TlsProfile.CHROME_ANDROID)
+        io { store.saveProfile(store.activeProfile().let { it.copy(config = it.config.copy(allowInvalidProxyCertificate = false)) }) }
+        saved()
+        PersistentDiagnosticLog.clear()
+        click(R.string.connect)
+        if (VpnService.prepare(context) != null) systemButton("android:id/button1")
+        await("Untrusted certificate was not rejected") {
+            PersistentDiagnosticLog.readTail(64 * 1024).contains("reason=certificate")
+        }
+        assertNotEquals(VpnConnectionState.CONNECTED, VpnRuntimeState.connection.value)
+        assertFalse(ProxyVpnService.isRunning)
+        ProxyVpnService.stop(context)
+        stopped()
+        directOriginUnavailable()
+        io { store.saveProfile(store.activeProfile().let { it.copy(config = it.config.copy(allowInvalidProxyCertificate = true)) }) }
+        saved()
+        connect()
+        roundTrip()
+        udpRoundTrip(512)
+    }
+
+    @Test fun masqueSplitRoutingIncludesAndExcludesApplication() {
+        useMasque(TlsProfile.CHROME_ANDROID)
+        io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(routeAllApps = false, selectedPackages = setOf(context.packageName))) }
+        saved()
+        connect()
+        roundTrip()
+        udpRoundTrip(512)
+        click(R.string.disconnect)
+        stopped()
+        assertNotNull(context.packageManager.getApplicationInfo("com.android.settings", 0))
+        io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(selectedPackages = setOf("com.android.settings"))) }
+        saved()
+        connect()
+        // This process is now excluded by the real Android VPN builder.
+        directOriginUnavailable()
+        DatagramSocket().use { socket ->
+            socket.soTimeout = 1_000
+            val host = InetAddress.getByName(argument("originHost"))
+            socket.send(DatagramPacket(byteArrayOf(1), 1, host, 8081))
+            assertThrows(java.net.SocketTimeoutException::class.java) { socket.receive(DatagramPacket(ByteArray(16), 16)) }
+        }
+    }
+
+    @Test fun masqueCustomFailoverToHttps() {
+        useMasque(TlsProfile.CUSTOM)
+        var fallbackId = ""
+        io {
+            val primary = store.activeProfile()
+            store.saveProfile(primary.copy(config = primary.config.copy(port = argument("blackholeMasquePort").toInt())))
+            val fallback = store.addProfile()
+            fallbackId = fallback.id
+            store.saveProfile(fallback.copy(name = "HTTPS fallback", config = primary.config.copy(
+                type = ProxyType.HTTPS, port = argument("proxyPort").toInt(), customJa3 = "")))
+            store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
+                failoverMode = FailoverMode.SELECTED, failoverProfileIds = listOf(fallback.id)))
+        }
+        saved()
+        directOriginUnavailable()
+        click(R.string.connect)
+        if (VpnService.prepare(context) != null) systemButton("android:id/button1")
+        await("Real MASQUE timeout did not fail over to custom HTTPS", timeout = 90_000) {
+            store.connectionProfileId() == fallbackId && ProxyVpnService.isRunning &&
+                VpnRuntimeState.connection.value == VpnConnectionState.CONNECTED
+        }
+        saved()
+        assertNotEquals(fallbackId, store.activeProfileId())
+        roundTrip()
+        assertNotEquals(VpnTransportProtocol.HTTP_3, VpnRuntimeState.transportProtocol.value)
+    }
+
+    private fun useMasque(fingerprint: TlsProfile) = io {
+        store.saveProfile(store.activeProfile().let {
+            it.copy(config = it.config.copy(type = ProxyType.MASQUE, port = argument("masquePort").toInt(),
+                customJa3 = if (fingerprint == TlsProfile.CUSTOM) "771,4865-4866-4867,0-10-13-16-43-51-57,29-23,0" else ""))
+        })
+        store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(tlsProfile = fingerprint,
+            customJa3 = if (fingerprint == TlsProfile.CUSTOM) "771,4865-4866-4867,0-10-13-16-43-51,29-23,0" else ""))
+    }
+
+    private fun udpRoundTrip(size: Int) = DatagramSocket().use { socket ->
+        socket.soTimeout = 15_000
+        udpRoundTrip(size, socket)
+    }
+
+    private fun udpRoundTrip(size: Int, socket: DatagramSocket) {
+        val payload = ByteArray(size) { (it % 251).toByte() }
+        val host = InetAddress.getByName(argument("originHost"))
+        socket.send(DatagramPacket(payload, payload.size, host, 8081))
+        val reply = DatagramPacket(ByteArray(size + 1), size + 1)
+        socket.receive(reply)
+        assertEquals(host, reply.address)
+        assertEquals(8081, reply.port)
+        assertArrayEquals(payload, reply.data.copyOf(reply.length))
     }
 
     @Test fun deniedVpnConsentDoesNotStartTunnel() {

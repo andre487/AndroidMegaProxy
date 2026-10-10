@@ -8,6 +8,7 @@ import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.model.GlobalConnectionSettings
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.model.TlsProfile
 import org.json.JSONArray
 import org.json.JSONObject
 import org.junit.After
@@ -85,6 +86,23 @@ class ConfigStoreIntegrationTest {
                 assertEquals(keys && type.hasJump, text.contains("jump-private-key"))
             }
         }
+    }
+
+    @Test fun mixedCustomFingerprintsSurvivePersistenceAndSchemaValidatedExport() {
+        val tls = "771,4865,0-10-13-16-43-51,29,0"
+        val quic = "771,4865,0-10-13-16-43-51-57,29,0"
+        val original = store.activeProfile()
+        val masque = original.copy(config = original.config.copy(type = ProxyType.MASQUE, host = "proxy.example", customJa3 = quic))
+        store.saveProfile(masque)
+        store.saveGlobalConnectionSettings(GlobalConnectionSettings(tlsProfile = TlsProfile.CUSTOM, customJa3 = tls))
+        assertEquals(quic, store.profile(masque.id)!!.config.customJa3)
+        val exported = ConfigTransfer.exportJson(store, false)
+        ConfigSchemas.assertValid(exported)
+        val imported = ConfigTransfer.importJson(exported)
+        assertEquals(ConfigImportNotice(), imported.notice)
+        val global = imported.globalConnectionSettings!!
+        assertEquals(tls, global.customJa3)
+        assertEquals(quic, global.applyTo(imported.profiles.single().config).customJa3)
     }
 
     @Test fun importWithoutSecretsPreservesAllExistingCredentials() {
