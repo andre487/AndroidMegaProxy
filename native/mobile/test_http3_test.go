@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/x509"
 	"errors"
+	"fmt"
 	"net"
 	"net/http"
 	"strings"
@@ -32,6 +33,14 @@ func TestHTTP3ProvidersRemainIndependent(t *testing.T) {
 }
 
 func TestInnerHTTP3ThroughMASQUEDatagrams(t *testing.T) {
+	for _, jump := range []bool{false, true} {
+		for _, size := range []uint16{1200, 1280, 1350} {
+			t.Run(fmt.Sprintf("jump=%t/origin_packet=%d", jump, size), func(t *testing.T) { testInnerHTTP3(t, jump, size) })
+		}
+	}
+}
+
+func testInnerHTTP3(t *testing.T, jump bool, originPacketSize uint16) {
 	var requests atomic.Int32
 	origin := newMasqueFixture(t, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.ProtoMajor != 3 {
@@ -40,13 +49,13 @@ func TestInnerHTTP3ThroughMASQUEDatagrams(t *testing.T) {
 		requests.Add(1)
 		_, _ = w.Write([]byte("http=h3\n"))
 	}))
-	// Keep inner packets within the outer fixture's initial datagram budget.
+	// Exercise genuine site QUIC flights, including packets larger than 1200.
 	originPacket, err := net.ListenPacket("udp4", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
 	}
 	originTransport := &quic.Transport{Conn: originPacket}
-	originListener, err := originTransport.Listen(http3.ConfigureTLSConfig(origin.server.TLSConfig), &quic.Config{InitialPacketSize: 1200, DisablePathMTUDiscovery: true})
+	originListener, err := originTransport.Listen(http3.ConfigureTLSConfig(origin.server.TLSConfig), &quic.Config{InitialPacketSize: originPacketSize, DisablePathMTUDiscovery: true})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,6 +113,18 @@ func TestInnerHTTP3ThroughMASQUEDatagrams(t *testing.T) {
 		}
 	}))
 	d := &masqueDialer{config: proxy.config, protector: &jumpTestProtector{}}
+	if jump {
+		var err error
+		d, err = preferredHTTP3(context.Background(), http3JumpFixture(t, proxy.config), &jumpTestProtector{}, nil, nil)
+		if err != nil || d == nil {
+			t.Fatalf("nested selection: %v", err)
+		}
+	} else {
+		d.probePeerMTU = true
+		if _, err := d.getSession(context.Background()); err != nil {
+			t.Fatal(err)
+		}
+	}
 	defer d.Close()
 	endpoint := testEndpoint{host: "example.com", path: "/"}
 	for _, trusted := range []bool{true, false} {

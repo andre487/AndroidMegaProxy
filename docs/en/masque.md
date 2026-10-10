@@ -119,6 +119,14 @@ unsupported Edge/custom JA3 presets select HTTPS. JSON exports preserve
 With HTTPS Jump, both hops must support MASQUE. The exit hostname is resolved
 remotely through CONNECT-UDP. If either hop is unavailable, the entire chain
 uses HTTPS/TCP through the jump. Each hop retains its credentials and certificate
-policy. The outer path MTU is checked; inner QUIC uses 1280-byte packets and
-adjusted padding/receive-MTU while preserving the TLS fingerprint. Firefox
-Jump falls back because its DATAGRAM limit is too small for nested QUIC.
+policy. Inner QUIC derives its packet limit from the verified outer send/receive
+budgets, subtracting QUIC and CONNECT-UDP framing. The exit path is warmed before
+selection so initial UDP replies fit too. Padding and receive-MTU parameters are
+adjusted while preserving the TLS fingerprint. Firefox Jump falls back because
+its DATAGRAM limit is too small for nested QUIC.
+
+CONNECT-UDP responses 404/405/501 and a missing Capsule-Protocol header select
+HTTPS; authentication, access-denied and unexpected server errors stay terminal.
+Terminal selection diagnostics identify the hop and stage without peer text or
+private addresses. Regression tests cover HTTP/3 site flights and UDP payloads of
+1280/1350 bytes, asymmetric MTU, loss, GOAWAY and cancellation of the exit handshake.

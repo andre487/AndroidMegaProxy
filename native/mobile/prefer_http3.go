@@ -3,6 +3,7 @@ package mobile
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -58,7 +59,7 @@ func preferredHTTP3(ctx context.Context, c config, protector Protector, reporter
 		}
 		jumpConfig.AllowInvalidProxyCertificate = c.JumpAllowInvalidProxyCertificate
 		jumpConfig.BypassLocalNetworks = false
-		d.jump = &masqueDialer{config: jumpConfig, protector: protector, reporter: d.reporter, probePeerMTU: true}
+		d.jump = &masqueDialer{hop: "jump", config: jumpConfig, protector: protector, reporter: d.reporter, probePeerMTU: true}
 		s, err := d.jump.getSession(probe)
 		if err != nil {
 			_ = d.Close()
@@ -102,13 +103,26 @@ func preferredHTTP3Failure(err error, reporter Reporter, fallback func(string) (
 	if errors.As(err, &transportError) && transportError.ErrorCode == 0x178 { // TLS no_application_protocol
 		reason = "unsupported_protocol"
 	}
+	var rejected *masqueConnectError
+	if errors.As(err, &rejected) && rejected.udp && (rejected.status == 404 || rejected.status == 405 || rejected.status == 501) {
+		reason = "unsupported_protocol"
+	}
 	switch reason {
-	case "timeout", "refused", "unreachable", "reset", "eof", "unsupported_server_settings", "unsupported_protocol":
+	case "timeout", "refused", "unreachable", "reset", "eof", "unsupported_server_settings", "unsupported_protocol", "missing_capsule_protocol":
 		return fallback(reason)
 	default:
 		// Certificate, authentication, socket protection and unknown failures
 		// remain visible. Never reinterpret them as optional H3 availability.
-		report(reporter, "event=transport_selection preferred=http3 result=failed reason=%s", reason)
+		hop, stage := "proxy", "tls_handshake"
+		var hopError *masqueHopError
+		if errors.As(err, &hopError) {
+			hop, stage = hopError.hop, hopError.stage
+		}
+		details := quicErrorDetails(err)
+		if rejected != nil {
+			details = fmt.Sprintf("status=%d %s", rejected.status, details)
+		}
+		report(reporter, "event=transport_selection preferred=http3 result=failed reason=%s hop=%s stage=%s %s", reason, hop, stage, details)
 		return nil, err
 	}
 }

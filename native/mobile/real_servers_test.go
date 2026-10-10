@@ -256,9 +256,16 @@ func TestRealProxyServers(t *testing.T) {
 	}
 
 	originIP := strings.TrimSpace(dockerTest(t, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", id+"-origin"))
-	for _, cfg := range []config{masqueConfig, masqueFirefox, masqueCustom} {
-		t.Run("gost_udp_"+cfg.Profile, func(t *testing.T) {
+	for _, cfg := range []config{masqueConfig, masqueFirefox, masqueCustom, jumpBoth} {
+		t.Run("gost_udp_"+cfg.Profile+"_"+cfg.Type, func(t *testing.T) {
 			d := &masqueDialer{config: cfg, protector: &jumpTestProtector{}}
+			if cfg.PreferHTTP3 {
+				var err error
+				d, err = preferredHTTP3(context.Background(), cfg, &jumpTestProtector{}, nil, nil)
+				if err != nil || d == nil {
+					t.Fatalf("nested UDP selection: %v", err)
+				}
+			}
 			defer d.Close()
 			udp, err := d.DialUDP(&M.Metadata{DstIP: netip.MustParseAddr(originIP), DstPort: 8081})
 			if err != nil {
@@ -279,6 +286,9 @@ func TestRealProxyServers(t *testing.T) {
 			sizes := []int{0, 512, 1100}
 			if cfg.Profile != "FIREFOX_ANDROID" {
 				sizes = append(sizes, 1200)
+				if cfg.Type == "HTTPS_JUMP" {
+					sizes = append(sizes, 1280, 1350)
+				}
 			}
 			for _, size := range sizes {
 				_ = udp.SetDeadline(time.Now().Add(3 * time.Second))

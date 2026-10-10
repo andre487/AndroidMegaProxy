@@ -113,7 +113,7 @@ class VpnDeviceTest : DeviceTestBase() {
         connect()
         roundTrip()
         if (firstH3 && exitH3) {
-            udpRoundTrip(1200)
+            listOf(1200, 1280, 1350).forEach(::udpRoundTrip)
             await("Jump did not select HTTP/3") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.HTTP_3 }
             assertFalse(VpnRuntimeState.http3Fallback.value)
         } else {
