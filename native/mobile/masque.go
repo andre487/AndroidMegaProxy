@@ -289,6 +289,9 @@ func (d *masqueDialer) dialSession(ctx context.Context) (session *masqueSession,
 		s.close()
 		return nil, fmt.Errorf("%w: nested datagram budget too small", errMasqueSettings)
 	}
+	if peerMTU != nil {
+		report(d.reporter, "event=masque_mtu hop=%s datagram_payload_limit=%d largest_peer_packet=%d tunnel_packet_mtu=%d quic_session=%d", d.logHop(), conn.DatagramPayloadLimit(), peerMTU.largest.Load(), packetMTU, s.id)
+	}
 	if d.stats != nil {
 		s.metrics = d.stats.trackQUIC(conn)
 	}

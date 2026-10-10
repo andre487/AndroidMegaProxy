@@ -121,7 +121,10 @@ remotely through CONNECT-UDP. If either hop is unavailable, the entire chain
 uses HTTPS/TCP through the jump. Each hop retains its credentials and certificate
 policy. Inner QUIC derives its packet limit from the verified outer send/receive
 budgets, subtracting QUIC and CONNECT-UDP framing. The exit path is warmed before
-selection so initial UDP replies fit too. Padding and receive-MTU parameters are
+selection so initial UDP replies fit too, including the peer's PMTU convergence
+reserve and conservative DATAGRAM budget. A further OPTIONS round trip confirms
+probe ACK delivery. One per-session MTU diagnostic records only numeric limits.
+Padding and receive-MTU parameters are
 adjusted while preserving the TLS fingerprint. Firefox Jump falls back because
 its DATAGRAM limit is too small for nested QUIC.
 

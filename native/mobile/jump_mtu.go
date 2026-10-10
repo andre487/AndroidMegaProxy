@@ -10,9 +10,14 @@ import (
 	"time"
 )
 
-// Admit common browser UDP flights (1350 bytes), the two one-byte HTTP/3 /
-// CONNECT-UDP IDs, and uQUIC's conservative short-header send reserve.
-const minimumNestedPacketSize = 1350 + 2 + (1 + 20 + 16)
+// Admit browser UDP flights, HTTP/3 / CONNECT-UDP IDs, a browser CID /
+// short header, and the peer's 20-byte PMTU convergence interval.
+const minimumBrowserDatagramSize = 1350 + 2
+const minimumNestedPacketSize = minimumBrowserDatagramSize + (1 + 8 + 4 + 16 + 3) + 20
+
+// GOST's quic-go v0.60.0 conservatively subtracts a 20-byte CID and AEAD tag
+// from its discovered packet size for DATAGRAM admission.
+const minimumNestedReplyPacketSize = minimumBrowserDatagramSize + (1 + 20 + 16)
 
 // Observe both directions before choosing the nested QUIC packet size.
 // SETTINGS alone do not establish a usable UDP path through the jump.
@@ -47,19 +52,18 @@ func (p *jumpMTUPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 func waitForMasqueMTU(ctx context.Context, s *masqueSession, host string, packetMTU int) error {
 	ticker := time.NewTicker(100 * time.Millisecond)
 	defer ticker.Stop()
+	wasReady := false
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
 		default:
 		}
-		// uQUIC's path discovery stops within 20 bytes of the peer's ceiling.
-		ready := packetMTU > 0 && int(s.peerMTU.largest.Load()) >= packetMTU-20
+		// Require a round trip so the peer processes probe ACKs before opening
+		// application traffic. Receiving a padded packet alone is insufficient.
+		ready := packetMTU > 0 && int(s.peerMTU.largest.Load()) >= max(packetMTU-20, minimumNestedReplyPacketSize)
 		if packetMTU == 0 {
 			ready = nestedPacketMTU(s, 1) >= minimumNestedPacketSize
-		}
-		if ready {
-			return nil
 		}
 		// A bounded, target-free request keeps the connection active while QUIC
 		// discovers the path MTU. GOST rejects OPTIONS without opening a target.
@@ -72,6 +76,10 @@ func waitForMasqueMTU(ctx context.Context, s *masqueSession, host string, packet
 			return err
 		}
 		response.Body.Close()
+		if ready && wasReady {
+			return nil
+		}
+		wasReady = ready
 		select {
 		case <-ctx.Done():
 			return ctx.Err()

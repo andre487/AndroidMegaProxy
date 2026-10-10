@@ -292,7 +292,7 @@ func TestMASQUEDatagramBudgetAfterMTUDiscovery(t *testing.T) {
 	for _, cidLength := range []int{4, 20} {
 		t.Run(fmt.Sprint(cidLength), func(t *testing.T) {
 			fixture := newMasqueFixtureWithCID(t, nil, true, cidLength)
-			d := &masqueDialer{config: fixture.config, protector: &jumpTestProtector{}, probePeerMTU: true}
+			d := &masqueDialer{config: fixture.config, protector: &jumpTestProtector{}}
 			defer d.Close()
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			defer cancel()
@@ -301,6 +301,22 @@ func TestMASQUEDatagramBudgetAfterMTUDiscovery(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer stream.Close()
+			// Warm this direct path independently of the larger nested-path
+			// browser budget (20-byte peer CIDs can still carry direct UDP).
+			minimum := int64(1452 - 20 - (1 + max(8, cidLength) + 4 + 16 + 3))
+			for stream.session.conn.DatagramPayloadLimit() < minimum {
+				request, _ := http.NewRequestWithContext(ctx, http.MethodOptions, "https://localhost/", nil)
+				response, err := stream.session.client.RoundTrip(request)
+				if err != nil {
+					t.Fatal(err)
+				}
+				response.Body.Close()
+				select {
+				case <-ctx.Done():
+					t.Fatal(ctx.Err())
+				case <-time.After(100 * time.Millisecond):
+				}
+			}
 			// First request has a one-byte quarter-stream ID and context ID.
 			limit := int(stream.session.conn.DatagramPayloadLimit())
 			if limit < 1352 || limit > 1452-(1+cidLength+4+16+3) {
