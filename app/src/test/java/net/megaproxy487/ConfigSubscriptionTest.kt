@@ -38,6 +38,8 @@ class ConfigSubscriptionTest {
         assertNull(old.copy(url = "https://other.example.com/", password = null).retainPassword(old).password)
         assertNull(old.copy(username = "two", password = null).retainPassword(old).password)
         assertEquals("", old.copy(password = "").retainPassword(old).password)
+        val passwordOnly = old.copy(username = "")
+        assertEquals("secret", passwordOnly.copy(username = null, password = null).retainPassword(passwordOnly).password)
     }
 
     private class Connection(private val body: ByteArray, private val status: Int = 200, private val encoding: String? = null) :

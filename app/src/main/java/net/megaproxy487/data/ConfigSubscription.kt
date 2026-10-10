@@ -33,7 +33,7 @@ data class ConfigSubscription(
 
     fun retainPassword(previous: ConfigSubscription?): ConfigSubscription =
         if (password == null && previous != null &&
-            normalizeSubscriptionUrl(url) == normalizeSubscriptionUrl(previous.url) && username == previous.username
+            normalizeSubscriptionUrl(url) == normalizeSubscriptionUrl(previous.url) && username.orEmpty() == previous.username.orEmpty()
         ) copy(password = previous.password) else this
 
     companion object {
@@ -105,7 +105,7 @@ data class ConfigSubscriptionState(
 }
 
 internal fun sameSubscriptionSource(a: ConfigSubscription, b: ConfigSubscription): Boolean =
-    normalizeSubscriptionUrl(a.url) == normalizeSubscriptionUrl(b.url) && a.username == b.username
+    normalizeSubscriptionUrl(a.url) == normalizeSubscriptionUrl(b.url) && a.username.orEmpty() == b.username.orEmpty()
 
 internal fun retainProfileSecrets(
     source: net.megaproxy487.model.ProxyProfile,

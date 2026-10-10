@@ -141,7 +141,8 @@ object ConfigTransfer {
             notice = ConfigImportNotices.inspect(root),
             subscriptionPresent = acceptSubscription && root.has("subscription"),
             subscription = if (!acceptSubscription || !root.has("subscription") || root.isNull("subscription")) null
-                else ConfigSubscription.fromJson(root.getJSONObject("subscription")),
+                else operationResult { ConfigSubscription.fromJson(root.getJSONObject("subscription")) }
+                    .getOrElse { throw UiException(R.string.subscription_invalid) },
             profiles = profiles,
             activeProfileId = root.optString("activeProfileId").ifBlank { null },
             alwaysOnProfileId = root.optString("alwaysOnProfileId").ifBlank { null },
