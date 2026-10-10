@@ -1,0 +1,5 @@
+- Added HTTPS configuration subscriptions with source failover.
+- Added SOCKS5 profiles with optional authentication and UDP relay.
+- HTTPS and Jump now prefer HTTP/3, with fallback to HTTPS.
+- Added MASQUE (alpha), browser QUIC presets, RTT and packet-loss diagnostics.
+- Fixed subscription refresh, VPN change notifications, configuration data loss and QUIC recovery after packet loss.
