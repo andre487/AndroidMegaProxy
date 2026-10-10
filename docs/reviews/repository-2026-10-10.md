@@ -37,6 +37,7 @@ proxy server configuration, release version or signing material were changed by 
 | Authenticated release-note requests followed redirects | The release automation's HTTP client could forward authentication to an unexpected redirected destination. | Reject redirects using the standard urllib handler; test 301/302/303/307/308 with synthetic credentials. No additional HTTP dependency. |
 | Launch/JDK helpers bypassed supported tooling | The launch script used an unpinned gomobile invocation; the language-server helper assumed a Homebrew architecture-specific JDK path. | Launch builds use Bundler/Fastlane; JDK lookup reuses the existing discovery helper. Shell syntax and normal Android build checks pass. |
 | Current documentation and store assets lagged main | MASQUE still appeared unmerged, DNS wording overstated interception, the vendor patch inventory was incomplete, and Russian screenshots showed English screens. | Synchronize current EN/RU guidance, clarify UDP/53 versus application-managed TCP/encrypted DNS, refresh the privacy policy and listing text, document passive QUIC statistics, and replace ten screenshots with actual EN/RU API 35 captures using fictitious profiles. |
+| Device UDP probes assumed reliable single-datagram delivery | The first CI run passed API 26, but API 35 timed out on the first 512-byte probe, before sending the oversized packet. The tunnel remained connected; the evidence does not identify the packet-loss location. | Acknowledge uniquely tagged idempotent echo probes within the original 15-second deadline, ignoring late duplicates. Isolate oversized-flow fixtures from unrelated applications and require exactly one established UDP association, so replacing a broken flow cannot hide behind probe retransmission. Test failures still fail CI and are never rerun automatically. |
 
 ## Verification
 
@@ -58,6 +59,12 @@ against Docker Hub. This is **BLOCKED locally**, not a passing integration resul
 the PR's native CI job runs the real-server suite on Linux. The PR must also pass both
 independent API 26/API 35 integration jobs before merge. Consult the PR's actual checks
 for their results rather than inferring device coverage from local JVM/native counts.
+
+The [initial CI run](https://github.com/andre487/AndroidMegaProxy/actions/runs/38064716734)
+passed 112 native tests, 30 real GOST/OpenSSH scenarios, 213 JVM tests and 58 Python tests.
+API 26 passed 18 scenarios; API 35 passed 18 of 19 and failed the initial UDP probe above.
+That failure remains recorded. The revised probe/association contract requires a new
+CI run on the changed test code; it does not turn the original failure into a pass.
 
 ## Remaining boundaries
 

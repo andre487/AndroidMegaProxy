@@ -86,7 +86,11 @@ class VpnDeviceTest : DeviceTestBase() {
 
     private fun oversizedUdpPreservesFlow(fingerprint: TlsProfile, oversized: Int) {
         useMasque(fingerprint)
+        // Background Google traffic must not contend with this controlled UDP fixture.
+        io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
+            routeAllApps = false, selectedPackages = setOf(context.packageName))) }
         saved()
+        PersistentDiagnosticLog.clear()
         connect()
         DatagramSocket().use { socket ->
             socket.soTimeout = 15_000
@@ -100,6 +104,10 @@ class VpnDeviceTest : DeviceTestBase() {
         await("Oversized UDP drop missing from diagnostics") {
             PersistentDiagnosticLog.readTail(64 * 1024).contains("reason=datagram_too_large")
         }
+        val associations = PersistentDiagnosticLog.readTail(64 * 1024).lineSequence().count {
+            "stage=tunnel result=established" in it && "udp=true" in it
+        }
+        assertEquals("Oversized UDP must preserve the original association, not silently reopen it", 1, associations)
     }
 
     @Test fun masqueWrongCredentialsRejectedAndCorrected() {
@@ -212,13 +220,38 @@ class VpnDeviceTest : DeviceTestBase() {
 
     private fun udpRoundTrip(size: Int, socket: DatagramSocket) {
         val payload = ByteArray(size) { (it % 251).toByte() }
+        java.nio.ByteBuffer.wrap(payload).putLong(System.nanoTime())
         val host = InetAddress.getByName(argument("originHost"))
-        socket.send(DatagramPacket(payload, payload.size, host, 8081))
-        val reply = DatagramPacket(ByteArray(size + 1), size + 1)
-        socket.receive(reply)
-        assertEquals(host, reply.address)
-        assertEquals(8081, reply.port)
-        assertArrayEquals(payload, reply.data.copyOf(reply.length))
+        val request = DatagramPacket(payload, payload.size, host, 8081)
+        val timeout = socket.soTimeout
+        val deadline = SystemClock.elapsedRealtime() + timeout
+        try {
+            socket.send(request)
+            // UDP/QUIC DATAGRAM has no delivery guarantee. Acknowledge a unique
+            // idempotent probe within the original deadline; never rerun the test.
+            while (true) {
+                socket.soTimeout = minOf(1_000, (deadline - SystemClock.elapsedRealtime()).coerceAtLeast(1).toInt())
+                val reply = DatagramPacket(ByteArray(size + 1), size + 1)
+                try {
+                    socket.receive(reply)
+                } catch (error: java.net.SocketTimeoutException) {
+                    if (SystemClock.elapsedRealtime() >= deadline) throw error
+                    socket.send(request)
+                    continue
+                }
+                // Late duplicate replies belong to earlier probes on this socket.
+                if (!reply.data.copyOfRange(0, 8).contentEquals(payload.copyOfRange(0, 8))) {
+                    check(SystemClock.elapsedRealtime() < deadline) { "UDP probe was not acknowledged" }
+                    continue
+                }
+                assertEquals(host, reply.address)
+                assertEquals(8081, reply.port)
+                assertArrayEquals(payload, reply.data.copyOf(reply.length))
+                return
+            }
+        } finally {
+            socket.soTimeout = timeout
+        }
     }
 
     @Test fun deniedVpnConsentDoesNotStartTunnel() {
