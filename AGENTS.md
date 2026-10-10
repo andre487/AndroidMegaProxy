@@ -129,6 +129,13 @@ branch names, credentials, signing material, or other secrets.
 
 - MASQUE uses protected HTTP/3 QUIC sockets with Basic Auth; DNS remains DoH. GOST uses the `http3` listener, not `h3`. Pinned uQUIC sources and compatibility patches live in `native/third_party/uquic`; keep packet-size and GOST IPv6 UDP limitations documented.
 
+- Configuration subscriptions use the MegaProxyConfig HTTPS delivery contract and client ID
+  `android`. Encrypt URLs/credentials and persist ownership/status locally. Scheduled jobs and
+  manual refresh share validation, source failover and an atomic snapshot commit. Downloaded
+  subscription definitions cannot alter local recipients; generation checks discard obsolete
+  downloads. Keep local profiles/selections and current tunnels; effective live changes mark
+  pending reconnect rather than starting/stopping VPN automatically.
+
 ## Architecture landmarks
 
 - SOCKS5 uses plain TCP CONNECT and UDP ASSOCIATE, with optional RFC 1929 credentials

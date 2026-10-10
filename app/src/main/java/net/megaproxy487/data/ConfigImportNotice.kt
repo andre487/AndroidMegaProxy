@@ -40,7 +40,7 @@ internal object ConfigImportNotices {
         }
         walk(root, schema)
         val profiles = root.optJSONArray("profiles")
-        val browser = root.has("browser") || root.has("subscription") || profiles?.let { array ->
+        val browser = root.has("browser") || profiles?.let { array ->
             (0 until array.length()).any { array.optJSONObject(it)?.has("browser") == true }
         } == true
         return ConfigImportNotice(browserFields = browser, unknownFields = unknown)

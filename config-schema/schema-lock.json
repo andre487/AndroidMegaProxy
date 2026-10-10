@@ -1,8 +1,8 @@
 {
   "repository": "https://github.com/andre487/MegaProxyConfig",
-  "commit": "a82a71bf81c38ca80f223080809fd74af5ad633a",
+  "commit": "48208464c959e319c940562a7de312d68002c0fa",
   "files": {
-    "android-v8.schema.json": "6fae5a54fa27fd5cc5da8001284a505d5231cacb9e4307a2ac8106c5191c90b6",
+    "android-v8.schema.json": "7bd831f92352a74554c6d29befaeea0c6c35a3ba73db86ffe30f3cffa49da2a0",
     "megaproxy-v8.schema.json": "7591c7f910452a99dda6a5eaf9622bca41298ed290f80dd90790eae35d545b60",
     "android-v8.json": "120c79fd7b00442f248ed5d317b595b4562112a2f8d1b176e597a3f91eb31670",
     "browser-v8.json": "b0f9d143bbabf70aa63d2f66d37858dd9d8de5e1d91cae8d316574c7486bbbce",

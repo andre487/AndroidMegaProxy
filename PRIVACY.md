@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: October 10, 2026**
+**Last updated: October 11, 2026**
 
 MegaProxy is an Android VPN client for proxy servers you choose. It does not provide a proxy
 service, require an account, or automatically send usage data or crash reports to the developer.
@@ -9,7 +9,7 @@ It contains no advertising, analytics SDKs or tracking services.
 ## Data used on your device
 
 MegaProxy stores your connection profiles, credentials, settings and trusted SSH host keys to
-connect to your servers. Passwords and imported private keys are encrypted with a key held by Android Keystore. Android backup and device transfer are disabled for app data.
+connect to your servers. Passwords, imported private keys, configuration-subscription URLs and subscription credentials are encrypted with a key held by Android Keystore. Android backup and device transfer are disabled for app data.
 
 For per-app routing, MegaProxy reads the applications visible to it on your device and stores
 which applications you select. This information is used locally to configure routing, not
@@ -38,6 +38,16 @@ They receive the exit IP and test requests, including TLS/QUIC connection parame
 identify the proxy's apparent country, not your GPS location. The current services are listed in
 [Network privacy details](README.md#privacy-and-security). These providers handle requests under
 their own policies; MegaProxy does not control their retention practices.
+
+If you configure a configuration subscription, MegaProxy downloads snapshots from the HTTPS
+sources you list, automatically at the interval you choose when Android permits background work,
+or when you request an update. Each source receives its configured URL path/query, optional
+subscription Basic Auth, app version, the common Android client identifier and the source IP.
+These requests follow Android VPN routing for MegaProxy; they do not include your current profiles
+or browsing history. All listed backup sources receive the same subscription credentials.
+Only use trusted sources: downloaded snapshots can change subscribed profiles and supported
+settings. You can pause or remove the subscription in Settings; removing it keeps existing profiles.
+Exported JSON can disclose subscription URLs (including query tokens) and, if included, its password.
 
 Automatic update checks are enabled by default and contact the selected source (F-Droid or GitHub)
 about once a day when Android permits background work. If Android does not identify an installer,

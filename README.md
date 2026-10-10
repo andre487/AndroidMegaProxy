@@ -179,6 +179,25 @@ settings and fields unknown to the pinned specification once each, without displ
 Neither category is retained or included in later exports. See the
 [compatibility audit](docs/reviews/config-schema.md) for the canonical-format and legacy-import distinction.
 
+### Configuration subscriptions
+
+Use **Settings → Configuration subscription** to save a trusted HTTPS source,
+up to seven backup URLs, separate optional Basic Auth and a refresh interval.
+Alternatively, import a version 8 JSON with the root `subscription` definition.
+The first automatic check is due immediately; Android may delay background work.
+Pause stops scheduled checks; **Update now** also works while paused.
+
+Updates replace only subscription-owned profiles, keeping separately added
+profiles and surviving local selections. All sources failing retains the last
+working snapshot. Downloads reject redirects, verify TLS, limit decoded bodies
+to 4 MiB and send `X-MegaProxy-Client: android` plus the installed version.
+URLs and subscription credentials are encrypted locally; JSON export includes
+the definition, with its password following **Include passwords**. URL query tokens
+remain sensitive even without exported passwords. Existing VPN tunnels continue
+with their previous settings; changes mark **Reconnect** rather than interrupting
+a working connection. See [English](docs/en/subscriptions.md) / [Russian](docs/ru/subscriptions.md)
+and the [delivery protocol](https://github.com/andre487/MegaProxyConfig/blob/main/docs/subscription-protocol.md).
+
 ### MASQUE with GOST
 
 Select **MASQUE α (HTTP/3)**, enter the proxy hostname, UDP port and Basic credentials.

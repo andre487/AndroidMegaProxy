@@ -7,6 +7,10 @@ import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Until
 import androidx.test.uiautomator.UiSelector
 import net.megaproxy487.data.ConfigTransfer
+import net.megaproxy487.data.ConfigSubscription
+import kotlinx.coroutines.runBlocking
+import org.json.JSONArray
+import org.json.JSONObject
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -92,4 +96,45 @@ class DocumentsDeviceTest : DeviceTestBase() {
             device.executeShellCommand("rm -f /sdcard/Download/$filename")
         }
     }
+    @Test fun subscriptionSnapshotsUseDeviceKeystoreAndBundledSchema() {
+        val local = store.activeProfile()
+        val first = local.copy(id = "subscription-one", name = "Subscribed")
+        val second = first.copy(id = "subscription-two", name = "Replacement")
+        val settings = ConfigSubscription("https://feed.example/config?token=device-secret-token",
+            listOf("https://backup.example/config"), "reader", "device-subscription-secret", enabled = false)
+        fun document(profile: net.megaproxy487.model.ProxyProfile) = JSONObject()
+            .put("schema", ConfigTransfer.SCHEMA_ID).put("version", 8)
+            .put("activeProfileId", profile.id)
+            .put("profiles", JSONArray().put(ConfigTransfer.encodeProfile(profile, true, false)))
+        io { store.importConfiguration(ConfigTransfer.importJson(document(first)
+            .put("subscription", settings.toJson()).toString())) }
+        val snapshot = document(second).toString()
+        val sources = mutableListOf<String>()
+        val applied = runBlocking { ConfigSubscriptions.refreshNow(context, true, { _, url ->
+            sources += url
+            if (url == settings.url) "<html>invalid snapshot</html>" else snapshot
+        }, { false }) }
+        assertTrue(applied)
+        assertEquals(listOf(settings.url) + settings.fallbackUrls, sources)
+        assertNull(store.profile(first.id))
+        assertNotNull(store.profile(second.id))
+        assertNotNull(store.profile(local.id))
+        assertFalse(store.isConnectionDesired())
+        val reopened = net.megaproxy487.data.ConfigStore(context).subscriptionState()!!
+        assertEquals(settings, reopened.settings)
+        assertEquals(setOf(second.id), reopened.ownedIds)
+        assertEquals(1, reopened.sourceIndex)
+        val raw = context.getSharedPreferences("proxy_config", android.content.Context.MODE_PRIVATE).all.toString()
+        assertFalse(raw.contains("device-secret-token"))
+        assertFalse(raw.contains("device-subscription-secret"))
+        val before = ConfigTransfer.exportJson(store, true)
+        assertFalse(runBlocking { ConfigSubscriptions.refreshNow(context, true,
+            { _, _ -> JSONObject(snapshot).apply { getJSONArray("profiles").getJSONObject(0).getJSONObject("proxy").put("port", "bad") }.toString() }, { false }) })
+        assertEquals(before, ConfigTransfer.exportJson(store, true))
+        assertTrue(store.subscriptionState()!!.failed)
+        io { store.saveSubscription(null) }
+        assertNotNull(store.profile(second.id))
+        assertNotNull(store.profile(local.id))
+    }
+
 }

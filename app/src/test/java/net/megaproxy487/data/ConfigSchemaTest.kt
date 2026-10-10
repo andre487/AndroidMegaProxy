@@ -25,12 +25,14 @@ internal object ConfigSchemas {
 }
 
 class ConfigSchemaTest {
-    @Test fun upstreamConfigurationSubscriptionIsRecognizedButIgnored() {
+    @Test fun upstreamConfigurationSubscriptionIsRecognizedAndUnknownKeysAreReported() {
         val root = JSONObject(String(ConfigSchemas.bytes("browser-v8.json")))
         root.remove("browser")
-        assertEquals(ConfigImportNotice(browserFields = true), ConfigImportNotices.inspect(root))
+        val profiles = root.getJSONArray("profiles")
+        for (index in 0 until profiles.length()) profiles.getJSONObject(index).remove("browser")
+        assertEquals(ConfigImportNotice(), ConfigImportNotices.inspect(root))
         root.getJSONObject("subscription").put("future", "private-value")
-        assertEquals(ConfigImportNotice(browserFields = true, unknownFields = true), ConfigImportNotices.inspect(root))
+        assertEquals(ConfigImportNotice(unknownFields = true), ConfigImportNotices.inspect(root))
     }
 
     @Test fun vendoredFilesMatchPinnedCommitAndChecksums() {
