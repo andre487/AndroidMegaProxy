@@ -473,6 +473,7 @@ internal fun MainScreen(
                     }
                     if (connected && transportProtocol != VpnTransportProtocol.UNKNOWN) {
                         val transportLabel = when (transportProtocol) {
+                            VpnTransportProtocol.SOCKS5 -> stringResource(R.string.option_proxytype_socks5)
                             VpnTransportProtocol.HTTP_1_1 -> stringResource(R.string.transport_http_1_1)
                             VpnTransportProtocol.HTTP_3 -> stringResource(R.string.transport_http_3)
                             VpnTransportProtocol.HTTP_2 -> stringResource(R.string.transport_http_2)

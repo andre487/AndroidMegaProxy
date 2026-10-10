@@ -24,7 +24,7 @@ object ProxyListParser {
         var skippedNonHttps = 0
         val proxies = lines.mapIndexedNotNull { index, line ->
             val uri = runCatching { URI(line) }.getOrElse { throw UiException(R.string.error_proxy_uri, index + 1) }
-            if (!uri.scheme.equals("https", ignoreCase = true) && !uri.scheme.equals("masque", ignoreCase = true)) {
+            if (!uri.scheme.equals("https", ignoreCase = true) && !uri.scheme.equals("masque", ignoreCase = true) && !uri.scheme.equals("socks5", ignoreCase = true)) {
                 skippedNonHttps++
                 null
             } else {
@@ -37,7 +37,12 @@ object ProxyListParser {
     private fun parseLine(uri: URI, lineNumber: Int): ImportedProxy {
         requireUi(uri.toString().length <= 64 * 1024) { UiException(R.string.error_proxy_long, lineNumber) }
         val host = uri.host?.takeIf(String::isNotBlank) ?: throw UiException(R.string.error_proxy_host, lineNumber)
-        val userInfo = uri.rawUserInfo ?: throw UiException(R.string.error_proxy_auth, lineNumber)
+        val type = when (uri.scheme.lowercase()) {
+            "socks5" -> ProxyType.SOCKS5
+            "masque" -> ProxyType.MASQUE
+            else -> ProxyType.HTTPS
+        }
+        val userInfo = uri.rawUserInfo ?: if (type == ProxyType.SOCKS5) ":" else throw UiException(R.string.error_proxy_auth, lineNumber)
         val separator = userInfo.indexOf(':')
         requireUi(separator >= 0) { UiException(R.string.error_proxy_password, lineNumber) }
         val username = decodeUriComponent(userInfo.substring(0, separator))
@@ -50,9 +55,9 @@ object ProxyListParser {
             countryCode = query["cc"].orEmpty().uppercase()
                 .takeIf { it.matches(Regex("[A-Z]{2}")) }.orEmpty(),
             config = ProxyConfig(
-                type = if (uri.scheme.equals("masque", ignoreCase = true)) ProxyType.MASQUE else ProxyType.HTTPS,
+                type = type,
                 host = host,
-                port = if (uri.port == -1) 443 else uri.port,
+                port = if (uri.port == -1) type.defaultPort else uri.port,
                 username = username,
                 password = password,
             ),

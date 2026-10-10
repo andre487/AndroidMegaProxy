@@ -113,9 +113,17 @@ func TestRealProxyServers(t *testing.T) {
 			time.Sleep(100 * time.Millisecond)
 		}
 	}
+	socksAuth := start("gost-socks-auth", "1080", gostTestImage, "-L", "socks5://exit:exit-test-password@:1080?udp=true&udpBufferSize=65535")
+	socksAnon := start("gost-socks-anon", "1080", gostTestImage, "-L", "socks5://:1080?udp=true&udpBufferSize=65535")
 	base := config{Type: "HTTPS", Host: "localhost", Username: "exit", Password: "exit-test-password",
 		Profile: "CHROME_ANDROID", AllowInvalidProxyCertificate: true, DoHURL: "https://dns.google/dns-query"}
 	base.DialHost, base.Port = endpoint(h1, "8443")
+	socksConfig := base
+	socksConfig.Type = "SOCKS5"
+	socksConfig.DialHost, socksConfig.Port = endpoint(socksAuth, "1080")
+	socksAnonymous := socksConfig
+	socksAnonymous.Username, socksAnonymous.Password = "", ""
+	socksAnonymous.DialHost, socksAnonymous.Port = endpoint(socksAnon, "1080")
 	h2Config := base
 	h2Config.DialHost, h2Config.Port = endpoint(h2, "8443")
 	h2Config.Username, h2Config.Password = "jump", "jump-test-password"
@@ -196,6 +204,7 @@ func TestRealProxyServers(t *testing.T) {
 		name string
 		cfg  config
 	}{
+		{"gost_socks5_auth", socksConfig}, {"gost_socks5_anonymous", socksAnonymous},
 		{"gost_jump_h3_both", jumpBoth}, {"gost_jump_h3_first_only", jumpOnlyFirst}, {"gost_jump_h3_exit_only", jumpOnlyExit}, {"gost_jump_h3_neither", jumpNeither},
 		{"gost_prefer_http3", preferredMasque}, {"gost_prefer_https_fallback", preferredHTTPS}, {"gost_prefer_h2_fallback", preferredH2}, {"gost_masque", masqueConfig}, {"gost_masque_firefox", masqueFirefox}, {"gost_masque_custom", masqueCustom}, {"gost_https", base}, {"gost_https_custom", httpsCustom}, {"gost_https_jump_custom", httpsJumpCustom}, {"gost_http2", h2Config}, {"gost_https_jump", httpsJump},
 		{"openssh_password", sshConfig}, {"openssh_key", sshKeyConfig}, {"openssh_jump", sshJumpConfig},
@@ -232,6 +241,10 @@ func TestRealProxyServers(t *testing.T) {
 				if !strings.Contains(output, "protocol=http3") {
 					t.Fatal("missing HTTP/3 negotiation")
 				}
+			} else if tc.cfg.Type == "SOCKS5" {
+				if !strings.Contains(output, "protocol=socks5") {
+					t.Fatal("missing SOCKS5 protocol")
+				}
 			} else if tc.cfg.isHTTPS() {
 				if !strings.Contains(output, "tls_version=TLS1.") || !strings.Contains(output, "http_version=HTTP/") {
 					t.Fatal("missing HTTPS negotiation")
@@ -256,6 +269,38 @@ func TestRealProxyServers(t *testing.T) {
 	}
 
 	originIP := strings.TrimSpace(dockerTest(t, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", id+"-origin"))
+	for _, cfg := range []config{socksConfig, socksAnonymous} {
+		t.Run("gost_socks5_udp_"+cfg.Username, func(t *testing.T) {
+			d := &socks5Dialer{config: cfg, protector: &jumpTestProtector{}}
+			defer d.Close()
+			packet, err := d.DialUDP(&M.Metadata{DstIP: netip.MustParseAddr(originIP), DstPort: 8081})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer packet.Close()
+			peer := &net.UDPAddr{IP: net.ParseIP(originIP), Port: 8081}
+			for _, size := range []int{0, 512, 1200, 1350, 4096} {
+				_ = packet.SetDeadline(time.Now().Add(3 * time.Second))
+				payload := bytes.Repeat([]byte{42}, size)
+				if n, err := packet.WriteTo(payload, peer); err != nil || n != size {
+					t.Fatalf("UDP send: %v", err)
+				}
+				b := make([]byte, size+1)
+				if n, addr, err := packet.ReadFrom(b); err != nil || n != size || addr.String() != peer.String() || !bytes.Equal(b[:n], payload) {
+					t.Fatalf("UDP echo: n=%d err=%v", n, err)
+				}
+			}
+		})
+	}
+	t.Run("gost_socks5_wrong_password", func(t *testing.T) {
+		cfg := socksConfig
+		cfg.Password = "wrong-test-password"
+		d := &socks5Dialer{config: cfg, protector: &jumpTestProtector{}}
+		defer d.Close()
+		if _, err := d.connectTarget(context.Background(), originAddress); err == nil {
+			t.Fatal("invalid credentials accepted")
+		}
+	})
 	for _, cfg := range []config{masqueConfig, masqueFirefox, masqueCustom, jumpBoth} {
 		t.Run("gost_udp_"+cfg.Profile+"_"+cfg.Type, func(t *testing.T) {
 			d := &masqueDialer{config: cfg, protector: &jumpTestProtector{}}
@@ -374,6 +419,11 @@ func realServerDialer(t *testing.T, c config, reporters ...Reporter) func(contex
 	}
 	if c.isHTTPS() {
 		d := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
+		t.Cleanup(func() { _ = d.Close() })
+		return d.connectTarget
+	}
+	if c.Type == "SOCKS5" {
+		d := &socks5Dialer{config: c, protector: protector, reporter: reporter}
 		t.Cleanup(func() { _ = d.Close() })
 		return d.connectTarget
 	}

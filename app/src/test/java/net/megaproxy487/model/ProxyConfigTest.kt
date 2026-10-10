@@ -8,6 +8,22 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ProxyConfigTest {
+    @Test fun `SOCKS5 credentials are optional and checked by UTF-8 byte length`() {
+        val base = ProxyConfig(type = ProxyType.SOCKS5, host = "proxy.example", port = 1080,
+            profile = TlsProfile.CUSTOM, customJa3 = "ignored", sshAuthMode = SshAuthMode.KEY_ONLY)
+        assertNull(base.validationError())
+        assertNull(base.copy(username = "я".repeat(127), password = "p").validationError())
+        assertEquals(R.string.validation_socks5_auth, base.copy(username = "я".repeat(128), password = "p").validationError())
+        assertEquals(R.string.validation_socks5_auth, base.copy(username = "u").validationError())
+        assertEquals(R.string.validation_socks5_auth, base.copy(password = "p").validationError())
+        assertEquals(R.string.validation_socks5_auth, base.copy(username = "u", password = "p".repeat(256)).validationError())
+        assertEquals(R.string.error_credentials_unavailable, base.copy(unreadableSecrets = mapOf("password" to "opaque")).validationError())
+        assertNull(base.copy(unreadableSecrets = mapOf("privateKey" to "opaque")).validationError())
+        assertFalse(ProxyType.SOCKS5.isSsh)
+        assertFalse(ProxyType.SOCKS5.isHttpProxy)
+        assertFalse(ProxyType.SOCKS5.hasJump)
+    }
+
     @Test
     fun `MASQUE requires Basic credentials and QUIC compatible custom JA3`() {
         val config = ProxyConfig(type = ProxyType.MASQUE, host = "proxy.example", username = "user", password = "password")

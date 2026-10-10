@@ -5,6 +5,12 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TransportProtocolTest {
+    @Test fun socks5IsRecognizedWithoutClaimingHttpOrMultiplexing() {
+        assertEquals(VpnTransportProtocol.SOCKS5,
+            transportProtocolFromDiagnostic("event=connection mode=proxy protocol=socks5 stage=tunnel result=established"))
+        assertNull(transportProtocolFromDiagnostic("event=connection protocol=socks5 stage=socks_handshake result=failed"))
+    }
+
     @Test fun onlyExplicitHttpsFallbackShowsUdpWarning() {
         assertEquals(true, isHttp3FallbackDiagnostic("event=transport_selection preferred=http3 selected=https result=fallback reason=timeout udp=false"))
         assertEquals(false, isHttp3FallbackDiagnostic("event=transport_selection preferred=http3 selected=http3 result=selected udp=true"))

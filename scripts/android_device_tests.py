@@ -162,6 +162,20 @@ def fixture():
                 ]
                 command("sudo", "-n", "iptables", "-I", *rule)
                 firewall.append(rule)
+        socks_auth = start(
+            "socks-auth",
+            "1080",
+            GOST,
+            "-L",
+            f"socks5://exit:{password}@:1080?udp=true&udpBufferSize=65535",
+        )
+        socks_anonymous = start(
+            "socks-anonymous",
+            "1080",
+            GOST,
+            "-L",
+            "socks5://:1080?udp=true&udpBufferSize=65535",
+        )
         https = start("https", "8443", GOST, "-L", f"http+tls://exit:{password}@:8443")
         masque = start(
             "masque",
@@ -230,6 +244,8 @@ def fixture():
         yield {
             "originHost": origin_ip,
             "proxyPort": https_port,
+            "socksPort": port(socks_auth, "1080"),
+            "socksAnonymousPort": port(socks_anonymous, "1080"),
             "httpsFallbackPort": port(fallback, "8443"),
             "dualJumpPort": port(dual_jump, "8443"),
             "tcpJumpPort": port(tcp_jump, "8443"),

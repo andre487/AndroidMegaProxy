@@ -12,6 +12,24 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConfigTransferTest {
+    @Test fun `SOCKS5 JSON and URL round trips preserve protocol and optional authentication`() {
+        for (auth in listOf(false, true)) {
+            val profile = ProxyProfile(id = "socks", colorIndex = 0, config = ProxyConfig(
+                type = ProxyType.SOCKS5, host = "proxy.example", port = 1080,
+                username = if (auth) "u+ser:@" else "", password = if (auth) "p+ass:@" else ""))
+            val raw = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID).put("version", 8)
+                .put("profiles", JSONArray().put(ConfigTransfer.encodeProfile(profile, true, false))).toString()
+            ConfigSchemas.assertValid(raw)
+            assertEquals(profile.config, ConfigTransfer.importJson(raw).profiles.single().config)
+            val url = ConfigTransfer.exportProxyList(listOf(profile), true)
+            assertTrue(url.startsWith("socks5://"))
+            val decoded = ProxyListParser.parse(url).getOrThrow().proxies.single().config
+            assertEquals(profile.config, decoded)
+            assertEquals("", ProxyListParser.parse(ConfigTransfer.exportProxyList(listOf(profile), false))
+                .getOrThrow().proxies.single().config.password)
+        }
+    }
+
     @Test fun `HTTPS preference round trips through canonical JSON and defaults off`() {
         val profile = ProxyProfile(id = "https", colorIndex = 0, config = ProxyConfig(
             host = "proxy.example", username = "user", password = "password", preferHttp3 = true,
@@ -29,7 +47,7 @@ class ConfigTransferTest {
     @Test
     fun `explicit unsupported transports fail instead of becoming HTTPS or disappearing`() {
         for (version in listOf(1, 8)) {
-            for (type in listOf("SOCKS5", "HTTP", "FUTURE_PROXY")) {
+            for (type in listOf("SOCKS4", "HTTP", "FUTURE_PROXY")) {
                 val root = JSONObject().put("schema", "net.megaproxy487.config").put("version", version)
                     .put("profiles", JSONArray().put(JSONObject().put("id", "valid").put("proxy",
                         JSONObject().put("type", "HTTPS").put("host", "proxy.example")))
