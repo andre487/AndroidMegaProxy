@@ -488,7 +488,7 @@
     <string name="update_background_retry">A network or temporary server error occurred. A retry is requested after 30 minutes, with increasing delays; Android may defer it.</string>
     <string name="update_background_interrupted">Android interrupted the check. A retry was requested.</string>
     <string name="update_background_error">The check failed. Retry manually; the selected source has not changed.</string>
-    <string name="option_proxytype_masque">MASQUE (HTTP/3)</string>
+    <string name="option_proxytype_masque">MASQUE α (HTTP/3)</string>
     <string name="masque_proxy_hostname">MASQUE proxy hostname</string>
     <string name="transport_http_3">HTTP/3</string>
     <string name="validation_quic_ja3">MASQUE JA3 requires TLS 1.3 cipher suites and extensions 16, 43, 51, 57.</string>
