@@ -49,7 +49,7 @@ object ConfigTransfer {
     fun isSupportedSchema(value: String): Boolean = value == SCHEMA_ID || value == LEGACY_SCHEMA_ID
 
     fun exportProxyList(profiles: List<ProxyProfile>, includePasswords: Boolean): String =
-        profiles.filter { it.config.type == ProxyType.HTTPS }.joinToString("\n", postfix = "\n") { profile ->
+        profiles.filter { it.config.type == ProxyType.HTTPS || it.config.type == ProxyType.MASQUE }.joinToString("\n", postfix = "\n") { profile ->
             val config = profile.config
             val password = if (includePasswords) config.password else ""
             val userInfo = "${encode(config.username)}:${encode(password)}"
@@ -58,7 +58,7 @@ object ConfigTransfer {
                 if (profile.countryCode.isNotBlank()) add("cc=${encode(profile.countryCode.uppercase())}")
             }.joinToString("&")
             buildString {
-                append("https://").append(userInfo).append('@').append(config.host.trim())
+                append(if (config.type == ProxyType.MASQUE) "masque://" else "https://").append(userInfo).append('@').append(config.host.trim())
                 if (config.port != 443) append(':').append(config.port)
                 if (query.isNotEmpty()) append('?').append(query)
             }
@@ -109,6 +109,12 @@ object ConfigTransfer {
         if (version >= 7) requireUi((0 until array.length()).all { index ->
             array.optJSONObject(index)?.optString("id")?.let { it.isNotBlank() && it.length <= 256 } == true
         }) { UiException(R.string.error_config_stable_ids) }
+        // Omitted legacy types retain HTTPS; an explicit unsupported transport
+        // must never be silently converted or lost among otherwise valid profiles.
+        requireUi((0 until array.length()).all { index ->
+            val type = array.optJSONObject(index)?.optJSONObject("proxy")?.optString("type").orEmpty()
+            type.isBlank() || ProxyType.entries.any { it.name == type }
+        }) { UiException(R.string.error_config_proxy_type) }
         val decoded = (0 until array.length()).map { index ->
             operationResult { decodeProfile(array.getJSONObject(index), index) }
         }

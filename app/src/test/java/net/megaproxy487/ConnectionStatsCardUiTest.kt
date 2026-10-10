@@ -17,4 +17,18 @@ class ConnectionStatsCardUiTest : MainUiTestBase() {
         node(R.string.tcp_retransmits_unavailable).assertIsDisplayed()
         compose.onNodeWithText("—").assertIsDisplayed()
     }
+    @Test fun showsQuicMetricsWithSeparateMeaning() {
+        content { ConnectionStatsCard(DisplayedConnectionStats(NativeConnectionStats(0, 0, 999.0, 999, 42.0, 0), 0.0, 0.0), quic = true) }
+        node(R.string.quic_rtt).assertIsDisplayed()
+        compose.onNodeWithText(activity.getString(R.string.quic_packets_lost, 0L)).assertIsDisplayed()
+        node(R.string.quic_metrics_scope).assertIsDisplayed()
+        node(R.string.tcp_rtt).assertDoesNotExist()
+    }
+
+    @Test fun unavailableQuicIsNotZeroOrTcp() {
+        content { ConnectionStatsCard(DisplayedConnectionStats(NativeConnectionStats(0, 0, 42.0, 7), 0.0, 0.0), quic = true) }
+        node(R.string.quic_packets_lost_unavailable).assertIsDisplayed()
+        compose.onNodeWithText("—").assertIsDisplayed()
+        node(R.string.tcp_rtt).assertDoesNotExist()
+    }
 }

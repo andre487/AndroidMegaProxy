@@ -12,6 +12,7 @@ import net.megaproxy487.vpn.BlockingSignal
 @get:StringRes
 internal val ProxyType.titleRes: Int
     get() = when (this) {
+        ProxyType.MASQUE -> R.string.option_proxytype_masque
         ProxyType.HTTPS -> R.string.option_proxytype_https
         ProxyType.HTTPS_JUMP -> R.string.option_proxytype_https_jump
         ProxyType.SSH -> R.string.option_proxytype_ssh

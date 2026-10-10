@@ -27,4 +27,10 @@ class BlockingDetectionTest {
         assertNull(BlockingDetection.classify("x509 certificate error"))
         assertNull(BlockingDetection.classify("connection refused"))
     }
+    @Test fun targetFailuresAndLocalDeadlinesDoNotRestartTheVpn() {
+        assertNull(BlockingDetection.classify("event=connection stage=connect_response reason=timeout scope=target dpi_hint=none"))
+        assertNull(BlockingDetection.classify("event=connection stage=tunnel_io reason=reset scope=target dpi_hint=none"))
+        assertNull(BlockingDetection.classify("event=connection stage=tunnel_io reason=timeout scope=local_deadline dpi_hint=none"))
+        assertEquals(BlockingSignal.TLS_HANDSHAKE_TIMEOUT, BlockingDetection.classify("event=connection stage=tls_handshake reason=timeout scope=proxy dpi_hint=possible_tls_interference"))
+    }
 }

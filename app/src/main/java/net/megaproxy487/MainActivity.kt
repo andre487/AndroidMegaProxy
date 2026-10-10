@@ -473,6 +473,7 @@ internal fun MainScreen(
                     if (connected && transportProtocol != VpnTransportProtocol.UNKNOWN) {
                         val transportLabel = when (transportProtocol) {
                             VpnTransportProtocol.HTTP_1_1 -> stringResource(R.string.transport_http_1_1)
+                            VpnTransportProtocol.HTTP_3 -> stringResource(R.string.transport_http_3)
                             VpnTransportProtocol.HTTP_2 -> stringResource(R.string.transport_http_2)
                             VpnTransportProtocol.SSH_MULTIPLEXED -> stringResource(R.string.transport_ssh_multiplexed)
                             VpnTransportProtocol.UNKNOWN -> ""
@@ -642,7 +643,7 @@ internal fun MainScreen(
                 )
             }
             connectionStats?.let { stats ->
-                ConnectionStatsCard(stats)
+                ConnectionStatsCard(stats, quic = transportProtocol == VpnTransportProtocol.HTTP_3)
             }
             Text(
                 stringResource(R.string.version_and_commit, BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH),
@@ -729,7 +730,7 @@ private data class RefreshedMainConfig(
 )
 
 @Composable
-internal fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
+internal fun ConnectionStatsCard(stats: DisplayedConnectionStats, quic: Boolean = false) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val unitSystem = TrafficUnitPreferences.current(context)
     Card(Modifier.fillMaxWidth()) {
@@ -752,9 +753,9 @@ internal fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
                 ),
                 modifier = statModifier,
             )
-            val rtt = stats.native.tcpRttMillis
+            val rtt = if (quic) stats.native.quicRttMillis else stats.native.tcpRttMillis
             StatValue(
-                label = stringResource(R.string.tcp_rtt),
+                label = stringResource(if (quic) R.string.quic_rtt else R.string.tcp_rtt),
                 value = if (rtt == null) "—" else stringResource(
                     R.string.latency_milliseconds,
                     rtt.toInt(),
@@ -763,15 +764,19 @@ internal fun ConnectionStatsCard(stats: DisplayedConnectionStats) {
             )
         }
         Text(
-            stats.native.tcpRetransmits?.let {
-                stringResource(R.string.tcp_retransmits, it)
-            } ?: stringResource(R.string.tcp_retransmits_unavailable),
+            if (quic) {
+                stats.native.quicPacketsLost?.let { stringResource(R.string.quic_packets_lost, it) }
+                    ?: stringResource(R.string.quic_packets_lost_unavailable)
+            } else {
+                stats.native.tcpRetransmits?.let { stringResource(R.string.tcp_retransmits, it) }
+                    ?: stringResource(R.string.tcp_retransmits_unavailable)
+            },
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),
         )
         Text(
-            stringResource(R.string.tcp_metrics_scope),
+            stringResource(if (quic) R.string.quic_metrics_scope else R.string.tcp_metrics_scope),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 14.dp, end = 14.dp, bottom = 12.dp),

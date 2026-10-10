@@ -18,13 +18,26 @@ interface ProxyCore {
     fun stop()
 }
 
-data class ConnectionTestResult(val exitIp: String, val countryCode: String?)
+data class Http3ProbeResult(val provider: String, val confirmed: Boolean)
+
+data class ConnectionTestResult(val exitIp: String, val countryCode: String?, val http3: List<Http3ProbeResult> = emptyList())
 
 internal fun parseConnectionTestResult(raw: String): ConnectionTestResult {
     val result = JSONObject(raw)
     return ConnectionTestResult(
         exitIp = result.getString("exitIp"),
         countryCode = result.optString("countryCode").takeIf(String::isNotBlank),
+        http3 = result.optJSONArray("http3")?.let { probes ->
+            (0 until probes.length()).mapNotNull { index ->
+                val probe = probes.optJSONObject(index) ?: return@mapNotNull null
+                val provider = when (probe.optString("provider")) {
+                    "www.cloudflare.com" -> "Cloudflare"
+                    "quic.browserleaks.com" -> "BrowserLeaks"
+                    else -> return@mapNotNull null
+                }
+                Http3ProbeResult(provider, probe.optString("status") == "confirmed")
+            }
+        } ?: emptyList(),
     )
 }
 
@@ -33,6 +46,8 @@ data class NativeConnectionStats(
     val uploadBytes: Long,
     val tcpRttMillis: Double?,
     val tcpRetransmits: Long?,
+    val quicRttMillis: Double? = null,
+    val quicPacketsLost: Long? = null,
 )
 
 internal fun parseNativeConnectionStats(raw: String): NativeConnectionStats {
@@ -42,6 +57,8 @@ internal fun parseNativeConnectionStats(raw: String): NativeConnectionStats {
         uploadBytes = json.getLong("uploadBytes"),
         tcpRttMillis = if (json.isNull("tcpRttMillis")) null else json.getDouble("tcpRttMillis"),
         tcpRetransmits = if (json.isNull("tcpRetransmits")) null else json.getLong("tcpRetransmits"),
+        quicRttMillis = if (json.isNull("quicRttMillis")) null else json.getDouble("quicRttMillis"),
+        quicPacketsLost = if (json.isNull("quicPacketsLost")) null else json.getLong("quicPacketsLost"),
     )
 }
 
@@ -107,7 +124,7 @@ class NativeProxyCore(
         Mobile.resolveProxy(host, protector(), reporter(diagnostics))
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
-        diagnostics("event=bootstrap_dns result=failed detail=$message")
+        diagnostics("event=bootstrap_dns result=failed reason=${nativeFailureReason(message)}")
         status("Proxy DNS failed: $message")
     }.getOrNull()
 
@@ -146,7 +163,7 @@ class NativeProxyCore(
         status("Test passed: exit IP ${it.exitIp}")
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
-        diagnostics("event=connection_test result=failed detail=$message")
+        diagnostics("event=connection_test result=failed reason=${nativeFailureReason(message)}")
         status("Test failed: $message")
     }.getOrNull()
 

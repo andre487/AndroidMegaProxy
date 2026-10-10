@@ -25,6 +25,16 @@ GOST = "gogost/gost:3.3.0@sha256:f7a958c451928fbe1b99046d25bd0c9bf42019d4c60a822
 TESTS = (
     "VpnDeviceTest#deniedVpnConsentDoesNotStartTunnel",
     "VpnDeviceTest#trafficStopAndRestart",
+    "VpnDeviceTest#masqueTrafficStopAndRestart",
+    "VpnDeviceTest#masqueFirefoxTraffic",
+    "VpnDeviceTest#masqueRandomizedTraffic",
+    "VpnDeviceTest#masqueCustomTraffic",
+    "VpnDeviceTest#masqueChromeOversizedUdpPreservesFlow",
+    "VpnDeviceTest#masqueFirefoxOversizedUdpPreservesFlow",
+    "VpnDeviceTest#masqueWrongCredentialsRejectedAndCorrected",
+    "VpnDeviceTest#masqueUntrustedCertificateRejected",
+    "VpnDeviceTest#masqueSplitRoutingIncludesAndExcludesApplication",
+    "VpnDeviceTest#masqueCustomFailoverToHttps",
     "VpnDeviceTest#notificationActionStopsRealService",
     "VpnDeviceTest#stopDuringSshHandshakeCannotReviveVpn",
     "DocumentsDeviceTest#cancelledDocumentSelectionPreservesConfiguration",
@@ -80,11 +90,13 @@ def fixture():
     name = "megaproxy-device-" + uuid.uuid4().hex[:12]
     password = secrets.token_hex(16)
     containers = []
-    firewall = None
+    firewall = []
     image = name + ":fixture"
     network_created = False
     image_built = False
+    blackhole = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
+        blackhole.bind(("127.0.0.1", 0))
         command("docker", "build", "-t", image, str(ROOT / "native/integration"))
         image_built = True
         command("docker", "network", "create", name)
@@ -112,23 +124,36 @@ def fixture():
         # Emulator user-mode networking originates in the host OUTPUT chain. Container
         # traffic uses FORWARD, so only the proxies can reach the unpublished origin.
         if sys.platform == "linux":
-            firewall = [
-                "OUTPUT",
-                "-d",
-                origin_ip,
-                "-p",
-                "tcp",
-                "--dport",
-                "8080",
-                "-m",
-                "comment",
-                "--comment",
-                name,
-                "-j",
-                "REJECT",
-            ]
-            command("sudo", "-n", "iptables", "-I", *firewall)
+            for protocol, number in (("tcp", "8080"), ("udp", "8081")):
+                rule = [
+                    "OUTPUT",
+                    "-d",
+                    origin_ip,
+                    "-p",
+                    protocol,
+                    "--dport",
+                    number,
+                    "-m",
+                    "comment",
+                    "--comment",
+                    name,
+                    "-j",
+                    "REJECT",
+                ]
+                command("sudo", "-n", "iptables", "-I", *rule)
+                firewall.append(rule)
         https = start("https", "8443", GOST, "-L", f"http+tls://exit:{password}@:8443")
+        masque = start(
+            "masque",
+            "8443/udp",
+            GOST,
+            "-L",
+            f"masque+http3://exit:{password}@:8443?enableDatagrams=true",
+        )
+        masque_address = command("docker", "port", masque, "8443/udp")
+        masque_host, masque_port = masque_address.rsplit(":", 1)
+        if masque_host != "127.0.0.1":
+            raise RuntimeError("MASQUE fixture must be published on loopback only")
         ssh = start("ssh", "2222", image)
 
         def port(container, number):
@@ -161,6 +186,8 @@ def fixture():
         yield {
             "originHost": origin_ip,
             "proxyPort": https_port,
+            "masquePort": masque_port,
+            "blackholeMasquePort": str(blackhole.getsockname()[1]),
             "proxyPassword": password,
             "sshPort": ssh_port,
             "sshPassword": password,
@@ -168,14 +195,15 @@ def fixture():
             "sshFingerprint": fingerprint,
         }
     finally:
+        blackhole.close()
         # Cleanup is attempted independently so one failed removal cannot leak siblings.
         for container in reversed(containers):
             subprocess.run(
                 ["docker", "rm", "-f", container], capture_output=True, timeout=30
             )
-        if firewall:
+        for rule in reversed(firewall):
             subprocess.run(
-                ["sudo", "-n", "iptables", "-D", *firewall],
+                ["sudo", "-n", "iptables", "-D", *rule],
                 capture_output=True,
                 timeout=30,
             )

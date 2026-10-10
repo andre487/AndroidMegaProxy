@@ -33,8 +33,9 @@ var countryEndpoints = []testEndpoint{
 }
 
 type connectionTestResult struct {
-	ExitIP      string `json:"exitIp"`
-	CountryCode string `json:"countryCode,omitempty"`
+	ExitIP      string             `json:"exitIp"`
+	CountryCode string             `json:"countryCode,omitempty"`
+	HTTP3       []http3ProbeResult `json:"http3,omitempty"`
 }
 
 // TestConnection verifies the configured proxy path without starting a TUN device.
@@ -48,9 +49,15 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	}
 	var connect func(context.Context, string) (net.Conn, error)
 	var testReporter Reporter
+	var masque *masqueDialer
 	if c.isHTTPS() {
 		dialer := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
 		connect, testReporter = dialer.connectTarget, dialer.reporter
+		defer dialer.Close()
+	} else if c.Type == "MASQUE" {
+		dialer := &masqueDialer{config: c, protector: protector, reporter: reporter}
+		masque = dialer
+		connect, testReporter = dialer.connectTarget, reporter
 		defer dialer.Close()
 	} else {
 		dialer := &sshDialer{config: c, protector: protector, reporter: reporter}
@@ -76,9 +83,19 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	if countryErr != nil {
 		report(reporter, "event=connection_test stage=exit_country result=unavailable")
 	} else {
-		report(reporter, "event=connection_test stage=exit_country result=success country=%s", countryCode)
+		report(reporter, "event=connection_test stage=exit_country result=success")
 	}
-	encoded, err := json.Marshal(connectionTestResult{ExitIP: ip, CountryCode: countryCode})
+	// Keep external QUIC probes independently bounded: IP/country fallbacks may
+	// have consumed the original deadline. These use CONNECT-UDP, never TCP.
+	var h3Results []http3ProbeResult
+	if masque != nil {
+		probeCtx, probeCancel := context.WithTimeout(context.Background(), 12*time.Second)
+		h3Results = checkHTTP3Providers(probeCtx, reporter, func(attemptCtx context.Context, endpoint testEndpoint) error {
+			return testHTTP3Get(attemptCtx, masque, endpoint)
+		})
+		probeCancel()
+	}
+	encoded, err := json.Marshal(connectionTestResult{ExitIP: ip, CountryCode: countryCode, HTTP3: h3Results})
 	if err != nil {
 		return "", fmt.Errorf("encode connection test result: %w", err)
 	}

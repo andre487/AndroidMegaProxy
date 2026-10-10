@@ -4,10 +4,23 @@ import android.content.ClipboardManager
 import android.content.Context
 import androidx.compose.ui.test.*
 import net.megaproxy487.vpn.TestDiagnosticLog
+import net.megaproxy487.vpn.Http3ProbeResult
 import org.junit.Assert.*
 import org.junit.Test
 
 class DiagnosticsUiTest : MainUiTestBase() {
+    @Test fun http3ProvidersShowIndependentResultsAndResetOnAnotherRun() {
+        TestDiagnosticLog.succeed("203.0.113.7", "DE", listOf(
+            Http3ProbeResult("Cloudflare", true), Http3ProbeResult("BrowserLeaks", false),
+        ))
+        content { ConnectionTestScreen(activity, autoStart = false, onBack = {}) }
+        compose.onNodeWithText(activity.uiText(R.string.test_http3_provider, "Cloudflare", activity.uiText(R.string.test_http3_confirmed))).assertIsDisplayed()
+        compose.onNodeWithText(activity.uiText(R.string.test_http3_provider, "BrowserLeaks", activity.uiText(R.string.test_http3_unavailable))).assertIsDisplayed()
+        compose.runOnIdle { TestDiagnosticLog.begin() }
+        compose.runOnIdle { assertTrue(TestDiagnosticLog.http3.value.isEmpty()) }
+        node(R.string.test_http3_help).assertDoesNotExist()
+    }
+
     @Test fun runningDiagnosticCannotBeStartedAgainAndKeepsItsLog() {
         TestDiagnosticLog.begin()
         TestDiagnosticLog.add("event=test_marker")

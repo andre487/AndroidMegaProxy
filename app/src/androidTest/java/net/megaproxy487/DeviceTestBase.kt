@@ -21,6 +21,7 @@ import net.megaproxy487.data.ConfigWrites
 import net.megaproxy487.model.GlobalConnectionSettings
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.vpn.ProxyVpnService
+import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import org.junit.Assert.*
@@ -151,6 +152,9 @@ abstract class DeviceTestBase {
     }
     private val evidence = object : TestWatcher() {
         override fun failed(error: Throwable, description: Description) {
+            // The disposable fixture uses synthetic credentials. This is the app's
+            // sanitized, bounded log, including recovery events absent from logcat.
+            println("MegaProxy diagnostic tail:\n${PersistentDiagnosticLog.readTail(32 * 1024)}")
             val directory = context.getExternalFilesDir(null)!!
             device.takeScreenshot(File(directory, "device-failure.png"))
             device.dumpWindowHierarchy(File(directory, "device-failure.xml"))

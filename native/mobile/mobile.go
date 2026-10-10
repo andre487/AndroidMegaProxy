@@ -90,6 +90,15 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		httpsProxy := &httpsConnectDialer{config: c, protector: protector, reporter: reporter, stats: stats}
 		t.SetProxy(httpsProxy)
 		proxyCloser = httpsProxy
+	} else if c.Type == "MASQUE" {
+		masqueProxy := &masqueDialer{config: c, protector: protector, reporter: reporter, stats: stats}
+		if _, err := masqueProxy.getSession(ctx); err != nil {
+			dev.Close()
+			_ = masqueProxy.Close()
+			return err
+		}
+		t.SetProxy(masqueProxy)
+		proxyCloser = masqueProxy
 	} else {
 		sshProxy := &sshDialer{config: c, protector: protector, reporter: reporter, stats: stats}
 		sessionContext, cancel := context.WithTimeout(ctx, 30*time.Second)
@@ -97,7 +106,7 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		cancel()
 		if sessionErr != nil {
 			dev.Close()
-			report(reporter, "event=ssh_session result=failed detail=%s", sessionErr)
+			report(reporter, "event=ssh_session result=failed %s", sshFailureDetails(sessionErr))
 			return sessionErr
 		}
 		t.SetProxy(sshProxy)

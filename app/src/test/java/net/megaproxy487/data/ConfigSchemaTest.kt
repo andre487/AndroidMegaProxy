@@ -45,6 +45,16 @@ class ConfigSchemaTest {
             val imported = ConfigTransfer.importJson(text)
             assertEquals(ConfigImportNotice(browserFields = name == "browser-v8.json"), imported.notice)
             assertFalse(imported.profiles.isEmpty())
+            if (name == "android-v8.json") {
+                val global = imported.globalConnectionSettings!!
+                val masque = imported.profiles.single { it.config.type == ProxyType.MASQUE }.config
+                assertEquals(TlsProfile.CUSTOM, global.tlsProfile)
+                assertNotEquals(global.customJa3, masque.customJa3)
+                assertTrue(validQuicJa3(masque.customJa3))
+                assertEquals(masque.customJa3, global.applyTo(masque).customJa3)
+                val https = imported.profiles.single { it.config.type == ProxyType.HTTPS }.config
+                assertEquals(global.customJa3, global.applyTo(https).customJa3)
+            }
         }
     }
 
@@ -55,7 +65,10 @@ class ConfigSchemaTest {
             val defs = schema.getJSONObject("\$defs")
             fun check(definition: String, field: String, values: Set<String>) {
                 val array = defs.getJSONObject(definition).getJSONObject("properties").getJSONObject(field).getJSONArray("enum")
-                assertEquals("$name: $definition.$field", values, (0 until array.length()).map { array.getString(it) }.toSet())
+                val supported = (0 until array.length()).map { array.getString(it) }.toSet()
+                if (name == "megaproxy-v8.schema.json" && definition == "proxy" && field == "type") {
+                    assertTrue("Shared schema must include every Android transport", supported.containsAll(values))
+                } else assertEquals("$name: $definition.$field", values, supported)
             }
             check("proxy", "type", ProxyType.entries.map { it.name }.toSet())
             check("proxy", "sshProfile", SshProfile.entries.map { it.name }.toSet())

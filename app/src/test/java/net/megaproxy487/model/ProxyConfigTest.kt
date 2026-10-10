@@ -2,10 +2,40 @@ package net.megaproxy487.model
 
 import net.megaproxy487.R
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ProxyConfigTest {
+    @Test
+    fun `MASQUE requires Basic credentials and QUIC compatible custom JA3`() {
+        val config = ProxyConfig(type = ProxyType.MASQUE, host = "proxy.example", username = "user", password = "password")
+        assertNull(config.validationError())
+        assertEquals(R.string.validation_basic_password, config.copy(password = "").validationError())
+        assertEquals(R.string.validation_quic_ja3, config.copy(profile = TlsProfile.CUSTOM,
+            customJa3 = "771,4865,0-10-13-16-43-51,29,0").validationError())
+        assertNull(config.copy(profile = TlsProfile.CUSTOM,
+            customJa3 = "771,4865-4866-4867,0-10-13-16-43-51-57,29,0").validationError())
+        assertTrue(ProxyType.MASQUE.isHttpProxy)
+        assertFalse(ProxyType.MASQUE.hasJump)
+    }
+
+    @Test
+    fun `mixed HTTPS and MASQUE failover preserves separate custom fingerprints`() {
+        val tls = "771,4865-4866-4867,0-10-13-16-43-51,29,0"
+        val quic = "771,4865-4866-4867,0-10-13-16-43-51-57,29,0"
+        val settings = GlobalConnectionSettings(tlsProfile = TlsProfile.CUSTOM, customJa3 = tls)
+        val masque = settings.applyTo(validConnection.copy(type = ProxyType.MASQUE, customJa3 = quic))
+        val https = settings.applyTo(validConnection)
+        assertEquals(quic, masque.customJa3)
+        assertEquals(tls, https.customJa3)
+        assertNull(masque.validationError())
+        assertNull(https.validationError())
+        assertNull(settings.applyTo(validConnection.copy(type = ProxyType.HTTPS_JUMP, jumpHost = "jump.example")).validationError())
+        assertEquals(R.string.validation_ja3, settings.applyTo(masque.copy(customJa3 = "")).validationError())
+    }
+
     @Test
     fun `default TLS fingerprint currently resolves to Chrome Android`() {
         val resolved = GlobalConnectionSettings(tlsProfile = TlsProfile.DEFAULT)

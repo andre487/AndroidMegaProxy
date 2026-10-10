@@ -19,7 +19,7 @@ func normalizedALPN(value string) string {
 	switch value {
 	case "":
 		return "none"
-	case "h2", "http/1.1":
+	case "h2", "http/1.1", "h3":
 		return value
 	default:
 		return "other"

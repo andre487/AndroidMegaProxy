@@ -13,6 +13,45 @@ import org.junit.Test
 
 class ConfigTransferTest {
     @Test
+    fun `explicit unsupported transports fail instead of becoming HTTPS or disappearing`() {
+        for (version in listOf(1, 8)) {
+            for (type in listOf("SOCKS5", "HTTP", "FUTURE_PROXY")) {
+                val root = JSONObject().put("schema", "net.megaproxy487.config").put("version", version)
+                    .put("profiles", JSONArray().put(JSONObject().put("id", "valid").put("proxy",
+                        JSONObject().put("type", "HTTPS").put("host", "proxy.example")))
+                        .put(JSONObject().put("id", "unsupported").put("proxy",
+                            JSONObject().put("type", type).put("host", "unsupported.example"))))
+                val failure = runCatching { ConfigTransfer.importJson(root.toString()) }.exceptionOrNull()
+                assertTrue(failure is net.megaproxy487.UiException)
+                assertEquals(net.megaproxy487.R.string.error_config_proxy_type, (failure as net.megaproxy487.UiException).textId)
+            }
+        }
+        val legacy = ConfigTransfer.importJson("""{"schema":"net.megaproxy487.config","version":1,"profiles":[{"proxy":{"host":"proxy.example"}}]}""")
+        assertEquals(ProxyType.HTTPS, legacy.profiles.single().config.type)
+    }
+
+    @Test
+    fun `MASQUE survives JSON and URI export without becoming HTTPS`() {
+        val profile = ProxyProfile(id = "masque", colorIndex = 0, config = ProxyConfig(
+            type = ProxyType.MASQUE, host = "proxy.example", port = 8443,
+            username = "user", password = "p@ss:word", allowIpv6 = true,
+        ))
+        for (includePasswords in listOf(false, true)) {
+            val raw = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID).put("version", 8)
+                .put("profiles", JSONArray().put(ConfigTransfer.encodeProfile(profile, includePasswords, false))).toString()
+            ConfigSchemas.assertValid(raw)
+            assertEquals(profile.config.copy(password = if (includePasswords) profile.config.password else ""),
+                ConfigTransfer.importJson(raw).profiles.single().config)
+            val uri = ConfigTransfer.exportProxyList(listOf(profile), includePasswords)
+            assertTrue(uri.startsWith("masque://"))
+            val imported = ProxyListParser.parse(uri).getOrThrow()
+            assertEquals(0, imported.skippedNonHttps)
+            assertEquals(ProxyType.MASQUE, imported.proxies.single().config.type)
+            assertEquals(if (includePasswords) profile.config.password else "", imported.proxies.single().config.password)
+        }
+    }
+
+    @Test
     fun `HTTPS jump JSON round trip preserves both hops and certificate settings`() {
         val profile = ProxyProfile(id = "chain", colorIndex = 0, config = ProxyConfig(
             type = ProxyType.HTTPS_JUMP, host = "exit.example", username = "exit", password = "exit-secret",

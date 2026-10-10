@@ -10,7 +10,7 @@
 </p>
 
 MegaProxy is an open-source Android VPN client for reliable, secure connections through proxy
-servers you control or trust. It supports HTTPS and SSH transports, per-app routing, encrypted DNS,
+servers you control or trust. It supports HTTPS, MASQUE α (HTTP/3) and SSH transports, per-app routing, encrypted DNS,
 connection diagnostics, and automatic failover in one privacy-focused application.
 
 MegaProxy contains no advertising, analytics SDKs, tracking, or remote telemetry. Connection
@@ -22,7 +22,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 ## Why MegaProxy
 
 - **Private by design.** No account, ads, analytics, tracking identifiers, or background telemetry.
-- **Your infrastructure.** Connect to your HTTPS or SSH servers, directly or through a jump server.
+- **Your infrastructure.** Connect to your HTTPS, MASQUE or SSH servers, directly or through a jump server.
 - **Preserves application TLS.** HTTPS proxying uses CONNECT without intercepting or
   decrypting application TLS; plain application protocols still need their own encryption.
 - **Flexible routing.** Route the whole device or only selected applications through the VPN.
@@ -37,6 +37,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 - Multiple named, colored, reorderable profiles.
 - HTTPS proxies over TLS with Basic authentication, including two-proxy HTTPS with Jump chains.
+- MASQUE α over HTTP/3 with Basic authentication, multiplexed TCP CONNECT and CONNECT-UDP.
 - HTTP/2 CONNECT multiplexing when supported by the proxy, with automatic HTTP/1.1 fallback.
 - SSH `direct-tcpip` transport and SSH through a jump host.
 - SSH password and unencrypted private-key authentication.
@@ -59,13 +60,15 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 - DNS-over-HTTPS through the configured transport.
 - Cloudflare, Google, Quad9, Yandex Basic, Yandex Safe, Yandex Family, and custom DoH endpoints.
 - DNS-provider fallback where it does not weaken an explicitly selected filtering policy.
-- HTTPS ClientHello profiles powered by uTLS, plus manual JA3 configuration.
+- HTTPS ClientHello profiles powered by uTLS, MASQUE TLS/QUIC presets powered by uQUIC,
+  plus manual JA3 configuration.
 - Configurable SSH client profiles, keepalives, channel limits, and session rotation.
-- Arbitrary UDP is intentionally not forwarded; QUIC/HTTP/3 clients normally fall back to TCP.
+- MASQUE forwards UDP; HTTPS and SSH block arbitrary UDP so QUIC clients fall back to TCP.
 
 ### Diagnostics
 
-- A staged connection test for proxy setup, `example.com`, and the observed exit IP and country.
+- A staged connection test for proxy setup, `example.com`, and the observed exit IP and country;
+  MASQUE also checks end-to-end HTTP/3 over proxied UDP with Cloudflare and BrowserLeaks.
 - Local, size-limited, rotating diagnostic and crash logs designed to omit credentials and traffic
   content.
 - [Negotiated TLS/HTTP/SSH parameters](docs/en/connection-metrics.md#negotiation-diagnostics) without peer identities or credentials.
@@ -81,9 +84,15 @@ project author. Network traffic is sent only where required by the selected prof
 and DNS configuration. Proxy-hostname bootstrap may contact Cloudflare, Yandex, Google or Quad9
 DoH resolvers directly before the tunnel exists. The explicit connection test contacts `example.com`
 and uses fallback providers for exit IP (`ifconfig.me`, `api.ipify.org`, `icanhazip.com`) and country
-(`ifconfig.co`, `ipapi.co`, `api.country.is`) through the proxy. See [PRIVACY.md](PRIVACY.md).
+(`ifconfig.co`, `ipapi.co`, `api.country.is`) through the proxy. With MASQUE it also sends
+HTTP/3 requests to `www.cloudflare.com/cdn-cgi/trace` and `quic.browserleaks.com/` through
+CONNECT-UDP, with verified destination certificates and no TCP fallback. Both providers are
+checked independently; an unavailable provider does not invalidate the HTTPS/IP result. These
+native probes verify the proxy UDP path, not Android TUN or per-app routing, and their inner
+QUIC fingerprint is the diagnostic client's, not the selected outer MASQUE fingerprint or
+Chrome's. Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
 
-- HTTPS proxy certificates are checked against the Android trust store, including hostname and
+- HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and
   validity. Normal CA certificate renewal does not require certificate pinning.
 - Application TLS remains between the application and its destination. MegaProxy does not install
   a CA certificate and does not perform TLS interception.
@@ -93,7 +102,7 @@ and uses fallback providers for exit IP (`ifconfig.me`, `api.ipify.org`, `icanha
 - Every upstream socket is protected from recursive routing through the VPN.
 - SSH host keys are verified and unknown keys require explicit user confirmation.
 
-Two compatibility options deliberately reduce these protections: accepting an invalid HTTPS
+Two compatibility options deliberately reduce these protections: accepting an invalid HTTPS or MASQUE
 proxy certificate and accepting any SSH host key. MegaProxy displays a warning before enabling
 them. Use either option only when you understand and control the associated risk.
 
@@ -147,6 +156,34 @@ settings and fields unknown to the pinned specification once each, without displ
 Neither category is retained or included in later exports. See the
 [compatibility audit](docs/reviews/config-schema.md) for the canonical-format and legacy-import distinction.
 
+### MASQUE with GOST
+
+Select **MASQUE α (HTTP/3)**, enter the proxy hostname, UDP port and Basic credentials.
+The proxy certificate is verified by default. For GOST 3.3.0 use:
+
+```shell
+gost -L 'masque+http3://USER:PASSWORD@:8443?enableDatagrams=true'
+```
+
+This short command uses GOST-generated self-signed certificates. For normal verified
+connections, configure `listener.tls.certFile` and `listener.tls.keyFile` with a valid
+certificate chain and key for the proxy hostname.
+
+GOST's `http3` listener handles MASQUE; its `h3` listener is a different transport.
+Global app routing, local-network bypass, traffic accounting, DoH/fallback providers,
+connection checks, reconnect/failover and credential storage also apply to MASQUE.
+JSON uses `proxy.type: "MASQUE"`; ProxyList uses `masque://user:password@host:port`.
+
+QUIC uses the uQUIC Chrome 146 or Firefox 116 presets, independently of the TCP TLS
+preset versions. Custom JA3 requires TLS 1.3 suites and extensions 16, 43, 51 and 57;
+QUIC transport-parameter payloads come from the Chrome preset. Randomized uses the
+Chrome QUIC preset with randomized extension/parameter order. These approximate
+browser TLS/QUIC handshakes; HTTP/3 SETTINGS and congestion behavior remain those
+of the networking library. Firefox's 1200-byte datagram-frame limit cannot carry
+an inner QUIC Initial of 1200 bytes plus MASQUE framing; use Chrome for that traffic.
+The pinned uQUIC production sources include two compatibility fixes, documented in
+[native/third_party/uquic/MEGAPROXY.md](native/third_party/uquic/MEGAPROXY.md).
+
 ### HTTPS with Jump
 
 Select **HTTPS with Jump** to use two HTTPS CONNECT proxies in sequence:
@@ -166,7 +203,7 @@ JSON schema version 8 stores this mode as `proxy.type: "HTTPS_JUMP"`, with first
 `proxy.jump`: `host`, `port`, `sameAuthentication`, `username`, `password`, and
 `allowInvalidProxyCertificate`. Export passwords only when needed. Older application versions
 reject version 8 files, preventing a chain from being imported as a single proxy. ProxyList
-exports support single HTTPS proxies only and omit chain profiles.
+exports support single HTTPS and MASQUE proxies and omit chain profiles.
 
 ### Experimental MASQUE α
 
@@ -177,8 +214,10 @@ with Basic authentication and browser TLS/QUIC presets. Setup and known limits:
 
 ## Current limitations
 
-- Only TCP application traffic is forwarded. General SOCKS5 UDP and QUIC forwarding are not
-  implemented.
+- HTTPS and SSH forward TCP only. MASQUE UDP packets must fit the negotiated QUIC datagram
+  size and path MTU; GOST 3.3.0 has no reliable capsule fallback for larger packets.
+- GOST 3.3.0 rejects IPv6 literal targets in CONNECT-UDP. TCP IPv6 and local-network UDP bypass
+  retain the existing IPv6 policy.
 - SSH private keys protected by a passphrase are not supported yet.
 - Browser and SSH fingerprint presets are version-specific approximations. A preset name is not a
   permanent guarantee of an exact client fingerprint.

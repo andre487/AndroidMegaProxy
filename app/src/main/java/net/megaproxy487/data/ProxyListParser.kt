@@ -4,6 +4,7 @@ import net.megaproxy487.R
 import net.megaproxy487.UiException
 import net.megaproxy487.requireUi
 
+import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.ProxyConfig
 import java.net.URI
 import java.net.URLDecoder
@@ -23,7 +24,7 @@ object ProxyListParser {
         var skippedNonHttps = 0
         val proxies = lines.mapIndexedNotNull { index, line ->
             val uri = runCatching { URI(line) }.getOrElse { throw UiException(R.string.error_proxy_uri, index + 1) }
-            if (!uri.scheme.equals("https", ignoreCase = true)) {
+            if (!uri.scheme.equals("https", ignoreCase = true) && !uri.scheme.equals("masque", ignoreCase = true)) {
                 skippedNonHttps++
                 null
             } else {
@@ -49,6 +50,7 @@ object ProxyListParser {
             countryCode = query["cc"].orEmpty().uppercase()
                 .takeIf { it.matches(Regex("[A-Z]{2}")) }.orEmpty(),
             config = ProxyConfig(
+                type = if (uri.scheme.equals("masque", ignoreCase = true)) ProxyType.MASQUE else ProxyType.HTTPS,
                 host = host,
                 port = if (uri.port == -1) 443 else uri.port,
                 username = username,

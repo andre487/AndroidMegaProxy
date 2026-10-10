@@ -5,6 +5,11 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TransportProtocolTest {
+    @Test fun reportsHttp3FromMasqueTunnel() {
+        assertEquals(VpnTransportProtocol.HTTP_3,
+            transportProtocolFromDiagnostic("event=connection protocol=http3 stage=tunnel result=established"))
+    }
+
     @Test fun recognizesEstablishedTransportsOnly() {
         assertEquals(
             VpnTransportProtocol.HTTP_2,

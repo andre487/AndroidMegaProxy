@@ -2,6 +2,8 @@ package net.megaproxy487
 
 import androidx.compose.ui.test.*
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.model.TlsProfile
+import net.megaproxy487.model.GlobalConnectionSettings
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -58,6 +60,19 @@ class ProfileEditorUiTest : MainUiTestBase() {
         assertEquals(ProxyType.HTTPS_JUMP, store.profile(id)!!.config.type)
         assertEquals("proxy.example", store.profile(id)!!.config.host)
         assertEquals("jump.example", store.profile(id)!!.config.jumpHost)
+    }
+
+    @Test fun masqueCustomJa3PersistsIndependentlyOfGlobalHttpsJa3() {
+        val tls = "771,4865,0-10-13-16-43-51,29,0"
+        val quic = "771,4865,0-10-13-16-43-51-57,29,0"
+        store.saveGlobalConnectionSettings(GlobalConnectionSettings(tlsProfile = TlsProfile.CUSTOM, customJa3 = tls))
+        val original = store.activeProfile()
+        store.saveProfile(original.copy(config = original.config.copy(type = ProxyType.MASQUE)))
+        content { ProfileEditorScreen(activity, original.id, {}) }
+        field(R.string.masque_custom_ja3).performTextReplacement(quic)
+        saved()
+        assertEquals(quic, store.profile(original.id)!!.config.customJa3)
+        assertEquals(tls, store.globalConnectionSettings().customJa3)
     }
 
     @Test fun typingInNewDraftCreatesExactlyOneProfile() {

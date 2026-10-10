@@ -3,6 +3,7 @@ package mobile
 import (
 	"bufio"
 	"context"
+	standardtls "crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -15,6 +16,8 @@ import (
 	"sync/atomic"
 	"testing"
 	"time"
+
+	tls "github.com/refraction-networking/utls"
 )
 
 type jumpTestProtector struct{ calls atomic.Int32 }
@@ -242,5 +245,30 @@ func TestHTTPSJumpConfigValidation(t *testing.T) {
 		if _, err := parseConfig(string(raw)); err == nil {
 			t.Fatal("invalid jump configuration accepted")
 		}
+	}
+}
+
+// The JA3 legacy version stays 771 even when supported_versions negotiates TLS 1.3.
+func TestCustomJA3NegotiatesTLS13(t *testing.T) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	server.TLS = &standardtls.Config{MinVersion: standardtls.VersionTLS13, MaxVersion: standardtls.VersionTLS13}
+	server.StartTLS()
+	defer server.Close()
+	raw, err := net.DialTimeout("tcp", server.Listener.Addr().String(), time.Second)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer raw.Close()
+	conn := tls.UClient(raw, &tls.Config{InsecureSkipVerify: true}, tls.HelloCustom)
+	if err := applyJA3(conn, "771,4865-4866-4867,0-10-13-16-43-51,29-23,0", "localhost"); err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := conn.HandshakeContext(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if conn.ConnectionState().Version != tls.VersionTLS13 {
+		t.Fatal("custom JA3 did not negotiate TLS 1.3")
 	}
 }

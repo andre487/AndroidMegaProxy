@@ -78,7 +78,7 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	}()
 	client, err := d.session(ctx)
 	if err != nil {
-		report(d.reporter, "event=ssh_session result=failed detail=%s", err)
+		report(d.reporter, "event=ssh_session result=failed %s", sshFailureDetails(err))
 		return nil, err
 	}
 	started := time.Now()

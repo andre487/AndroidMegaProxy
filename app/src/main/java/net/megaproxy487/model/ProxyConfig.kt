@@ -42,20 +42,21 @@ data class ProxyConfig(
 ) {
     @StringRes
     fun connectionValidationError(): Int? = when {
-        host.isBlank() -> if (type.isHttps) R.string.validation_proxy_host else R.string.validation_ssh_host
+        host.isBlank() -> if (type.isHttpProxy) R.string.validation_proxy_host else R.string.validation_ssh_host
         host.contains(Regex("[/:\\s]")) -> R.string.validation_host_format
         port !in 1..65535 -> R.string.validation_port
-        type.isHttps && username.isBlank() -> R.string.validation_basic_username
-        type.isHttps && password.isBlank() -> R.string.validation_basic_password
-        !type.isHttps && username.isBlank() -> R.string.validation_ssh_username
+        type.isHttpProxy && username.isBlank() -> R.string.validation_basic_username
+        type.isHttpProxy && password.isBlank() -> R.string.validation_basic_password
+        !type.isHttpProxy && username.isBlank() -> R.string.validation_ssh_username
         type.hasJump && jumpHost.isBlank() -> R.string.validation_jump_host
         type.hasJump && jumpHost.contains(Regex("[/:\\s]")) -> R.string.validation_jump_host_format
         type.hasJump && jumpPort !in 1..65535 -> R.string.validation_jump_port
         type == ProxyType.SSH_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> R.string.validation_jump_ssh_username
         type == ProxyType.HTTPS_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> R.string.validation_jump_basic_username
         type == ProxyType.HTTPS_JUMP && !sameJumpAuthentication && jumpPassword.isBlank() -> R.string.validation_jump_basic_password
-        type.isHttps && profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
+        type.isHttpProxy && profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
             R.string.validation_ja3
+        type == ProxyType.MASQUE && profile == TlsProfile.CUSTOM && !validQuicJa3(customJa3) -> R.string.validation_quic_ja3
         dnsProvider == DnsProvider.CUSTOM && !validDohUrl(customDohUrl.trim()) ->
             R.string.validation_doh_url
         else -> null
@@ -67,11 +68,13 @@ data class ProxyConfig(
 
 enum class ProxyType(val title: String, val defaultPort: Int) {
     HTTPS("HTTPS", 443),
+    MASQUE("MASQUE (HTTP/3)", 443),
     HTTPS_JUMP("HTTPS with Jump", 443),
     SSH("SSH", 22),
     SSH_JUMP("SSH with Jump", 22);
 
     val isHttps: Boolean get() = this == HTTPS || this == HTTPS_JUMP
+    val isHttpProxy: Boolean get() = isHttps || this == MASQUE
     val hasJump: Boolean get() = this == HTTPS_JUMP || this == SSH_JUMP
 }
 
@@ -177,7 +180,7 @@ data class GlobalConnectionSettings(
 ) {
     fun applyTo(config: ProxyConfig): ProxyConfig = config.copy(
         profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.CHROME_ANDROID else tlsProfile,
-        customJa3 = customJa3,
+        customJa3 = if (config.type == ProxyType.MASQUE) config.customJa3 else customJa3,
         sshProfile = sshProfile,
         sshAuthMode = sshAuthMode,
         sshKeepaliveSeconds = sshKeepaliveSeconds,
@@ -224,3 +227,8 @@ internal fun validDohUrl(value: String): Boolean = runCatching {
         uri.rawUserInfo == null && uri.rawFragment == null &&
         (uri.port == -1 || uri.port in 1..65535)
 }.getOrDefault(false)
+
+internal fun validQuicJa3(value: String): Boolean {
+    val spec = Ja3Spec.parse(value) ?: return false
+    return spec.cipherSuites.all { it in 4865..4867 } && spec.extensions.containsAll(listOf(16, 43, 51, 57))
+}
