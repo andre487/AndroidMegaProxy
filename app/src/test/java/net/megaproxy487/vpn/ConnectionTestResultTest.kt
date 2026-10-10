@@ -5,6 +5,11 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ConnectionTestResultTest {
+    @Test fun fallbackWarningIsExplicitAndDefaultsOff() {
+        assertEquals(true, parseConnectionTestResult("""{"exitIp":"203.0.113.7","http3Fallback":true}""").http3Fallback)
+        assertEquals(false, parseConnectionTestResult("""{"exitIp":"203.0.113.7"}""").http3Fallback)
+    }
+
     @Test
     fun parsesIndependentHttp3ResultsAndIgnoresUnknownProviders() {
         val result = parseConnectionTestResult("""{"exitIp":"203.0.113.7","http3":[{"provider":"www.cloudflare.com","status":"confirmed"},{"provider":"quic.browserleaks.com","status":"unavailable"},{"provider":"unknown","status":"confirmed"}]}""")

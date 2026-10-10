@@ -34,6 +34,8 @@ object TestDiagnosticLog {
     val exitIp: androidx.compose.runtime.State<String?> = mutableExitIp
     val countryCode: androidx.compose.runtime.State<String?> = mutableCountryCode
     val http3: androidx.compose.runtime.State<List<Http3ProbeResult>> = mutableHttp3
+    private val mutableHttp3Fallback = androidx.compose.runtime.mutableStateOf(false)
+    val http3Fallback: androidx.compose.runtime.State<Boolean> = mutableHttp3Fallback
 
     private fun onMain(droppable: Boolean = false, action: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) action()
@@ -50,6 +52,7 @@ object TestDiagnosticLog {
         mutableExitIp.value = null
         mutableCountryCode.value = null
         mutableHttp3.value = emptyList()
+        mutableHttp3Fallback.value = false
         mutableState.value = TestState.IDLE
     }
 
@@ -58,6 +61,7 @@ object TestDiagnosticLog {
         mutableExitIp.value = null
         mutableCountryCode.value = null
         mutableHttp3.value = emptyList()
+        mutableHttp3Fallback.value = false
         mutableState.value = TestState.RUNNING
     }
 
@@ -70,10 +74,11 @@ object TestDiagnosticLog {
         }
     }
 
-    fun succeed(ip: String, countryCode: String?, http3: List<Http3ProbeResult> = emptyList()) = onMain {
+    fun succeed(ip: String, countryCode: String?, http3: List<Http3ProbeResult> = emptyList(), http3Fallback: Boolean = false) = onMain {
         mutableExitIp.value = ip
         mutableCountryCode.value = countryCode
         mutableHttp3.value = http3
+        mutableHttp3Fallback.value = http3Fallback
         mutableState.value = TestState.SUCCEEDED
     }
 

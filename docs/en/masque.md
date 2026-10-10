@@ -98,3 +98,21 @@ transport failures retain recovery diagnostics. TCP half-close forwards FIN thro
 CONNECT while keeping the response direction open.
 
 [Русская версия](../ru/masque.md)
+
+## Optional HTTP/3 for HTTPS
+
+A direct HTTPS profile can enable **Prefer HTTP/3 α** while keeping its HTTPS
+type. The app attempts MASQUE on the same host and numeric UDP port for up to
+three seconds. The server must also provide HTTPS over TCP for fallback.
+Unsupported QUIC fingerprints or server settings and unavailable QUIC select the
+existing HTTPS transport (HTTP/2 or HTTP/1.1). The home screen and connection test
+show a warning: fallback blocks ordinary UDP; intercepted DNS still uses DoH.
+
+Certificate, authentication, socket protection and unknown failures do not
+trigger fallback. Once HTTP/3 is selected, failures remain on that transport;
+active streams are never migrated. Selection is repeated on a new VPN/test
+session. The preference is off by default and ignored for HTTPS with Jump and
+other types. Explicit MASQUE profiles still require HTTP/3 without fallback.
+The selected global browser fingerprint is reused where QUIC supports it;
+unsupported Edge/custom JA3 presets select HTTPS. JSON exports preserve
+`profiles[].proxy.preferHttp3`; plain proxy URLs omit this setting.

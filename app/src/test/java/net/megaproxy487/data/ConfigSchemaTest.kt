@@ -25,6 +25,14 @@ internal object ConfigSchemas {
 }
 
 class ConfigSchemaTest {
+    @Test fun upstreamConfigurationSubscriptionIsRecognizedButIgnored() {
+        val root = JSONObject(String(ConfigSchemas.bytes("browser-v8.json")))
+        root.remove("browser")
+        assertEquals(ConfigImportNotice(browserFields = true), ConfigImportNotices.inspect(root))
+        root.getJSONObject("subscription").put("future", "private-value")
+        assertEquals(ConfigImportNotice(browserFields = true, unknownFields = true), ConfigImportNotices.inspect(root))
+    }
+
     @Test fun vendoredFilesMatchPinnedCommitAndChecksums() {
         val lock = JSONObject(String(ConfigSchemas.bytes("schema-lock.json")))
         assertEquals("https://github.com/andre487/MegaProxyConfig", lock.getString("repository"))

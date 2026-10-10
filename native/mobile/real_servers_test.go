@@ -111,6 +111,12 @@ func TestRealProxyServers(t *testing.T) {
 	if masqueConfig.DialHost != "127.0.0.1" || masqueConfig.Port == 0 {
 		t.Fatal("invalid MASQUE published port")
 	}
+	preferredMasque := masqueConfig
+	preferredMasque.Type, preferredMasque.PreferHTTP3 = "HTTPS", true
+	preferredHTTPS := base
+	preferredHTTPS.PreferHTTP3 = true
+	preferredH2 := h2Config
+	preferredH2.PreferHTTP3 = true
 	masqueFirefox := masqueConfig
 	masqueFirefox.Profile = "FIREFOX_ANDROID"
 	masqueCustom := masqueConfig
@@ -161,7 +167,7 @@ func TestRealProxyServers(t *testing.T) {
 		name string
 		cfg  config
 	}{
-		{"gost_masque", masqueConfig}, {"gost_masque_firefox", masqueFirefox}, {"gost_masque_custom", masqueCustom}, {"gost_https", base}, {"gost_https_custom", httpsCustom}, {"gost_https_jump_custom", httpsJumpCustom}, {"gost_http2", h2Config}, {"gost_https_jump", httpsJump},
+		{"gost_prefer_http3", preferredMasque}, {"gost_prefer_https_fallback", preferredHTTPS}, {"gost_prefer_h2_fallback", preferredH2}, {"gost_masque", masqueConfig}, {"gost_masque_firefox", masqueFirefox}, {"gost_masque_custom", masqueCustom}, {"gost_https", base}, {"gost_https_custom", httpsCustom}, {"gost_https_jump_custom", httpsJumpCustom}, {"gost_http2", h2Config}, {"gost_https_jump", httpsJump},
 		{"openssh_password", sshConfig}, {"openssh_key", sshKeyConfig}, {"openssh_jump", sshJumpConfig},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
@@ -189,7 +195,7 @@ func TestRealProxyServers(t *testing.T) {
 				}
 			}
 			output := logs.text()
-			if tc.cfg.Type == "MASQUE" {
+			if tc.cfg.Type == "MASQUE" || tc.name == "gost_prefer_http3" {
 				if !strings.Contains(output, "protocol=http3") {
 					t.Fatal("missing HTTP/3 negotiation")
 				}
@@ -314,6 +320,14 @@ func realServerDialer(t *testing.T, c config, reporters ...Reporter) func(contex
 	var reporter Reporter
 	if len(reporters) > 0 {
 		reporter = reporters[0]
+	}
+	preferred, err := preferredHTTP3(context.Background(), c, protector, reporter, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if preferred != nil {
+		t.Cleanup(func() { _ = preferred.Close() })
+		return preferred.connectTarget
 	}
 	if c.isHTTPS() {
 		d := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}

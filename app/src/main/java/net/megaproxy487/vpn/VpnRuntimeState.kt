@@ -21,6 +21,9 @@ fun transportProtocolFromDiagnostic(message: String): VpnTransportProtocol? = wh
     else -> null
 }
 
+internal fun isHttp3FallbackDiagnostic(message: String): Boolean =
+    "event=transport_selection" in message && "selected=https" in message && "result=fallback" in message
+
 object VpnRuntimeState {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val mutableConnection = mutableStateOf(
@@ -37,6 +40,8 @@ object VpnRuntimeState {
     val networkWarning: State<String?> = mutableNetworkWarning
     private val mutableTransportProtocol = mutableStateOf(VpnTransportProtocol.UNKNOWN)
     val transportProtocol: State<VpnTransportProtocol> = mutableTransportProtocol
+    private val mutableHttp3Fallback = mutableStateOf(false)
+    val http3Fallback: State<Boolean> = mutableHttp3Fallback
 
     private val mutableSession = mutableStateOf<ConnectionSession?>(null)
     val session: State<ConnectionSession?> = mutableSession
@@ -49,14 +54,22 @@ object VpnRuntimeState {
                 mutableSession.value, value == VpnConnectionState.CONNECTED, wallTime, elapsedTime,
             )
             mutableConnection.value = value
-            if (value != VpnConnectionState.CONNECTED) mutableTransportProtocol.value = VpnTransportProtocol.UNKNOWN
+            if (value != VpnConnectionState.CONNECTED) {
+                mutableTransportProtocol.value = VpnTransportProtocol.UNKNOWN
+                mutableHttp3Fallback.value = false
+            }
         }
         if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
     }
 
     fun observeDiagnostic(message: String) {
-        val protocol = transportProtocolFromDiagnostic(message) ?: return
-        val update = { mutableTransportProtocol.value = protocol }
+        val protocol = transportProtocolFromDiagnostic(message)
+        val fallback = isHttp3FallbackDiagnostic(message)
+        if (protocol == null && !fallback) return
+        val update = {
+            if (protocol != null) mutableTransportProtocol.value = protocol
+            if (fallback) mutableHttp3Fallback.value = true
+        }
         if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
     }
 

@@ -129,6 +129,7 @@ private data class ImportOptionsReview(
 private fun profileOptionGroups(current: ProxyProfile, imported: ProxyProfile): List<Int> = buildList {
     if (current.config.type != imported.config.type || current.config.port != imported.config.port ||
         current.config.jumpPort != imported.config.jumpPort ||
+        current.config.preferHttp3 != imported.config.preferHttp3 ||
         current.config.sameJumpAuthentication != imported.config.sameJumpAuthentication
     ) add(R.string.import_option_connection)
     if (current.config.allowInvalidProxyCertificate != imported.config.allowInvalidProxyCertificate ||
@@ -179,6 +180,7 @@ private fun applySelectedProfileOptions(
     if (selected(R.string.import_option_connection)) result = result.copy(config = result.config.copy(
         type = imported.config.type,
         port = imported.config.port,
+        preferHttp3 = imported.config.preferHttp3,
         jumpPort = imported.config.jumpPort,
         sameJumpAuthentication = imported.config.sameJumpAuthentication,
     ))

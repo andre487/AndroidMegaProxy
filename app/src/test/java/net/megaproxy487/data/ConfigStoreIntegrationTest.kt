@@ -57,6 +57,15 @@ class ConfigStoreIntegrationTest {
             .put("profiles", JSONArray().put(profile)).toString()),
     )
 
+    @Test fun http3PreferenceSurvivesStorageAndGlobalSettings() {
+        val original = store.activeProfile()
+        assertFalse(original.config.preferHttp3)
+        store.saveProfile(original.copy(config = original.config.copy(preferHttp3 = true)))
+        val reopened = ConfigStore(context).profile(original.id)!!.config
+        assertTrue(reopened.preferHttp3)
+        assertTrue(store.globalConnectionSettings().applyTo(reopened).preferHttp3)
+    }
+
     @Test fun allCredentialFieldsSurviveReopeningAndAreEncryptedAtRest() {
         val original = secretProfile()
         assertEquals(original, store.profile(original.id))

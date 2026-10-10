@@ -18,8 +18,12 @@ internal object ConfigImportNotices {
     fun inspect(root: JSONObject): ConfigImportNotice {
         var unknown = false
         fun walk(value: Any?, definition: JSONObject) {
-            val reference = definition.optString("\$ref")
-            val resolved = if (reference.isEmpty()) definition
+            val objectDefinition = if (value is JSONObject) definition.optJSONArray("anyOf")?.let { variants ->
+                (0 until variants.length()).mapNotNull(variants::optJSONObject)
+                    .firstOrNull { it.has("\$ref") || it.has("properties") }
+            } ?: definition else definition
+            val reference = objectDefinition.optString("\$ref")
+            val resolved = if (reference.isEmpty()) objectDefinition
                 else schema.getJSONObject("\$defs").getJSONObject(reference.substringAfterLast('/'))
             when (value) {
                 is JSONObject -> {
@@ -36,7 +40,7 @@ internal object ConfigImportNotices {
         }
         walk(root, schema)
         val profiles = root.optJSONArray("profiles")
-        val browser = root.has("browser") || profiles?.let { array ->
+        val browser = root.has("browser") || root.has("subscription") || profiles?.let { array ->
             (0 until array.length()).any { array.optJSONObject(it)?.has("browser") == true }
         } == true
         return ConfigImportNotice(browserFields = browser, unknownFields = unknown)

@@ -57,6 +57,37 @@ class VpnDeviceTest : DeviceTestBase() {
         }
     }
 
+    @Test fun httpsPreferenceUsesMasqueThroughTunAndJni() {
+        useMasque(TlsProfile.CHROME_ANDROID)
+        io {
+            val profile = store.activeProfile()
+            store.saveProfile(profile.copy(config = profile.config.copy(type = ProxyType.HTTPS, preferHttp3 = true)))
+        }
+        saved()
+        directOriginUnavailable()
+        connect()
+        roundTrip()
+        udpRoundTrip(1200)
+        await("HTTPS preference did not select H3") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.HTTP_3 }
+        assertFalse(VpnRuntimeState.http3Fallback.value)
+    }
+
+    @Test fun httpsPreferenceFallsBackWithoutBlockingRecovery() {
+        io {
+            val profile = store.activeProfile()
+            store.saveProfile(profile.copy(config = profile.config.copy(preferHttp3 = true)))
+        }
+        saved()
+        connect()
+        roundTrip()
+        await("HTTPS fallback warning absent") { VpnRuntimeState.http3Fallback.value }
+        assertTrue(VpnRuntimeState.transportProtocol.value in listOf(VpnTransportProtocol.HTTP_1_1, VpnTransportProtocol.HTTP_2))
+        appNode(androidx.test.uiautomator.By.text(text(R.string.http3_fallback_warning)))
+        click(R.string.disconnect)
+        stopped()
+        assertFalse(VpnRuntimeState.http3Fallback.value)
+    }
+
     @Test fun masqueFirefoxTraffic() {
         useMasque(TlsProfile.FIREFOX_ANDROID)
         saved()

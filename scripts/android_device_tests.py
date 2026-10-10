@@ -26,6 +26,8 @@ TESTS = (
     "VpnDeviceTest#deniedVpnConsentDoesNotStartTunnel",
     "VpnDeviceTest#trafficStopAndRestart",
     "VpnDeviceTest#masqueTrafficStopAndRestart",
+    "VpnDeviceTest#httpsPreferenceUsesMasqueThroughTunAndJni",
+    "VpnDeviceTest#httpsPreferenceFallsBackWithoutBlockingRecovery",
     "VpnDeviceTest#masqueFirefoxTraffic",
     "VpnDeviceTest#masqueRandomizedTraffic",
     "VpnDeviceTest#masqueCustomTraffic",

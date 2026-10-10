@@ -331,6 +331,12 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             PasswordField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it, unreadableSecrets = config.unreadableSecrets - "password")) } }, label = stringResource(if (config.type.isHttpProxy) R.string.password else R.string.ssh_password_optional),
                     error = fieldError(R.string.validation_basic_password), modifier = Modifier.fillMaxWidth())
           }
+          if (config.type == ProxyType.HTTPS) item { SettingCheckboxRow(
+              checked = config.preferHttp3,
+              title = stringResource(R.string.prefer_http3),
+              description = stringResource(R.string.prefer_http3_description),
+              onCheckedChange = { updateConfig(config.copy(preferHttp3 = it)) },
+          ) }
           if (config.type == ProxyType.MASQUE) {
             item { Text(stringResource(R.string.masque_fingerprint_description), style = MaterialTheme.typography.bodySmall) }
             if (globalSettings.tlsProfile == TlsProfile.CUSTOM) item {

@@ -303,3 +303,5 @@ CI reads only these committed files; it never fetches a moving upstream branch.
 `android_checks` validates real exports against both schemas and checks examples, enums and
 checksums. The JVM validator is a test dependency only. Import remains compatible with versions
 1–8; it uses the bundled shared schema to recognize fields, without rejecting permissive legacy input.
+
+The HTTPS profile preference is also tested through real TUN/JNI: HTTP/3 selection with UDP, HTTPS fallback and warning reset on disconnect.
