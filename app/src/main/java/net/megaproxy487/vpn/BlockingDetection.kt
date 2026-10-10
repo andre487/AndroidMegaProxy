@@ -18,8 +18,8 @@ object BlockingDetection {
         return when {
             "stage=tls_handshake" in value && "reason=timeout" in value -> BlockingSignal.TLS_HANDSHAKE_TIMEOUT
             "stage=tls_handshake" in value && ("reason=reset" in value || "reason=eof" in value) -> BlockingSignal.TLS_HANDSHAKE_RESET
-            "stage=connect_response" in value && "reason=timeout" in value -> BlockingSignal.CONNECT_RESPONSE_TIMEOUT
-            "stage=connect_response" in value && ("reason=reset" in value || "reason=eof" in value) -> BlockingSignal.CONNECT_RESPONSE_RESET
+            ("stage=connect_response" in value || "stage=socks_handshake" in value) && "reason=timeout" in value -> BlockingSignal.CONNECT_RESPONSE_TIMEOUT
+            ("stage=connect_response" in value || "stage=socks_handshake" in value) && ("reason=reset" in value || "reason=eof" in value) -> BlockingSignal.CONNECT_RESPONSE_RESET
             "ssh" in value && "handshake" in value && ("timeout" in value || "timed out" in value) -> BlockingSignal.SSH_HANDSHAKE_TIMEOUT
             "handshake" in value && "timeout" in value -> BlockingSignal.TLS_HANDSHAKE_TIMEOUT
             "reset" in value || "broken pipe" in value -> BlockingSignal.CONNECTION_RESET
