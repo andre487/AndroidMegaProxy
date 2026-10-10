@@ -47,7 +47,8 @@ branch names, credentials, signing material, or other secrets.
   serialization/defaults, formatting, and state transitions should not require a device.
 - Compose interaction tests may run in `app/src/test` using Robolectric with a pinned SDK and
   plain test Application. Inject platform operations; do not load Go JNI or real Keystore in
-  those tests. They run through the existing Fastlane Android checks without an emulator.
+  those tests. Gradle resolves pinned API 26/35 Robolectric SDK jars before tests; the test
+  runtime uses offline resolution. They run through Fastlane Android checks without an emulator.
 - Exercise real screens and ConfigStore with a test-only Keystore provider. Before asserting
   service commands or their absence, drain ordered configuration writes and check both completion
   and failure state; `pending == 0` alone does not prove success. Recorded service intents do not
