@@ -53,6 +53,7 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_prepare version:0.1.2` | Генерирует EN/RU changelog, повышает версию и создаёт release PR (нужна настройка API/токенов). |
 | `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Ждёт полного CI, выполняет squash merge указанного head PR и тегирует итоговый commit. |
+| `bundle exec fastlane android virus_total` | Проверяет подписанные APK в `dist/release` (или `artifacts:PATH`); нужен `VIRUSTOTAL_API_KEY`, обнаружения/ошибки API блокируют публикацию. |
 | `bundle exec fastlane android release_artifacts` | Собирает и проверяет подписанные APK и `SHA256SUMS` в `dist/release`. |
 
 Для release lane нужна конфигурация подписи из раздела

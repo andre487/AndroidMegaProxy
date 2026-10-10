@@ -5,6 +5,7 @@ import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.net.VpnService
 import android.os.SystemClock
+import android.view.accessibility.AccessibilityNodeInfo
 import androidx.test.core.app.ActivityScenario
 import androidx.test.uiautomator.UiScrollable
 import androidx.test.uiautomator.UiSelector
@@ -81,7 +82,14 @@ abstract class DeviceTestBase {
     protected fun systemButton(resource: String) {
         val button = device.wait(Until.findObject(By.res(resource)), 10_000)
         assertNotNull("Missing system button $resource", button)
-        button.click()
+        device.waitForIdle()
+        // Invoke the button's semantic action: coordinate injection can be ignored
+        // by PermissionController even when its accessibility node is visible.
+        val node = requireNotNull(instrumentation.uiAutomation.rootInActiveWindow
+            ?.findAccessibilityNodeInfosByViewId(resource)
+            ?.firstOrNull { it.isClickable && it.isEnabled }) { "System button is not actionable: $resource" }
+        assertTrue("System button rejected click: $resource", node.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        assertTrue("System dialog did not close: $resource", device.wait(Until.gone(By.res(resource)), 10_000))
         device.waitForIdle()
     }
     protected fun connect() {

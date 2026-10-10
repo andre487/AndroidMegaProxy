@@ -94,11 +94,26 @@ jobs:
           MEGAPROXY_GIT_COMMIT: ${{ github.sha }}
         run: bundle exec fastlane android release_artifacts
 
+      - name: Scan signed APKs with VirusTotal
+        timeout-minutes: 35
+        env:
+          VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
+        run: bundle exec fastlane android virus_total
+
+      - name: Preserve VirusTotal reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: virustotal-${{ github.ref_name }}
+          path: dist/release/VIRUSTOTAL.*
+          retention-days: 30
+          if-no-files-found: warn
+
       - name: Publish GitHub Release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          assets=(dist/release/*.apk dist/release/SHA256SUMS)
+          assets=(dist/release/*.apk dist/release/SHA256SUMS dist/release/VIRUSTOTAL.md dist/release/VIRUSTOTAL.json)
           if gh release view "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$GITHUB_REF_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
@@ -114,9 +129,19 @@ jobs:
               exit 1
             fi
             { printf '## English\n\n'; cat "$en"; printf '\n## Русский\n\n'; cat "$ru"; } > "$notes"
+            {
+              printf '\n<!-- megaproxy-virustotal -->\n'
+              cat dist/release/VIRUSTOTAL.md
+              printf '<!-- /megaproxy-virustotal -->\n'
+            } >> "$notes"
             gh release create "$GITHUB_REF_NAME" "${assets[@]}" \
               --repo "$GITHUB_REPOSITORY" \
               --verify-tag \
               --notes-file "$notes" \
               --title "MegaProxy ${GITHUB_REF_NAME}"
           fi
+
+      - name: Attach VirusTotal links to release notes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/virus_total.py --attach-to-release "$GITHUB_REF_NAME"

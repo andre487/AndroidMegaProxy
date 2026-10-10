@@ -87,6 +87,12 @@ platform :android do
     UI.success("Verified unsigned release APK: app/build/outputs/apk/release/app-release-unsigned.apk")
   end
 
+  desc "Scan release APKs with VirusTotal before publication"
+  lane :virus_total do |options|
+    sh(ENV.fetch("PYTHON", "python3"), File.join(project_root, "scripts", "virus_total.py"),
+       "--artifacts", File.expand_path(options[:artifacts] || "dist/release", project_root))
+  end
+
   desc "Build debug and instrumentation APKs for a disposable emulator"
   lane :device_test_build do
     native_library

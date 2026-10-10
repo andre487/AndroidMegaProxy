@@ -28,7 +28,9 @@ repeat material leak/authentication failures at least twice with fresh tokens.
 Keep raw exports, private keys, personal profile names, device/account identifiers
 and packet captures in a local private evidence directory (0700; sensitive files
 0600). Commit only reviewed, redacted records and synthetic fixtures. No automatic
-VirusTotal uploads, public services, issue posts or release publication.
+VirusTotal uploads of private review candidates, public services, issue posts or
+release publication as part of this review. The authorized tag-release workflow
+scans public signed APKs separately; see [release automation](release-automation.md).
 
 ## Preparation and release gates
 
