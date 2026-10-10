@@ -81,7 +81,9 @@ class VpnDeviceTest : DeviceTestBase() {
         connect()
         roundTrip()
         await("HTTPS fallback warning absent") { VpnRuntimeState.http3Fallback.value }
-        assertTrue(VpnRuntimeState.transportProtocol.value in listOf(VpnTransportProtocol.HTTP_1_1, VpnTransportProtocol.HTTP_2))
+        await("HTTPS protocol indicator did not update after fallback") {
+            VpnRuntimeState.transportProtocol.value in listOf(VpnTransportProtocol.HTTP_1_1, VpnTransportProtocol.HTTP_2)
+        }
         appNode(androidx.test.uiautomator.By.text(text(R.string.http3_fallback_warning)))
         click(R.string.disconnect)
         stopped()
@@ -116,7 +118,9 @@ class VpnDeviceTest : DeviceTestBase() {
             assertFalse(VpnRuntimeState.http3Fallback.value)
         } else {
             await("Whole Jump chain did not fall back") { VpnRuntimeState.http3Fallback.value }
-            assertTrue(VpnRuntimeState.transportProtocol.value in listOf(VpnTransportProtocol.HTTP_1_1, VpnTransportProtocol.HTTP_2))
+            await("Jump HTTPS protocol indicator did not update after fallback") {
+                VpnRuntimeState.transportProtocol.value in listOf(VpnTransportProtocol.HTTP_1_1, VpnTransportProtocol.HTTP_2)
+            }
         }
         click(R.string.disconnect)
         stopped()
