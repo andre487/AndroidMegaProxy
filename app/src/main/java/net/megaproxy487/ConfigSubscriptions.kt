@@ -176,15 +176,22 @@ internal object ConfigSubscriptions {
             for ((index, url) in (listOf(state.settings.url) + state.settings.fallbackUrls).withIndex()) {
                 try {
                     val text = download(state.settings, url)
+                    var reconnectToken: String? = null
                     val applied = withContext(ConfigIoDispatcher) {
                         val current = store.subscriptionState()?.takeIf { it.generation == state.generation }
                             ?: return@withContext false
                         val owned = store.profiles().filter { it.id in current.ownedIds }
                         val parsed = parseSubscriptionSnapshot(text, owned)
+                        val previousToken = store.pendingReconnectToken()
                         store.applySubscriptionSnapshot(state.generation, parsed, index,
-                            System.currentTimeMillis(), connectionRunning())
+                            System.currentTimeMillis(), connectionRunning()).also { applied ->
+                            if (applied) reconnectToken = store.pendingReconnectToken()?.takeIf { it != previousToken }
+                        }
                     }
                     if (applied) operationResult { PersistentDiagnosticLog.setLimitMb(store.diagnosticLogLimitMb()) }
+                    if (applied && !manual) reconnectToken?.let { token ->
+                        operationResult { SubscriptionNotifications.show(context, token, connectionRunning) }
+                    }
                     return@withLock applied
                 } catch (cancelled: CancellationException) { throw cancelled }
                 catch (_: Exception) { /* No URLs, credentials, payloads or remote error messages in logs. */ }

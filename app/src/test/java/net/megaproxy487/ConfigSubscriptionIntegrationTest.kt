@@ -1,6 +1,8 @@
 package net.megaproxy487
 
 import android.app.Application
+import android.app.NotificationManager
+import org.robolectric.Shadows.shadowOf
 import android.app.job.JobScheduler
 import android.content.Context
 import kotlinx.coroutines.CancellationException
@@ -257,4 +259,95 @@ class ConfigSubscriptionIntegrationTest {
         assertFalse(store.hasPendingReconnect())
     }
 
+
+    @Test fun invalidLegacyPortsTryBackupAndNeverReplaceWorkingProfilesOnFailure() = runBlocking {
+        bootstrap(profile("one"))
+        val generation = store.subscriptionState()!!.generation
+        val before = store.profiles()
+        for (port in listOf(0, 65536, 70000)) {
+            assertFalse(ConfigSubscriptions.refreshNow(context, true, { _, _ -> "socks5://bad.example:$port" }, { false }))
+            assertEquals(before, store.profiles())
+            assertEquals(generation, store.subscriptionState()!!.generation)
+        }
+        val calls = mutableListOf<String>()
+        assertTrue(ConfigSubscriptions.refreshNow(context, true, { _, url ->
+            calls += url
+            if (url == settings.url) "socks5://bad.example:70000" else "socks5://good.example:1080"
+        }, { false }))
+        assertEquals(listOf(settings.url) + settings.fallbackUrls, calls)
+        assertEquals(1, store.subscriptionState()!!.sourceIndex)
+        assertEquals("good.example", store.profiles().single { it.id in store.subscriptionState()!!.ownedIds }.config.host)
+    }
+
+    @Test fun explicitDisableAuthClearsPasswordButImportOmissionStillRetainsIt() {
+        for (username in listOf(null, "", "subscriber")) {
+            store.saveSubscription(settings.copy(username = username))
+            val draft = SubscriptionDraft().apply { load(store.subscriptionState()!!.settings); authenticated = false }
+            store.saveSubscription(draft.settings())
+            assertNull(store.subscriptionState()!!.settings.username)
+            assertNull(store.subscriptionState()!!.settings.password)
+        }
+        val passwordOnly = settings.copy(username = null)
+        store.saveSubscription(passwordOnly)
+        store.importConfiguration(ConfigTransfer.importJson(document(profile("one"),
+            subscription = passwordOnly.copy(password = null)).toString()))
+        assertEquals(settings.password, store.subscriptionState()!!.settings.password)
+    }
+
+    @Test fun backgroundActiveChangesNotifyButManualMetadataAndStoppedUpdatesDoNot() = runBlocking {
+        val manager = context.getSystemService(NotificationManager::class.java)
+        val notifications = shadowOf(manager)
+        for ((manual, running, metadata) in listOf(Triple(false, true, false), Triple(true, true, false),
+                Triple(false, true, true), Triple(false, false, false))) {
+            manager.cancel(SUBSCRIPTION_NOTIFICATION_ID)
+            context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE).edit().clear().commit()
+            bootstrap(profile("one"))
+            store.setConnectionProfile("one")
+            store.setConnectionDesired(running)
+            store.clearPendingReconnect(store.pendingReconnectToken())
+            val next = profile("one").let { if (metadata) it.copy(name = "renamed") else it.copy(config = it.config.copy(port = 1081)) }
+            assertTrue(ConfigSubscriptions.refreshNow(context, manual, { _, _ -> document(next).toString() }, { running }))
+            val notification = notifications.getNotification(SUBSCRIPTION_NOTIFICATION_ID)
+            if (!manual && running && !metadata) {
+                assertNotNull(notification)
+                val text = notification.extras.toString()
+                for (secret in listOf("feed.example", "subscription-secret", "subscriber", "one.example")) assertFalse(text.contains(secret))
+                assertEquals(text(R.string.reconnect), notification.actions.single().title.toString())
+                assertTrue(notification.flags and android.app.Notification.FLAG_ONLY_ALERT_ONCE != 0)
+                // An unchanged feed must not replace the pending token or create another alert.
+                val token = store.pendingReconnectToken()
+                assertTrue(ConfigSubscriptions.refreshNow(context, true, { _, _ -> document(next).toString() }, { running }))
+                assertEquals(token, store.pendingReconnectToken())
+            } else assertNull(notification)
+        }
+    }
+
+    private fun text(id: Int) = context.uiText(id)
+
+    @Test fun deletedProfilesCannotBeRestoredByStaleEditorWrites() {
+        bootstrap(profile("one"), profile("two"))
+        val draft = store.profile("one")!!
+        val edit = ConfigEdits<ProxyProfile>().profile(draft, draft.copy(name = "rename"))
+        assertTrue(store.deleteProfile("one"))
+        edit.write { store.editProfile(draft.id, null, it) }
+        assertNull(store.profile(draft.id))
+    }
+
+    @Test fun deniedNotificationsKeepPendingChangesAndStoppedActionsDoNotStartVpn() = runBlocking {
+        bootstrap(profile("one"))
+        store.setConnectionProfile("one")
+        store.setConnectionDesired(true)
+        val manager = context.getSystemService(NotificationManager::class.java)
+        shadowOf(manager).setNotificationsEnabled(false)
+        val next = profile("one").copy(config = profile("one").config.copy(port = 1081))
+        assertTrue(ConfigSubscriptions.refreshNow(context, false, { _, _ -> document(next).toString() }, { true }))
+        assertTrue(store.hasPendingReconnect())
+        assertNull(shadowOf(manager).getNotification(SUBSCRIPTION_NOTIFICATION_ID))
+        store.setConnectionDesired(false)
+        SubscriptionReconnectReceiver().onReceive(context, android.content.Intent()
+            .putExtra(EXTRA_SUBSCRIPTION_RECONNECT, store.pendingReconnectToken()))
+        kotlinx.coroutines.withContext(ConfigIoDispatcher) { /* Drain the application command queue. */ }
+        assertNull(shadowOf(context).nextStartedService)
+        assertFalse(store.isConnectionDesired())
+    }
 }

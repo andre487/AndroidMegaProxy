@@ -5,7 +5,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import android.app.Activity
 import android.net.Uri
 import android.os.Bundle
-import android.view.WindowManager
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -79,6 +78,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.runtime.saveable.rememberSaveable
 import net.megaproxy487.data.ConfigWrites
+import net.megaproxy487.data.profile
 import androidx.compose.runtime.collectAsState
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.imePadding
@@ -87,6 +87,8 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 private class ProfileEditorState(initialProfile: net.megaproxy487.model.ProxyProfile) : ViewModel() {
+    val edits = net.megaproxy487.data.ConfigEdits<net.megaproxy487.model.ProxyProfile>()
+    var submittedProfile = initialProfile
     var profile by mutableStateOf(initialProfile)
     var persisted by mutableStateOf(false)
     var config by mutableStateOf(profile.config)
@@ -109,10 +111,7 @@ private class ProfileEditorState(initialProfile: net.megaproxy487.model.ProxyPro
 @Composable
 internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
-    DisposableEffect(activity) {
-        activity.window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
-        onDispose { activity.window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE) }
-    }
+    SecureScreen(activity)
     val draftId = rememberSaveable { java.util.UUID.randomUUID().toString() }
     val isNew = profileId == "new"
     val editorState = viewModel {
@@ -153,8 +152,11 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     val alwaysOnActive = ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled
     fun saveProfile(affectsConnection: Boolean = false) {
         val snapshot = profile
+        val edit = editorState.edits.profile(editorState.submittedProfile, snapshot)
+        editorState.submittedProfile = snapshot
+        val draft = snapshot.takeIf { isNew && !editorState.persisted }
         ConfigWrites.submit("profile:${snapshot.id}") {
-            store.saveProfile(snapshot, createIfMissing = isNew)
+            edit.write { store.editProfile(snapshot.id, draft, it) }
             editorState.persisted = true
             if (affectsConnection && ProxyVpnService.isRunning && snapshot.id == store.connectionProfileId()) store.markPendingReconnect()
         }

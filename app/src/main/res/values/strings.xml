@@ -534,4 +534,7 @@
     <string name="subscription_remove">Remove subscription and keep profiles</string>
     <string name="subscription_save">Save subscription</string>
     <string name="subscription_id_collision">A subscription profile ID conflicts with a local profile</string>
+    <string name="subscription_notification_channel">Configuration changes</string>
+    <string name="subscription_notification_title">VPN settings updated</string>
+    <string name="subscription_notification_text">A background subscription update changed the active connection settings. Reconnect to apply them.</string>
 </resources>

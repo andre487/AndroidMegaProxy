@@ -107,8 +107,9 @@ branch names, credentials, signing material, or other secrets.
   rows wrap or stack; constrain app-bar titles and field labels, and make long dialog content
   scrollable. Keep full visual configuration checks local; emulator CI covers the agreed integration scenarios.
 
-- Configuration writes must outlive individual screens and expose pending/failure state. Keep
-  transfer operations across configuration changes; never put credentials or export payloads into
+- Configuration writes must outlive individual screens and expose pending/failure state.
+  Editors save deliberate field edits against current storage, preserving untouched subscription
+  updates and opaque secrets; retries retain unapplied edits. Keep transfer operations across configuration changes; never put credentials or export payloads into
   Android saved-state bundles, and reject a lost export before opening the output stream.
   Serialize profile read/modify/write operations and Keystore key creation across ConfigStore
   instances. Preserve unreadable ciphertext and malformed profile storage; recovery must be explicit.
@@ -131,7 +132,9 @@ branch names, credentials, signing material, or other secrets.
 
 - Configuration subscriptions use the MegaProxyConfig HTTPS delivery contract and client ID
   `android`. Encrypt URLs/credentials and persist ownership/status locally. Scheduled jobs and
-  manual refresh share validation, source failover and an atomic snapshot commit. Downloaded
+  manual refresh share validation, source failover and an atomic snapshot commit.
+  Background changes affecting a running VPN offer a privacy-safe reconnect notification; stale
+  actions must never restart a stopped VPN. Credential screens use `FLAG_SECURE`. Remote
   subscription definitions cannot alter local recipients; generation checks discard obsolete
   downloads. Keep local profiles/selections and current tunnels; effective live changes mark
   pending reconnect rather than starting/stopping VPN automatically.

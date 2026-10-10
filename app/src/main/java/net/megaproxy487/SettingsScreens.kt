@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import net.megaproxy487.data.settings
+
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 import android.app.Activity
@@ -274,13 +276,15 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val profiles = remember(store) { store.sortedProfiles() }
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
+    val edits = remember { net.megaproxy487.data.ConfigEdits<net.megaproxy487.model.GlobalConnectionSettings>() }
     var expanded by remember { mutableStateOf(false) }
     var pendingAll by remember { mutableStateOf(false) }
     val alwaysOn = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
     fun save(mode: FailoverMode = settings.failoverMode, ids: List<String> = settings.failoverProfileIds) {
-        settings = settings.copy(failoverMode = mode, failoverProfileIds = ids)
-        val snapshot = settings
-        ConfigWrites.submit("global") { store.saveGlobalConnectionSettings(snapshot) }
+        val updated = settings.copy(failoverMode = mode, failoverProfileIds = ids)
+        val edit = edits.settings(settings, updated)
+        settings = updated
+        ConfigWrites.submit("global") { edit.write { store.editGlobalSettings(it) } }
     }
     SettingsScaffold(onBack, stringResource(R.string.failover)) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
@@ -389,6 +393,7 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
+    val edits = remember { net.megaproxy487.data.ConfigEdits<net.megaproxy487.model.GlobalConnectionSettings>() }
     var expanded by remember { mutableStateOf(false) }
     var sshExpanded by remember { mutableStateOf(false) }
     var sshAuthExpanded by remember { mutableStateOf(false) }
@@ -400,10 +405,10 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
     val invalidFields = remember { mutableStateMapOf<String, Boolean>() }
     val writeStatus by ConfigWrites.status.collectAsState()
     fun saveSettings(updated: net.megaproxy487.model.GlobalConnectionSettings) {
+        val edit = edits.settings(settings, updated)
         settings = updated
-        val snapshot = settings
         ConfigWrites.submit("global") {
-            store.saveGlobalConnectionSettings(snapshot)
+            edit.write { store.editGlobalSettings(it) }
             if (ProxyVpnService.isRunning) store.markPendingReconnect()
         }
         if (ProxyVpnService.isRunning && !deferred) {

@@ -49,6 +49,7 @@ object ProxyListParser {
         val password = decodeUriComponent(userInfo.substring(separator + 1))
         requireUi(username.length <= 4_096) { UiException(R.string.error_proxy_user_long, lineNumber) }
         requireUi(password.length <= 16_384) { UiException(R.string.error_proxy_password_long, lineNumber) }
+        requireUi(uri.port == -1 || uri.port in 1..65535) { UiException(R.string.validation_port) }
         val query = parseQuery(uri.rawQuery)
         return ImportedProxy(
             name = query["title"].orEmpty(),

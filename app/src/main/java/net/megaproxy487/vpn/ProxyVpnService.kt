@@ -1,5 +1,9 @@
 package net.megaproxy487.vpn
 
+import net.megaproxy487.SubscriptionNotifications
+import net.megaproxy487.EXTRA_SUBSCRIPTION_RECONNECT
+import net.megaproxy487.canReconnectSubscription
+
 import net.megaproxy487.R
 import net.megaproxy487.titleRes
 import net.megaproxy487.uiText
@@ -118,6 +122,17 @@ class ProxyVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        val subscriptionToken = intent?.getStringExtra(EXTRA_SUBSCRIPTION_RECONNECT)
+        if (subscriptionToken != null && !canReconnectSubscription(subscriptionToken,
+                ConfigStore(this).pendingReconnectToken(), isRunning, ConfigStore(this).isConnectionDesired())) {
+            // A notification action may race Stop or a newer configuration, or survive process death.
+            if (tunnel == null) {
+                startForeground(NOTIFICATION_ID, notification(this.uiText(R.string.status_disconnected)))
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf()
+            }
+            return if (tunnel != null) START_STICKY else START_NOT_STICKY
+        }
         val systemAlwaysOnStart = intent?.action == SERVICE_INTERFACE
         // Android starts the selected service with SERVICE_INTERFACE on older releases;
         // the explicit isAlwaysOn property itself was only added in API 29.
@@ -443,7 +458,10 @@ class ProxyVpnService : VpnService() {
             if (failoverNotice == null) VpnRuntimeState.updateNetworkWarning(null)
             else VpnRuntimeState.updateNetworkWarning(failoverNotice)
             VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, promptProfileId)
-            if (!testOnly) configStore.clearPendingReconnect(pendingReconnectToken)
+            if (!testOnly) {
+                configStore.clearPendingReconnect(pendingReconnectToken)
+                if (!configStore.hasPendingReconnect()) SubscriptionNotifications.cancel(this)
+            }
             resetRetryState()
             VpnRuntimeState.update(VpnConnectionState.CONNECTED)
             return true
@@ -725,6 +743,7 @@ class ProxyVpnService : VpnService() {
             isRunning = false
             result
         }
+        SubscriptionNotifications.cancel(this)
         if (stopped.first != null) {
             if (stopped.third) TestDiagnosticLog.add("Stopping temporary VPN")
             else DiagnosticLog.add("Stopping VPN")
@@ -867,6 +886,16 @@ class ProxyVpnService : VpnService() {
             launchCommand(app) {
                 ConfigStore(app).setConnectionDesired(false)
                 app.startService(Intent(app, ProxyVpnService::class.java).setAction(ACTION_STOP))
+            }
+        }
+        fun reconnectSubscription(context: Context, token: String) {
+            val app = context.applicationContext
+            launchCommand(app) {
+                val store = ConfigStore(app)
+                if (!canReconnectSubscription(token, store.pendingReconnectToken(), isRunning, store.isConnectionDesired())) return@launchCommand
+                ContextCompat.startForegroundService(app, Intent(app, ProxyVpnService::class.java)
+                    .setAction(ACTION_RECONNECT).putExtra(EXTRA_SUBSCRIPTION_RECONNECT, token)
+                    .putExtra(EXTRA_RECONNECT_REASON, "subscription_updated"))
             }
         }
         fun reconnect(context: Context) {
