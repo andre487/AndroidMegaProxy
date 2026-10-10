@@ -19,6 +19,21 @@ Workflow станет доступен после merge PR с его реали�
 | Variable / Secret | `OPENAI_RELEASE_MODEL` | Доступная вашему API-проекту модель с Responses API Structured Outputs, например `gpt-4o-mini`. Если заданы оба варианта, Variables имеют приоритет над Secrets. Неявного выбора другой модели нет. |
 | Secret | `RELEASE_BOT_TOKEN` | Fine-grained PAT только для этого репозитория: Contents read/write, Pull requests read/write, Actions read. |
 
+Workflow по тегу также требует `VIRUSTOTAL_API_KEY`. После подписи все пять публичных
+релизных APK отправляются в VirusTotal; для universal используется загрузка больших
+файлов. Общее ожидание ограничено 30 минутами, запросы идут с интервалом не менее
+16 секунд с учётом квоты публичного API. Нет ключа, ошибка API, незавершённый анализ
+или malicious/suspicious блокируют публикацию: сначала разберите результат.
+Автоматического обхода обнаружений нет. Ноль обнаружений не гарантирует безопасность.
+
+`VIRUSTOTAL.md` и `VIRUSTOTAL.json` прикладываются к релизу; ссылки по SHA-256 попадают
+в описание релиза и Actions summary. Повтор заменяет только отмеченный блок VirusTotal,
+сохраняя остальной текст. При ошибке завершённые частичные результаты остаются артефактом
+Actions. PR CI не получает API-ключ и не загружает APK. Отправляются только APK,
+никогда ключи подписи, профили или диагностические журналы.
+[API загрузки и ограничения размера](https://docs.virustotal.com/reference/files-scan),
+[статусы анализа и результаты](https://docs.virustotal.com/reference/analyses-object).
+
 Сохраните существующие секреты подписи для сборки по тегу:
 `ANDROID_SIGNING_KEY_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
 `ANDROID_KEY_PASSWORD`. Подготовка и проверки PR их не получают.

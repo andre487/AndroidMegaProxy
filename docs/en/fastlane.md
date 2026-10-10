@@ -52,6 +52,7 @@ That command lists the lanes available in the checked-out version of the project
 | `bundle exec fastlane android debug_artifact` | Builds `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_prepare version:0.1.2` | Generates EN/RU notes, increments the version and creates a release PR (requires API/token setup). |
 | `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Requires full CI, squash merges the specified PR head and tags the merged commit. |
+| `bundle exec fastlane android virus_total` | Scan signed APKs in `dist/release` (or `artifacts:PATH`); requires `VIRUSTOTAL_API_KEY`, blocks on detections/API failures. |
 | `bundle exec fastlane android release_artifacts` | Builds and verifies the signed release APKs and `SHA256SUMS` in `dist/release`. |
 
 The release lane requires the signing configuration described in
