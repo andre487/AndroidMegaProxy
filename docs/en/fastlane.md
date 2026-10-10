@@ -48,7 +48,7 @@ That command lists the lanes available in the checked-out version of the project
 | `bundle exec fastlane android device_test_build` | Build the native AAR, debug APK and instrumentation APK. |
 | `bundle exec fastlane android device_tests api:26` | Run integration scenarios on a running disposable API 26 emulator. |
 | `bundle exec fastlane android device_tests api:35` | Run integration scenarios on a running disposable API 35 emulator. |
-| `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command. |
+| `bundle exec fastlane android test` | Runs `native_tests` and `android_checks`; this is the normal pre-commit command; excludes Python, Docker integration and emulator tests. |
 | `bundle exec fastlane android debug_artifact` | Builds `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_prepare version:0.1.2` | Generates EN/RU notes, increments the version and creates a release PR (requires API/token setup). |
 | `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Requires full CI, squash merges the specified PR head and tags the merged commit. |
@@ -177,7 +177,7 @@ newly passed tests. Existing required checks continue to gate merges.
 
 The publisher has `checks: write`; test jobs retain read-only repository access. Internal PRs and
 pushes publish independently after each corresponding test job finishes. Fork PRs publish from the trusted `workflow_run` workflow,
-which becomes available after this workflow is merged into `main`. It reads artifacts without
+which is already present in `main`. It reads artifacts without
 checking out or executing PR code. Only JUnit artifacts are parsed; device UI hierarchy XML stays
 in the separate evidence artifact.
 

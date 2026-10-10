@@ -142,7 +142,7 @@ Android установит обновление поверх текущей ве
 
 ### Тестовые артефакты из pull request
 
-Если нужно проверить изменение, откройте комментарий со ссылками на APK в pull request либо
+Если нужно проверить изменение, откройте блок ссылок на APK внизу описания pull request либо
 успешную Android-проверку. Ссылки находятся в отчёте job и разделе **Artifacts** запуска workflow.
 Для скачивания нужен вход в GitHub и доступ к репозиторию:
 [инструкция GitHub](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts).

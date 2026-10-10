@@ -16,7 +16,7 @@ Fastlane is the supported entry point for tests and build artifacts. Install Rub
 | `bundle exec fastlane android device_test_build` | Build native AAR, debug APK and instrumentation APK |
 | `bundle exec fastlane android device_tests api:26` | Run integration scenarios on a disposable API 26 emulator |
 | `bundle exec fastlane android device_tests api:35` | Run integration scenarios on a disposable API 35 emulator |
-| `bundle exec fastlane android test` | Run all native and Android checks |
+| `bundle exec fastlane android test` | Run native unit tests and Android JVM/lint/build checks; excludes Python, Docker integration and device tests |
 | `bundle exec fastlane android debug_artifact` | Produce `app/build/outputs/apk/debug/app-debug.apk` |
 | `bundle exec fastlane android release_prepare version:0.1.2` | Generate EN/RU changelogs, bump the version and create a release PR |
 | `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Require full CI, squash merge the specified PR head and tag the merged commit |
