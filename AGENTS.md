@@ -69,6 +69,10 @@ branch names, credentials, signing material, or other secrets.
   the dedicated release workflow/Fastlane lane.
 - Tagged releases publish signed APKs and `SHA256SUMS` to GitHub Releases. Google Play integration
   is removed. Document installation from release assets; PR APKs are for testing only.
+- Tagged releases scan all signed APKs with VirusTotal before publication using the release-only
+  `VIRUSTOTAL_API_KEY` secret. Wait for completed analyses; API errors, timeouts and malicious or
+  suspicious verdicts block publication. Attach hash-addressed links and Markdown/JSON reports.
+  PR CI never receives the key or submits APKs.
 - Update checks default to daily background checks: official F-Droid installers and installer packages handling
   fdroidrepo/fdroidrepos links use its API; other named installers use GitHub. Unknown installers
   or failed capability lookup require a source choice. Preserve the installed APK variant and existing version-code offsets. Downloads require explicit consent;

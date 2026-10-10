@@ -225,6 +225,17 @@ def stalled_ssh(shell):
                 shell("rm", "-f", accepted_path, release_path)
 
 
+def prepare_emulator(shell, api):
+    # Unused image apps can obscure tests with crash/ANR dialogs. MegaProxy's
+    # crashes remain visible; these changes apply only to disposable emulators.
+    package = {
+        26: "com.google.android.apps.messaging",
+        35: "com.google.android.apps.nexuslauncher",
+    }[api]
+    shell("am", "force-stop", package)
+    shell("pm", "disable-user", "--user", "0", package)
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--api", type=int, choices=(26, 35), required=True)
@@ -246,13 +257,7 @@ def main():
         )
     if shell("getprop", "ro.kernel.qemu") != "1":
         parser.error("Device is not an emulator")
-    if args.api == 35:
-        # Pixel Launcher can leave an ANR dialog over every test after snapshot restore.
-        # This disposable emulator launches activities directly and needs no launcher.
-        shell("am", "force-stop", "com.google.android.apps.nexuslauncher")
-        shell(
-            "pm", "disable-user", "--user", "0", "com.google.android.apps.nexuslauncher"
-        )
+    prepare_emulator(shell, args.api)
     results = ROOT / "test-results" / f"android-api{args.api}"
     results.mkdir(parents=True, exist_ok=True)
     suite = ET.Element("testsuite", name=f"Android API {args.api}")

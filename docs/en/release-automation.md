@@ -19,6 +19,21 @@ In repository **Settings → Secrets and variables → Actions**, configure:
 | Variable / Secret | `OPENAI_RELEASE_MODEL` | A model available to your API project that supports Responses API Structured Outputs, for example `gpt-6.1-sol`. Variables take priority over Secrets if both are set. No implicit model fallback. |
 | Secret | `RELEASE_BOT_TOKEN` | Fine-grained PAT limited to this repository: Contents read/write, Pull requests read/write, Actions read. |
 
+The tag workflow also requires `VIRUSTOTAL_API_KEY`. After signing, it submits all
+five public release APKs to VirusTotal, including the universal APK via the large-file
+upload endpoint. It waits up to 30 minutes total, spacing API calls at least 16 seconds
+apart for the public API quota. Missing credentials, API errors, incomplete analyses,
+or malicious/suspicious engine verdicts block publication; investigate before rerunning.
+There is no automatic detection override. Zero detections are not a safety guarantee.
+
+`VIRUSTOTAL.md` and `VIRUSTOTAL.json` are attached as release assets; hash-addressed
+links are added to the release notes and Actions summary. Reruns replace only the marked
+VirusTotal notes block and preserve other release text. Partial completed results remain
+in an Actions artifact on failure. PR CI does not receive the API key or upload APKs.
+Only APKs are uploaded, never signing keys, profiles or diagnostic logs.
+[Upload API and size limits](https://docs.virustotal.com/reference/files-scan),
+[analysis status/verdicts](https://docs.virustotal.com/reference/analyses-object).
+
 Keep the existing Android signing secrets for the tag workflow:
 `ANDROID_SIGNING_KEY_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
 `ANDROID_KEY_PASSWORD`. The preparation and PR checks do not receive them.

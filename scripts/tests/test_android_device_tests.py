@@ -4,13 +4,30 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import android_device_tests as m
 
 
 class InstrumentationResultTest(unittest.TestCase):
+    def test_disposable_emulator_removes_observed_background_dialog_sources(self):
+        for api, package in [
+            (26, "com.google.android.apps.messaging"),
+            (35, "com.google.android.apps.nexuslauncher"),
+        ]:
+            with self.subTest(api=api):
+                shell = Mock()
+                m.prepare_emulator(shell, api)
+                self.assertEqual(
+                    [
+                        call("am", "force-stop", package),
+                        call("pm", "disable-user", "--user", "0", package),
+                    ],
+                    shell.call_args_list,
+                )
+                self.assertNotIn(m.PACKAGE, str(shell.call_args_list))
+
     def test_logcat_failure_preserves_evidence_and_failed_report(self):
         suite = ET.Element("testsuite")
         case = ET.SubElement(suite, "testcase", time="1.0")
