@@ -76,6 +76,19 @@ were reused under the repository's ancestor-coverage policy. A subsequent report
 push exposed the missing required-check names above; fixing that workflow requires
 full CI plus a separate skipped-suite control before declaring the PR merge-ready.
 
+Final full validation: [CI on the required-check fix](https://github.com/andre487/AndroidMegaProxy/actions/runs/38067414228),
+commit `fcb0061e47a253a7e8e6ad004aa0d3393eb783ac`, **passed every suite**:
+112 Go tests with race detection, 30 GOST/OpenSSH scenarios, 213 JVM tests,
+59 Python tests/style checks, lint/debug/unsigned-release builds, 18/18 API 26
+and 19/19 API 35 scenarios.
+
+The report-only commit updating this snapshot also exercises the skipped-suite path
+without changing that tested code. Required emulator contexts must remain
+`Android emulator API 26 / Device tests` and `Android emulator API 35 / Device tests`,
+with no emulator runner started. The [PR checks](https://github.com/andre487/AndroidMegaProxy/pull/74/checks)
+record this control and the current merge readiness; successful skipped checks do not
+advance the suite coverage baselines.
+
 ## Remaining boundaries
 
 - MASQUE remains **α**. GOST 3.3.0 IPv6-literal CONNECT-UDP support, Firefox's inability to
