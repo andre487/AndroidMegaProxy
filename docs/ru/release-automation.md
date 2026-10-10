@@ -16,7 +16,7 @@ workflow нужно явно запустить с новой версией.
 | Тип | Имя | Значение |
 | --- | --- | --- |
 | Secret | `OPENAI_API_KEY` | Ключ OpenAI API, только для генерации двух текстов changelog. |
-| Variable / Secret | `OPENAI_RELEASE_MODEL` | Доступная вашему API-проекту модель с Responses API Structured Outputs, например `gpt-4o-mini`. Если заданы оба варианта, Variables имеют приоритет над Secrets. Неявного выбора другой модели нет. |
+| Variable / Secret | `OPENAI_RELEASE_MODEL` | Доступная вашему API-проекту модель с Responses API Structured Outputs, например `gpt-6.1-sol`. Если заданы оба варианта, Variables имеют приоритет над Secrets. Неявного выбора другой модели нет. |
 | Secret | `RELEASE_BOT_TOKEN` | Fine-grained PAT только для этого репозитория: Contents read/write, Pull requests read/write, Actions read. |
 
 Сохраните существующие секреты подписи для сборки по тегу:

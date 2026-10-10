@@ -16,7 +16,7 @@ In repository **Settings → Secrets and variables → Actions**, configure:
 | Kind | Name | Value |
 | --- | --- | --- |
 | Secret | `OPENAI_API_KEY` | OpenAI API key, used only for generating the two changelog texts. |
-| Variable / Secret | `OPENAI_RELEASE_MODEL` | A model available to your API project that supports Responses API Structured Outputs, for example `gpt-4o-mini`. Variables take priority over Secrets if both are set. No implicit model fallback. |
+| Variable / Secret | `OPENAI_RELEASE_MODEL` | A model available to your API project that supports Responses API Structured Outputs, for example `gpt-6.1-sol`. Variables take priority over Secrets if both are set. No implicit model fallback. |
 | Secret | `RELEASE_BOT_TOKEN` | Fine-grained PAT limited to this repository: Contents read/write, Pull requests read/write, Actions read. |
 
 Keep the existing Android signing secrets for the tag workflow:
