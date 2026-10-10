@@ -459,3 +459,36 @@ func TestSOCKS5ControlEOFClosesUDP(t *testing.T) {
 		t.Fatalf("control EOF must terminate association: %v", err)
 	}
 }
+
+func TestSOCKS5BypassedTargetResetIsNotProxyFailure(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	go func() {
+		c, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		_ = c.(*net.TCPConn).SetLinger(0)
+		_, _ = c.Read(make([]byte, 1))
+	}()
+	logs := &diagnosticRecorder{}
+	d := &socks5Dialer{config: config{BypassLocalNetworks: true}, protector: &jumpTestProtector{}, reporter: logs}
+	defer d.Close()
+	c, err := d.connectTarget(context.Background(), listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer c.Close()
+	_ = c.SetDeadline(time.Now().Add(time.Second))
+	_, _ = c.Write([]byte{1})
+	if _, err := c.Read(make([]byte, 1)); err == nil {
+		t.Fatal("expected target reset")
+	}
+	if !strings.Contains(logs.text(), "scope=target") || strings.Contains(logs.text(), "scope=proxy") {
+		t.Fatalf("local target must not trigger VPN failover: %s", logs.text())
+	}
+}

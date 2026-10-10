@@ -230,21 +230,26 @@ func (d *socks5Dialer) connectTarget(ctx context.Context, target string) (net.Co
 		return nil, err
 	}
 	id := nextDiagnosticConnectionID()
+	direct := d.config.BypassLocalNetworks && isLocalNetworkTarget(target)
 	var c net.Conn
 	var err error
-	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
+	if direct {
 		c, err = d.protectedDial(ctx, "tcp", target)
 	} else {
 		c, _, err = d.handshake(ctx, target, S.CmdConnect)
 	}
 	if err != nil {
-		report(d.reporter, "event=connection conn=%d protocol=socks5 stage=socks_handshake result=failed reason=%s", id, errorClass(err))
+		stage, scope := "socks_handshake", "proxy"
+		if direct {
+			stage, scope = "tcp_connect", "target"
+		}
+		report(d.reporter, "event=connection conn=%d protocol=socks5 stage=%s result=failed reason=%s scope=%s", id, stage, errorClass(err), scope)
 		return nil, err
 	}
-	if !(d.config.BypassLocalNetworks && isLocalNetworkTarget(target)) {
+	if !direct {
 		report(d.reporter, "event=connection conn=%d mode=proxy protocol=socks5 stage=tunnel result=established", id)
 	}
-	return &diagnosticConn{Conn: c, stats: d.stats, reporter: d.reporter, connectionID: id}, nil
+	return &diagnosticConn{Conn: c, stats: d.stats, reporter: d.reporter, connectionID: id, proxyHealthy: func() bool { return direct }}, nil
 }
 
 func (d *socks5Dialer) DialUDP(m *M.Metadata) (net.PacketConn, error) {
@@ -273,7 +278,7 @@ func (d *socks5Dialer) DialUDP(m *M.Metadata) (net.PacketConn, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &masqueDirectPacketConn{Conn: &diagnosticConn{Conn: c, stats: d.stats, reporter: d.reporter, connectionID: nextDiagnosticConnectionID()}}, nil
+		return &masqueDirectPacketConn{Conn: &diagnosticConn{Conn: c, stats: d.stats, reporter: d.reporter, connectionID: nextDiagnosticConnectionID(), proxyHealthy: func() bool { return true }}}, nil
 	}
 	peer := &net.UDPAddr{IP: net.IP(m.DstIP.AsSlice()), Port: int(m.DstPort)}
 	return d.openUDP(ctx, target, peer)
