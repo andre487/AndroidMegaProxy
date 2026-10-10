@@ -43,7 +43,7 @@ scans public signed APKs separately; see [release automation](release-automation
 | A05 | For an actual F-Droid candidate, pin its recipe/upstream/fdroidserver revisions and official buildserver image digest; run official metadata checks, scanner and unchanged recipe. Where configured, run official reproducibility/signature-copy verification against the matching upstream APK. A normal Gradle build is not this result. If no applicable recipe/release exists, record that explicitly. |
 | A06 | Inventory two phones and two emulators anew: model, Android/API, OEM build, patch, ABI, page size, screen/font scale, language, installed package/version/signer, VPN/Private DNS/Always-on/lockdown, permissions and connectivity. One emulator must use the declared minimum API (currently 26); another uses a recent supported API. 4 KiB testing does not establish 16 KiB support. |
 | A07 | Save existing app configuration and original system settings before mutation. Use synthetic profiles and dedicated ordinary test apps; on a personal phone restrict routing to those apps. Obtain applicable authorization for phone reboot/network changes. Do not clear/uninstall a pre-existing installation or change its lock credential. |
-| A08 | Establish controlled HTTP/HTTPS origins, GOST and OpenSSH endpoints, separate jump credentials/keys, logs and a capture point. Prove direct baseline and fixture health. Loopback/ADB reverse is suitable for tunnel correctness, but is not evidence of physical Wi-Fi/cellular routing or DNS leak resistance. Never route personal apps through the fixture. |
+| A08 | Establish controlled HTTP/HTTPS origins, GOST and OpenSSH endpoints, separate jump credentials/keys, logs and a capture point; add authenticated MASQUE/HTTP3 with UDP enabled and UDP echo/HTTP3 origins for H01–H11. Prove direct baseline and fixture health. Loopback/ADB reverse is suitable for tunnel correctness, but is not evidence of physical Wi-Fi/cellular routing or DNS leak resistance. Never route personal apps through the fixture. |
 
 ## Priorities when the review budget is limited
 
@@ -58,8 +58,8 @@ insufficient time to restore personal devices and remove temporary access.
 ## Four-device execution matrix
 
 Run I01–I05, P01–P05, T01–T09, L01–L08, D01–D04, U01–U04 and E01–E03
-on all four devices where applicable. Run advanced capture, Direct Boot, forced
-Doze and destructive-data cases on the dedicated emulators first. Repeat applicable
+on all four devices where applicable; add H01–H11 for MASQUE candidates. Run advanced
+capture, Direct Boot, forced Doze and destructive-data cases on the dedicated emulators first. Repeat applicable
 cases on phones only within the recorded authorization. A phone exception remains
 visible in the matrix; an emulator result never silently substitutes for it.
 
@@ -96,6 +96,42 @@ visible in the matrix; an emulator result never silently substitutes for it.
 | T07 | Transfer a known amount, inspect upload/download totals, reset/limit behaviour and persistence. The SSH session rotation threshold in MiB must rotate the session as documented; it is not a traffic quota and must not be tested as a VPN cutoff. Test selected/all failover with unavailable primary, healthy secondary and exhausted candidates; verify actual egress and Stop during failover. |
 | T08 | Check [TCP metrics](connection-metrics.md) with controlled traffic: RTT is to the first proxy, not website latency; no data differs from zero. Induce loss on a dedicated fixture, correlate outgoing retransmits with independent capture, and verify expiry after five minutes without new readings. Check jump/multiplexed sockets are counted once, standalone diagnostics do not change these metrics, and a new VPN session resets them. Record native-test evidence separately from device observations. |
 | T09 | Inspect successful HTTPS and SSH negotiation logs (plus MASQUE α HTTP/3 multiplexing and selected fingerprint where included) against the controlled server: TLS version/cipher/ALPN, actual HTTP CONNECT version after fallback, and initial SSH algorithms in both directions. Exercise both jump hops. Verify events contain no IPs, domains, credentials, certificate identities or raw banners; use synthetic markers. RTT/retransmits alone must not trigger failover; timeout/reset recovery remains a separate check. |
+
+### MASQUE α / HTTP/3
+
+Run H01–H11 on all four devices when the candidate includes MASQUE. Also repeat
+I01–I05, P01–P03, T02–T04, T06–T08, L01–L08, D01–D04 and U02–U04 with a
+MASQUE profile: the transport cases do not replace shared feature checks. For a
+candidate without MASQUE, record this section as N/A with its artifact identity.
+
+Use a disposable authenticated GOST fixture from the [MASQUE guide](masque.md),
+record its version/configuration, and provide controlled TCP, UDP echo and HTTP/3
+origins. Keep a trusted, hostname-matching certificate for positive trust tests;
+use separate untrusted/wrong-host fixtures for negative controls. Verify UDP
+reachability from the device and emulator host; TCP/443 or ADB reverse alone is
+insufficient. Retain private server logs/captures with request tokens. Distinguish
+outer HTTP/3 to the proxy from an app's inner QUIC traffic to an origin.
+
+| ID | Steps → required observation |
+| --- | --- |
+| H01 | Select MASQUE α, save host/UDP port/credentials and each fingerprint; restart, clone, export/import JSON and `masque://` ProxyList, with/without secrets (P01–P03). JSON preserves `proxy.type: "MASQUE"`, port and settings; ProxyList preserves its supported endpoint/credential fields, not global fingerprint settings. Verify real connectivity after import. Check EN/RU α label and default certificate verification. Jump modes remain HTTPS/SSH only: unsupported imported combinations must be rejected, without silently changing transport or routing. |
+| H02 | Send binary TCP upload/download and simultaneous requests to two origins, plus a UDP echo flow. Correlate origin tokens with GOST connection/stream records: one shared outer QUIC session carries independent CONNECT/CONNECT-UDP streams. Close one flow while others continue. Confirm HTTP/3 and multiplexing diagnostics; a badge or log alone does not prove traffic or session reuse. Missing server datagram/extended-CONNECT settings or CONNECT-UDP Capsule-Protocol must produce a clear failure. |
+| H03 | Correct → wrong username → wrong password → missing credentials → restored credentials, for both TCP CONNECT and CONNECT-UDP. Negative tokens must not reach the origins; record GOST rejection and bounded client failure. An established QUIC handshake is not successful authorization. Reconnect after editing credentials and check that the prior authenticated session is not reused. |
+| H04 | Trusted matching certificate succeeds with verification enabled; untrusted/self-signed, wrong-host and expired certificates fail without origin delivery. Explicitly permit only the selected fixture, reconnect, restore verification and repeat rejection. Confirm an unrelated profile without an explicit exception still verifies certificates. Record handshake evidence separately from HTTP authentication. |
+| H05 | Chrome Android, Firefox Android, Randomized and valid Custom JA3: reconnect for each, exercise TCP and a small UDP payload, and inspect captured ClientHello/QUIC transport parameters against the selected preset/custom fields. Malformed or QUIC-incompatible JA3 must fail clearly. Compare Randomized across fresh sessions. Record the uQUIC preset versions and ALPN `h3`; selected-profile logs are not wire evidence, and preset matching does not establish an exact whole-browser HTTP/3 fingerprint. |
+| H06 | UDP echo with byte/address comparison at 512 bytes, Chrome at 1200 bytes, and around the negotiated datagram/path-MTU boundary; then try an ordinary app's real QUIC request to the controlled HTTP/3 origin. Confirm GOST egress and actual origin HTTP/3, with HTTP/2 fallback disabled for this probe. Oversized packets must fail without truncation, direct fallback or breaking a subsequent small packet/TCP stream. Record Firefox's inability to carry a 1200-byte inner QUIC Initial and GOST's missing reliable capsule fallback as limits; small UDP success is not full QUIC success. |
+| H07 | Repeat selected/all-app routing and local bypass using included/excluded ordinary UIDs, public/LAN TCP and UDP origins, and verified IPv4/IPv6 controls (T04–T05). IPv4-only must block IPv6 TCP and UDP; with IPv6 enabled verify TCP and local UDP bypass. Record GOST 3.3.0 IPv6-literal CONNECT-UDP rejection separately as a blocked tunneled-UDP subcase, not PASS for IPv6 UDP or an acceptable direct fallback. |
+| H08 | Fresh names through the configured DoH, primary failure → fallback → all failed (D01–D02). Correlate DoH over the MASQUE TCP tunnel and external DNS capture: UDP/53 must retain DoH handling rather than become arbitrary CONNECT-UDP or unintended plaintext DNS. Exercise Private DNS/lockdown controls separately; absent external capture leaves leak resistance NOT TESTED. |
+| H09 | Compare known TCP/UDP payload totals and rates, IEC/SI, reset/persistence, Test exit IP/country and provider fallback (T06–T08). Verify HTTP/3 badge and multiplexing events, and clear stale status after Stop/profile switch. QUIC must not fabricate kernel TCP RTT/retransmit values. Inspect diagnostics with synthetic markers: no credentials, target identities or certificate details; private packet captures are separate evidence. |
+| H10 | Block the proxy UDP port while TCP/443 remains reachable, restart GOST, force offline/online, and repeat real Wi-Fi/mobile handover (L01–L08). Confirm bounded failures and fresh working TCP/UDP flows after recovery; existing streams may terminate. Stop during handshake/reconnect must prevent late connection and traffic. No implicit HTTPS or direct fallback; virtual cellular alone does not verify carrier handover, and recovery alone does not prove QUIC connection migration. |
+| H11 | Selected/all-profile failover with unavailable MASQUE primary, healthy secondary, exhausted candidates and Stop during switching (T07). Exercise both MASQUE→HTTPS/SSH and HTTPS/SSH→MASQUE; correlate TCP egress and new UDP tokens. UDP follows the active transport: MASQUE tunnels supported payloads, HTTPS/SSH block non-DNS UDP. No stale badge/session/credentials, unintended direct delivery or double counting after switching. |
+
+Record verdicts separately for each fingerprint, TCP/UDP, payload size and address
+family. The existing `native_integration` and API 26/API 35 device scenarios are
+supporting evidence, not coverage of every H case: Chrome TCP/1200-byte UDP and
+Firefox TCP/512-byte UDP checks do not establish trusted-certificate validation,
+wire fingerprint fidelity, real handover or end-to-end browser QUIC. Known alpha
+limits must remain visible in the release decision; do not mark unexecuted cases PASS.
 
 ### Lifecycle, network changes and background operation
 
