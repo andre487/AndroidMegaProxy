@@ -316,6 +316,6 @@ object ConfigTransfer {
         }) { UiException(R.string.error_credentials_unavailable) }
     }
 
-    private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
+    private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
         .replace("+", "%20")
 }

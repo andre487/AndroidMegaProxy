@@ -16,7 +16,7 @@ class ConfigTransferTest {
         for (auth in listOf(false, true)) {
             val profile = ProxyProfile(id = "socks", colorIndex = 0, config = ProxyConfig(
                 type = ProxyType.SOCKS5, host = "proxy.example", port = 1080,
-                username = if (auth) "u+ser:@" else "", password = if (auth) "p+ass:@" else ""))
+                username = if (auth) "u +ser:@я" else "", password = if (auth) "p +ass:@я" else ""))
             val raw = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID).put("version", 8)
                 .put("profiles", JSONArray().put(ConfigTransfer.encodeProfile(profile, true, false))).toString()
             ConfigSchemas.assertValid(raw)
