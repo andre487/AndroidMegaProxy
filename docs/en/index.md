@@ -5,6 +5,8 @@ Server configurations and setup instructions have moved to the dedicated
 
 Client documentation:
 
+- [Configuration subscriptions](subscriptions.md)
+
 - [Installation](installation.md)
 - [App updates](updates.md)
 - [Connection quality metrics](connection-metrics.md)

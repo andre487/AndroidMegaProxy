@@ -21,6 +21,7 @@ internal object AppRoute {
     const val MAIN = "main"
     const val SETTINGS = "settings"
     const val UPDATES = "updates"
+    const val SUBSCRIPTION = "subscription"
     const val PROFILES = "profiles"
     const val PROFILE_EDITOR = "profile/{profileId}"
     const val ALWAYS_ON = "always-on"
@@ -36,6 +37,7 @@ internal object AppRoute {
         MAIN,
         SETTINGS,
         UPDATES,
+        SUBSCRIPTION,
         PROFILES,
         ALWAYS_ON,
         FINGERPRINTS,
@@ -57,6 +59,7 @@ internal data class SettingsDestination(
 )
 
 internal val connectionSettingsDestinations = listOf(
+    SettingsDestination(R.string.subscription, R.string.subscription_description, AppRoute.SUBSCRIPTION),
     SettingsDestination(R.string.profiles, R.string.profiles_description, AppRoute.PROFILES),
     SettingsDestination(R.string.always_on_vpn, R.string.always_on_description, AppRoute.ALWAYS_ON),
     SettingsDestination(R.string.fingerprints, R.string.fingerprints_description, AppRoute.FINGERPRINTS),
@@ -114,6 +117,7 @@ internal fun MegaProxyNavHost(
         composable(AppRoute.SETTINGS) {
             ScreenDestination(AppRoute.SETTINGS) { SettingsHomeScreen(activity, back) { navController.navigate(it) } }
         }
+        composable(AppRoute.SUBSCRIPTION) { ScreenDestination(AppRoute.SUBSCRIPTION) { ConfigSubscriptionScreen(activity, back) } }
         composable(AppRoute.UPDATES) { ScreenDestination(AppRoute.UPDATES) { UpdatesScreen(activity, back, checkRequest = updateRequest) } }
         composable(AppRoute.PROFILES) {
             ScreenDestination(AppRoute.PROFILES) { ProfilesScreen(activity, back) { navController.navigate(AppRoute.profileEditor(it)) } }

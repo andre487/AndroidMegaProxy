@@ -266,22 +266,7 @@ class ConfigStore(context: Context) {
         val unchanged = mutableListOf<ProxyProfile>()
         val merged = configuration.profiles.map { source ->
             val current = existingById[source.id]
-            val presence = configuration.secretPresence[source.id] ?: ProfileSecretPresence()
-            val resolved = if (current == null) source else source.copy(config = source.config.copy(
-                password = source.config.password.takeIf { presence.password } ?: current.config.password,
-                privateKey = source.config.privateKey.takeIf { presence.privateKey } ?: current.config.privateKey,
-                jumpPassword = source.config.jumpPassword.takeIf { presence.jumpPassword } ?: current.config.jumpPassword,
-                jumpPrivateKey = source.config.jumpPrivateKey.takeIf { presence.jumpPrivateKey } ?: current.config.jumpPrivateKey,
-                unreadableSecrets = current.config.unreadableSecrets.filterKeys { name ->
-                    when (name) {
-                        "password" -> !presence.password
-                        "privateKey" -> !presence.privateKey
-                        "jumpPassword" -> !presence.jumpPassword
-                        "jumpPrivateKey" -> !presence.jumpPrivateKey
-                        else -> false
-                    }
-                },
-            ))
+            val resolved = retainProfileSecrets(source, current, configuration.secretPresence[source.id] ?: ProfileSecretPresence())
             when {
                 current == null -> added += resolved
                 current == resolved -> unchanged += resolved
@@ -291,8 +276,7 @@ class ConfigStore(context: Context) {
         }
         val missing = existing.filter { it.id !in importedById }
         requireUi(merged.isNotEmpty()) { UiException(R.string.error_config_no_usable) }
-        writeProfiles(mergeResolvedProfiles(existing, merged, added))
-        val editor = prefs.edit()
+        val editor = prefs.edit().putString(PROFILES, encodeProfiles(mergeResolvedProfiles(existing, merged, added)))
             .putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
         if (existing.isEmpty()) {
             val first = merged.first().id
@@ -304,14 +288,124 @@ class ConfigStore(context: Context) {
         }
         configuration.activeProfileId?.takeIf(importedById::containsKey)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
         configuration.alwaysOnProfileId?.takeIf(importedById::containsKey)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
-        editor.apply()
         configuration.globalConnectionSettings?.let { importedSettings ->
-            prefs.edit().putBoolean(IPV6_PROFILE_MIGRATED, true).apply()
-            saveGlobalConnectionSettings(importedSettings.copy(
-                failoverProfileIds = importedSettings.failoverProfileIds.filter(importedById::containsKey),
-            ))
+            editor.putBoolean(IPV6_PROFILE_MIGRATED, true)
+                .putString(GLOBAL_CONNECTION_SETTINGS, encodeGlobalConnectionSettings(importedSettings.copy(
+                    failoverProfileIds = importedSettings.failoverProfileIds.filter(importedById::containsKey),
+                )))
         }
+        if (configuration.subscriptionPresent) {
+            val previous = subscriptionState()
+            val settings = configuration.subscription?.retainPassword(previous?.settings)
+            val owned = if (settings == null) emptySet() else importedById.keys +
+                (previous?.takeIf { sameSubscriptionSource(it.settings, settings) }?.ownedIds ?: emptySet())
+            putSubscription(editor, settings?.let { ConfigSubscriptionState(it, owned) })
+        }
+        commitTransaction(editor)
+        net.megaproxy487.ConfigSubscriptions.schedule(context)
         return@synchronized ConfigurationImportResult(added, updated, unchanged, missing)
+    }
+
+    /** A lost Keystore key must never turn a saved subscription into an unauthenticated request. */
+    fun subscriptionState(): ConfigSubscriptionState? = synchronized(storageLock) {
+        val packed = prefs.getString(SUBSCRIPTION, null) ?: return@synchronized null
+        val unreadable = mutableMapOf<String, String>()
+        val plain = decryptStored(packed, "subscription", unreadable)
+        requireUi(unreadable.isEmpty()) { UiException(R.string.error_config_storage) }
+        ConfigSubscriptionState.fromJson(JSONObject(plain))
+    }
+
+    fun saveSubscription(settings: ConfigSubscription?) = synchronized(storageLock) {
+        settings?.validate()
+        // Explicit removal also recovers an unreadable subscription, without touching profiles.
+        val previous = if (settings == null) null else subscriptionState()
+        val resolved = settings?.retainPassword(previous?.settings)
+        val same = resolved != null && previous != null && sameSubscriptionSource(previous.settings, resolved)
+        val state = resolved?.let { if (same) previous!!.copy(settings = it, generation = UUID.randomUUID().toString())
+            else ConfigSubscriptionState(it) }
+        val editor = prefs.edit()
+        putSubscription(editor, state)
+        commitTransaction(editor)
+        net.megaproxy487.ConfigSubscriptions.schedule(context)
+    }
+
+    fun recordSubscriptionFailure(generation: String, now: Long) = synchronized(storageLock) {
+        val state = subscriptionState()?.takeIf { it.generation == generation } ?: return@synchronized
+        val editor = prefs.edit()
+        putSubscription(editor, state.copy(lastAttempt = now, failed = true))
+        commitTransaction(editor)
+    }
+
+    /** No native side effects: existing tunnels keep working until the user reconnects. */
+    fun applySubscriptionSnapshot(
+        generation: String, configuration: PortableConfiguration, sourceIndex: Int, now: Long,
+        connectionRunning: Boolean,
+    ): Boolean = synchronized(storageLock) {
+        val state = subscriptionState()?.takeIf { it.generation == generation } ?: return@synchronized false
+        val existing = profiles()
+        requireUi(existing.none { it.config.storageUnavailable }) { UiException(R.string.error_config_storage) }
+        requireUi(configuration.profiles.isNotEmpty()) { UiException(R.string.error_config_no_usable) }
+        val local = existing.filter { it.id !in state.ownedIds }
+        requireUi(configuration.profiles.none { source -> local.any { it.id == source.id } }) {
+            UiException(R.string.subscription_id_collision)
+        }
+        val byId = existing.associateBy(ProxyProfile::id)
+        val incoming = configuration.profiles.map { source -> retainProfileSecrets(source, byId[source.id],
+            configuration.secretPresence[source.id] ?: ProfileSecretPresence()) }
+        val merged = local + incoming
+        val ids = merged.map(ProxyProfile::id).toSet()
+        requireUi(ids.size == merged.size) { UiException(R.string.error_config_duplicate_ids) }
+        val oldGlobal = globalConnectionSettings()
+        val oldConnection = oldGlobal.applyTo(connectionProfile().config)
+        val nextGlobal = (configuration.globalConnectionSettings ?: oldGlobal).let {
+            it.copy(failoverProfileIds = it.failoverProfileIds.filter(ids::contains))
+        }
+        val preferred = configuration.activeProfileId?.takeIf { id -> incoming.any { it.id == id } } ?: incoming.first().id
+        fun surviving(id: String) = id.takeIf(ids::contains) ?: preferred
+        val nextActive = surviving(activeProfileId())
+        val nextAlwaysOn = surviving(alwaysOnProfileId())
+        val nextConnection = surviving(connectionProfileId())
+        val newConnection = nextGlobal.applyTo(merged.first { it.id == nextConnection }.config)
+        val editor = prefs.edit().putString(PROFILES, encodeProfiles(merged))
+            .putString(ACTIVE_PROFILE_ID, nextActive).putString(ALWAYS_ON_PROFILE_ID, nextAlwaysOn)
+            .putString(CONNECTION_PROFILE_ID, nextConnection)
+            .putString(GLOBAL_CONNECTION_SETTINGS, encodeGlobalConnectionSettings(nextGlobal))
+            .putBoolean(IPV6_PROFILE_MIGRATED, true)
+        if (configuration.globalConnectionSettings != null) editor.putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
+        if ((connectionProfileId() !in ids || alwaysOnProfileId() !in ids) && isFailoverActive()) {
+            editor.putBoolean(FAILOVER_ACTIVE, false).remove(FAILOVER_NOTICE)
+        }
+        if (connectionRunning && (oldConnection != newConnection || connectionProfileId() != nextConnection)) {
+            editor.putString(PENDING_RECONNECT, UUID.randomUUID().toString())
+        }
+        putSubscription(editor, state.copy(ownedIds = incoming.map(ProxyProfile::id).toSet(),
+            lastAttempt = now, lastSuccess = now, sourceIndex = sourceIndex, failed = false,
+            warnings = configuration.skippedProfiles > 0 || configuration.notice.browserFields || configuration.notice.unknownFields))
+        commitTransaction(editor)
+        (state.ownedIds - ids).forEach { ConfigWrites.discard("profile:$it") }
+        true
+    }
+
+    private fun putSubscription(editor: SharedPreferences.Editor, state: ConfigSubscriptionState?) {
+        if (state == null) editor.remove(SUBSCRIPTION)
+        else editor.putString(SUBSCRIPTION, encrypt(state.toJson().toString()))
+    }
+
+    /** SharedPreferences changes its memory before reporting a disk failure; restore both. */
+    private fun commitTransaction(editor: SharedPreferences.Editor) {
+        val before = prefs.all
+        if (operationResult { editor.commit() }.getOrDefault(false)) return
+        val rollback = prefs.edit().clear()
+        before.forEach { (key, value) -> when (value) {
+            is String -> rollback.putString(key, value)
+            is Int -> rollback.putInt(key, value)
+            is Long -> rollback.putLong(key, value)
+            is Boolean -> rollback.putBoolean(key, value)
+            is Float -> rollback.putFloat(key, value)
+            is Set<*> -> rollback.putStringSet(key, value.filterIsInstance<String>().toSet())
+        } }
+        rollback.commit()
+        throw UiException(R.string.error_config_storage)
     }
 
     private fun ProxyProfile.importIdentity(): String = config.importIdentity()
@@ -641,6 +735,7 @@ class ConfigStore(context: Context) {
         const val KEY_ALIAS = "megaproxy.proxy.credentials.v1"
         const val IV_SIZE = 12
         const val PROFILES = "profiles_v2"
+        private const val SUBSCRIPTION = "config_subscription_v1"
         const val ACTIVE_PROFILE_ID = "active_profile_id"
         const val ALWAYS_ON_PROFILE_ID = "always_on_profile_id"
         private const val FAILOVER_ACTIVE = "failover_active"

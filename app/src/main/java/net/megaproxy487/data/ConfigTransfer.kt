@@ -32,6 +32,8 @@ data class PortableConfiguration(
     val skippedProfiles: Int = 0,
     val secretPresence: Map<String, ProfileSecretPresence> = emptyMap(),
     val notice: ConfigImportNotice = ConfigImportNotice(),
+    val subscriptionPresent: Boolean = false,
+    val subscription: ConfigSubscription? = null,
 )
 
 data class ProfileSecretPresence(
@@ -101,12 +103,13 @@ object ConfigTransfer {
             put("selectedPackages", JSONArray(global.selectedPackages.sorted()))
             put("bypassLocalNetworks", global.bypassLocalNetworks)
         })
+        store.subscriptionState()?.settings?.let { put("subscription", it.toJson(includePasswords)) }
         put("profiles", JSONArray().apply {
             store.profiles().forEach { profile -> put(encodeProfile(profile, includePasswords, includePrivateKeys)) }
         })
     }.toString(2)
 
-    fun importJson(text: String): PortableConfiguration {
+    fun importJson(text: String, acceptSubscription: Boolean = true): PortableConfiguration {
         val root = boundedJsonObject(text)
         requireUi(isSupportedSchema(root.optString("schema"))) { UiException(R.string.error_config_invalid) }
         val version = root.optInt("version", 0)
@@ -136,6 +139,10 @@ object ConfigTransfer {
         } else decodedProfiles
         return PortableConfiguration(
             notice = ConfigImportNotices.inspect(root),
+            subscriptionPresent = acceptSubscription && root.has("subscription"),
+            subscription = if (!acceptSubscription || !root.has("subscription") || root.isNull("subscription")) null
+                else operationResult { ConfigSubscription.fromJson(root.getJSONObject("subscription")) }
+                    .getOrElse { throw UiException(R.string.subscription_invalid) },
             profiles = profiles,
             activeProfileId = root.optString("activeProfileId").ifBlank { null },
             alwaysOnProfileId = root.optString("alwaysOnProfileId").ifBlank { null },

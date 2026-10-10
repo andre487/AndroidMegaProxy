@@ -515,4 +515,23 @@
     <string name="socks5_password_optional">SOCKS5 password (optional)</string>
     <string name="validation_socks5_auth">Leave both credentials empty, or enter a username and password of 1–255 UTF-8 bytes each.</string>
     <string name="socks5_description">TCP and UDP ASSOCIATE, with DNS over HTTPS through the proxy. SOCKS5 does not encrypt the connection to the proxy, including credentials, and has no TLS fingerprint.</string>
+    <string name="subscription">Configuration subscription</string>
+    <string name="subscription_description">Keep profiles updated from trusted HTTPS sources</string>
+    <string name="subscription_trust">Only subscribe to trusted sources: they can replace subscribed profiles and connection settings. All listed sources receive the same subscription credentials. Downloads follow Android VPN routing for this app.</string>
+    <string name="subscription_storage_error">Could not read or save the subscription. No unauthenticated fallback is used.</string>
+    <string name="subscription_enabled">Automatic updates</string>
+    <string name="subscription_last_success">Last successful update: %1$s</string>
+    <string name="subscription_source">Successful source: %1$d (1 is primary)</string>
+    <string name="subscription_failed">All sources failed. The last working configuration was kept.</string>
+    <string name="subscription_warnings">Imported with warnings: some profiles or settings were ignored.</string>
+    <string name="subscription_reconnect">Connection settings changed. Reconnect the VPN to apply them; the current tunnel continues using its previous settings.</string>
+    <string name="subscription_refresh">Update now</string>
+    <string name="subscription_url">Primary HTTPS URL</string>
+    <string name="subscription_backups">Backup HTTPS URLs, one per line (up to 7)</string>
+    <string name="subscription_auth">Use separate Basic Auth credentials</string>
+    <string name="subscription_interval">Update interval (minutes, 1–10080)</string>
+    <string name="subscription_invalid">Check HTTPS URLs, duplicate sources, credentials and interval. Redirects are not supported.</string>
+    <string name="subscription_remove">Remove subscription and keep profiles</string>
+    <string name="subscription_save">Save subscription</string>
+    <string name="subscription_id_collision">A subscription profile ID conflicts with a local profile</string>
 </resources>

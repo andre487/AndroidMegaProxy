@@ -514,4 +514,23 @@
     <string name="socks5_password_optional">Пароль SOCKS5 (необязательно)</string>
     <string name="validation_socks5_auth">Оставьте оба поля пустыми или укажите логин и пароль по 1–255 байт UTF-8 каждый.</string>
     <string name="socks5_description">TCP и UDP ASSOCIATE, DNS через HTTPS через прокси. SOCKS5 не шифрует соединение с прокси, включая пароль, и не использует отпечаток TLS.</string>
+    <string name="subscription">Подписка на конфигурацию</string>
+    <string name="subscription_description">Обновление профилей из доверенных HTTPS-источников</string>
+    <string name="subscription_trust">Подписывайтесь только на доверенные источники: они могут заменять профили подписки и настройки соединения. Все указанные источники получают одинаковые учётные данные подписки. Загрузки подчиняются маршрутизации Android VPN для этого приложения.</string>
+    <string name="subscription_storage_error">Не удалось прочитать или сохранить подписку. Загрузка без сохранённой авторизации не выполняется.</string>
+    <string name="subscription_enabled">Автоматическое обновление</string>
+    <string name="subscription_last_success">Последнее успешное обновление: %1$s</string>
+    <string name="subscription_source">Успешный источник: %1$d (1 — основной)</string>
+    <string name="subscription_failed">Все источники недоступны или содержат неподходящий конфиг. Последняя рабочая конфигурация сохранена.</string>
+    <string name="subscription_warnings">Импорт выполнен с предупреждениями: некоторые профили или настройки пропущены.</string>
+    <string name="subscription_reconnect">Настройки соединения изменились. Переподключите VPN, чтобы применить их; текущий туннель продолжает работать с прежними настройками.</string>
+    <string name="subscription_refresh">Обновить сейчас</string>
+    <string name="subscription_url">Основной HTTPS URL</string>
+    <string name="subscription_backups">Резервные HTTPS URL, по одному на строку (до 7)</string>
+    <string name="subscription_auth">Использовать отдельные учётные данные Basic Auth</string>
+    <string name="subscription_interval">Интервал обновления (минуты, 1–10080)</string>
+    <string name="subscription_invalid">Проверьте HTTPS URL, повторяющиеся источники, учётные данные и интервал. Перенаправления не поддерживаются.</string>
+    <string name="subscription_remove">Удалить подписку и сохранить профили</string>
+    <string name="subscription_save">Сохранить подписку</string>
+    <string name="subscription_id_collision">ID профиля подписки совпадает с ID локального профиля</string>
 </resources>

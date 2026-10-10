@@ -97,6 +97,20 @@ visible in the matrix; an emulator result never silently substitutes for it.
 | T08 | Check [TCP metrics](connection-metrics.md) with controlled traffic: RTT is to the first proxy, not website latency; no data differs from zero. Induce loss on a dedicated fixture, correlate outgoing retransmits with independent capture, and verify expiry after five minutes without new readings. Check jump/multiplexed sockets are counted once, standalone diagnostics do not change these metrics, and a new VPN session resets them. Record native-test evidence separately from device observations. |
 | T09 | Inspect successful HTTPS and SSH negotiation logs (plus MASQUE α HTTP/3 multiplexing and selected fingerprint where included) against the controlled server: TLS version/cipher/ALPN, actual HTTP CONNECT version after fallback, and initial SSH algorithms in both directions. Exercise both jump hops. Verify events contain no IPs, domains, credentials, certificate identities or raw banners; use synthetic markers. RTT/retransmits alone must not trigger failover; timeout/reset recovery remains a separate check. |
 
+### Configuration subscriptions
+
+Use disposable HTTPS feeds and synthetic credentials on API 26 and API 35. Verify
+bootstrap ownership, manual refresh while paused, background restart/overdue checks,
+primary failure and valid backup, recovery to primary, and failure of all sources.
+Check 401/403, redirects, invalid UTF-8, oversized decoded gzip, malformed fields,
+empty snapshots and canonical ID collisions: none may overwrite working profiles.
+Add a local profile and remove an owned profile from the feed; local profiles and
+surviving selections must remain. Change/remove the subscription during download
+and verify that the obsolete snapshot cannot commit. Inspect stored/exported data
+with secret markers, test Keystore process restart, and require a reconnect notice
+only after effective active connection changes. Confirm live traffic continues on
+the previous tunnel until explicit reconnect, and no bootstrap starts VPN.
+
 ### MASQUE α / HTTP/3
 
 Run H01–H11 on all four devices when the candidate includes MASQUE. Also repeat

@@ -45,6 +45,7 @@ TESTS = (
     "VpnDeviceTest#masqueCustomFailoverToHttps",
     "VpnDeviceTest#notificationActionStopsRealService",
     "VpnDeviceTest#stopDuringSshHandshakeCannotReviveVpn",
+    "DocumentsDeviceTest#subscriptionSnapshotsUseDeviceKeystoreAndBundledSchema",
     "DocumentsDeviceTest#cancelledDocumentSelectionPreservesConfiguration",
     "DocumentsDeviceTest#systemProviderExportAndImportRoundTrip",
 )

@@ -16,5 +16,6 @@ class MegaProxyApplication : Application() {
         PersistentDiagnosticLog.initialize(this, store.diagnosticLogLimitMb())
         CrashHandler.install(this)
         UpdateNotifications.schedule(this)
+        ConfigSubscriptions.schedule(this)
     }
 }

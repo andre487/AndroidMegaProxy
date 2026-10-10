@@ -68,6 +68,16 @@
       },
       "maxItems": 1000,
       "minItems": 1
+    },
+    "subscription": {
+      "anyOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/configSubscription"
+        }
+      ]
     }
   },
   "required": [
@@ -439,6 +449,46 @@
         }
       },
       "required": [],
+      "additionalProperties": true
+    },
+    "configSubscription": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https://",
+          "maxLength": 2048
+        },
+        "username": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "password": {
+          "type": "string",
+          "maxLength": 1024
+        },
+        "intervalMinutes": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10080
+        },
+        "enabled": {
+          "type": "boolean"
+        },
+        "fallbackUrls": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^https://",
+            "maxLength": 2048
+          },
+          "maxItems": 7,
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "url"
+      ],
       "additionalProperties": true
     }
   }
