@@ -2,6 +2,7 @@ import importlib.util
 import io
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -19,6 +20,28 @@ spec.loader.exec_module(m)
 
 
 class ChangeScopeTest(unittest.TestCase):
+    def test_filtered_emulators_keep_required_child_check_names(self):
+        root = Path(__file__).parents[2]
+        caller = (root / ".github/workflows/ci.yml").read_text()
+        reusable = (root / ".github/workflows/android-device.yml").read_text()
+        child = re.search(r"^  device:\n(.*?)(?=^  \S|\Z)", reusable, re.M | re.S)
+        self.assertIsNotNone(child)
+        self.assertIn("    name: Device tests\n", child[1])
+        self.assertIn("    if: inputs.enabled\n", child[1])
+        for api in (26, 35):
+            with self.subTest(api=api):
+                job = re.search(
+                    rf"^  emulator{api}:\n(.*?)(?=^  \S|\Z)", caller, re.M | re.S
+                )
+                self.assertIsNotNone(job)
+                self.assertIn(f"    name: Android emulator API {api}\n", job[1])
+                self.assertNotRegex(job[1], r"(?m)^    if:")
+                self.assertIn("uses: ./.github/workflows/android-device.yml", job[1])
+                self.assertIn(
+                    f"enabled: ${{{{ needs.changes.outputs.emulator{api} == 'true' }}}}",
+                    job[1],
+                )
+
     def test_release_pr_forces_full_ci_without_history_or_diff(self):
         with (
             patch.object(

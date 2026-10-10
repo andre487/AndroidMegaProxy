@@ -38,6 +38,7 @@ proxy server configuration, release version or signing material were changed by 
 | Launch/JDK helpers bypassed supported tooling | The launch script used an unpinned gomobile invocation; the language-server helper assumed a Homebrew architecture-specific JDK path. | Launch builds use Bundler/Fastlane; JDK lookup reuses the existing discovery helper. Shell syntax and normal Android build checks pass. |
 | Current documentation and store assets lagged main | MASQUE still appeared unmerged, DNS wording overstated interception, the vendor patch inventory was incomplete, and Russian screenshots showed English screens. | Synchronize current EN/RU guidance, clarify UDP/53 versus application-managed TCP/encrypted DNS, refresh the privacy policy and listing text, document passive QUIC statistics, and replace ten screenshots with actual EN/RU API 35 captures using fictitious profiles. |
 | Device UDP probes assumed reliable single-datagram delivery | The first CI run passed API 26, but API 35 timed out on the first 512-byte probe, before sending the oversized packet. The tunnel remained connected; the evidence does not identify the packet-loss location. | Acknowledge uniquely tagged idempotent echo probes within the original 15-second deadline, ignoring late duplicates. Isolate oversized-flow fixtures from unrelated applications and require exactly one established UDP association, so replacing a broken flow cannot hide behind probe retransmission. Test failures still fail CI and are never rerun automatically. |
+| Filtered emulator workflows dropped required check names | A report-only push had successful CI, but GitHub kept the PR BLOCKED: skipping the reusable caller created `Android emulator API 26/35` checks instead of the required `Android emulator API 26/35 / Device tests`. | Always invoke the reusable workflow and pass an enabled flag to its child job. Skipping the child preserves the required name without starting an emulator. A workflow-wiring test checks both callers and the child; the actual report-only CI run is the end-to-end control for skipped names and merge readiness. |
 
 ## Verification
 
@@ -46,7 +47,7 @@ Local results for the final production changes:
 - `bundle exec fastlane android native_tests`: **111 tests passed**, race detector enabled.
 - `bundle exec fastlane android android_checks`: **213 JVM tests passed**, lint, debug APK
   and verified unsigned release APK passed, using JDK 21.
-- `bundle exec fastlane android python_checks`: **58 tests passed**, pinned Black/isort checks passed.
+- `bundle exec fastlane android python_checks`: **59 tests passed**, pinned Black/isort checks passed.
 - `bundle exec fastlane android native_fuzz`: passed the bounded 20-second campaign,
   two workers, 31,715 executions after the saved baseline corpus.
 - Shell syntax checks and `git diff --check`: passed.
@@ -71,8 +72,9 @@ on `912bdc6a2e951cb6fcd13b403de9f500c13f9770` **passed**: 213 JVM tests,
 lint and debug/unsigned-release builds, **18/18 API 26** and **19/19 API 35** scenarios.
 Both oversized UDP scenarios passed with the one-association assertion. Production
 Go and Python were unchanged in that follow-up; their successful initial checks
-were reused under the repository's ancestor-coverage policy. The final report-only
-commit does not change the tested application or test code.
+were reused under the repository's ancestor-coverage policy. A subsequent report-only
+push exposed the missing required-check names above; fixing that workflow requires
+full CI plus a separate skipped-suite control before declaring the PR merge-ready.
 
 ## Remaining boundaries
 

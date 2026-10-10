@@ -6,6 +6,9 @@ on:
       api:
         required: true
         type: number
+      enabled:
+        type: boolean
+        default: true
 
 permissions:
   contents: read
@@ -13,6 +16,8 @@ permissions:
 jobs:
   device:
     name: Device tests
+    # Keep the required caller / Device tests check even when change scope skips this suite.
+    if: inputs.enabled
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:

@@ -29,6 +29,8 @@ branch names, credentials, signing material, or other secrets.
   Failed/skipped/cancelled jobs do not advance coverage. Fall back to the full PR diff when
   history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope`, `Python tests and style` and both emulator scenarios
   alongside native/Android JVM checks when this workflow is adopted.
+  Gate reusable emulator suites inside the called job, keeping the caller unconditional so
+  skipped suites retain their required `Android emulator API 26/35 / Device tests` check names.
 - Every push to main runs all suites without diff/history filtering. The README CI badge is
   pinned to main/push; selective checks apply to initial PR runs.
 - A full CI rerun disables change filtering when Change scope executes on run attempt > 1,
