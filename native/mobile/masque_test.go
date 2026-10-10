@@ -31,6 +31,10 @@ type masqueFixture struct {
 func masqueTestServer(t *testing.T) config { return newMasqueFixture(t, nil).config }
 
 func newMasqueFixture(t *testing.T, wrap func(net.PacketConn) net.PacketConn, handler ...http.Handler) masqueFixture {
+	return newMasqueFixtureWithDatagrams(t, wrap, true, handler...)
+}
+
+func newMasqueFixtureWithDatagrams(t *testing.T, wrap func(net.PacketConn) net.PacketConn, datagrams bool, handler ...http.Handler) masqueFixture {
 	t.Helper()
 	certificateServer := httptest.NewTLSServer(nil)
 	certificate := certificateServer.TLS.Certificates[0]
@@ -42,7 +46,7 @@ func newMasqueFixture(t *testing.T, wrap func(net.PacketConn) net.PacketConn, ha
 	if wrap != nil {
 		packet = wrap(packet)
 	}
-	server := &http3.Server{EnableDatagrams: true, TLSConfig: &tls.Config{Certificates: []tls.Certificate{{Certificate: certificate.Certificate, PrivateKey: certificate.PrivateKey}}}}
+	server := &http3.Server{EnableDatagrams: datagrams, TLSConfig: &tls.Config{Certificates: []tls.Certificate{{Certificate: certificate.Certificate, PrivateKey: certificate.PrivateKey}}}}
 	server.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "CONNECT" || r.Header.Get("Proxy-Authorization") != "Basic "+base64.StdEncoding.EncodeToString([]byte("user:password")) {
 			w.WriteHeader(407)

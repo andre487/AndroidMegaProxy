@@ -115,8 +115,7 @@ type rejectingProtector struct{}
 func (rejectingProtector) Protect(int) bool { return false }
 
 func TestHTTPSPreferenceRequiresDatagramsAndExtendedCONNECT(t *testing.T) {
-	fixture := newMasqueFixture(t, nil, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
-	fixture.server.EnableDatagrams = false
+	fixture := newMasqueFixtureWithDatagrams(t, nil, false, http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	c := fixture.config
 	c.Type, c.PreferHTTP3 = "HTTPS", true
 	logs := &diagnosticRecorder{}

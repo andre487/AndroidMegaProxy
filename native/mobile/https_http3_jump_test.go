@@ -158,6 +158,13 @@ func TestHTTPSHTTP3JumpNestedTrafficAndSecurity(t *testing.T) {
 			if err != nil || string(buffer[:n]) != strings.Repeat("u", 1200) {
 				t.Fatalf("nested UDP: %v", err)
 			}
+			// The first-hop packet reader retains the startup reporter. Runtime
+			// failures must reach the live sink after transport selection.
+			d.jump.config.Password = "wrong"
+			_, err = d.jump.openTunnel(ctx, "exit.invalid:443", true)
+			if errorClass(err) != "proxy_authentication" || !strings.Contains(logs.text(), "status=407") {
+				t.Fatalf("jump runtime diagnostic lost: %v %s", err, logs.text())
+			}
 			for _, private := range []string{"exit.invalid", "jump-password", "target.example", strconv.Itoa(c.JumpPort)} {
 				if strings.Contains(logs.text(), private) {
 					t.Fatalf("private data in logs: %s", private)

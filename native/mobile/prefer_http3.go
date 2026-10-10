@@ -3,6 +3,7 @@ package mobile
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	quic "github.com/refraction-networking/uquic"
@@ -31,8 +32,16 @@ func preferredHTTP3(ctx context.Context, c config, protector Protector, reporter
 	// Keep failed optional probes out of blocking/reconnect detection. Replay
 	// successful negotiation details only after committing to HTTP/3.
 	var messages []string
+	var logMu sync.Mutex
+	committed := false
 	d := &masqueDialer{config: c, protector: protector, stats: stats, reporter: diagnosticFunc(func(message string) {
-		messages = append(messages, message)
+		logMu.Lock()
+		defer logMu.Unlock()
+		if committed {
+			report(reporter, "%s", message)
+		} else {
+			messages = append(messages, message)
+		}
 	})}
 	probe, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
@@ -70,13 +79,13 @@ func preferredHTTP3(ctx context.Context, c config, protector Protector, reporter
 		return nil, ctx.Err()
 	}
 	if err == nil {
-		d.reporter = reporter
-		if d.jump != nil {
-			d.jump.reporter = reporter
-		}
+		logMu.Lock()
+		committed = true
 		for _, message := range messages {
 			report(reporter, "%s", message)
 		}
+		messages = nil
+		logMu.Unlock()
 		report(reporter, "event=transport_selection preferred=http3 selected=http3 result=selected udp=true")
 		return d, nil
 	}
