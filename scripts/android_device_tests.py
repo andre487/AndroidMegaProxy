@@ -25,6 +25,8 @@ GOST = "gogost/gost:3.3.0@sha256:f7a958c451928fbe1b99046d25bd0c9bf42019d4c60a822
 TESTS = (
     "VpnDeviceTest#deniedVpnConsentDoesNotStartTunnel",
     "VpnDeviceTest#trafficStopAndRestart",
+    "VpnDeviceTest#socks5AuthenticatedTcpUdpStopAndRestart",
+    "VpnDeviceTest#socks5AnonymousTcpUdpStopAndRestart",
     "VpnDeviceTest#masqueTrafficStopAndRestart",
     "VpnDeviceTest#httpsPreferenceUsesMasqueThroughTunAndJni",
     "VpnDeviceTest#httpsPreferenceFallsBackWithoutBlockingRecovery",
