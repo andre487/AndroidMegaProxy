@@ -63,8 +63,16 @@ for their results rather than inferring device coverage from local JVM/native co
 The [initial CI run](https://github.com/andre487/AndroidMegaProxy/actions/runs/38064716734)
 passed 112 native tests, 30 real GOST/OpenSSH scenarios, 213 JVM tests and 58 Python tests.
 API 26 passed 18 scenarios; API 35 passed 18 of 19 and failed the initial UDP probe above.
-That failure remains recorded. The revised probe/association contract requires a new
-CI run on the changed test code; it does not turn the original failure into a pass.
+That failure remains recorded. Retesting the revised probe/association contract
+on changed test code establishes a new result without reclassifying the failed run.
+
+Retest: [follow-up CI](https://github.com/andre487/AndroidMegaProxy/actions/runs/38065963085)
+on `912bdc6a2e951cb6fcd13b403de9f500c13f9770` **passed**: 213 JVM tests,
+lint and debug/unsigned-release builds, **18/18 API 26** and **19/19 API 35** scenarios.
+Both oversized UDP scenarios passed with the one-association assertion. Production
+Go and Python were unchanged in that follow-up; their successful initial checks
+were reused under the repository's ancestor-coverage policy. The final report-only
+commit does not change the tested application or test code.
 
 ## Remaining boundaries
 
