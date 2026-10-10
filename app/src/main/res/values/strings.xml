@@ -370,7 +370,7 @@
     <string name="error_foxy_data">The FoxyProxy configuration has no data array</string>
     <string name="error_foxy_empty">The FoxyProxy proxy list is empty</string>
     <string name="error_foxy_many">The FoxyProxy configuration contains more than %1$d entries</string>
-    <string name="error_foxy_no_https">The FoxyProxy configuration contains no HTTPS proxies</string>
+    <string name="error_foxy_no_https">The FoxyProxy configuration contains no HTTPS or SOCKS5 proxies</string>
     <string name="error_foxy_no_usable">The FoxyProxy configuration contains no usable proxies</string>
     <string name="error_foxy_host">FoxyProxy entry %1$d has an invalid hostname</string>
     <string name="error_invalid_input">Invalid configuration data</string>

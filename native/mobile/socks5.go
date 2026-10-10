@@ -279,7 +279,12 @@ func (d *socks5Dialer) DialUDP(m *M.Metadata) (net.PacketConn, error) {
 	return d.openUDP(ctx, target, peer)
 }
 
-func (d *socks5Dialer) openUDP(ctx context.Context, target string, peer *net.UDPAddr) (net.PacketConn, error) {
+func (d *socks5Dialer) openUDP(ctx context.Context, target string, peer *net.UDPAddr) (_ net.PacketConn, err error) {
+	defer func() {
+		if err != nil {
+			report(d.reporter, "event=connection protocol=socks5 stage=udp_association result=failed reason=%s", errorClass(err))
+		}
+	}()
 	if err := d.checkTarget(target); err != nil {
 		return nil, err
 	}
@@ -307,7 +312,7 @@ func (d *socks5Dialer) openUDP(ctx context.Context, target string, peer *net.UDP
 	}
 	p := &socks5PacketConn{Conn: socket, control: control, target: S.ParseAddrString(target), peer: peer, stats: d.stats}
 	go func() { _, _ = io.Copy(io.Discard, control); _ = p.Close() }()
-	report(d.reporter, "event=udp_association protocol=socks5 result=established")
+	report(d.reporter, "event=connection protocol=socks5 stage=udp_association result=established")
 	success = true
 	return p, nil
 }

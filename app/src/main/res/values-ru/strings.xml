@@ -369,7 +369,7 @@
     <string name="error_foxy_data">В конфигурации FoxyProxy нет массива data</string>
     <string name="error_foxy_empty">Список прокси FoxyProxy пуст</string>
     <string name="error_foxy_many">Конфигурация FoxyProxy содержит более %1$d записей</string>
-    <string name="error_foxy_no_https">В конфигурации FoxyProxy нет HTTPS-прокси</string>
+    <string name="error_foxy_no_https">В конфигурации FoxyProxy нет HTTPS- или SOCKS5-прокси</string>
     <string name="error_foxy_no_usable">В конфигурации FoxyProxy нет пригодных для использования прокси</string>
     <string name="error_foxy_host">В записи FoxyProxy %1$d указан некорректный адрес сервера</string>
     <string name="error_invalid_input">Некорректные данные конфигурации</string>
