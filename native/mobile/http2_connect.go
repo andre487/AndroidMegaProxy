@@ -17,6 +17,8 @@ import (
 type http2ClientConn interface {
 	RoundTrip(*http.Request) (*http.Response, error)
 	CanTakeNewRequest() bool
+	State() http2.ClientConnState
+	Shutdown(context.Context) error
 	Close() error
 }
 
@@ -153,6 +155,10 @@ func (c *http2StreamConn) Write(p []byte) (int, error) {
 	}
 	return n, err
 }
+
+// END_STREAM closes the request direction while preserving the origin's reply.
+func (c *http2StreamConn) CloseWrite() error { return c.writer.Close() }
+func (c *http2StreamConn) CloseRead() error  { return c.reader.Close() }
 
 func (c *http2StreamConn) Close() error {
 	var closeErr error

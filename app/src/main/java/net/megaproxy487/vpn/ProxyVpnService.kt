@@ -403,17 +403,22 @@ class ProxyVpnService : VpnService() {
                 return false
             }
             val config = storedConfig.copy(resolvedProxyIp = proxyIp, resolvedJumpIp = jumpIp)
+            val startupBlockingDetail = java.util.concurrent.atomic.AtomicReference<String?>(null)
             val started = proxyCore.start(establishedTunnel.fd, VPN_MTU, config) { message ->
                     failureDetail = message
                     configureHostKeyPrompt(message, promptProfileId, testOnly)
-                    if (!testOnly && "dpi_hint=possible" in message) monitorHandler.post { handleRuntimeDiagnostic(promptProfileId, message) }
+                    if (BlockingDetection.classify(message) != null) startupBlockingDetail.set(message)
+                    if (!testOnly && "dpi_hint=possible" in message) monitorHandler.post {
+                        if (isStartCurrent(generation)) handleRuntimeDiagnostic(promptProfileId, message)
+                    }
                     getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
                 }
             nativeStarted = started
             if (!started) {
                 if (isStartCurrent(generation)) {
                     isRunning = false
-                    handleStartFailure(testOnly, "Native proxy core failed to start", failureDetail, promptProfileId)
+                    val detail = failureDetail.takeIf(::requiresUserAction) ?: startupBlockingDetail.get() ?: failureDetail
+                    handleStartFailure(testOnly, "Native proxy core failed to start", detail, promptProfileId)
                 }
                 return false
             }
@@ -624,6 +629,7 @@ class ProxyVpnService : VpnService() {
     }
 
     private fun handleRuntimeDiagnostic(profileId: String, detail: String) {
+        if (!isRunning || activeSession?.profileId != profileId) return
         val signal = BlockingDetection.classify(detail) ?: return
         val count = recordProbableFailure(profileId)
         if (count >= 2) handleProbableBlocking(profileId, signal)

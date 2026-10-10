@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: October 2, 2026**
+**Last updated: October 10, 2026**
 
 MegaProxy is an Android VPN client for proxy servers you choose. It does not provide a proxy
 service, require an account, or automatically send usage data or crash reports to the developer.
@@ -28,8 +28,8 @@ Choose operators you trust.
 
 DNS providers receive the names being resolved. Before connecting, MegaProxy may resolve your
 proxy's hostname directly through Cloudflare, Yandex, Google or Quad9; these resolvers can see
-your source IP address and the proxy hostname. DNS queries through the tunnel use the configured
-provider and permitted fallbacks.
+your source IP address and the proxy hostname. DNS queries intercepted by MegaProxy use the configured provider and permitted fallbacks.
+Applications can also use their own encrypted or TCP DNS connections.
 
 When you run a connection test, MegaProxy contacts a test website and external IP/country lookup
 services through the proxy; MASQUE tests also contact external HTTP/3 diagnostic services.

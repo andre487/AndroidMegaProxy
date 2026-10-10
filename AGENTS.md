@@ -108,6 +108,8 @@ branch names, credentials, signing material, or other secrets.
 - Configuration writes must outlive individual screens and expose pending/failure state. Keep
   transfer operations across configuration changes; never put credentials or export payloads into
   Android saved-state bundles, and reject a lost export before opening the output stream.
+  Serialize profile read/modify/write operations and Keystore key creation across ConfigStore
+  instances. Preserve unreadable ciphertext and malformed profile storage; recovery must be explicit.
 
 ## Privacy and documentation
 

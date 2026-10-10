@@ -10,19 +10,9 @@ fi
 
 "$project_dir/scripts/start-android-emulator.sh"
 
-mkdir -p "$project_dir/app/libs"
-(
-    cd "$project_dir/native"
-    gomobile bind \
-        -target=android \
-        -androidapi 26 \
-        -o ../app/libs/megaproxy.aar \
-        ./mobile
-)
-
 (
     cd "$project_dir"
-    ./gradlew assembleDebug
+    bundle exec fastlane android debug_artifact
 )
 
 adb -e install -r "$project_dir/app/build/outputs/apk/debug/app-debug.apk"

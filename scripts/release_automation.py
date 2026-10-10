@@ -130,6 +130,11 @@ def response_notes(response):
     )
 
 
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise RuntimeError("OpenAI unexpectedly redirected an authenticated request")
+
+
 def generate_notes(version, previous):
     key, model = os.environ.get("OPENAI_API_KEY"), os.environ.get(
         "OPENAI_RELEASE_MODEL"
@@ -181,7 +186,9 @@ def generate_notes(version, previous):
         headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
     )
     try:
-        with urllib.request.urlopen(request, timeout=180) as response:
+        with urllib.request.build_opener(NoRedirect()).open(
+            request, timeout=180
+        ) as response:
             return response_notes(json.load(response))
     except urllib.error.HTTPError as error:
         raise RuntimeError(

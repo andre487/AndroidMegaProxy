@@ -257,6 +257,13 @@ func (c config) quicSpec() (quic.QUICSpec, error) {
 	return spec, nil
 }
 
+// Errors from a retired session must not restart its healthy replacement.
+func (d *masqueDialer) sessionHealthy() bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return d.session != nil && d.session.conn.Context().Err() == nil
+}
+
 func (d *masqueDialer) checkTarget(target string) error {
 	host, port, err := net.SplitHostPort(target)
 	if err != nil || host == "" {
@@ -296,7 +303,7 @@ func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) 
 			}
 			reason := errorClass(err)
 			scope, hint := "target", "none"
-			if proxyContext.Err() != nil {
+			if proxyContext.Err() != nil && !d.sessionHealthy() {
 				scope, hint = "proxy", tlsInterferenceHint(reason)
 			}
 			var rejected *masqueConnectError
@@ -377,6 +384,7 @@ func (d *masqueDialer) connectTarget(ctx context.Context, target string) (net.Co
 	result := &diagnosticConn{Conn: c, reporter: d.reporter, stats: d.stats}
 	if stream, ok := c.(*masqueStreamConn); ok {
 		result.connectionID, result.proxyContext = stream.connectionID, stream.proxyContext
+		result.proxyHealthy = d.sessionHealthy
 	} else {
 		result.connectionID = nextDiagnosticConnectionID()
 	}
@@ -440,7 +448,7 @@ func (d *masqueDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 }
 
 func (d *masqueDialer) udpPacketConn(stream *masqueStreamConn, remote *net.UDPAddr) net.PacketConn {
-	p := &masquePacketConn{masqueStreamConn: stream, remote: remote, packets: make(chan dnsReply, 16), stats: d.stats, reporter: d.reporter}
+	p := &masquePacketConn{masqueStreamConn: stream, remote: remote, packets: make(chan dnsReply, 16), stats: d.stats, reporter: d.reporter, proxyHealthy: d.sessionHealthy}
 	go p.receive()
 	return p
 }
@@ -507,6 +515,7 @@ type masquePacketConn struct {
 	stats                       *connectionStats
 	reporter                    Reporter
 	oversized                   sync.Once
+	proxyHealthy                func() bool
 }
 
 func (p *masquePacketConn) receive() {
@@ -528,7 +537,11 @@ func (p *masquePacketConn) receive() {
 		if err != nil {
 			if !p.closed.Load() && p.Context().Err() == nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
 				reason := errorClass(err)
-				report(p.reporter, "event=connection protocol=http3 stage=tunnel_io result=failed operation=udp_receive reason=%s dpi_hint=%s conn=%d quic_session=%d %s", reason, tlsInterferenceHint(reason), p.connectionID, p.sessionID, quicErrorDetails(err))
+				scope, hint := "proxy", tlsInterferenceHint(reason)
+				if p.proxyContext.Err() == nil || (p.proxyHealthy != nil && p.proxyHealthy()) {
+					scope, hint = "target", "none"
+				}
+				report(p.reporter, "event=connection protocol=http3 stage=tunnel_io result=failed operation=udp_receive reason=%s dpi_hint=%s scope=%s conn=%d quic_session=%d %s", reason, hint, scope, p.connectionID, p.sessionID, quicErrorDetails(err))
 			}
 			return
 		}

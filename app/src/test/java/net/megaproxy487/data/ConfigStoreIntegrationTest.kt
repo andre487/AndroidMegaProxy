@@ -70,6 +70,111 @@ class ConfigStoreIntegrationTest {
         assertEquals(original, store.profile(original.id))
     }
 
+    @Test fun independentStoreInstancesDoNotLoseConcurrentProfileAdds() {
+        val initial = store.activeProfile()
+        val ready = java.util.concurrent.CountDownLatch(8)
+        val start = java.util.concurrent.CountDownLatch(1)
+        val pool = java.util.concurrent.Executors.newFixedThreadPool(8)
+        try {
+            val writes = (0 until 8).map { index -> pool.submit {
+                val independent = ConfigStore(context)
+                val added = initial.copy(id = "concurrent-$index", name = "Concurrent $index")
+                ready.countDown()
+                check(start.await(10, java.util.concurrent.TimeUnit.SECONDS))
+                independent.saveProfile(added, createIfMissing = true)
+            } }
+            assertTrue(ready.await(10, java.util.concurrent.TimeUnit.SECONDS))
+            start.countDown()
+            writes.forEach { it.get(20, java.util.concurrent.TimeUnit.SECONDS) }
+            assertEquals(9, store.profiles().size)
+            assertEquals((0 until 8).map { "concurrent-$it" }.toSet(),
+                store.profiles().filter { it.id != initial.id }.map { it.id }.toSet())
+        } finally {
+            start.countDown()
+            pool.shutdownNow()
+        }
+    }
+
+    @Test fun portableImportPreservesPerProfileIpv6BeforeGlobalSettingsAreRead() {
+        val configuration = ConfigTransfer.importJson(
+            """{"schema":"net.megaproxy487.config","version":8,"profiles":[{"id":"ipv6-import","proxy":{"type":"HTTPS","host":"proxy.example","port":443,"username":"user","password":"secret"},"routing":{"allowIpv6":true}}],"global":{}}"""
+        )
+        store.importConfiguration(configuration)
+        store.globalConnectionSettings()
+        assertTrue(store.profile("ipv6-import")!!.config.allowIpv6)
+    }
+
+    @Test fun malformedProfilesRemainUntouchedUntilExplicitBackupImport() {
+        val original = secretProfile()
+        val backup = ConfigTransfer.exportJson(store, true, true)
+        val damaged = "[invalid"
+        prefs.edit().putString("profiles_v2", damaged).commit()
+        val placeholder = store.activeProfile()
+        assertTrue(placeholder.config.storageUnavailable)
+        assertEquals(placeholder.id, store.activeProfile().id)
+        try {
+            store.saveProfile(placeholder.copy(name = "Renamed"))
+            fail("Corrupt storage must not be overwritten")
+        } catch (error: net.megaproxy487.UiException) {
+            assertEquals(net.megaproxy487.R.string.error_config_storage, error.textId)
+        }
+        try {
+            ConfigTransfer.exportJson(store, false, false)
+            fail("Corrupt storage must not be exported as an empty profile")
+        } catch (error: net.megaproxy487.UiException) {
+            assertEquals(net.megaproxy487.R.string.error_config_storage, error.textId)
+        }
+        assertEquals(damaged, prefs.getString("profiles_v2", null))
+        store.importConfiguration(ConfigTransfer.importJson(backup))
+        assertEquals(original, store.activeProfile())
+        assertEquals(original.id, store.connectionProfile().id)
+    }
+
+    @Test fun unreadableCredentialSurvivesMetadataWrite() {
+        val original = secretProfile()
+        val packed = JSONArray(prefs.getString("profiles_v2", null))
+        packed.getJSONObject(0).getJSONObject("config").put("password", "AAAA")
+        prefs.edit().putString("profiles_v2", packed.toString()).commit()
+        val loaded = store.profile(original.id)!!
+        assertEquals(net.megaproxy487.R.string.error_credentials_unavailable, loaded.config.validationError())
+        store.saveProfile(loaded.copy(name = "Renamed"))
+        val saved = JSONArray(prefs.getString("profiles_v2", null))
+        assertEquals("AAAA", saved.getJSONObject(0).getJSONObject("config").getString("password"))
+        assertTrue(ConfigTransfer.exportJson(store, false, false).contains("Renamed"))
+        try {
+            ConfigTransfer.exportJson(store, true, false)
+            fail("Unreadable passwords must not be exported as empty")
+        } catch (error: net.megaproxy487.UiException) {
+            assertEquals(net.megaproxy487.R.string.error_credentials_unavailable, error.textId)
+        }
+        // An omitted secret preserves the opaque value; an explicit empty value clears it.
+        val exported = JSONObject(ConfigTransfer.exportJson(store, false, false))
+        store.importConfiguration(ConfigTransfer.importJson(exported.toString()))
+        assertEquals("AAAA", JSONArray(prefs.getString("profiles_v2", null))
+            .getJSONObject(0).getJSONObject("config").getString("password"))
+        exported.getJSONArray("profiles").getJSONObject(0).getJSONObject("proxy").put("password", "")
+        store.importConfiguration(ConfigTransfer.importJson(exported.toString()))
+        assertTrue(store.profile(original.id)!!.config.unreadableSecrets.isEmpty())
+    }
+
+    @Test fun unavailableKeyDoesNotCreateReplacementOrRewriteCiphertext() {
+        val original = secretProfile()
+        val encrypted = JSONObject(JSONArray(prefs.getString("profiles_v2", null)).getJSONObject(0)
+            .getJSONObject("config").toString())
+        val keys = UiTestKeyStore.keys.toMap()
+        UiTestKeyStore.keys.clear()
+        val loaded = store.profile(original.id)!!
+        assertEquals(4, loaded.config.unreadableSecrets.size)
+        store.saveProfile(loaded.copy(name = "Renamed"))
+        val saved = JSONArray(prefs.getString("profiles_v2", null)).getJSONObject(0).getJSONObject("config")
+        for (field in listOf("password", "privateKey", "jumpPassword", "jumpPrivateKey")) {
+            assertEquals(encrypted.getString(field), saved.getString(field))
+        }
+        assertTrue("Reading an unavailable key must not replace it", UiTestKeyStore.keys.isEmpty())
+        UiTestKeyStore.keys.putAll(keys)
+        assertEquals(original.copy(name = "Renamed"), store.profile(original.id))
+    }
+
     @Test fun actualExportsValidateForEveryTransportAndSecretChoice() {
         val original = secretProfile()
         for (type in ProxyType.entries) {

@@ -6,6 +6,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import urllib.request
 from pathlib import Path
 from unittest.mock import patch
 
@@ -21,6 +22,18 @@ NOTES = {"en-US": "- Improved connections.", "ru-RU": "- Улучшено под
 
 
 class ReleaseTests(unittest.TestCase):
+    def test_authenticated_notes_request_rejects_redirects(self):
+        request = urllib.request.Request(
+            "https://api.openai.com/v1/responses",
+            data=b"{}",
+            headers={"Authorization": "Bearer synthetic-test-key"},
+        )
+        for status in (301, 302, 303, 307, 308):
+            with self.subTest(status=status), self.assertRaises(RuntimeError):
+                m.NoRedirect().redirect_request(
+                    request, None, status, "redirect", {}, "https://other.example/"
+                )
+
     def test_api_mutations_use_explicit_http_method_and_structured_stdin(self):
         with (
             patch.dict(os.environ, {"GITHUB_REPOSITORY": "owner/repo"}),

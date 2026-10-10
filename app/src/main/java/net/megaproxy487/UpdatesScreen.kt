@@ -152,7 +152,7 @@ internal fun UpdatesScreen(activity: Activity, onBack: () -> Unit, model: Update
         Text(stringResource(R.string.update_manual_description))
         if (model.backgroundTime == 0L) Text(stringResource(R.string.update_background_never))
         else {
-            val time = java.text.DateFormat.getDateTimeInstance().format(java.util.Date(model.backgroundTime))
+            val time = formatConnectionStartedAt(model.backgroundTime, systemFormattingLocale())
             Text(stringResource(R.string.update_background_time, time))
             val label = if (model.backgroundSource == UpdateSource.FDROID.name) R.string.update_fdroid else R.string.update_github
             Text(stringResource(R.string.update_selected_source, stringResource(label)))

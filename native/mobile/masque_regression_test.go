@@ -463,3 +463,16 @@ func TestLocalSocketDeadlineIsNotProxyBlocking(t *testing.T) {
 		t.Fatal("real proxy failure was suppressed")
 	}
 }
+
+func TestRetiredSessionFailureDoesNotRestartHealthyReplacement(t *testing.T) {
+	oldContext, cancel := context.WithCancel(context.Background())
+	cancel()
+	for _, healthy := range []bool{true, false} {
+		logs := &diagnosticRecorder{}
+		conn := &diagnosticConn{reporter: logs, proxyContext: oldContext, proxyHealthy: func() bool { return healthy }}
+		conn.reportError("read", os.ErrDeadlineExceeded)
+		if strings.Contains(logs.text(), "dpi_hint=possible") == healthy {
+			t.Fatalf("replacement healthy=%t: %s", healthy, logs.text())
+		}
+	}
+}

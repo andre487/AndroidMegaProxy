@@ -373,6 +373,9 @@
     <string name="error_foxy_no_usable">В конфигурации FoxyProxy нет пригодных для использования прокси</string>
     <string name="error_foxy_host">В записи FoxyProxy %1$d указан некорректный адрес сервера</string>
     <string name="error_invalid_input">Некорректные данные конфигурации</string>
+    <string name="error_credentials_unavailable">Не удалось расшифровать некоторые сохранённые учётные данные. Их зашифрованные значения сохранены. Введите затронутые учётные данные заново перед подключением или их экспортом.</string>
+    <string name="profile_storage_unavailable">Сохранённые профили недоступны</string>
+    <string name="error_config_storage">Не удалось прочитать сохранённые профили. Их данные сохранены. Импортируйте резервную копию конфигурации для восстановления.</string>
     <string name="error_open_export">Не удалось открыть файл для экспорта</string>
     <string name="error_read_file">Не удалось прочитать выбранный файл</string>
     <string name="error_open_file">Не удалось открыть выбранный файл</string>
