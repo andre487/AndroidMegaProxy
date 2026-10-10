@@ -112,7 +112,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 			return nil, err
 		}
 		report(d.reporter, "event=connection conn=%d mode=direct stage=tcp_connect result=success elapsed_ms=%d", connectionID, time.Since(directStarted).Milliseconds())
-		return &diagnosticConn{Conn: connection, connectionID: connectionID, reporter: d.reporter, stats: d.stats}, nil
+		return &diagnosticConn{Conn: connection, connectionID: connectionID, reporter: d.reporter, stats: d.stats, proxyHealthy: func() bool { return true }}, nil
 	}
 	if session := d.currentHTTP2Session(); session != nil {
 		connection, err := d.openHTTP2Tunnel(ctx, session, target, connectionID, totalStarted, true)

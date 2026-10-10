@@ -58,6 +58,12 @@ with `X-MegaProxy-Client: android` and `X-MegaProxy-Version`.
 Existing tunnels keep their previous settings. A change affecting the active
 connection marks **Reconnect**, also explained on the subscription screen. Reconnect
 the VPN to apply it; a metadata-only change does not require reconnecting.
+Automatic updates that change the running VPN settings also send a notification
+with **Reconnect**, if notifications are allowed. The notification contains no
+profile names, addresses or credentials. Its action only applies to the current
+pending change while the VPN is running; it cannot restart a stopped VPN.
+Open editors save only deliberately edited fields, preserving other refreshed values.
+Turning off Basic Auth in the subscription screen clears both credentials.
 
 URL query tokens and separate subscription credentials are encrypted at rest.
 Removing the subscription keeps profiles. Import without `subscription` retains

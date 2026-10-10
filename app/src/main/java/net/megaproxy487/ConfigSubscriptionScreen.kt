@@ -50,6 +50,7 @@ internal class SubscriptionDraft : ViewModel() {
 
 @Composable
 internal fun ConfigSubscriptionScreen(activity: Activity, onBack: () -> Unit, draft: SubscriptionDraft = viewModel()) {
+    SecureScreen(activity)
     val revision by ConfigSubscriptions.revision.collectAsState()
     val busy by ConfigSubscriptions.busy.collectAsState()
     val operationError by ConfigSubscriptions.error.collectAsState()

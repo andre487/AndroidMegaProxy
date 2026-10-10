@@ -245,6 +245,7 @@ internal fun MainScreen(
     val transportProtocol by VpnRuntimeState.transportProtocol
     val store = remember { ConfigStore(activity) }
     val writeStatus by ConfigWrites.status.collectAsState()
+    val subscriptionRevision by ConfigSubscriptions.revision.collectAsState()
     var error by remember { mutableStateOf<String?>(null) }
     var actionsMenuExpanded by remember { mutableStateOf(false) }
     var profileMenuExpanded by remember { mutableStateOf(false) }
@@ -288,14 +289,17 @@ internal fun MainScreen(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
-    LaunchedEffect(connection, writeStatus) {
+    LaunchedEffect(connection, writeStatus, subscriptionRevision) {
         if (writeStatus.pending == 0) {
             val saved = withContext(ConfigIoDispatcher) {
-                Triple(store.sortedProfiles(), store.globalConnectionSettings(), store.hasPendingReconnect())
+                RefreshedMainConfig(systemVpnStatus, store.sortedProfiles(), store.activeProfileId(),
+                    store.connectionProfileId(), store.hasPendingReconnect(), store.globalConnectionSettings())
             }
-            profiles = saved.first
-            globalSettings = saved.second
-            pendingReconnect = saved.third
+            profiles = saved.profiles
+            activeProfileId = saved.activeProfileId
+            connectionProfileId = saved.connectionProfileId
+            globalSettings = saved.globalSettings
+            pendingReconnect = saved.pendingReconnect
         }
     }
     LaunchedEffect(lifecycleOwner, connection) {

@@ -533,4 +533,7 @@
     <string name="subscription_remove">Удалить подписку и сохранить профили</string>
     <string name="subscription_save">Сохранить подписку</string>
     <string name="subscription_id_collision">ID профиля подписки совпадает с ID локального профиля</string>
+    <string name="subscription_notification_channel">Изменения конфигурации</string>
+    <string name="subscription_notification_title">Настройки VPN обновлены</string>
+    <string name="subscription_notification_text">Фоновое обновление подписки изменило настройки активного соединения. Переподключитесь, чтобы применить их.</string>
 </resources>

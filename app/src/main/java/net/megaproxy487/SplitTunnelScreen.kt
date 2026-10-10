@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import net.megaproxy487.data.settings
+
 import androidx.compose.foundation.shape.RoundedCornerShape
 
 import android.app.Activity
@@ -71,6 +73,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val writeStatus by ConfigWrites.status.collectAsState()
     var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
+    val edits = remember { net.megaproxy487.data.ConfigEdits<GlobalConnectionSettings>() }
     var appSearch by remember { mutableStateOf("") }
     var showReconnectPrompt by remember { mutableStateOf(false) }
     var showAlwaysOnDeferredNotice by remember { mutableStateOf(false) }
@@ -82,9 +85,10 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
         val selectedPackagesOnly = settings.selectedPackages != updated.selectedPackages &&
             settings.copy(selectedPackages = updated.selectedPackages) == updated
         val affectsActiveRouting = !(settings.routeAllApps && updated.routeAllApps && selectedPackagesOnly)
+        val edit = edits.settings(settings, updated)
         settings = updated
         ConfigWrites.submit("global") {
-            store.saveGlobalConnectionSettings(updated)
+            edit.write { store.editGlobalSettings(it) }
             if (ProxyVpnService.isRunning && affectsActiveRouting) store.markPendingReconnect()
         }
         if (ProxyVpnService.isRunning && affectsActiveRouting && !deferChangesUntilNextConnection) {

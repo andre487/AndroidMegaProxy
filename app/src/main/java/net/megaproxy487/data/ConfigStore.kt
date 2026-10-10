@@ -319,7 +319,7 @@ class ConfigStore(context: Context) {
         settings?.validate()
         // Explicit removal also recovers an unreadable subscription, without touching profiles.
         val previous = if (settings == null) null else subscriptionState()
-        val resolved = settings?.retainPassword(previous?.settings)
+        val resolved = settings
         val same = resolved != null && previous != null && sameSubscriptionSource(previous.settings, resolved)
         val state = resolved?.let { if (same) previous!!.copy(settings = it, generation = UUID.randomUUID().toString())
             else ConfigSubscriptionState(it) }
@@ -423,6 +423,17 @@ class ConfigStore(context: Context) {
             else current.map { if (it.id == profile.id) profile else it }
         // A failed commit may already have updated SharedPreferences in memory. Retry the disk write too.
         writeProfiles(updated)
+    }
+
+    internal fun editProfile(id: String, draft: ProxyProfile?, edit: (ProxyProfile) -> ProxyProfile) = synchronized(storageLock) {
+        val latest = profile(id) ?: draft ?: return@synchronized
+        saveProfile(edit(latest), createIfMissing = draft != null)
+    }
+
+    internal fun editGlobalSettings(edit: (GlobalConnectionSettings) -> GlobalConnectionSettings) = synchronized(storageLock) {
+        val updated = edit(globalConnectionSettings())
+        val ids = profiles().map(ProxyProfile::id).toSet()
+        saveGlobalConnectionSettings(updated.copy(failoverProfileIds = updated.failoverProfileIds.filter { it in ids }))
     }
 
     fun trustSshHostKey(profileId: String, hop: String, fingerprint: String): Boolean = synchronized(storageLock) {

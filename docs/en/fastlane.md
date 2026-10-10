@@ -42,9 +42,9 @@ That command lists the lanes available in the checked-out version of the project
 | `bundle exec fastlane android python_tests` | Runs Python unit tests. |
 | `bundle exec fastlane android python_checks` | Checks Python formatting/import order and runs unit tests. |
 | `bundle exec fastlane android native_fuzz` | Fuzzes native parsers for 20 seconds with two workers. |
-| `bundle exec fastlane android native_tests` | Runs all Go tests with the race detector. |
+| `bundle exec fastlane android native_tests` | Runs all native Go tests and local uQUIC patch regressions with the race detector. |
 | `bundle exec fastlane android native_integration` | Tests production dialers against real GOST/OpenSSH servers in Docker with the race detector. |
-| `bundle exec fastlane android android_checks` | Builds the native AAR, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
+| `bundle exec fastlane android android_checks` | Builds the native AAR, resolves pinned Robolectric SDKs through Gradle, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
 | `bundle exec fastlane android device_test_build` | Build the native AAR, debug APK and instrumentation APK. |
 | `bundle exec fastlane android device_tests api:26` | Run integration scenarios on a running disposable API 26 emulator. |
 | `bundle exec fastlane android device_tests api:35` | Run integration scenarios on a running disposable API 35 emulator. |

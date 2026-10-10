@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import androidx.compose.runtime.collectAsState
+
 import android.app.Activity
 import android.content.Intent
 import android.net.Uri
@@ -283,7 +285,8 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
             profiles.addAll(loaded)
         }
     }
-    LaunchedEffect(Unit) { refresh() }
+    val subscriptionRevision by ConfigSubscriptions.revision.collectAsState()
+    LaunchedEffect(subscriptionRevision) { refresh() }
     fun moveProfile(profileId: String, delta: Int): Boolean {
         if (uiState.busy) return false
         val sourceIndex = profiles.indexOfFirst { it.id == profileId }

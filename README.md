@@ -195,7 +195,9 @@ URLs and subscription credentials are encrypted locally; JSON export includes
 the definition, with its password following **Include passwords**. URL query tokens
 remain sensitive even without exported passwords. Existing VPN tunnels continue
 with their previous settings; changes mark **Reconnect** rather than interrupting
-a working connection. See [English](docs/en/subscriptions.md) / [Russian](docs/ru/subscriptions.md)
+a working connection. Background updates affecting the running VPN also offer
+a notification with **Reconnect**, when notifications are allowed. It contains
+no profile details and cannot restart a stopped VPN. See [English](docs/en/subscriptions.md) / [Russian](docs/ru/subscriptions.md)
 and the [delivery protocol](https://github.com/andre487/MegaProxyConfig/blob/main/docs/subscription-protocol.md).
 
 ### MASQUE with GOST

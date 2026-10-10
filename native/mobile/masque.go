@@ -468,6 +468,7 @@ func (d *masqueDialer) connectTarget(ctx context.Context, target string) (net.Co
 		result.proxyHealthy = d.sessionHealthy
 	} else {
 		result.connectionID = nextDiagnosticConnectionID()
+		result.proxyHealthy = func() bool { return true }
 	}
 	return result, nil
 }
@@ -518,7 +519,7 @@ func (d *masqueDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 		if err != nil {
 			return nil, err
 		}
-		return &masqueDirectPacketConn{Conn: &diagnosticConn{Conn: c, stats: d.stats, reporter: d.reporter, connectionID: nextDiagnosticConnectionID()}}, nil
+		return &masqueDirectPacketConn{Conn: &diagnosticConn{Conn: c, stats: d.stats, reporter: d.reporter, connectionID: nextDiagnosticConnectionID(), proxyHealthy: func() bool { return true }}}, nil
 	}
 	stream, err := d.openTunnel(ctx, target, true)
 	if err != nil {

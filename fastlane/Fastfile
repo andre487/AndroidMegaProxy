@@ -17,7 +17,7 @@ platform :android do
     report = File.join(project_root, "test-results/native/unit.xml")
     FileUtils.mkdir_p(File.dirname(report))
     Dir.chdir(File.join(project_root, "native")) do
-      sh("go", "run", "gotest.tools/gotestsum@v1.13.0", "--junitfile", report, "--", "-race", "./...")
+      sh("go", "run", "gotest.tools/gotestsum@v1.13.0", "--junitfile", report, "--", "-race", "./...", "github.com/refraction-networking/uquic")
     end
   end
 

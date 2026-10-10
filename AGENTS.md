@@ -47,7 +47,8 @@ branch names, credentials, signing material, or other secrets.
   serialization/defaults, formatting, and state transitions should not require a device.
 - Compose interaction tests may run in `app/src/test` using Robolectric with a pinned SDK and
   plain test Application. Inject platform operations; do not load Go JNI or real Keystore in
-  those tests. They run through the existing Fastlane Android checks without an emulator.
+  those tests. Gradle resolves pinned API 26/35 Robolectric SDK jars before tests; the test
+  runtime uses offline resolution. They run through Fastlane Android checks without an emulator.
 - Exercise real screens and ConfigStore with a test-only Keystore provider. Before asserting
   service commands or their absence, drain ordered configuration writes and check both completion
   and failure state; `pending == 0` alone does not prove success. Recorded service intents do not
@@ -107,8 +108,9 @@ branch names, credentials, signing material, or other secrets.
   rows wrap or stack; constrain app-bar titles and field labels, and make long dialog content
   scrollable. Keep full visual configuration checks local; emulator CI covers the agreed integration scenarios.
 
-- Configuration writes must outlive individual screens and expose pending/failure state. Keep
-  transfer operations across configuration changes; never put credentials or export payloads into
+- Configuration writes must outlive individual screens and expose pending/failure state.
+  Editors save deliberate field edits against current storage, preserving untouched subscription
+  updates and opaque secrets; retries retain unapplied edits. Keep transfer operations across configuration changes; never put credentials or export payloads into
   Android saved-state bundles, and reject a lost export before opening the output stream.
   Serialize profile read/modify/write operations and Keystore key creation across ConfigStore
   instances. Preserve unreadable ciphertext and malformed profile storage; recovery must be explicit.
@@ -131,7 +133,9 @@ branch names, credentials, signing material, or other secrets.
 
 - Configuration subscriptions use the MegaProxyConfig HTTPS delivery contract and client ID
   `android`. Encrypt URLs/credentials and persist ownership/status locally. Scheduled jobs and
-  manual refresh share validation, source failover and an atomic snapshot commit. Downloaded
+  manual refresh share validation, source failover and an atomic snapshot commit.
+  Background changes affecting a running VPN offer a privacy-safe reconnect notification; stale
+  actions must never restart a stopped VPN. Credential screens use `FLAG_SECURE`. Remote
   subscription definitions cannot alter local recipients; generation checks discard obsolete
   downloads. Keep local profiles/selections and current tunnels; effective live changes mark
   pending reconnect rather than starting/stopping VPN automatically.

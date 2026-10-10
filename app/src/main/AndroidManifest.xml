@@ -64,6 +64,7 @@
             </intent-filter>
         </receiver>
 
+        <receiver android:name=".SubscriptionReconnectReceiver" android:exported="false" />
         <receiver android:name=".UpdateActionReceiver" android:exported="false" />
         <service android:name=".ConfigSubscriptionService"
             android:permission="android.permission.BIND_JOB_SERVICE" android:exported="true" />

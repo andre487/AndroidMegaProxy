@@ -7,6 +7,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+// Resolve pinned test SDKs through Gradle; Robolectric's runtime fetcher requires optional Maven checksum sidecars.
+val robolectricSdks = listOf("8.0.0_r4-robolectric-r1-i7", "15-robolectric-13954326-i7").map { sdk ->
+    // Separate configurations prevent Gradle from choosing one SDK version over the other.
+    configurations.detachedConfiguration(dependencies.create("org.robolectric:android-all-instrumented:$sdk")).apply {
+        isTransitive = false
+    }
+}
+val prepareRobolectricSdks = tasks.register<Sync>("prepareRobolectricSdks") {
+    from(robolectricSdks)
+    into(layout.buildDirectory.dir("robolectric-sdks"))
+}
+
 val releaseKeystorePath = providers.environmentVariable("MEGAPROXY_KEYSTORE_PATH").orNull
 val releaseKeystorePassword = providers.environmentVariable("MEGAPROXY_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("MEGAPROXY_KEY_ALIAS").orNull
@@ -94,7 +106,9 @@ android {
     testOptions {
         unitTests.isIncludeAndroidResources = true
         unitTests.all {
-            it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
+            it.dependsOn(prepareRobolectricSdks)
+            it.systemProperty("robolectric.offline", "true")
+            it.systemProperty("robolectric.dependency.dir", layout.buildDirectory.dir("robolectric-sdks").get().asFile.absolutePath)
             it.jvmArgs(
                 "--add-opens=java.base/java.lang=ALL-UNNAMED",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
