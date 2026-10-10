@@ -269,16 +269,31 @@ func TestRealProxyServers(t *testing.T) {
 	}
 
 	originIP := strings.TrimSpace(dockerTest(t, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}", id+"-origin"))
-	for _, cfg := range []config{socksConfig, socksAnonymous} {
-		t.Run("gost_socks5_udp_"+cfg.Username, func(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		cfg    config
+		domain bool
+	}{
+		{"auth_ip", socksConfig, false}, {"anonymous_ip", socksAnonymous, false},
+		{"auth_remote_dns", socksConfig, true}, {"anonymous_remote_dns", socksAnonymous, true},
+	} {
+		t.Run("gost_socks5_udp_"+tc.name, func(t *testing.T) {
+			cfg := tc.cfg
 			d := &socks5Dialer{config: cfg, protector: &jumpTestProtector{}}
 			defer d.Close()
-			packet, err := d.DialUDP(&M.Metadata{DstIP: netip.MustParseAddr(originIP), DstPort: 8081})
+			peer := &net.UDPAddr{IP: net.ParseIP(originIP), Port: 8081}
+			var packet net.PacketConn
+			var err error
+			if tc.domain {
+				peer.IP = net.IPv4(192, 0, 2, 1)
+				packet, err = d.openUDP(context.Background(), net.JoinHostPort(id+"-origin", "8081"), peer)
+			} else {
+				packet, err = d.DialUDP(&M.Metadata{DstIP: netip.MustParseAddr(originIP), DstPort: 8081})
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer packet.Close()
-			peer := &net.UDPAddr{IP: net.ParseIP(originIP), Port: 8081}
 			for _, size := range []int{0, 512, 1200, 1350, 4096} {
 				_ = packet.SetDeadline(time.Now().Add(3 * time.Second))
 				payload := bytes.Repeat([]byte{42}, size)
