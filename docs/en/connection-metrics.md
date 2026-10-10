@@ -76,3 +76,9 @@ log complete TLS/SSH state objects. HTTP rejection messages use numeric status
 codes, not server-provided reason text; connection-test providers use indices.
 
 [Русская версия](../ru/connection-metrics.md)
+
+SOCKS5 profiles support TCP CONNECT and UDP ASSOCIATE, with optional credentials
+(1–255 UTF-8 bytes each), on port 1080 by default. SOCKS5 adds no encryption or TLS
+fingerprint. DNS still uses DoH through the proxy. The connection test also checks
+end-to-end HTTP/3 over SOCKS5 UDP. TCP metrics cover proxy TCP connections, including
+UDP control connections; they do not measure UDP loss or RTT.

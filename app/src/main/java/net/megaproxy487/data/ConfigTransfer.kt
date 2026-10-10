@@ -49,7 +49,7 @@ object ConfigTransfer {
     fun isSupportedSchema(value: String): Boolean = value == SCHEMA_ID || value == LEGACY_SCHEMA_ID
 
     fun exportProxyList(profiles: List<ProxyProfile>, includePasswords: Boolean): String =
-        profiles.filter { it.config.type == ProxyType.HTTPS || it.config.type == ProxyType.MASQUE }.joinToString("\n", postfix = "\n") { profile ->
+        profiles.filter { it.config.type == ProxyType.HTTPS || it.config.type == ProxyType.MASQUE || it.config.type == ProxyType.SOCKS5 }.joinToString("\n", postfix = "\n") { profile ->
             val config = profile.config
             requireExportableSecrets(config, includePasswords, false)
             val password = if (includePasswords) config.password else ""
@@ -59,8 +59,14 @@ object ConfigTransfer {
                 if (profile.countryCode.isNotBlank()) add("cc=${encode(profile.countryCode.uppercase())}")
             }.joinToString("&")
             buildString {
-                append(if (config.type == ProxyType.MASQUE) "masque://" else "https://").append(userInfo).append('@').append(config.host.trim())
-                if (config.port != 443) append(':').append(config.port)
+                append(when (config.type) {
+                    ProxyType.SOCKS5 -> "socks5://"
+                    ProxyType.MASQUE -> "masque://"
+                    else -> "https://"
+                })
+                if (config.type != ProxyType.SOCKS5 || config.username.isNotEmpty() || password.isNotEmpty()) append(userInfo).append('@')
+                append(config.host.trim())
+                if (config.port != config.type.defaultPort) append(':').append(config.port)
                 if (query.isNotEmpty()) append('?').append(query)
             }
         }
@@ -310,6 +316,6 @@ object ConfigTransfer {
         }) { UiException(R.string.error_credentials_unavailable) }
     }
 
-    private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
+    private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name()).replace("+", "%20")
         .replace("+", "%20")
 }

@@ -7,9 +7,11 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
 
 enum class VpnConnectionState { DISCONNECTED, CONNECTING, CONNECTED }
-enum class VpnTransportProtocol { UNKNOWN, HTTP_1_1, HTTP_2, HTTP_3, SSH_MULTIPLEXED }
+enum class VpnTransportProtocol { UNKNOWN, SOCKS5, HTTP_1_1, HTTP_2, HTTP_3, SSH_MULTIPLEXED }
 
 fun transportProtocolFromDiagnostic(message: String): VpnTransportProtocol? = when {
+    "event=connection" in message && "protocol=socks5" in message &&
+        "stage=tunnel" in message && "result=established" in message -> VpnTransportProtocol.SOCKS5
     "event=connection" in message && "protocol=http3" in message &&
         "stage=tunnel" in message && "result=established" in message -> VpnTransportProtocol.HTTP_3
     "event=connection" in message && "protocol=http2" in message &&

@@ -1,3 +1,4 @@
+import re
 import subprocess
 import sys
 import tempfile
@@ -11,6 +12,21 @@ import android_device_tests as m
 
 
 class InstrumentationResultTest(unittest.TestCase):
+    def test_vpn_scenarios_are_registered(self):
+        source = (
+            m.ROOT / "app/src/androidTest/java/net/megaproxy487/VpnDeviceTest.kt"
+        ).read_text()
+        methods = set(re.findall(r"@Test\s+fun\s+(\w+)\s*\(", source))
+        selected = {
+            name.split("#", 1)[1]
+            for name in m.TESTS
+            if name.startswith("VpnDeviceTest#")
+        }
+        # The runner selects this permission scenario separately on API >= 33.
+        selected.add("deniedNotificationsStillAllowVpn")
+        self.assertEqual(methods, selected)
+        self.assertEqual(len(m.TESTS), len(set(m.TESTS)))
+
     def test_disposable_emulator_removes_observed_background_dialog_sources(self):
         for api, package in [
             (26, "com.google.android.apps.messaging"),

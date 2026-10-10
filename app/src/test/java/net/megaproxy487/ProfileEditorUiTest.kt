@@ -12,6 +12,21 @@ class ProfileEditorUiTest : MainUiTestBase() {
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(text(id)))
         return node(id)
     }
+    @Test fun socks5UsesItsPortAndHidesTlsAndSshControls() {
+        val id = store.activeProfileId()
+        content { ProfileEditorScreen(activity, id, {}) }
+        field(R.string.profile_type).performClick()
+        node(ProxyType.SOCKS5.titleRes).performClick()
+        saved()
+        assertEquals(ProxyType.SOCKS5, store.profile(id)!!.config.type)
+        assertEquals(1080, store.profile(id)!!.config.port)
+        field(R.string.socks5_proxy_hostname).assertExists()
+        field(R.string.socks5_username_optional).assertExists()
+        node(R.string.prefer_http3).assertDoesNotExist()
+        node(R.string.allow_proxy_certificate).assertDoesNotExist()
+        node(R.string.private_key_optional).assertDoesNotExist()
+    }
+
     @Test fun editsPersistButInvalidPortDoesNotReplaceSavedValue() {
         val id = store.activeProfileId()
         content { ProfileEditorScreen(activity, id, {}) }

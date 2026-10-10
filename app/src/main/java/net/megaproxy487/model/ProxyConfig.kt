@@ -48,12 +48,14 @@ data class ProxyConfig(
     fun connectionValidationError(): Int? = when {
         storageUnavailable -> R.string.error_config_storage
         unavailableAuthentication() -> R.string.error_credentials_unavailable
-        host.isBlank() -> if (type.isHttpProxy) R.string.validation_proxy_host else R.string.validation_ssh_host
+        host.isBlank() -> if (!type.isSsh) R.string.validation_proxy_host else R.string.validation_ssh_host
         host.contains(Regex("[/:\\s]")) -> R.string.validation_host_format
         port !in 1..65535 -> R.string.validation_port
         type.isHttpProxy && username.isBlank() -> R.string.validation_basic_username
         type.isHttpProxy && password.isBlank() -> R.string.validation_basic_password
-        !type.isHttpProxy && username.isBlank() -> R.string.validation_ssh_username
+        type.isSsh && username.isBlank() -> R.string.validation_ssh_username
+        type == ProxyType.SOCKS5 && ((username.isEmpty() != password.isEmpty()) ||
+            username.toByteArray(Charsets.UTF_8).size > 255 || password.toByteArray(Charsets.UTF_8).size > 255) -> R.string.validation_socks5_auth
         type.hasJump && jumpHost.isBlank() -> R.string.validation_jump_host
         type.hasJump && jumpHost.contains(Regex("[/:\\s]")) -> R.string.validation_jump_host_format
         type.hasJump && jumpPort !in 1..65535 -> R.string.validation_jump_port
@@ -72,7 +74,7 @@ data class ProxyConfig(
     fun validationError(): Int? = connectionValidationError()
 
     private fun unavailableAuthentication(): Boolean {
-        val fields = if (type.isHttpProxy) listOf("password") else when (sshAuthMode) {
+        val fields = if (!type.isSsh) listOf("password") else when (sshAuthMode) {
             SshAuthMode.PASSWORD_ONLY -> listOf("password")
             SshAuthMode.KEY_ONLY -> listOf("privateKey")
             else -> listOf("password", "privateKey")
@@ -86,12 +88,14 @@ data class ProxyConfig(
 
 enum class ProxyType(val title: String, val defaultPort: Int) {
     HTTPS("HTTPS", 443),
+    SOCKS5("SOCKS5", 1080),
     MASQUE("MASQUE (HTTP/3)", 443),
     HTTPS_JUMP("HTTPS with Jump", 443),
     SSH("SSH", 22),
     SSH_JUMP("SSH with Jump", 22);
 
     val isHttps: Boolean get() = this == HTTPS || this == HTTPS_JUMP
+    val isSsh: Boolean get() = this == SSH || this == SSH_JUMP
     val isHttpProxy: Boolean get() = isHttps || this == MASQUE
     val hasJump: Boolean get() = this == HTTPS_JUMP || this == SSH_JUMP
 }

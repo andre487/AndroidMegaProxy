@@ -24,6 +24,7 @@ filtering is designed to remove credentials and sensitive addresses. Review repo
 MegaProxy forwards selected application traffic to your configured proxy servers and sends the
 authentication information needed to connect. SSH authentication does not transmit private keys. Proxy
 operators can see connection metadata and destinations, and unencrypted application content.
+SOCKS5 does not encrypt its proxy connection, including credentials.
 Choose operators you trust.
 
 DNS providers receive the names being resolved. Before connecting, MegaProxy may resolve your
@@ -32,7 +33,7 @@ your source IP address and the proxy hostname. DNS queries intercepted by MegaPr
 Applications can also use their own encrypted or TCP DNS connections.
 
 When you run a connection test, MegaProxy contacts a test website and external IP/country lookup
-services through the proxy; MASQUE tests also contact external HTTP/3 diagnostic services.
+services through the proxy; MASQUE and SOCKS5 tests also contact external HTTP/3 diagnostic services.
 They receive the exit IP and test requests, including TLS/QUIC connection parameters, to check connectivity and
 identify the proxy's apparent country, not your GPS location. The current services are listed in
 [Network privacy details](README.md#privacy-and-security). These providers handle requests under

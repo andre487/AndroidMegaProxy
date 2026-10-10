@@ -10,7 +10,7 @@
 </p>
 
 MegaProxy is an open-source Android VPN client for reliable, secure connections through proxy
-servers you control or trust. It supports HTTPS, MASQUE α (HTTP/3) and SSH transports, per-app routing, encrypted DNS,
+servers you control or trust. It supports HTTPS, SOCKS5, MASQUE α (HTTP/3) and SSH transports, per-app routing, encrypted DNS,
 connection diagnostics, and automatic failover in one privacy-focused application.
 
 MegaProxy contains no advertising, analytics SDKs, tracking, or remote telemetry. Connection
@@ -33,12 +33,32 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 ## Features
 
+### SOCKS5
+
+Select **SOCKS5** and enter the server hostname and port (default 1080). Leave both
+credentials empty, or enter a username and password of 1–255 UTF-8 bytes each.
+SOCKS5 does not encrypt the proxy connection or credentials and does not apply a
+browser TLS fingerprint. Application TLS and DoH retain their own encryption.
+DNS uses the selected DoH provider over proxied TCP; other UDP uses UDP ASSOCIATE.
+The relay must return a reachable IP address and nonzero UDP port. Wildcard relay
+addresses use the proxy bootstrap IP; hostname relays are rejected without system DNS.
+Local-network bypass, app routing, IPv6 policy, failover and traffic counters apply.
+TCP RTT/retransmits describe the first proxy's TCP sockets, including UDP control
+connections; these are not measurements of the relayed UDP path. No SOCKS5 Jump
+mode is defined. JSON uses `proxy.type: "SOCKS5"`; ProxyList accepts
+`socks5://host:1080` and `socks5://user:password@host:1080`.
+
+For GOST, enable UDP explicitly: `gost -L 'socks5://user:password@:1080?udp=true'`.
+See [GOST SOCKS5 documentation](https://gost.run/en/tutorials/protocols/socks/).
+The proxy's advertised UDP relay must be reachable through its firewall/NAT.
+
 ### Connection profiles
 
 - Multiple named, colored, reorderable profiles.
 - HTTPS proxies over TLS with Basic authentication, including two-proxy HTTPS with Jump chains.
 - MASQUE α over HTTP/3 with Basic authentication, multiplexed TCP CONNECT and CONNECT-UDP.
 - HTTP/2 CONNECT multiplexing when supported by the proxy, with automatic HTTP/1.1 fallback.
+- SOCKS5 TCP CONNECT and UDP ASSOCIATE, with optional RFC 1929 username/password authentication.
 - SSH `direct-tcpip` transport and SSH through a jump host.
 - SSH password and unencrypted private-key authentication.
 - SSH host-key verification with trust-on-first-use confirmation.
@@ -63,12 +83,12 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 - HTTPS ClientHello profiles powered by uTLS, MASQUE TLS/QUIC presets powered by uQUIC,
   plus manual JA3 configuration.
 - Configurable SSH client profiles, keepalives, channel limits, and session rotation.
-- MASQUE forwards UDP; HTTPS and SSH block arbitrary UDP so QUIC clients fall back to TCP.
+- MASQUE and SOCKS5 forward UDP; HTTPS and SSH block arbitrary UDP so QUIC clients fall back to TCP.
 
 ### Diagnostics
 
 - A staged connection test for proxy setup, `example.com`, and the observed exit IP and country;
-  MASQUE also checks end-to-end HTTP/3 over proxied UDP with Cloudflare and BrowserLeaks.
+  MASQUE and SOCKS5 also check end-to-end HTTP/3 over proxied UDP with Cloudflare and BrowserLeaks.
 - Local, size-limited, rotating diagnostic and crash logs designed to omit credentials and traffic
   content.
 - [Negotiated TLS/HTTP/SSH parameters](docs/en/connection-metrics.md#negotiation-diagnostics) without peer identities or credentials.
@@ -84,7 +104,7 @@ project author. Network traffic is sent only where required by the selected prof
 and DNS configuration. Proxy-hostname bootstrap may contact Cloudflare, Yandex, Google or Quad9
 DoH resolvers directly before the tunnel exists. The explicit connection test contacts `example.com`
 and uses fallback providers for exit IP (`ifconfig.me`, `api.ipify.org`, `icanhazip.com`) and country
-(`ifconfig.co`, `ipapi.co`, `api.country.is`) through the proxy. With MASQUE it also sends
+(`ifconfig.co`, `ipapi.co`, `api.country.is`) through the proxy. With MASQUE or SOCKS5 it also sends
 HTTP/3 requests to `www.cloudflare.com/cdn-cgi/trace` and `quic.browserleaks.com/` through
 CONNECT-UDP, with verified destination certificates and no TCP fallback. Both providers are
 checked independently; an unavailable provider does not invalidate the HTTPS/IP result. These
@@ -206,7 +226,7 @@ JSON schema version 8 stores this mode as `proxy.type: "HTTPS_JUMP"`, with first
 `proxy.jump`: `host`, `port`, `sameAuthentication`, `username`, `password`, and
 `allowInvalidProxyCertificate`. Export passwords only when needed. Older application versions
 reject version 8 files, preventing a chain from being imported as a single proxy. ProxyList
-exports support single HTTPS and MASQUE proxies and omit chain profiles.
+exports support single HTTPS, MASQUE and SOCKS5 proxies and omit chain profiles.
 
 HTTPS profiles, including HTTPS with Jump, also offer **Prefer HTTP/3 α** (off by default): try MASQUE
 on the same host/UDP port, then HTTPS when unavailable. Certificate and

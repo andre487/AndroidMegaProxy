@@ -51,6 +51,7 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	var connect func(context.Context, string) (net.Conn, error)
 	var testReporter Reporter
 	var masque *masqueDialer
+	var socks *socks5Dialer
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
 	preferred, err := preferredHTTP3(ctx, c, protector, reporter, nil)
@@ -65,6 +66,10 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 		dialer := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
 		connect, testReporter = dialer.connectTarget, dialer.reporter
 		defer dialer.Close()
+	} else if c.Type == "SOCKS5" {
+		socks = &socks5Dialer{config: c, protector: protector, reporter: reporter}
+		connect, testReporter = socks.connectTarget, reporter
+		defer socks.Close()
 	} else if c.Type == "MASQUE" {
 		dialer := &masqueDialer{config: c, protector: protector, reporter: reporter}
 		masque = dialer
@@ -96,9 +101,17 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	// Keep external QUIC probes independently bounded: IP/country fallbacks may
 	// have consumed the original deadline. These use CONNECT-UDP, never TCP.
 	var h3Results []http3ProbeResult
-	if masque != nil {
+	if masque != nil || socks != nil {
 		probeCtx, probeCancel := context.WithTimeout(context.Background(), 12*time.Second)
 		h3Results = checkHTTP3Providers(probeCtx, reporter, func(attemptCtx context.Context, endpoint testEndpoint) error {
+			if socks != nil {
+				peer := &net.UDPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 443}
+				packet, err := socks.openUDP(attemptCtx, net.JoinHostPort(endpoint.host, "443"), peer)
+				if err != nil {
+					return err
+				}
+				return testHTTP3Exchange(attemptCtx, packet, peer, endpoint, nil)
+			}
 			return testHTTP3Get(attemptCtx, masque, endpoint)
 		})
 		probeCancel()

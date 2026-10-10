@@ -31,6 +31,9 @@ func errorClass(err error) string {
 	if err == nil {
 		return "none"
 	}
+	if errors.Is(err, errSOCKS5Auth) {
+		return "proxy_authentication"
+	}
 	if errors.Is(err, errMasqueSettings) {
 		return "unsupported_server_settings"
 	}

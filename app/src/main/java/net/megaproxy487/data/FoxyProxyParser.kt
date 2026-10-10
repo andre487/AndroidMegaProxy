@@ -5,6 +5,7 @@ import net.megaproxy487.UiException
 import net.megaproxy487.requireUi
 
 import net.megaproxy487.model.ProxyConfig
+import net.megaproxy487.model.ProxyType
 import org.json.JSONObject
 
 object FoxyProxyParser {
@@ -25,7 +26,7 @@ object FoxyProxyParser {
             for (index in 0 until data.length()) {
                 val item = data.optJSONObject(index) ?: continue
                 val type = item.optString("type").trim().lowercase()
-                if (type !in setOf("https", "ssl")) {
+                if (type !in setOf("https", "ssl", "socks5")) {
                     skippedNonHttps++
                     continue
                 }
@@ -46,17 +47,19 @@ object FoxyProxyParser {
         requireUi(host.isNotEmpty() && !host.contains(Regex("[/:\\s]"))) {
             UiException(R.string.error_foxy_host, position)
         }
+        val type = if (item.optString("type").trim().equals("socks5", true)) ProxyType.SOCKS5 else ProxyType.HTTPS
         val port = when (val value = item.opt("port")) {
             is Number -> value.toInt()
             is String -> value.toIntOrNull()
             else -> null
-        }?.takeIf { it in 1..65535 } ?: 443
+        }?.takeIf { it in 1..65535 } ?: type.defaultPort
         val countryCode = item.optString("cc").trim().uppercase()
             .takeIf { it.matches(Regex("[A-Z]{2}")) }.orEmpty()
         return ImportedProxy(
             name = item.limitedString("title", 256).trim(),
             countryCode = countryCode,
             config = ProxyConfig(
+                type = type,
                 host = host,
                 port = port,
                 username = item.limitedString("username", 4_096),

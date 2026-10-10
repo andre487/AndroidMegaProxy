@@ -218,3 +218,6 @@ func (s *connectionStats) run() {
 		}
 	}
 }
+
+func (c *measuredTCPConn) CloseRead() error  { return closeConnRead(c.Conn) }
+func (c *measuredTCPConn) CloseWrite() error { return closeConnWrite(c.Conn) }

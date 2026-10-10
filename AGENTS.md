@@ -131,6 +131,9 @@ branch names, credentials, signing material, or other secrets.
 
 ## Architecture landmarks
 
+- SOCKS5 uses plain TCP CONNECT and UDP ASSOCIATE, with optional RFC 1929 credentials
+  limited to 255 UTF-8 bytes each. DNS stays on DoH through the proxy; TLS fingerprints do not apply.
+
 - `ProxyVpnService` extends Android's standard `android.net.VpnService`. It owns VPN lifecycle,
   creates the TUN interface, coordinates profiles/reconnects/status, and hands the TUN file
   descriptor to the native networking layer. Native code performs the actual proxy forwarding.

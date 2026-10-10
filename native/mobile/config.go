@@ -80,8 +80,11 @@ func parseConfig(raw string) (config, error) {
 	if c.isHTTPProxy() && (c.Username == "" || c.Password == "") {
 		return c, errors.New("basic auth credentials are required")
 	}
-	if !c.isHTTPProxy() && c.Username == "" {
+	if (c.Type == "SSH" || c.Type == "SSH_JUMP") && c.Username == "" {
 		return c, errors.New("SSH username is required")
+	}
+	if c.Type == "SOCKS5" && ((c.Username == "") != (c.Password == "") || len(c.Username) > 255 || len(c.Password) > 255) {
+		return c, errors.New("SOCKS5 requires no credentials or a username and password of 1 to 255 UTF-8 bytes each")
 	}
 	if c.Type == "SSH_JUMP" || c.Type == "HTTPS_JUMP" {
 		if c.JumpHost == "" || strings.ContainsAny(c.JumpHost, "/: \t\r\n") {
@@ -120,7 +123,7 @@ func parseConfig(raw string) (config, error) {
 			return c, err
 		}
 	}
-	if !c.isHTTPProxy() && c.Type != "SSH" && c.Type != "SSH_JUMP" {
+	if !c.isHTTPProxy() && c.Type != "SSH" && c.Type != "SSH_JUMP" && c.Type != "SOCKS5" {
 		return c, fmt.Errorf("unsupported proxy type %q", c.Type)
 	}
 	if c.SSHAuthMode == "" {

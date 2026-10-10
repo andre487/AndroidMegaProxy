@@ -98,6 +98,10 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		httpsProxy := &httpsConnectDialer{config: c, protector: protector, reporter: reporter, stats: stats}
 		t.SetProxy(httpsProxy)
 		proxyCloser = httpsProxy
+	} else if c.Type == "SOCKS5" {
+		socksProxy := &socks5Dialer{config: c, protector: protector, reporter: reporter, stats: stats}
+		t.SetProxy(socksProxy)
+		proxyCloser = socksProxy
 	} else if c.Type == "MASQUE" {
 		masqueProxy := &masqueDialer{config: c, protector: protector, reporter: reporter, stats: stats}
 		if _, err := masqueProxy.getSession(ctx); err != nil {
@@ -146,7 +150,11 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 	state.startCancel = nil
 	committed = true
 	state.Unlock()
-	report(reporter, "event=native_stack result=started type=%s fingerprint=%s ssh_profile=%s ipv6=%t bypass_local=%t", c.Type, c.Profile, c.SSHProfile, c.AllowIPv6, c.BypassLocalNetworks)
+	fingerprint, sshProfile := c.Profile, c.SSHProfile
+	if c.Type == "SOCKS5" {
+		fingerprint, sshProfile = "none", "none"
+	}
+	report(reporter, "event=native_stack result=started type=%s fingerprint=%s ssh_profile=%s ipv6=%t bypass_local=%t", c.Type, fingerprint, sshProfile, c.AllowIPv6, c.BypassLocalNetworks)
 	return nil
 }
 

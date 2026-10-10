@@ -5,6 +5,15 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class BlockingDetectionTest {
+    @Test fun socksHandshakeFailuresUseProxyRecoveryWithoutClaimingTls() {
+        assertEquals(BlockingSignal.CONNECT_RESPONSE_TIMEOUT,
+            BlockingDetection.classify("event=connection protocol=socks5 stage=socks_handshake result=failed reason=timeout"))
+        for (reason in listOf("reset", "eof")) assertEquals(BlockingSignal.CONNECT_RESPONSE_RESET,
+            BlockingDetection.classify("event=connection protocol=socks5 stage=socks_handshake result=failed reason=$reason"))
+        assertNull(BlockingDetection.classify("event=connection protocol=socks5 stage=socks_handshake reason=proxy_authentication"))
+        assertNull(BlockingDetection.classify("event=connection protocol=socks5 stage=socks_handshake reason=timeout scope=target"))
+    }
+
     @Test fun classifiesTimeoutAndReset() {
         assertEquals(BlockingSignal.TCP_TIMEOUT, BlockingDetection.classify("dial tcp: i/o timeout"))
         assertEquals(BlockingSignal.CONNECTION_RESET, BlockingDetection.classify("connection reset by peer"))

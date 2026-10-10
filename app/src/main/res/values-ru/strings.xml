@@ -85,7 +85,7 @@
     <string name="unsafe_import_message">В одном или нескольких профилях отключена проверка HTTPS-сертификата или ключа SSH-сервера. Это позволяет подменить сервер; используйте такие настройки только для контролируемых вами серверов.</string>
     <string name="import_anyway">Всё равно импортировать</string>
     <string name="configuration_exported">Конфигурация успешно экспортирована.</string>
-    <string name="imported_foxyproxy">Импортировано HTTPS-профилей из FoxyProxy: %1$d.</string>
+    <string name="imported_foxyproxy">Импортировано профилей из FoxyProxy: %1$d.</string>
     <string name="imported_super_proxy">Импортировано HTTPS-профилей из Super Proxy: %1$d. Привязки сертификатов не импортированы.</string>
     <string name="imported_https_profiles">Импортировано профилей прокси: %1$d.</string>
     <string name="ok">ОК</string>
@@ -369,7 +369,7 @@
     <string name="error_foxy_data">В конфигурации FoxyProxy нет массива data</string>
     <string name="error_foxy_empty">Список прокси FoxyProxy пуст</string>
     <string name="error_foxy_many">Конфигурация FoxyProxy содержит более %1$d записей</string>
-    <string name="error_foxy_no_https">В конфигурации FoxyProxy нет HTTPS-прокси</string>
+    <string name="error_foxy_no_https">В конфигурации FoxyProxy нет HTTPS- или SOCKS5-прокси</string>
     <string name="error_foxy_no_usable">В конфигурации FoxyProxy нет пригодных для использования прокси</string>
     <string name="error_foxy_host">В записи FoxyProxy %1$d указан некорректный адрес сервера</string>
     <string name="error_invalid_input">Некорректные данные конфигурации</string>
@@ -508,4 +508,10 @@
     <string name="prefer_http3">Предпочитать HTTP/3 α</string>
     <string name="prefer_http3_description">Пробовать MASQUE на том же хосте и UDP-порту. С Jump нужны оба узла; иначе вся цепочка использует HTTPS. При откате обычный UDP блокируется; DNS работает через DoH. Неподдерживаемые QUIC-отпечатки или MTU туннеля используют HTTPS.</string>
     <string name="http3_fallback_warning">HTTP/3 недоступен: используется HTTPS. Обычный UDP блокируется; DNS работает через DoH.</string>
+    <string name="option_proxytype_socks5">SOCKS5</string>
+    <string name="socks5_proxy_hostname">Имя сервера SOCKS5</string>
+    <string name="socks5_username_optional">Логин SOCKS5 (необязательно)</string>
+    <string name="socks5_password_optional">Пароль SOCKS5 (необязательно)</string>
+    <string name="validation_socks5_auth">Оставьте оба поля пустыми или укажите логин и пароль по 1–255 байт UTF-8 каждый.</string>
+    <string name="socks5_description">TCP и UDP ASSOCIATE, DNS через HTTPS через прокси. SOCKS5 не шифрует соединение с прокси, включая пароль, и не использует отпечаток TLS.</string>
 </resources>

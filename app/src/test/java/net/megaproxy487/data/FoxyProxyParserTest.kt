@@ -5,7 +5,7 @@ import org.junit.Test
 
 class FoxyProxyParserTest {
     @Test
-    fun `imports only TLS proxy entries from current FoxyProxy JSON`() {
+    fun `imports TLS and SOCKS5 proxy entries from current FoxyProxy JSON`() {
         val result = FoxyProxyParser.parse(
             """
             {
@@ -32,8 +32,9 @@ class FoxyProxyParserTest {
             """.trimIndent(),
         ).getOrThrow()
 
-        assertEquals(1, result.skippedNonHttps)
-        val proxy = result.proxies.single()
+        assertEquals(0, result.skippedNonHttps)
+        val proxy = result.proxies.first()
+        assertEquals(net.megaproxy487.model.ProxyType.SOCKS5, result.proxies.last().config.type)
         assertEquals("Amsterdam", proxy.name)
         assertEquals("NL", proxy.countryCode)
         assertEquals("proxy.example", proxy.config.host)

@@ -86,7 +86,7 @@
     <string name="unsafe_import_message">One or more profiles disable HTTPS certificate or SSH host-key verification. This permits server impersonation and should only be used for servers you control.</string>
     <string name="import_anyway">Import anyway</string>
     <string name="configuration_exported">Configuration exported successfully.</string>
-    <string name="imported_foxyproxy">Imported %1$d HTTPS proxy profile(s) from FoxyProxy.</string>
+    <string name="imported_foxyproxy">Imported %1$d proxy profile(s) from FoxyProxy.</string>
     <string name="imported_super_proxy">Imported %1$d HTTPS proxy profile(s) from Super Proxy. Certificate pins were not imported.</string>
     <string name="imported_https_profiles">Imported %1$d proxy profile(s).</string>
     <string name="ok">OK</string>
@@ -370,7 +370,7 @@
     <string name="error_foxy_data">The FoxyProxy configuration has no data array</string>
     <string name="error_foxy_empty">The FoxyProxy proxy list is empty</string>
     <string name="error_foxy_many">The FoxyProxy configuration contains more than %1$d entries</string>
-    <string name="error_foxy_no_https">The FoxyProxy configuration contains no HTTPS proxies</string>
+    <string name="error_foxy_no_https">The FoxyProxy configuration contains no HTTPS or SOCKS5 proxies</string>
     <string name="error_foxy_no_usable">The FoxyProxy configuration contains no usable proxies</string>
     <string name="error_foxy_host">FoxyProxy entry %1$d has an invalid hostname</string>
     <string name="error_invalid_input">Invalid configuration data</string>
@@ -509,4 +509,10 @@
     <string name="prefer_http3">Prefer HTTP/3 α</string>
     <string name="prefer_http3_description">Try MASQUE on the same host and UDP port. With Jump, both nodes must support it; otherwise the whole chain uses HTTPS. HTTPS fallback blocks ordinary UDP; DNS still uses DoH. Unsupported QUIC fingerprints or tunnel MTU use HTTPS.</string>
     <string name="http3_fallback_warning">HTTP/3 unavailable: using HTTPS. Ordinary UDP is blocked; DNS uses DoH.</string>
+    <string name="option_proxytype_socks5">SOCKS5</string>
+    <string name="socks5_proxy_hostname">SOCKS5 proxy hostname</string>
+    <string name="socks5_username_optional">SOCKS5 username (optional)</string>
+    <string name="socks5_password_optional">SOCKS5 password (optional)</string>
+    <string name="validation_socks5_auth">Leave both credentials empty, or enter a username and password of 1–255 UTF-8 bytes each.</string>
+    <string name="socks5_description">TCP and UDP ASSOCIATE, with DNS over HTTPS through the proxy. SOCKS5 does not encrypt the connection to the proxy, including credentials, and has no TLS fingerprint.</string>
 </resources>

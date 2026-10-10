@@ -24,6 +24,37 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class VpnDeviceTest : DeviceTestBase() {
+    @Test fun socks5AuthenticatedTcpUdpStopAndRestart() = socks5Traffic(true)
+    @Test fun socks5AnonymousTcpUdpStopAndRestart() = socks5Traffic(false)
+
+    private fun socks5Traffic(authenticated: Boolean) {
+        io {
+            val profile = store.activeProfile()
+            store.saveProfile(profile.copy(config = profile.config.copy(
+                type = ProxyType.SOCKS5,
+                port = argument(if (authenticated) "socksPort" else "socksAnonymousPort").toInt(),
+                username = if (authenticated) "exit" else "",
+                password = if (authenticated) argument("proxyPassword") else "",
+            )))
+            store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
+                routeAllApps = false, selectedPackages = setOf(context.packageName), bypassLocalNetworks = false))
+        }
+        saved()
+        directOriginUnavailable()
+        repeat(2) {
+            connect()
+            roundTrip()
+            listOf(1200, 1350, 4096).forEach(::udpRoundTrip)
+            await("SOCKS5 protocol indicator did not update") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.SOCKS5 }
+            await("SOCKS5 byte totals did not arrive through JNI") {
+                ConnectionStatsReader.snapshot()?.let { it.downloadBytes > 0 && it.uploadBytes > 0 } == true
+            }
+            click(R.string.disconnect)
+            stopped()
+            directOriginUnavailable()
+        }
+    }
+
     @Test fun trafficStopAndRestart() {
         directOriginUnavailable()
         connect()
