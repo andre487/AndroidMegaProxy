@@ -157,7 +157,7 @@ func TestRealProxyServers(t *testing.T) {
 	jumpOnlyExit.JumpDialHost, jumpOnlyExit.JumpPort = h2Config.DialHost, h2Config.Port
 	jumpNeither := httpsJump
 	jumpNeither.PreferHTTP3 = true
-	_ = endpoint(dualExit, "8443")
+	_, _ = endpoint(dualExit, "8443")
 
 	httpsJumpCustom := httpsJump
 	httpsJumpCustom.Profile, httpsJumpCustom.CustomJA3 = httpsCustom.Profile, httpsCustom.CustomJA3
