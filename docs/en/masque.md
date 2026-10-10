@@ -67,7 +67,8 @@ MASQUE. JSON uses `proxy.type: "MASQUE"`; ProxyList uses
   outgoing payloads to avoid GOST closing a flow on an echo-sized oversized reply.
 - GOST 3.3.0 rejects IPv6 literal CONNECT-UDP targets. TCP IPv6 and local UDP bypass
   follow the profile's IPv6/routing policy. IPv4-only is the default.
-- QUIC uses UDP, so kernel TCP RTT/retransmit metrics are unavailable. Payload
+- The stats card shows QUIC RTT and outgoing packets declared lost over five minutes.
+  Kernel TCP RTT/retransmits are unavailable for the UDP socket. Payload
   totals and rates still include TCP/UDP. Session logs report `multiplexed=true`
   and the selected fingerprint; these do not prove an exact full-browser fingerprint.
 

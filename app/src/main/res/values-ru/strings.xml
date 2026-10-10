@@ -475,6 +475,10 @@
     <string name="update_notification_open">Обновить</string>
     <string name="update_skip">Пропустить версию</string>
     <string name="update_disable">Отключить автопроверку</string>
+    <string name="quic_rtt">QUIC RTT</string>
+    <string name="quic_packets_lost">QUIC-пакеты, объявленные потерянными: %1$d · за 5 мин</string>
+    <string name="quic_packets_lost_unavailable">Потери QUIC-пакетов: нет данных</string>
+    <string name="quic_metrics_scope">Только до прокси. Число исходящих QUIC-пакетов, объявленных потерянными, а не TCP-ретрансляций или потерь на всём пути.</string>
     <string name="tcp_rtt">TCP RTT</string>
     <string name="tcp_retransmits">TCP-ретрансляции: %1$d · за 5 мин</string>
     <string name="tcp_retransmits_unavailable">TCP-ретрансляции: нет данных</string>

@@ -134,6 +134,13 @@ func TestMASQUEStreamsAndDatagrams(t *testing.T) {
 			if stats.uploadBytes.Load() != 32768+uint64(len(payload)) || stats.downloadBytes.Load() != stats.uploadBytes.Load() {
 				t.Fatal("missing traffic accounting")
 			}
+			metrics := stats.snapshot(time.Now())
+			if metrics.QUICRTTMillis == nil || *metrics.QUICRTTMillis <= 0 || metrics.QUICPacketsLost == nil || len(stats.quicSessions) != 1 {
+				t.Fatalf("missing / duplicated shared QUIC metrics: %+v", metrics)
+			}
+			if metrics.TCPRTTMillis != nil || metrics.TCPRetransmits != nil {
+				t.Fatal("MASQUE reported TCP kernel metrics")
+			}
 			_ = first.SetReadDeadline(time.Now())
 			if _, err := first.Read(buffer); !errors.Is(err, os.ErrDeadlineExceeded) {
 				t.Fatalf("TCP deadline: %v", err)
@@ -144,6 +151,10 @@ func TestMASQUEStreamsAndDatagrams(t *testing.T) {
 			}
 			_ = udp.SetReadDeadline(time.Time{})
 			_ = d.Close()
+			metrics = stats.snapshot(time.Now())
+			if metrics.QUICRTTMillis != nil || metrics.QUICPacketsLost == nil {
+				t.Fatal("closed QUIC session kept RTT or lost its final counter")
+			}
 			if _, err := d.connectTarget(ctx, "target.example:443"); !errors.Is(err, net.ErrClosed) {
 				t.Fatalf("closed dialer: %v", err)
 			}

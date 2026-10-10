@@ -33,6 +33,8 @@ data class NativeConnectionStats(
     val uploadBytes: Long,
     val tcpRttMillis: Double?,
     val tcpRetransmits: Long?,
+    val quicRttMillis: Double? = null,
+    val quicPacketsLost: Long? = null,
 )
 
 internal fun parseNativeConnectionStats(raw: String): NativeConnectionStats {
@@ -42,6 +44,8 @@ internal fun parseNativeConnectionStats(raw: String): NativeConnectionStats {
         uploadBytes = json.getLong("uploadBytes"),
         tcpRttMillis = if (json.isNull("tcpRttMillis")) null else json.getDouble("tcpRttMillis"),
         tcpRetransmits = if (json.isNull("tcpRetransmits")) null else json.getLong("tcpRetransmits"),
+        quicRttMillis = if (json.isNull("quicRttMillis")) null else json.getDouble("quicRttMillis"),
+        quicPacketsLost = if (json.isNull("quicPacketsLost")) null else json.getLong("quicPacketsLost"),
     )
 }
 

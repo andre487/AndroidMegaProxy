@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.vpn.ConnectionStatsReader
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.VpnTransportProtocol
 import java.net.DatagramPacket
@@ -42,6 +43,13 @@ class VpnDeviceTest : DeviceTestBase() {
             connect()
             roundTrip()
             udpRoundTrip(1200)
+            await("QUIC metrics did not arrive through JNI") {
+                ConnectionStatsReader.snapshot()?.let {
+                    it.quicRttMillis?.let { rtt -> rtt > 0 } == true && it.quicPacketsLost != null &&
+                        it.tcpRttMillis == null && it.tcpRetransmits == null
+                } == true
+            }
+            appNode(androidx.test.uiautomator.By.text(text(R.string.quic_rtt)))
             await("HTTP/3 badge did not update") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.HTTP_3 }
             click(R.string.disconnect)
             stopped()

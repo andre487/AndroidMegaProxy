@@ -50,10 +50,14 @@ type masqueSession struct {
 	conn                 *quic.Conn
 	client               *http3.ClientConn
 	maxDatagramFrameSize uint64
+	metrics              *measuredQUICConn
 }
 
 func (s *masqueSession) close() {
 	s.once.Do(func() {
+		if s.metrics != nil {
+			s.metrics.Close()
+		}
 		_ = s.conn.CloseWithError(0, "")
 		_ = s.transport.Close()
 		_ = s.packet.Close()
@@ -206,6 +210,9 @@ func (d *masqueDialer) dialSession(ctx context.Context) (*masqueSession, error) 
 	if !s.client.Settings().EnableDatagrams || !s.client.Settings().EnableExtendedConnect {
 		s.close()
 		return nil, fmt.Errorf("%w: datagrams=%t extended_connect=%t", errMasqueSettings, s.client.Settings().EnableDatagrams, s.client.Settings().EnableExtendedConnect)
+	}
+	if d.stats != nil {
+		s.metrics = d.stats.trackQUIC(conn)
 	}
 	state := conn.ConnectionState()
 	report(d.reporter, "event=masque_session result=established protocol=http3 multiplexed=true fingerprint=%s certificate_verification_enabled=%t %s quic_version=%d datagrams=true extended_connect=true quic_session=%d", d.config.Profile, !d.config.AllowInvalidProxyCertificate, tlsNegotiationDetails(state.TLS.Version, state.TLS.CipherSuite, state.TLS.NegotiatedProtocol, state.TLS.DidResume), state.Version, s.id)

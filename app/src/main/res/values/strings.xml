@@ -476,6 +476,10 @@
     <string name="update_notification_open">Update</string>
     <string name="update_skip">Skip this version</string>
     <string name="update_disable">Disable auto-checks</string>
+    <string name="quic_rtt">QUIC RTT</string>
+    <string name="quic_packets_lost">QUIC packets declared lost: %1$d · last 5 min</string>
+    <string name="quic_packets_lost_unavailable">QUIC packet loss: no data</string>
+    <string name="quic_metrics_scope">To the proxy only. Counts outgoing QUIC packets declared lost, not TCP retransmits or end-to-end packet loss.</string>
     <string name="tcp_rtt">TCP RTT</string>
     <string name="tcp_retransmits">TCP retransmits: %1$d · last 5 min</string>
     <string name="tcp_retransmits_unavailable">TCP retransmits: no data</string>

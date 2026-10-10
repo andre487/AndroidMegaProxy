@@ -30,7 +30,19 @@ Existing timeout/reset-based suspected-blocking detection and recovery remain;
 its message says the proxy may be blocked **or unavailable**. It is a heuristic,
 not proof of filtering. RTT and retransmits do not trigger automatic failover.
 
-MASQUE uses a UDP socket for QUIC, so kernel TCP RTT and retransmit readings are unavailable.
+MASQUE displays **QUIC RTT** and **outgoing QUIC packets declared lost in the last
+five minutes** from uQUIC's passive connection statistics. RTT is the smoothed
+estimate to the proxy, averaged across open physical QUIC sessions; multiplexed
+TCP/UDP streams are counted once. A draining GOAWAY session remains included until
+it closes. Its final loss sample is retained in the five-minute window, but RTT
+requires an open session. Sessions that close unexpectedly are removed as well.
+Loss counts use positive counter deltas at their observation time, including the
+initial successful handshake sample. They are loss declarations, not TCP
+retransmissions, all download losses or an end-to-end loss percentage. No packet
+trace, probe traffic, wake lock or peer identity is collected. Unavailable values
+stay empty; zero loss is shown only after a successful QUIC sample. The window,
+background polling and VPN-session reset follow the same rules as TCP metrics.
+Kernel TCP RTT/retransmits remain unavailable for QUIC.
 Traffic totals and rates still include forwarded TCP and UDP payloads.
 
 ## Negotiation diagnostics
