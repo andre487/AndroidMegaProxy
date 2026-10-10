@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net"
+	"net/http"
 	"net/netip"
 	"os"
 	"strings"
@@ -18,6 +19,7 @@ import (
 	M "github.com/xjasonlyu/tun2socks/v2/metadata"
 	"github.com/xjasonlyu/tun2socks/v2/proxy/reject"
 	"github.com/xjasonlyu/tun2socks/v2/tunnel"
+	"github.com/xjasonlyu/tun2socks/v2/tunnel/statistic"
 	"gvisor.dev/gvisor/pkg/tcpip"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
 )
@@ -349,5 +351,115 @@ func TestMASQUELocalCloseDoesNotReportBlocking(t *testing.T) {
 	}
 	if logs := recorder.text(); strings.Contains(logs, "result=failed") || strings.Contains(logs, "dpi_hint=possible") {
 		t.Fatalf("local Close looked like network blocking: %s", logs)
+	}
+}
+
+func TestMASQUETargetTimeoutKeepsHealthyProxySession(t *testing.T) {
+	fixture := newMasqueFixture(t, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Host == "slow.example:443" {
+			<-r.Context().Done()
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		stream := w.(http3.HTTPStreamer).HTTPStream()
+		defer stream.Close()
+		_, _ = io.Copy(stream, stream)
+	}))
+	logs := &diagnosticRecorder{}
+	d := &masqueDialer{config: fixture.config, protector: &jumpTestProtector{}, reporter: logs}
+	defer d.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if _, err := d.getSession(ctx); err != nil {
+		t.Fatal(err)
+	}
+	original := d.session
+	stalled, stop := context.WithTimeout(ctx, 100*time.Millisecond)
+	defer stop()
+	if _, err := d.connectTarget(stalled, "slow.example:443"); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("expected caller deadline, not locally canceled stream: %v", err)
+	}
+	output := logs.text()
+	if !strings.Contains(output, "reason=timeout dpi_hint=none scope=target") || strings.Contains(output, "dpi_hint=possible") {
+		t.Fatalf("one destination failure falsely marked the proxy as blocked: %s", output)
+	}
+	conn, err := d.connectTarget(ctx, "healthy.example:443")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(time.Second))
+	if _, err := conn.Write([]byte("echo")); err != nil {
+		t.Fatal(err)
+	}
+	b := make([]byte, 4)
+	if _, err := io.ReadFull(conn, b); err != nil || string(b) != "echo" {
+		t.Fatalf("neighboring flow failed: %q %v", b, err)
+	}
+	if d.session != original || original.conn.Context().Err() != nil {
+		t.Fatal("healthy proxy session was replaced")
+	}
+}
+
+func TestMASQUEHalfCloseThroughProductionWrappers(t *testing.T) {
+	fixture := newMasqueFixture(t, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		stream := w.(http3.HTTPStreamer).HTTPStream()
+		defer stream.Close()
+		payload, err := io.ReadAll(stream)
+		if err == nil {
+			_, _ = stream.Write(append([]byte("reply:"), payload...))
+		}
+	}))
+	logs := &diagnosticRecorder{}
+	d := &masqueDialer{config: fixture.config, protector: &jumpTestProtector{}, reporter: logs}
+	defer d.Close()
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	metadata := &M.Metadata{DstIP: netip.MustParseAddr("192.0.2.1"), DstPort: 443}
+	conn, err := d.DialContext(ctx, metadata)
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn = statistic.NewTCPTracker(conn, metadata, statistic.DefaultManager)
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(time.Second))
+	if _, err := conn.Write([]byte("request")); err != nil {
+		t.Fatal(err)
+	}
+	if err := conn.(interface{ CloseWrite() error }).CloseWrite(); err != nil {
+		t.Fatal(err)
+	}
+	payload, err := io.ReadAll(conn)
+	if err != nil || string(payload) != "reply:request" {
+		t.Fatalf("FIN did not reach origin or response was canceled: %q %v", payload, err)
+	}
+	if err := conn.(interface{ CloseRead() error }).CloseRead(); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(logs.text(), "dpi_hint=possible") {
+		t.Fatal("normal half-close triggered DPI recovery")
+	}
+}
+
+func TestLocalSocketDeadlineIsNotProxyBlocking(t *testing.T) {
+	left, right := net.Pipe()
+	defer left.Close()
+	defer right.Close()
+	logs := &diagnosticRecorder{}
+	conn := &diagnosticConn{Conn: left, reporter: logs}
+	_ = conn.SetReadDeadline(time.Now())
+	if _, err := conn.Read(make([]byte, 1)); !errors.Is(err, os.ErrDeadlineExceeded) {
+		t.Fatal(err)
+	}
+	output := logs.text()
+	if !strings.Contains(output, "dpi_hint=none scope=local_deadline") || strings.Contains(output, "dpi_hint=possible") {
+		t.Fatalf("local half-close/request deadline falsely triggered blocking recovery: %s", output)
+	}
+	// Real transport timeout diagnostics without an application deadline remain enabled.
+	transport := &diagnosticConn{reporter: logs}
+	transport.reportError("read", os.ErrDeadlineExceeded)
+	if !strings.Contains(logs.text(), "dpi_hint=possible_tls_interference scope=proxy") {
+		t.Fatal("real proxy failure was suppressed")
 	}
 }

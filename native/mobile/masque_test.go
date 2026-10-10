@@ -30,7 +30,7 @@ type masqueFixture struct {
 
 func masqueTestServer(t *testing.T) config { return newMasqueFixture(t, nil).config }
 
-func newMasqueFixture(t *testing.T, wrap func(net.PacketConn) net.PacketConn) masqueFixture {
+func newMasqueFixture(t *testing.T, wrap func(net.PacketConn) net.PacketConn, handler ...http.Handler) masqueFixture {
 	t.Helper()
 	certificateServer := httptest.NewTLSServer(nil)
 	certificate := certificateServer.TLS.Certificates[0]
@@ -67,6 +67,9 @@ func newMasqueFixture(t *testing.T, wrap func(net.PacketConn) net.PacketConn) ma
 		}
 		_, _ = io.Copy(stream, stream)
 	})
+	if len(handler) > 0 {
+		server.Handler = handler[0]
+	}
 	transport := &quic.Transport{Conn: packet}
 	listener, err := transport.Listen(http3.ConfigureTLSConfig(server.TLSConfig), &quic.Config{EnableDatagrams: true})
 	if err != nil {

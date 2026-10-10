@@ -481,11 +481,13 @@ func (r *limitedHeaderReader) Read(p []byte) (int, error) {
 
 type diagnosticConn struct {
 	net.Conn
-	connectionID uint64
-	reporter     Reporter
-	stats        *connectionStats
-	once         sync.Once
-	transferred  atomic.Uint64
+	connectionID                uint64
+	reporter                    Reporter
+	stats                       *connectionStats
+	once                        sync.Once
+	transferred                 atomic.Uint64
+	proxyContext                context.Context
+	readDeadline, writeDeadline atomic.Int64
 }
 
 type slotConn struct {
@@ -500,11 +502,58 @@ func (c *slotConn) Close() error {
 	return err
 }
 
+func closeConnRead(c net.Conn) error {
+	if half, ok := c.(interface{ CloseRead() error }); ok {
+		return half.CloseRead()
+	}
+	return nil
+}
+func closeConnWrite(c net.Conn) error {
+	if half, ok := c.(interface{ CloseWrite() error }); ok {
+		return half.CloseWrite()
+	}
+	return nil
+}
+func (c *slotConn) CloseRead() error        { return closeConnRead(c.Conn) }
+func (c *slotConn) CloseWrite() error       { return closeConnWrite(c.Conn) }
+func (c *diagnosticConn) CloseRead() error  { return closeConnRead(c.Conn) }
+func (c *diagnosticConn) CloseWrite() error { return closeConnWrite(c.Conn) }
+
+func deadlineNanos(t time.Time) int64 {
+	if t.IsZero() {
+		return 0
+	}
+	return t.UnixNano()
+}
+func (c *diagnosticConn) SetReadDeadline(t time.Time) error {
+	c.readDeadline.Store(deadlineNanos(t))
+	return c.Conn.SetReadDeadline(t)
+}
+func (c *diagnosticConn) SetWriteDeadline(t time.Time) error {
+	c.writeDeadline.Store(deadlineNanos(t))
+	return c.Conn.SetWriteDeadline(t)
+}
+func (c *diagnosticConn) SetDeadline(t time.Time) error {
+	c.readDeadline.Store(deadlineNanos(t))
+	c.writeDeadline.Store(deadlineNanos(t))
+	return c.Conn.SetDeadline(t)
+}
+
 func (c *diagnosticConn) reportError(operation string, err error) {
 	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, net.ErrClosed) {
 		c.once.Do(func() {
 			reason := errorClass(err)
-			report(c.reporter, "event=connection conn=%d stage=tunnel_io result=failed operation=%s reason=%s transferred_bytes=%d dpi_hint=%s", c.connectionID, operation, reason, c.transferred.Load(), tlsInterferenceHint(reason))
+			scope, hint := "proxy", tlsInterferenceHint(reason)
+			deadline := c.readDeadline.Load()
+			if operation == "write" {
+				deadline = c.writeDeadline.Load()
+			}
+			if reason == "timeout" && deadline != 0 && deadline <= time.Now().UnixNano() {
+				scope, hint = "local_deadline", "none"
+			} else if c.proxyContext != nil && c.proxyContext.Err() == nil {
+				scope, hint = "target", "none"
+			}
+			report(c.reporter, "event=connection conn=%d stage=tunnel_io result=failed operation=%s reason=%s transferred_bytes=%d dpi_hint=%s scope=%s", c.connectionID, operation, reason, c.transferred.Load(), hint, scope)
 		})
 	}
 }

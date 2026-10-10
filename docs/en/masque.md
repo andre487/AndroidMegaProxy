@@ -87,4 +87,10 @@ Repeated connection/DoH/SSH transport/UDP events are limited to 20 per event cat
 Every event still reaches recovery/UI before this persistence limit. Session/lifecycle
 and crash events remain unthrottled; disk rotation and the bounded writer queue apply.
 
+A timeout/reset of an individual target on a healthy QUIC session is logged with
+`scope=target dpi_hint=none`; it does not restart the whole VPN or trigger failover.
+Application/half-close deadlines use `scope=local_deadline`. Proxy handshake and
+transport failures retain recovery diagnostics. TCP half-close forwards FIN through
+CONNECT while keeping the response direction open.
+
 [Русская версия](../ru/masque.md)

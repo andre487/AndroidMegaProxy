@@ -288,14 +288,22 @@ func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) 
 		return nil, err
 	}
 	sessionID := s.id
+	proxyContext := s.conn.Context()
 	defer func() {
 		if err != nil {
+			if ctx.Err() != nil {
+				err = ctx.Err()
+			}
 			reason := errorClass(err)
+			scope, hint := "target", "none"
+			if proxyContext.Err() != nil {
+				scope, hint = "proxy", tlsInterferenceHint(reason)
+			}
 			var rejected *masqueConnectError
 			if errors.As(err, &rejected) {
 				report(d.reporter, "event=connection protocol=http3 conn=%d quic_session=%d stage=connect_response result=rejected status=%d reason=%s udp=%t", connectionID, sessionID, rejected.status, reason, udp)
 			} else {
-				report(d.reporter, "event=connection protocol=http3 conn=%d quic_session=%d stage=%s result=failed reason=%s dpi_hint=%s udp=%t elapsed_ms=%d %s", connectionID, sessionID, stage, reason, tlsInterferenceHint(reason), udp, time.Since(started).Milliseconds(), quicErrorDetails(err))
+				report(d.reporter, "event=connection protocol=http3 conn=%d quic_session=%d stage=%s result=failed reason=%s dpi_hint=%s scope=%s udp=%t elapsed_ms=%d %s", connectionID, sessionID, stage, reason, hint, scope, udp, time.Since(started).Milliseconds(), quicErrorDetails(err))
 			}
 		}
 	}()
@@ -305,13 +313,14 @@ func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) 
 		s, err = d.getSession(ctx)
 		if err == nil {
 			sessionID = s.id
+			proxyContext = s.conn.Context()
 			stream, err = s.client.OpenRequestStream(ctx)
 		}
 	}
 	if err != nil {
 		return nil, err
 	}
-	c := &masqueStreamConn{RequestStream: stream, connectionID: connectionID, sessionID: s.id, local: s.conn.LocalAddr(), remote: s.conn.RemoteAddr(), maxDatagramFrameSize: s.maxDatagramFrameSize}
+	c := &masqueStreamConn{RequestStream: stream, connectionID: connectionID, sessionID: s.id, local: s.conn.LocalAddr(), remote: s.conn.RemoteAddr(), maxDatagramFrameSize: s.maxDatagramFrameSize, proxyContext: s.conn.Context()}
 	stop := context.AfterFunc(ctx, func() { _ = c.Close() })
 	defer stop()
 	request := &http.Request{Method: http.MethodConnect, URL: &url.URL{Scheme: "https", Host: target}, Host: target, Header: make(http.Header)}
@@ -365,11 +374,13 @@ func (d *masqueDialer) connectTarget(ctx context.Context, target string) (net.Co
 	if err != nil {
 		return nil, err
 	}
-	id := nextDiagnosticConnectionID()
+	result := &diagnosticConn{Conn: c, reporter: d.reporter, stats: d.stats}
 	if stream, ok := c.(*masqueStreamConn); ok {
-		id = stream.connectionID
+		result.connectionID, result.proxyContext = stream.connectionID, stream.proxyContext
+	} else {
+		result.connectionID = nextDiagnosticConnectionID()
 	}
-	return &diagnosticConn{Conn: c, connectionID: id, reporter: d.reporter, stats: d.stats}, nil
+	return result, nil
 }
 
 func (d *masqueDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
@@ -445,6 +456,8 @@ type masqueStreamConn struct {
 	connectionID, sessionID uint64
 	maxDatagramFrameSize    uint64
 	closed                  atomic.Bool
+	readClosed              atomic.Bool
+	proxyContext            context.Context
 	once                    sync.Once
 }
 
@@ -452,7 +465,7 @@ func (c *masqueStreamConn) LocalAddr() net.Addr  { return c.local }
 func (c *masqueStreamConn) RemoteAddr() net.Addr { return c.remote }
 func (c *masqueStreamConn) Read(b []byte) (int, error) {
 	n, err := c.RequestStream.Read(b)
-	if err != nil && c.closed.Load() {
+	if err != nil && (c.closed.Load() || c.readClosed.Load()) {
 		return n, net.ErrClosed
 	}
 	return n, err
@@ -464,6 +477,15 @@ func (c *masqueStreamConn) Write(b []byte) (int, error) {
 	}
 	return n, err
 }
+func (c *masqueStreamConn) CloseRead() error {
+	c.readClosed.Store(true)
+	c.CancelRead(quic.StreamErrorCode(http3.ErrCodeRequestCanceled))
+	return nil
+}
+
+// Send FIN without canceling the response: TCP half-close must preserve download.
+func (c *masqueStreamConn) CloseWrite() error { return c.RequestStream.Close() }
+
 func (c *masqueStreamConn) Close() error {
 	c.once.Do(func() {
 		c.closed.Store(true)
