@@ -43,7 +43,7 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android python_tests` | Запускает Python unit-тесты. |
 | `bundle exec fastlane android python_checks` | Проверяет форматирование, порядок импортов и Python-тесты. |
 | `bundle exec fastlane android native_fuzz` | Запускает fuzz-тесты нативных парсеров на 20 секунд с двумя worker-процессами. |
-| `bundle exec fastlane android native_tests` | Запускает все Go-тесты с race detector. |
+| `bundle exec fastlane android native_tests` | Запускает все нативные Go-тесты и регрессии локальных патчей uQUIC с race detector. |
 | `bundle exec fastlane android native_integration` | Проверяет сетевой код с настоящими GOST/OpenSSH в Docker и race detector. |
 | `bundle exec fastlane android android_checks` | Собирает native AAR, запускает Android unit-тесты и lint, собирает debug APK, затем собирает и проверяет unsigned release APK. Команда отклоняет переменные release-подписи. |
 | `bundle exec fastlane android device_test_build` | Собирает native AAR, debug APK и instrumentation APK. |
