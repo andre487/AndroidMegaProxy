@@ -73,6 +73,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
     val exitIp by TestDiagnosticLog.exitIp
     val countryCode by TestDiagnosticLog.countryCode
     val http3 by TestDiagnosticLog.http3
+    val http3Fallback by TestDiagnosticLog.http3Fallback
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (VpnService.prepare(activity) == null) ProxyVpnService.test(activity)
@@ -164,6 +165,8 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                         }
                         exitIp?.let { Text(stringResource(R.string.proxy_exit_ip, it)) }
                         countryCode?.let { Text(stringResource(R.string.proxy_exit_country, formatCountry(it, systemFormattingLocale()))) }
+                        if (http3Fallback) Text(stringResource(R.string.http3_fallback_warning),
+                            color = MaterialTheme.colorScheme.tertiary)
                         http3.forEach { probe ->
                             Text(stringResource(R.string.test_http3_provider, probe.provider,
                                 stringResource(if (probe.confirmed) R.string.test_http3_confirmed else R.string.test_http3_unavailable)))

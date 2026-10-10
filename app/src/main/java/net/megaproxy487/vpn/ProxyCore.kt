@@ -20,12 +20,13 @@ interface ProxyCore {
 
 data class Http3ProbeResult(val provider: String, val confirmed: Boolean)
 
-data class ConnectionTestResult(val exitIp: String, val countryCode: String?, val http3: List<Http3ProbeResult> = emptyList())
+data class ConnectionTestResult(val exitIp: String, val countryCode: String?, val http3: List<Http3ProbeResult> = emptyList(), val http3Fallback: Boolean = false)
 
 internal fun parseConnectionTestResult(raw: String): ConnectionTestResult {
     val result = JSONObject(raw)
     return ConnectionTestResult(
         exitIp = result.getString("exitIp"),
+        http3Fallback = result.optBoolean("http3Fallback", false),
         countryCode = result.optString("countryCode").takeIf(String::isNotBlank),
         http3 = result.optJSONArray("http3")?.let { probes ->
             (0 until probes.length()).mapNotNull { index ->
@@ -112,6 +113,7 @@ class NativeProxyCore(
         .put("sshRotationMinutes", config.sshRotationMinutes)
         .put("sshRotationMb", config.sshRotationMb)
         .put("allowInvalidProxyCertificate", config.allowInvalidProxyCertificate)
+        .put("preferHttp3", config.preferHttp3)
         .put("profile", config.profile.name)
         .put("customJa3", config.customJa3.trim())
         .put("dohUrl", if (config.dnsProvider.url.isNotEmpty()) config.dnsProvider.url else config.customDohUrl.trim())

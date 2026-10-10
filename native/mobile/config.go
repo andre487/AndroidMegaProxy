@@ -12,6 +12,7 @@ import (
 )
 
 type config struct {
+	PreferHTTP3                      bool     `json:"preferHttp3"`
 	Type                             string   `json:"type"`
 	Host                             string   `json:"host"`
 	DialHost                         string   `json:"dialHost"`

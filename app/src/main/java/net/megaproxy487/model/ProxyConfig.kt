@@ -11,6 +11,7 @@ data class ProxyConfig(
     val username: String = "",
     val password: String = "",
     val allowInvalidProxyCertificate: Boolean = false,
+    val preferHttp3: Boolean = false,
     val profile: TlsProfile = TlsProfile.DEFAULT,
     val customJa3: String = "",
     val dnsProvider: DnsProvider = DnsProvider.CLOUDFLARE,

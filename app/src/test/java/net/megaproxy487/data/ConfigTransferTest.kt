@@ -12,6 +12,20 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConfigTransferTest {
+    @Test fun `HTTPS preference round trips through canonical JSON and defaults off`() {
+        val profile = ProxyProfile(id = "https", colorIndex = 0, config = ProxyConfig(
+            host = "proxy.example", username = "user", password = "password", preferHttp3 = true,
+        ))
+        val raw = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID).put("version", 8)
+            .put("profiles", JSONArray().put(ConfigTransfer.encodeProfile(profile, true, false)))
+        ConfigSchemas.assertValid(raw.toString())
+        val imported = ConfigTransfer.importJson(raw.toString())
+        assertEquals(profile, imported.profiles.single())
+        assertFalse(imported.notice.unknownFields)
+        raw.getJSONArray("profiles").getJSONObject(0).getJSONObject("proxy").remove("preferHttp3")
+        assertFalse(ConfigTransfer.importJson(raw.toString()).profiles.single().config.preferHttp3)
+    }
+
     @Test
     fun `explicit unsupported transports fail instead of becoming HTTPS or disappearing`() {
         for (version in listOf(1, 8)) {

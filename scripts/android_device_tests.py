@@ -26,6 +26,12 @@ TESTS = (
     "VpnDeviceTest#deniedVpnConsentDoesNotStartTunnel",
     "VpnDeviceTest#trafficStopAndRestart",
     "VpnDeviceTest#masqueTrafficStopAndRestart",
+    "VpnDeviceTest#httpsPreferenceUsesMasqueThroughTunAndJni",
+    "VpnDeviceTest#httpsPreferenceFallsBackWithoutBlockingRecovery",
+    "VpnDeviceTest#httpsJumpPreferenceBothNodesSupportHttp3",
+    "VpnDeviceTest#httpsJumpPreferenceOnlyFirstSupportsHttp3",
+    "VpnDeviceTest#httpsJumpPreferenceOnlyExitSupportsHttp3",
+    "VpnDeviceTest#httpsJumpPreferenceNeitherSupportsHttp3",
     "VpnDeviceTest#masqueFirefoxTraffic",
     "VpnDeviceTest#masqueRandomizedTraffic",
     "VpnDeviceTest#masqueCustomTraffic",
@@ -106,7 +112,21 @@ def fixture():
             container = name + "-" + alias
             containers.append(container)
             options = ["docker", "run", "-d", "--name", container, "--network", name]
-            if port:
+            if port == "8443/both":
+                with (
+                    socket.socket() as tcp,
+                    socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp,
+                ):
+                    tcp.bind(("127.0.0.1", 0))
+                    number = tcp.getsockname()[1]
+                    udp.bind(("127.0.0.1", number))
+                options += [
+                    "-p",
+                    f"127.0.0.1:{number}:8443/tcp",
+                    "-p",
+                    f"127.0.0.1:{number}:8443/udp",
+                ]
+            elif port:
                 options += ["-p", "127.0.0.1::" + port]
             if alias == "ssh":
                 options += ["-e", "TEST_PASSWORD=" + password]
@@ -154,6 +174,30 @@ def fixture():
         masque_host, masque_port = masque_address.rsplit(":", 1)
         if masque_host != "127.0.0.1":
             raise RuntimeError("MASQUE fixture must be published on loopback only")
+        fallback = start(
+            "https-fallback", "8443", GOST, "-L", f"http+tls://exit:{password}@:8443"
+        )
+        dual_jump = start(
+            "jump-dual",
+            "8443/both",
+            GOST,
+            "-L",
+            f"http2://jump:{password}@:8443",
+            "-L",
+            f"masque+http3://jump:{password}@:8443?enableDatagrams=true",
+        )
+        dual_exit = start(
+            "exit-dual",
+            "8443/both",
+            GOST,
+            "-L",
+            f"http2://exit:{password}@:8443",
+            "-L",
+            f"masque+http3://exit:{password}@:8443?enableDatagrams=true",
+        )
+        tcp_jump = start(
+            "jump-tcp", "8443", GOST, "-L", f"http2://jump:{password}@:8443"
+        )
         ssh = start("ssh", "2222", image)
 
         def port(container, number):
@@ -186,6 +230,23 @@ def fixture():
         yield {
             "originHost": origin_ip,
             "proxyPort": https_port,
+            "httpsFallbackPort": port(fallback, "8443"),
+            "dualJumpPort": port(dual_jump, "8443"),
+            "tcpJumpPort": port(tcp_jump, "8443"),
+            "dualExitHost": command(
+                "docker",
+                "inspect",
+                "--format",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                dual_exit,
+            ),
+            "tcpExitHost": command(
+                "docker",
+                "inspect",
+                "--format",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                https,
+            ),
             "masquePort": masque_port,
             "blackholeMasquePort": str(blackhole.getsockname()[1]),
             "proxyPassword": password,
@@ -254,6 +315,9 @@ def stalled_ssh(shell):
 
 
 def prepare_emulator(shell, api):
+    # Cellular/Wi-Fi validation can switch the default network mid-request.
+    # These scenarios test proxy failover, not Android network handover.
+    shell("svc", "data", "disable")
     # Unused image apps can obscure tests with crash/ANR dialogs. MegaProxy's
     # crashes remain visible; these changes apply only to disposable emulators.
     package = {

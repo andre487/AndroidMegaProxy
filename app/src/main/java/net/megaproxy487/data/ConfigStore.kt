@@ -498,6 +498,7 @@ class ConfigStore(context: Context) {
         put("jumpAcceptAnyHostKey", config.jumpAcceptAnyHostKey)
         put("sameJumpAuthentication", config.sameJumpAuthentication)
         put("allowInvalidProxyCertificate", config.allowInvalidProxyCertificate)
+        put("preferHttp3", config.preferHttp3)
         put("fingerprint", config.profile.name)
         put("customJa3", config.customJa3.trim())
         put("dnsProvider", config.dnsProvider.name)
@@ -545,6 +546,7 @@ class ConfigStore(context: Context) {
             jumpAcceptAnyHostKey = item.optBoolean("jumpAcceptAnyHostKey", false),
             sameJumpAuthentication = item.optBoolean("sameJumpAuthentication", true),
             allowInvalidProxyCertificate = item.optBoolean("allowInvalidProxyCertificate", false),
+            preferHttp3 = item.optBoolean("preferHttp3", false),
             profile = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT),
             customJa3 = item.optString("customJa3"),
             dnsProvider = enumValue(item.optString("dnsProvider"), DnsProvider.CLOUDFLARE),

@@ -241,6 +241,7 @@ internal fun MainScreen(
     val runtimeLockdown by VpnRuntimeState.lockdown
     val runtimeProfileId by VpnRuntimeState.connectionProfileId
     val networkWarning by VpnRuntimeState.networkWarning
+    val http3Fallback by VpnRuntimeState.http3Fallback
     val transportProtocol by VpnRuntimeState.transportProtocol
     val store = remember { ConfigStore(activity) }
     val writeStatus by ConfigWrites.status.collectAsState()
@@ -485,6 +486,10 @@ internal fun MainScreen(
                         )
                     }
                 }
+            }
+            if (http3Fallback) {
+                Text(stringResource(R.string.http3_fallback_warning), color = MaterialTheme.colorScheme.tertiary,
+                    modifier = Modifier.padding(vertical = 8.dp))
             }
             networkWarning?.let {
                 Card(colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer), modifier = Modifier.fillMaxWidth()) {

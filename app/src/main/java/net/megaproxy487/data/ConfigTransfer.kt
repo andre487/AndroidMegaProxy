@@ -204,6 +204,7 @@ object ConfigTransfer {
             if (includePasswords) put("password", profile.config.password)
             if (includePrivateKeys) put("privateKey", profile.config.privateKey)
             put("allowInvalidProxyCertificate", profile.config.allowInvalidProxyCertificate)
+            put("preferHttp3", profile.config.preferHttp3)
             put("sshProfile", profile.config.sshProfile.name)
             put("trustedHostKey", profile.config.trustedHostKey)
             put("acceptAnyHostKey", profile.config.acceptAnyHostKey)
@@ -279,6 +280,7 @@ object ConfigTransfer {
                 jumpAllowInvalidProxyCertificate = jump?.optBoolean("allowInvalidProxyCertificate", false) ?: false,
                 jumpAcceptAnyHostKey = jump?.optBoolean("acceptAnyHostKey", false) ?: false,
                 allowInvalidProxyCertificate = proxy.optBoolean("allowInvalidProxyCertificate", false),
+                preferHttp3 = proxy.optBoolean("preferHttp3", false),
                 profile = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT),
                 customJa3 = tls.limitedString("customJa3", MAX_CUSTOM_JA3_LENGTH),
                 dnsProvider = enumValue(dns.optString("provider"), DnsProvider.CLOUDFLARE),

@@ -57,6 +57,76 @@ class VpnDeviceTest : DeviceTestBase() {
         }
     }
 
+    @Test fun httpsPreferenceUsesMasqueThroughTunAndJni() {
+        useMasque(TlsProfile.CHROME_ANDROID)
+        io {
+            val profile = store.activeProfile()
+            store.saveProfile(profile.copy(config = profile.config.copy(type = ProxyType.HTTPS, preferHttp3 = true)))
+        }
+        saved()
+        directOriginUnavailable()
+        connect()
+        roundTrip()
+        udpRoundTrip(1200)
+        await("HTTPS preference did not select H3") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.HTTP_3 }
+        assertFalse(VpnRuntimeState.http3Fallback.value)
+    }
+
+    @Test fun httpsPreferenceFallsBackWithoutBlockingRecovery() {
+        io {
+            val profile = store.activeProfile()
+            store.saveProfile(profile.copy(config = profile.config.copy(preferHttp3 = true, port = argument("httpsFallbackPort").toInt())))
+        }
+        saved()
+        connect()
+        roundTrip()
+        await("HTTPS fallback warning absent") { VpnRuntimeState.http3Fallback.value }
+        await("HTTPS protocol indicator did not update after fallback") {
+            VpnRuntimeState.transportProtocol.value in listOf(VpnTransportProtocol.HTTP_1_1, VpnTransportProtocol.HTTP_2)
+        }
+        appNode(androidx.test.uiautomator.By.text(text(R.string.http3_fallback_warning)))
+        click(R.string.disconnect)
+        stopped()
+        assertFalse(VpnRuntimeState.http3Fallback.value)
+    }
+
+    @Test fun httpsJumpPreferenceBothNodesSupportHttp3() = httpsJumpPreference(true, true)
+    @Test fun httpsJumpPreferenceOnlyFirstSupportsHttp3() = httpsJumpPreference(true, false)
+    @Test fun httpsJumpPreferenceOnlyExitSupportsHttp3() = httpsJumpPreference(false, true)
+    @Test fun httpsJumpPreferenceNeitherSupportsHttp3() = httpsJumpPreference(false, false)
+
+    private fun httpsJumpPreference(firstH3: Boolean, exitH3: Boolean) {
+        io {
+            val profile = store.activeProfile()
+            store.saveProfile(profile.copy(config = profile.config.copy(
+                type = ProxyType.HTTPS_JUMP, preferHttp3 = true,
+                host = argument(if (exitH3) "dualExitHost" else "tcpExitHost"), port = 8443,
+                jumpHost = "10.0.2.2", jumpPort = argument(if (firstH3) "dualJumpPort" else "tcpJumpPort").toInt(),
+                sameJumpAuthentication = false, jumpUsername = "jump", jumpPassword = argument("proxyPassword"),
+                jumpAllowInvalidProxyCertificate = true,
+            )))
+            store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
+                routeAllApps = false, selectedPackages = setOf(context.packageName)))
+        }
+        saved()
+        directOriginUnavailable()
+        connect()
+        roundTrip()
+        if (firstH3 && exitH3) {
+            listOf(1200, 1280, 1350).forEach(::udpRoundTrip)
+            await("Jump did not select HTTP/3") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.HTTP_3 }
+            assertFalse(VpnRuntimeState.http3Fallback.value)
+        } else {
+            await("Whole Jump chain did not fall back") { VpnRuntimeState.http3Fallback.value }
+            await("Jump HTTPS protocol indicator did not update after fallback") {
+                VpnRuntimeState.transportProtocol.value in listOf(VpnTransportProtocol.HTTP_1_1, VpnTransportProtocol.HTTP_2)
+            }
+        }
+        click(R.string.disconnect)
+        stopped()
+        directOriginUnavailable()
+    }
+
     @Test fun masqueFirefoxTraffic() {
         useMasque(TlsProfile.FIREFOX_ANDROID)
         saved()

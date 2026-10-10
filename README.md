@@ -208,6 +208,13 @@ JSON schema version 8 stores this mode as `proxy.type: "HTTPS_JUMP"`, with first
 reject version 8 files, preventing a chain from being imported as a single proxy. ProxyList
 exports support single HTTPS and MASQUE proxies and omit chain profiles.
 
+HTTPS profiles, including HTTPS with Jump, also offer **Prefer HTTP/3 α** (off by default): try MASQUE
+on the same host/UDP port, then HTTPS when unavailable. Certificate and
+authentication errors remain terminal. HTTPS fallback blocks ordinary UDP and
+shows a warning; explicit MASQUE profiles never fall back. JSON stores the
+preference in `profiles[].proxy.preferHttp3`. With Jump, both nodes must support
+MASQUE and a usable datagram MTU; otherwise the entire chain retains HTTPS.
+
 ### Experimental MASQUE α
 
 MASQUE over HTTP/3 is available in `main` after [PR #70](https://github.com/andre487/AndroidMegaProxy/pull/70)

@@ -21,6 +21,7 @@ class InstrumentationResultTest(unittest.TestCase):
                 m.prepare_emulator(shell, api)
                 self.assertEqual(
                     [
+                        call("svc", "data", "disable"),
                         call("am", "force-stop", package),
                         call("pm", "disable-user", "--user", "0", package),
                     ],

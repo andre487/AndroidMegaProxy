@@ -86,7 +86,15 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 	}
 	t := tunnel.T()
 	var proxyCloser io.Closer
-	if c.isHTTPS() {
+	preferred, err := preferredHTTP3(ctx, c, protector, reporter, stats)
+	if err != nil {
+		dev.Close()
+		return err
+	}
+	if preferred != nil {
+		t.SetProxy(preferred)
+		proxyCloser = preferred
+	} else if c.isHTTPS() {
 		httpsProxy := &httpsConnectDialer{config: c, protector: protector, reporter: reporter, stats: stats}
 		t.SetProxy(httpsProxy)
 		proxyCloser = httpsProxy

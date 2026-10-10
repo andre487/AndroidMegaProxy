@@ -27,6 +27,9 @@ var errMasqueSettings = errors.New("MASQUE server missing datagram or extended C
 var errMasqueCapsuleProtocol = errors.New("MASQUE response missing Capsule-Protocol")
 
 type masqueDialer struct {
+	hop           string
+	jump          *masqueDialer
+	probePeerMTU  bool
 	config        config
 	protector     Protector
 	reporter      Reporter
@@ -43,6 +46,8 @@ type masqueDialer struct {
 }
 
 type masqueSession struct {
+	peerMTU              *jumpMTUPacketConn
+	sourceCIDLength      int
 	once                 sync.Once
 	id                   uint64
 	transport            *quic.UTransport
@@ -83,6 +88,9 @@ func (d *masqueDialer) Close() error {
 	}
 	for old := range draining {
 		old.close()
+	}
+	if d.jump != nil {
+		_ = d.jump.Close()
 	}
 	return nil
 }
@@ -140,7 +148,7 @@ func (d *masqueDialer) getSession(ctx context.Context) (*masqueSession, error) {
 			if errors.Is(err, errMasqueSettings) {
 				stage = "server_settings"
 			}
-			report(d.reporter, "event=connection protocol=http3 stage=%s result=failed reason=%s dpi_hint=%s %s", stage, reason, tlsInterferenceHint(reason), quicErrorDetails(err))
+			report(d.reporter, "event=connection protocol=http3 stage=%s result=failed reason=%s dpi_hint=%s %s hop=%s", stage, reason, tlsInterferenceHint(reason), quicErrorDetails(err), d.logHop())
 		}
 		d.mu.Lock()
 		close(d.opening)
@@ -156,38 +164,96 @@ func (d *masqueDialer) getSession(ctx context.Context) (*masqueSession, error) {
 	}
 }
 
-func (d *masqueDialer) dialSession(ctx context.Context) (*masqueSession, error) {
+func (d *masqueDialer) dialSession(ctx context.Context) (session *masqueSession, err error) {
+	stage := "tls_handshake"
+	defer func() {
+		if err != nil {
+			var hopError *masqueHopError
+			if !errors.As(err, &hopError) {
+				err = &masqueHopError{hop: d.logHop(), stage: stage, err: err}
+			}
+		}
+	}()
 	spec, err := d.config.quicSpec()
 	if err != nil {
 		return nil, err
 	}
-	address, err := net.ResolveUDPAddr("udp", d.config.address())
-	if err != nil {
-		return nil, err
+	var address *net.UDPAddr
+	var packet net.PacketConn
+	packetMTU := 0
+	if d.jump != nil {
+		// The destination hostname is resolved by the jump, never on Android.
+		// This address identifies the fixed packet association; no socket dials it.
+		address = &net.UDPAddr{IP: net.IPv4(192, 0, 2, 1), Port: d.config.Port}
+		stream, err := d.jump.openTunnel(ctx, d.config.displayAddress(), true)
+		if err != nil {
+			var hopError *masqueHopError
+			if errors.As(err, &hopError) {
+				return nil, err
+			}
+			return nil, &masqueHopError{hop: "jump", stage: "connect_udp", err: err}
+		}
+		// The association's stream ID can grow after reconnects / GOAWAY.
+		packetMTU = nestedPacketMTU(stream.session, quicvarint.Len(uint64(stream.StreamID()/4)))
+		if packetMTU < minimumNestedPacketSize {
+			_ = stream.Close()
+			return nil, errMasqueSettings
+		}
+		packet = d.jump.udpPacketConn(stream, address)
+		// Encapsulated QUIC must fit an outer DATAGRAM. Keep the browser TLS
+		// preset, but constrain path padding and advertised receive MTU.
+		spec.InitialPacketSpec.FrameBuilder = nil
+		spec.UDPDatagramMinSize = 1280
+		for _, extension := range spec.ClientHelloSpec.Extensions {
+			if params, ok := extension.(*tls.QUICTransportParametersExtension); ok {
+				for i, parameter := range params.TransportParameters {
+					if _, ok := parameter.(tls.MaxUDPPayloadSize); ok {
+						params.TransportParameters[i] = tls.MaxUDPPayloadSize(packetMTU)
+					}
+				}
+			}
+		}
+	} else {
+		address, err = net.ResolveUDPAddr("udp", d.config.address())
+		if err != nil {
+			return nil, err
+		}
+		control := (&httpsConnectDialer{protector: d.protector}).protectedDialer().Control
+		listen := net.ListenConfig{Control: control}
+		network, bind := "udp4", "0.0.0.0:0"
+		if address.IP.To4() == nil {
+			network, bind = "udp6", "[::]:0"
+		}
+		packet, err = listen.ListenPacket(ctx, network, bind)
+		if err != nil {
+			return nil, fmt.Errorf("protect QUIC socket: %w", err)
+		}
 	}
-	// Reuse the TCP socket protection callback before the UDP socket is bound.
-	control := (&httpsConnectDialer{protector: d.protector}).protectedDialer().Control
-	listen := net.ListenConfig{Control: control}
-	network, bind := "udp4", "0.0.0.0:0"
-	if address.IP.To4() == nil {
-		network, bind = "udp6", "[::]:0"
-	}
-	packet, err := listen.ListenPacket(ctx, network, bind)
-	if err != nil {
-		return nil, fmt.Errorf("protect QUIC socket: %w", err)
+	var peerMTU *jumpMTUPacketConn
+	if d.probePeerMTU || d.jump != nil {
+		observed := &jumpMTUPacketConn{PacketConn: packet, peer: address}
+		packet, peerMTU = observed, observed
+		if d.jump == nil {
+			packet = &jumpMTUSocket{observed}
+		}
 	}
 	transport := &quic.UTransport{Transport: &quic.Transport{Conn: packet}, QUICSpec: &spec}
+	options := &quic.Config{EnableDatagrams: true, KeepAlivePeriod: 20 * time.Second, HandshakeIdleTimeout: 15 * time.Second, MaxIdleTimeout: 60 * time.Second}
+	if d.jump != nil {
+		options.InitialPacketSize = uint16(packetMTU)
+		options.DisablePathMTUDiscovery = true
+	}
 	conn, err := transport.Dial(ctx, address, &tls.Config{
 		ServerName: d.config.Host, NextProtos: []string{"h3"}, MinVersion: tls.VersionTLS13,
 		InsecureSkipVerify: d.config.AllowInvalidProxyCertificate,
-	}, &quic.Config{EnableDatagrams: true, KeepAlivePeriod: 20 * time.Second, HandshakeIdleTimeout: 15 * time.Second, MaxIdleTimeout: 60 * time.Second})
+	}, options)
 	if err != nil {
 		_ = transport.Close()
 		_ = packet.Close()
 		return nil, fmt.Errorf("MASQUE QUIC handshake: %w", err)
 	}
 	h3 := &http3.Transport{EnableDatagrams: true, DisableCompression: true, MaxResponseHeaderBytes: 64 * 1024}
-	s := &masqueSession{id: nextDiagnosticConnectionID(), transport: transport, packet: packet, conn: conn, client: h3.NewClientConn(conn)}
+	s := &masqueSession{peerMTU: peerMTU, sourceCIDLength: spec.InitialPacketSpec.SrcConnIDLength, id: nextDiagnosticConnectionID(), transport: transport, packet: packet, conn: conn, client: h3.NewClientConn(conn)}
 	for _, extension := range spec.ClientHelloSpec.Extensions {
 		if params, ok := extension.(*tls.QUICTransportParametersExtension); ok {
 			for _, param := range params.TransportParameters {
@@ -197,6 +263,7 @@ func (d *masqueDialer) dialSession(ctx context.Context) (*masqueSession, error) 
 			}
 		}
 	}
+	stage = "server_settings"
 	select {
 	case <-s.client.ReceivedSettings():
 	case <-ctx.Done():
@@ -211,11 +278,25 @@ func (d *masqueDialer) dialSession(ctx context.Context) (*masqueSession, error) 
 		s.close()
 		return nil, fmt.Errorf("%w: datagrams=%t extended_connect=%t", errMasqueSettings, s.client.Settings().EnableDatagrams, s.client.Settings().EnableExtendedConnect)
 	}
+	if d.probePeerMTU || d.jump != nil {
+		stage = "path_mtu"
+		if err := waitForMasqueMTU(ctx, s, d.config.Host, packetMTU); err != nil {
+			s.close()
+			return nil, err
+		}
+	}
+	if d.jump != nil && conn.DatagramPayloadLimit() < 1350+8+1 {
+		s.close()
+		return nil, fmt.Errorf("%w: nested datagram budget too small", errMasqueSettings)
+	}
+	if peerMTU != nil {
+		report(d.reporter, "event=masque_mtu hop=%s datagram_payload_limit=%d largest_peer_packet=%d tunnel_packet_mtu=%d quic_session=%d", d.logHop(), conn.DatagramPayloadLimit(), peerMTU.largest.Load(), packetMTU, s.id)
+	}
 	if d.stats != nil {
 		s.metrics = d.stats.trackQUIC(conn)
 	}
 	state := conn.ConnectionState()
-	report(d.reporter, "event=masque_session result=established protocol=http3 multiplexed=true fingerprint=%s certificate_verification_enabled=%t %s quic_version=%d datagrams=true extended_connect=true quic_session=%d", d.config.Profile, !d.config.AllowInvalidProxyCertificate, tlsNegotiationDetails(state.TLS.Version, state.TLS.CipherSuite, state.TLS.NegotiatedProtocol, state.TLS.DidResume), state.Version, s.id)
+	report(d.reporter, "event=masque_session result=established protocol=http3 hop=%s multiplexed=true fingerprint=%s certificate_verification_enabled=%t %s quic_version=%d datagrams=true extended_connect=true quic_session=%d", d.logHop(), d.config.Profile, !d.config.AllowInvalidProxyCertificate, tlsNegotiationDetails(state.TLS.Version, state.TLS.CipherSuite, state.TLS.NegotiatedProtocol, state.TLS.DidResume), state.Version, s.id)
 	return s, nil
 }
 
@@ -327,7 +408,7 @@ func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) 
 	if err != nil {
 		return nil, err
 	}
-	c := &masqueStreamConn{RequestStream: stream, connectionID: connectionID, sessionID: s.id, local: s.conn.LocalAddr(), remote: s.conn.RemoteAddr(), maxDatagramFrameSize: s.maxDatagramFrameSize, proxyContext: s.conn.Context()}
+	c := &masqueStreamConn{session: s, RequestStream: stream, connectionID: connectionID, sessionID: s.id, local: s.conn.LocalAddr(), remote: s.conn.RemoteAddr(), maxDatagramFrameSize: s.maxDatagramFrameSize, proxyContext: s.conn.Context()}
 	stop := context.AfterFunc(ctx, func() { _ = c.Close() })
 	defer stop()
 	request := &http.Request{Method: http.MethodConnect, URL: &url.URL{Scheme: "https", Host: target}, Host: target, Header: make(http.Header)}
@@ -353,7 +434,7 @@ func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) 
 	}
 	if response.StatusCode != http.StatusOK {
 		_ = c.Close()
-		return nil, &masqueConnectError{status: response.StatusCode}
+		return nil, &masqueConnectError{status: response.StatusCode, udp: udp}
 	}
 	if udp && response.Header.Get("Capsule-Protocol") != "?1" {
 		_ = c.Close()
@@ -363,7 +444,7 @@ func (d *masqueDialer) openTunnel(ctx context.Context, target string, udp bool) 
 		_ = c.Close()
 		return nil, ctx.Err()
 	}
-	report(d.reporter, "event=connection protocol=http3 http_version=HTTP/3 stage=tunnel result=established stream_multiplexed=true udp=%t conn=%d quic_session=%d elapsed_ms=%d", udp, connectionID, s.id, time.Since(started).Milliseconds())
+	report(d.reporter, "event=connection protocol=http3 http_version=HTTP/3 stage=tunnel result=established stream_multiplexed=true udp=%t conn=%d quic_session=%d elapsed_ms=%d hop=%s", udp, connectionID, s.id, time.Since(started).Milliseconds(), d.logHop())
 	return c, nil
 }
 
@@ -453,7 +534,27 @@ func (d *masqueDialer) udpPacketConn(stream *masqueStreamConn, remote *net.UDPAd
 	return p
 }
 
-type masqueConnectError struct{ status int }
+type masqueConnectError struct {
+	status int
+	udp    bool
+}
+
+type masqueHopError struct {
+	hop, stage string
+	err        error
+}
+
+func (e *masqueHopError) Error() string { return e.err.Error() }
+func (e *masqueHopError) Unwrap() error { return e.err }
+func (d *masqueDialer) logHop() string {
+	if d.hop != "" {
+		return d.hop
+	}
+	if d.jump != nil {
+		return "destination"
+	}
+	return "proxy"
+}
 
 func (e *masqueConnectError) Error() string {
 	if e.status == http.StatusProxyAuthRequired {
@@ -463,6 +564,7 @@ func (e *masqueConnectError) Error() string {
 }
 
 type masqueStreamConn struct {
+	session *masqueSession
 	*http3.RequestStream
 	local, remote           net.Addr
 	connectionID, sessionID uint64

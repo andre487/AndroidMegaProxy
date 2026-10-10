@@ -505,4 +505,7 @@
     <string name="validation_quic_ja3">Для MASQUE JA3 должен содержать шифры TLS 1.3 и расширения 16, 43, 51, 57.</string>
     <string name="masque_fingerprint_description">Для QUIC используются отпечатки Chrome 146 или Firefox 116. В режиме ручного JA3 задайте QUIC JA3 в этом профиле; HTTPS использует JA3 из настроек.</string>
     <string name="masque_custom_ja3">QUIC JA3 для MASQUE</string>
+    <string name="prefer_http3">Предпочитать HTTP/3 α</string>
+    <string name="prefer_http3_description">Пробовать MASQUE на том же хосте и UDP-порту. С Jump нужны оба узла; иначе вся цепочка использует HTTPS. При откате обычный UDP блокируется; DNS работает через DoH. Неподдерживаемые QUIC-отпечатки или MTU туннеля используют HTTPS.</string>
+    <string name="http3_fallback_warning">HTTP/3 недоступен: используется HTTPS. Обычный UDP блокируется; DNS работает через DoH.</string>
 </resources>
