@@ -29,9 +29,11 @@ object TestDiagnosticLog {
     private val mutableState = androidx.compose.runtime.mutableStateOf(TestState.IDLE)
     private val mutableExitIp = androidx.compose.runtime.mutableStateOf<String?>(null)
     private val mutableCountryCode = androidx.compose.runtime.mutableStateOf<String?>(null)
+    private val mutableHttp3 = androidx.compose.runtime.mutableStateOf<List<Http3ProbeResult>>(emptyList())
     val state: androidx.compose.runtime.State<TestState> = mutableState
     val exitIp: androidx.compose.runtime.State<String?> = mutableExitIp
     val countryCode: androidx.compose.runtime.State<String?> = mutableCountryCode
+    val http3: androidx.compose.runtime.State<List<Http3ProbeResult>> = mutableHttp3
 
     private fun onMain(droppable: Boolean = false, action: () -> Unit) {
         if (Looper.myLooper() == Looper.getMainLooper()) action()
@@ -47,6 +49,7 @@ object TestDiagnosticLog {
         entries.clear()
         mutableExitIp.value = null
         mutableCountryCode.value = null
+        mutableHttp3.value = emptyList()
         mutableState.value = TestState.IDLE
     }
 
@@ -54,6 +57,7 @@ object TestDiagnosticLog {
         entries.clear()
         mutableExitIp.value = null
         mutableCountryCode.value = null
+        mutableHttp3.value = emptyList()
         mutableState.value = TestState.RUNNING
     }
 
@@ -66,9 +70,10 @@ object TestDiagnosticLog {
         }
     }
 
-    fun succeed(ip: String, countryCode: String?) = onMain {
+    fun succeed(ip: String, countryCode: String?, http3: List<Http3ProbeResult> = emptyList()) = onMain {
         mutableExitIp.value = ip
         mutableCountryCode.value = countryCode
+        mutableHttp3.value = http3
         mutableState.value = TestState.SUCCEEDED
     }
 

@@ -32,7 +32,8 @@ your source IP address and the proxy hostname. DNS queries through the tunnel us
 provider and permitted fallbacks.
 
 When you run a connection test, MegaProxy contacts a test website and external IP/country lookup
-services through the proxy. They receive the exit IP and test requests to check connectivity and
+services through the proxy; MASQUE tests also contact external HTTP/3 diagnostic services.
+They receive the exit IP and test requests, including TLS/QUIC connection parameters, to check connectivity and
 identify the proxy's apparent country, not your GPS location. The current services are listed in
 [Network privacy details](README.md#privacy-and-security). These providers handle requests under
 their own policies; MegaProxy does not control their retention practices.

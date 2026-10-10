@@ -436,9 +436,13 @@ func (d *masqueDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 		return nil, err
 	}
 	remote := &net.UDPAddr{IP: net.IP(metadata.DstIP.AsSlice()), Port: int(metadata.DstPort)}
+	return d.udpPacketConn(stream, remote), nil
+}
+
+func (d *masqueDialer) udpPacketConn(stream *masqueStreamConn, remote *net.UDPAddr) net.PacketConn {
 	p := &masquePacketConn{masqueStreamConn: stream, remote: remote, packets: make(chan dnsReply, 16), stats: d.stats, reporter: d.reporter}
 	go p.receive()
-	return p, nil
+	return p
 }
 
 type masqueConnectError struct{ status int }

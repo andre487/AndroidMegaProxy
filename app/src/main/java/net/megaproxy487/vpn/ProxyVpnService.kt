@@ -275,7 +275,7 @@ class ProxyVpnService : VpnService() {
             configureHostKeyPrompt(message, session.profileId, true)
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
         }
-        if (result != null) TestDiagnosticLog.succeed(result.exitIp, result.countryCode) else TestDiagnosticLog.fail()
+        if (result != null) TestDiagnosticLog.succeed(result.exitIp, result.countryCode, result.http3) else TestDiagnosticLog.fail()
         if (temporaryVpn) {
             stopTunnel()
             stopSelf()

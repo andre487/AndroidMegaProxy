@@ -18,13 +18,26 @@ interface ProxyCore {
     fun stop()
 }
 
-data class ConnectionTestResult(val exitIp: String, val countryCode: String?)
+data class Http3ProbeResult(val provider: String, val confirmed: Boolean)
+
+data class ConnectionTestResult(val exitIp: String, val countryCode: String?, val http3: List<Http3ProbeResult> = emptyList())
 
 internal fun parseConnectionTestResult(raw: String): ConnectionTestResult {
     val result = JSONObject(raw)
     return ConnectionTestResult(
         exitIp = result.getString("exitIp"),
         countryCode = result.optString("countryCode").takeIf(String::isNotBlank),
+        http3 = result.optJSONArray("http3")?.let { probes ->
+            (0 until probes.length()).mapNotNull { index ->
+                val probe = probes.optJSONObject(index) ?: return@mapNotNull null
+                val provider = when (probe.optString("provider")) {
+                    "www.cloudflare.com" -> "Cloudflare"
+                    "quic.browserleaks.com" -> "BrowserLeaks"
+                    else -> return@mapNotNull null
+                }
+                Http3ProbeResult(provider, probe.optString("status") == "confirmed")
+            }
+        } ?: emptyList(),
     )
 }
 

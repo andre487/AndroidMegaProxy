@@ -67,7 +67,8 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 ### Diagnostics
 
-- A staged connection test for proxy setup, `example.com`, and the observed exit IP and country.
+- A staged connection test for proxy setup, `example.com`, and the observed exit IP and country;
+  MASQUE also checks end-to-end HTTP/3 over proxied UDP with Cloudflare and BrowserLeaks.
 - Local, size-limited, rotating diagnostic and crash logs designed to omit credentials and traffic
   content.
 - [Negotiated TLS/HTTP/SSH parameters](docs/en/connection-metrics.md#negotiation-diagnostics) without peer identities or credentials.
@@ -83,7 +84,13 @@ project author. Network traffic is sent only where required by the selected prof
 and DNS configuration. Proxy-hostname bootstrap may contact Cloudflare, Yandex, Google or Quad9
 DoH resolvers directly before the tunnel exists. The explicit connection test contacts `example.com`
 and uses fallback providers for exit IP (`ifconfig.me`, `api.ipify.org`, `icanhazip.com`) and country
-(`ifconfig.co`, `ipapi.co`, `api.country.is`) through the proxy. See [PRIVACY.md](PRIVACY.md).
+(`ifconfig.co`, `ipapi.co`, `api.country.is`) through the proxy. With MASQUE it also sends
+HTTP/3 requests to `www.cloudflare.com/cdn-cgi/trace` and `quic.browserleaks.com/` through
+CONNECT-UDP, with verified destination certificates and no TCP fallback. Both providers are
+checked independently; an unavailable provider does not invalidate the HTTPS/IP result. These
+native probes verify the proxy UDP path, not Android TUN or per-app routing, and their inner
+QUIC fingerprint is the diagnostic client's, not the selected outer MASQUE fingerprint or
+Chrome's. Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
 
 - HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and
   validity. Normal CA certificate renewal does not require certificate pinning.
