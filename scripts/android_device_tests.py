@@ -315,6 +315,9 @@ def stalled_ssh(shell):
 
 
 def prepare_emulator(shell, api):
+    # Cellular/Wi-Fi validation can switch the default network mid-request.
+    # These scenarios test proxy failover, not Android network handover.
+    shell("svc", "data", "disable")
     # Unused image apps can obscure tests with crash/ANR dialogs. MegaProxy's
     # crashes remain visible; these changes apply only to disposable emulators.
     package = {
