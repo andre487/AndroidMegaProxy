@@ -339,6 +339,7 @@
     <string name="error_config_invalid">This is not a MegaProxy configuration file</string>
     <string name="error_config_version">Unsupported MegaProxy configuration version: %1$d</string>
     <string name="error_config_no_profiles">The configuration has no profiles</string>
+    <string name="error_config_proxy_type">The configuration contains a proxy protocol that this app does not support</string>
     <string name="error_config_too_many">The configuration contains more than %1$d profiles</string>
     <string name="error_config_stable_ids">Every profile in version 7 or newer must have a stable ID</string>
     <string name="error_config_no_usable">The configuration contains no usable profiles</string>

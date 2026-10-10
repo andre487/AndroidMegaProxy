@@ -319,11 +319,13 @@
             "SAMSUNG_INTERNET",
             "YANDEX_BROWSER",
             "CUSTOM"
-          ]
+          ],
+          "description": "Outer TLS/QUIC preset. Android selects the document-level preset; DEFAULT resolves to CHROME_ANDROID. MASQUE supports CHROME_ANDROID, FIREFOX_ANDROID, RANDOMIZED and CUSTOM."
         },
         "customJa3": {
           "type": "string",
-          "maxLength": 8192
+          "maxLength": 8192,
+          "description": "Custom outer handshake JA3. Android HTTPS uses the document-level value; MASQUE uses profiles[].tls.customJa3 for its separate QUIC-compatible JA3. Consumers validate JA3 semantics beyond this schema."
         }
       },
       "required": [],

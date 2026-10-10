@@ -13,6 +13,24 @@ import org.junit.Test
 
 class ConfigTransferTest {
     @Test
+    fun `explicit unsupported transports fail instead of becoming HTTPS or disappearing`() {
+        for (version in listOf(1, 8)) {
+            for (type in listOf("SOCKS5", "HTTP", "FUTURE_PROXY")) {
+                val root = JSONObject().put("schema", "net.megaproxy487.config").put("version", version)
+                    .put("profiles", JSONArray().put(JSONObject().put("id", "valid").put("proxy",
+                        JSONObject().put("type", "HTTPS").put("host", "proxy.example")))
+                        .put(JSONObject().put("id", "unsupported").put("proxy",
+                            JSONObject().put("type", type).put("host", "unsupported.example"))))
+                val failure = runCatching { ConfigTransfer.importJson(root.toString()) }.exceptionOrNull()
+                assertTrue(failure is net.megaproxy487.UiException)
+                assertEquals(net.megaproxy487.R.string.error_config_proxy_type, (failure as net.megaproxy487.UiException).textId)
+            }
+        }
+        val legacy = ConfigTransfer.importJson("""{"schema":"net.megaproxy487.config","version":1,"profiles":[{"proxy":{"host":"proxy.example"}}]}""")
+        assertEquals(ProxyType.HTTPS, legacy.profiles.single().config.type)
+    }
+
+    @Test
     fun `MASQUE survives JSON and URI export without becoming HTTPS`() {
         val profile = ProxyProfile(id = "masque", colorIndex = 0, config = ProxyConfig(
             type = ProxyType.MASQUE, host = "proxy.example", port = 8443,

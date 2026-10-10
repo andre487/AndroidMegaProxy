@@ -338,6 +338,7 @@
     <string name="error_config_invalid">Это не файл конфигурации MegaProxy</string>
     <string name="error_config_version">Неподдерживаемая версия конфигурации MegaProxy: %1$d</string>
     <string name="error_config_no_profiles">В конфигурации нет профилей</string>
+    <string name="error_config_proxy_type">Конфигурация содержит протокол прокси, который это приложение не поддерживает</string>
     <string name="error_config_too_many">Конфигурация содержит более %1$d профилей</string>
     <string name="error_config_stable_ids">В конфигурации версии 7 и новее у каждого профиля должен быть постоянный ID</string>
     <string name="error_config_no_usable">В конфигурации нет пригодных для использования профилей</string>

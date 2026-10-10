@@ -59,7 +59,9 @@ branch names, credentials, signing material, or other secrets.
 
 - Vendor MegaProxyConfig schemas/examples with commit and SHA-256 in `config-schema/`. Update only
   through `bundle exec fastlane android renew_config_schema [ref:FULL_SHA]`; CI never fetches upstream.
-  JVM checks validate real exports against both schemas. Keep permissive legacy imports; report
+  JVM checks validate real exports against both schemas. Keep permissive legacy imports; omitted
+  transport types default to HTTPS, but explicit unsupported transports fail instead of changing
+  protocol. Report
   ignored browser settings and undocumented keys once each in the existing import result, without
   field values. Unsupported fields are discarded and do not round-trip through Android.
 

@@ -19,6 +19,26 @@
         "port": 443,
         "username": "demo"
       }
+    },
+    {
+      "id": "example-masque",
+      "name": "MASQUE alpha example",
+      "color": 5,
+      "countryCode": "",
+      "proxy": {
+        "type": "MASQUE",
+        "host": "masque.example.com",
+        "port": 443,
+        "username": "demo"
+      },
+      "tls": {
+        "fingerprint": "CUSTOM",
+        "customJa3": "771,4865-4866-4867,0-10-13-16-43-51-57,29-23,0"
+      }
     }
-  ]
+  ],
+  "tls": {
+    "fingerprint": "CUSTOM",
+    "customJa3": "771,4865-4866-4867,0-10-13-16-43-51,29-23,0"
+  }
 }

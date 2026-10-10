@@ -45,6 +45,16 @@ class ConfigSchemaTest {
             val imported = ConfigTransfer.importJson(text)
             assertEquals(ConfigImportNotice(browserFields = name == "browser-v8.json"), imported.notice)
             assertFalse(imported.profiles.isEmpty())
+            if (name == "android-v8.json") {
+                val global = imported.globalConnectionSettings!!
+                val masque = imported.profiles.single { it.config.type == ProxyType.MASQUE }.config
+                assertEquals(TlsProfile.CUSTOM, global.tlsProfile)
+                assertNotEquals(global.customJa3, masque.customJa3)
+                assertTrue(validQuicJa3(masque.customJa3))
+                assertEquals(masque.customJa3, global.applyTo(masque).customJa3)
+                val https = imported.profiles.single { it.config.type == ProxyType.HTTPS }.config
+                assertEquals(global.customJa3, global.applyTo(https).customJa3)
+            }
         }
     }
 
