@@ -1,7 +1,7 @@
 # MASQUE α (HTTP/3)
 
-MASQUE is experimental and marked **α** in the interface. Its implementation is in
-[PR #70](https://github.com/andre487/AndroidMegaProxy/pull/70); published v1.0.3 APKs
+MASQUE is experimental and marked **α** in the interface. Its implementation was merged
+into `main` in [PR #70](https://github.com/andre487/AndroidMegaProxy/pull/70); published v1.0.3 APKs
 contain HTTPS/SSH only. Use an identified build containing that implementation.
 PR APKs are test builds; see [installation](installation.md#test-builds-from-pull-requests).
 
@@ -48,6 +48,10 @@ Global/per-app routing, local-network bypass, traffic accounting, DoH/fallback,
 connection diagnostics, reconnect/failover and encrypted credentials apply to
 MASQUE. JSON uses `proxy.type: "MASQUE"`; ProxyList uses
 `masque://user:password@host:port`. Jump modes remain HTTPS/SSH only.
+
+UDP/53 queries entering the VPN are converted to DoH. Application-managed TCP DNS,
+Private DNS and browser Secure DNS follow normal routing and are not rewritten to
+the selected DoH provider.
 
 ## Fingerprints and limits
 

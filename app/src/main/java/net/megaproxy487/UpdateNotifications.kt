@@ -62,6 +62,7 @@ internal class UpdatePreferences(private val context: Context) {
     }
 
     fun pending(now: Long = System.currentTimeMillis()): AppUpdate? {
+        if (!automatic) return null
         val source = UpdateSource.entries.firstOrNull { it.name == prefs.getString("detected_source", null) } ?: return null
         val version = prefs.getString("detected_version", null) ?: return null
         val update = AppUpdate(source, version)

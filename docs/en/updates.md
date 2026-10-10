@@ -56,7 +56,8 @@ The notification offers:
   the package web link in a compatible client or browser; GitHub updates require explicit download consent.
 - **Skip this version**: suppress automatic notifications for this version in this source.
   Later versions can still notify. Manual checks still show a skipped update.
-- **Disable auto-checks**: stop scheduled checks and remove the notification. Manual checks remain
+- **Disable auto-checks**: stop scheduled checks, remove the notification and suppress the automatic
+  update dialog. Manual checks remain
   available; re-enable the switch in settings to resume.
 
 Ignoring or dismissing a notification does not skip the version. The next successful scheduled

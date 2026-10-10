@@ -24,20 +24,21 @@ var errUDPBlocked = errors.New("UDP is intentionally blocked")
 type Protector interface{ Protect(fd int) bool }
 
 type httpsConnectDialer struct {
-	jump         *httpsConnectDialer
-	intermediate bool
-	stats        *connectionStats
-	config       config
-	protector    Protector
-	reporter     Reporter
-	cacheMu      sync.Mutex
-	sessionCache tls.ClientSessionCache
-	dohClient    *http.Client
-	dohInFlight  chan struct{}
-	connections  chan struct{}
-	h2Session    *http2ConnectSession
-	h2Disabled   bool
-	closed       bool
+	jump          *httpsConnectDialer
+	intermediate  bool
+	stats         *connectionStats
+	config        config
+	protector     Protector
+	reporter      Reporter
+	cacheMu       sync.Mutex
+	sessionCache  tls.ClientSessionCache
+	dohClient     *http.Client
+	dohInFlight   chan struct{}
+	connections   chan struct{}
+	h2Session     *http2ConnectSession
+	drainingHTTP2 map[*http2ConnectSession]struct{}
+	h2Disabled    bool
+	closed        bool
 }
 
 func (d *httpsConnectDialer) Close() error {
@@ -55,6 +56,10 @@ func (d *httpsConnectDialer) Close() error {
 		_ = d.h2Session.close()
 		d.h2Session = nil
 	}
+	for session := range d.drainingHTTP2 {
+		_ = session.close()
+	}
+	d.drainingHTTP2 = nil
 	return nil
 }
 
@@ -321,7 +326,7 @@ func (d *httpsConnectDialer) installHTTP2Session(candidate *http2ConnectSession)
 		return d.h2Session
 	}
 	if d.h2Session != nil {
-		_ = d.h2Session.close()
+		d.retireHTTP2Session(d.h2Session)
 	}
 	d.h2Session = candidate
 	report(d.reporter, "event=http2_session result=established multiplexed=true")
@@ -333,7 +338,7 @@ func (d *httpsConnectDialer) invalidateHTTP2Session(session *http2ConnectSession
 	defer d.cacheMu.Unlock()
 	if d.h2Session == session {
 		d.h2Session = nil
-		_ = session.close()
+		d.retireHTTP2Session(session)
 	}
 }
 
@@ -343,8 +348,30 @@ func (d *httpsConnectDialer) disableHTTP2(session *http2ConnectSession) {
 	d.h2Disabled = true
 	if d.h2Session == session {
 		d.h2Session = nil
-		_ = session.close()
+		d.retireHTTP2Session(session)
 	}
+}
+
+// Called under cacheMu. The library drains existing streams; Stop still owns
+// every retired session and can immediately interrupt them all.
+func (d *httpsConnectDialer) retireHTTP2Session(session *http2ConnectSession) {
+	for old := range d.drainingHTTP2 {
+		if old.client.State().Closed {
+			delete(d.drainingHTTP2, old)
+		}
+	}
+	if session.client.State().Closed {
+		return
+	}
+	if d.drainingHTTP2 == nil {
+		d.drainingHTTP2 = make(map[*http2ConnectSession]struct{})
+	}
+	if _, exists := d.drainingHTTP2[session]; exists {
+		return
+	}
+	d.drainingHTTP2[session] = struct{}{}
+	go func() { _ = session.client.Shutdown(context.Background()) }()
+	report(d.reporter, "event=http2_session result=draining")
 }
 
 func (d *httpsConnectDialer) isHTTP2Disabled() bool {
@@ -449,6 +476,8 @@ type bufferedConn struct {
 }
 
 func (c *bufferedConn) Read(p []byte) (int, error) { return c.reader.Read(p) }
+func (c *bufferedConn) CloseRead() error           { return closeConnRead(c.Conn) }
+func (c *bufferedConn) CloseWrite() error          { return closeConnWrite(c.Conn) }
 
 type limitedHeaderReader struct {
 	reader    io.Reader
@@ -487,6 +516,7 @@ type diagnosticConn struct {
 	once                        sync.Once
 	transferred                 atomic.Uint64
 	proxyContext                context.Context
+	proxyHealthy                func() bool
 	readDeadline, writeDeadline atomic.Int64
 }
 
@@ -550,7 +580,7 @@ func (c *diagnosticConn) reportError(operation string, err error) {
 			}
 			if reason == "timeout" && deadline != 0 && deadline <= time.Now().UnixNano() {
 				scope, hint = "local_deadline", "none"
-			} else if c.proxyContext != nil && c.proxyContext.Err() == nil {
+			} else if (c.proxyContext != nil && c.proxyContext.Err() == nil) || (c.proxyHealthy != nil && c.proxyHealthy()) {
 				scope, hint = "target", "none"
 			}
 			report(c.reporter, "event=connection conn=%d stage=tunnel_io result=failed operation=%s reason=%s transferred_bytes=%d dpi_hint=%s scope=%s", c.connectionID, operation, reason, c.transferred.Load(), hint, scope)

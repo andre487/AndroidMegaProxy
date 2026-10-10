@@ -11,8 +11,11 @@ import (
 	"net/http/httptest"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
+
+	"golang.org/x/net/http2"
 )
 
 func TestHTTP2ConnectSessionMultiplexesStreams(t *testing.T) {
@@ -126,10 +129,14 @@ func isTimeout(err error) bool {
 	return ok && value.Timeout()
 }
 
-type rejectedHTTP2Client struct{ closed bool }
+type rejectedHTTP2Client struct{ closed atomic.Bool }
 
-func (c *rejectedHTTP2Client) CanTakeNewRequest() bool { return !c.closed }
-func (c *rejectedHTTP2Client) Close() error            { c.closed = true; return nil }
+func (c *rejectedHTTP2Client) CanTakeNewRequest() bool { return !c.closed.Load() }
+func (c *rejectedHTTP2Client) Close() error            { c.closed.Store(true); return nil }
+func (c *rejectedHTTP2Client) State() http2.ClientConnState {
+	return http2.ClientConnState{Closed: c.closed.Load()}
+}
+func (c *rejectedHTTP2Client) Shutdown(context.Context) error { return c.Close() }
 func (c *rejectedHTTP2Client) RoundTrip(r *http.Request) (*http.Response, error) {
 	_ = r.Body.Close()
 	return &http.Response{StatusCode: http.StatusBadGateway, Body: io.NopCloser(strings.NewReader(""))}, nil
@@ -143,7 +150,7 @@ func TestHTTP2RejectedTargetPreservesSession(t *testing.T) {
 	if !errors.As(err, &rejected) || rejected.status != http.StatusBadGateway {
 		t.Fatalf("error = %v", err)
 	}
-	if client.closed || d.currentHTTP2Session() != session {
+	if client.closed.Load() || d.currentHTTP2Session() != session {
 		t.Fatal("target failure closed shared session")
 	}
 }
@@ -180,7 +187,70 @@ func TestClosedDialerRejectsLateHTTP2Session(t *testing.T) {
 	d := &httpsConnectDialer{}
 	_ = d.Close()
 	client := &rejectedHTTP2Client{}
-	if session := d.installHTTP2Session(&http2ConnectSession{client: client}); session != nil || !client.closed {
+	if session := d.installHTTP2Session(&http2ConnectSession{client: client}); session != nil || !client.closed.Load() {
 		t.Fatal("late handshake resurrected a closed dialer")
 	}
+}
+
+func TestHTTP2GoAwayPreservesActiveTunnelDuringReplacement(t *testing.T) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.(http.Flusher).Flush()
+		_, _ = io.Copy(jumpFlushWriter{w}, r.Body)
+	}))
+	server.EnableHTTP2 = true
+	server.StartTLS()
+	defer server.Close()
+	openSession := func(address string) *http2ConnectSession {
+		t.Helper()
+		raw, err := tls.Dial("tcp", address, &tls.Config{InsecureSkipVerify: true, NextProtos: []string{"h2"}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		s, err := newHTTP2ConnectSession(raw)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return s
+	}
+	old := openSession(server.Listener.Addr().String())
+	d := &httpsConnectDialer{}
+	defer d.Close()
+	d.installHTTP2Session(old)
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	stream, _, err := old.openTunnel(ctx, "old.example:443", "Basic test")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stream.Close()
+	check := func(c net.Conn, value string) {
+		t.Helper()
+		_ = c.SetDeadline(time.Now().Add(time.Second))
+		if _, err := c.Write([]byte(value)); err != nil {
+			t.Fatal(err)
+		}
+		b := make([]byte, len(value))
+		if _, err := io.ReadFull(c, b); err != nil || string(b) != value {
+			t.Fatalf("active tunnel: %q %v", b, err)
+		}
+	}
+	check(stream, "before")
+	go func() { _ = server.Config.Shutdown(ctx) }()
+	for old.canTakeRequest() {
+		if ctx.Err() != nil {
+			t.Fatal("GOAWAY was not received")
+		}
+		time.Sleep(time.Millisecond)
+	}
+	freshServer := jumpTestProxy(t, true, "new.example:443", "exit:test", "", false)
+	fresh := openSession(freshServer.Listener.Addr().String())
+	d.installHTTP2Session(fresh)
+	check(stream, "after")
+	next, _, err := fresh.openTunnel(ctx, "new.example:443", "Basic ZXhpdDp0ZXN0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer next.Close()
+	check(next, "new")
 }

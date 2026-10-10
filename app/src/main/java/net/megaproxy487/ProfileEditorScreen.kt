@@ -189,7 +189,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 }
             }
             result.onSuccess { imported ->
-                updateConfig(if (jump) config.copy(jumpPrivateKey = imported) else config.copy(privateKey = imported))
+                updateConfig(if (jump) config.copy(jumpPrivateKey = imported, unreadableSecrets = config.unreadableSecrets - "jumpPrivateKey") else config.copy(privateKey = imported, unreadableSecrets = config.unreadableSecrets - "privateKey"))
                 error = null
             }.onFailure { failure ->
                 error = failure.userMessage(activity, R.string.key_import_failed)
@@ -298,6 +298,12 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
           item {
             Text(stringResource(R.string.connection), style = MaterialTheme.typography.titleMedium)
           }
+          if (config.unreadableSecrets.isNotEmpty()) item {
+            Text(stringResource(R.string.error_credentials_unavailable), color = MaterialTheme.colorScheme.error)
+          }
+          if (config.storageUnavailable) item {
+            Text(stringResource(R.string.error_config_storage), color = MaterialTheme.colorScheme.error)
+          }
           item {
             ExposedDropdownMenuBox(typeExpanded, { typeExpanded = it }) {
                 OutlinedTextField(activity.uiText(config.type.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.profile_type)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
@@ -322,7 +328,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { FieldLabel(stringResource(if (config.type.isHttpProxy) R.string.basic_auth_username else R.string.ssh_username)) }, isError = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username) != null, supportingText = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
           }
           item {
-            PasswordField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it)) } }, label = stringResource(if (config.type.isHttpProxy) R.string.password else R.string.ssh_password_optional),
+            PasswordField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it, unreadableSecrets = config.unreadableSecrets - "password")) } }, label = stringResource(if (config.type.isHttpProxy) R.string.password else R.string.ssh_password_optional),
                     error = fieldError(R.string.validation_basic_password), modifier = Modifier.fillMaxWidth())
           }
           if (config.type == ProxyType.MASQUE) {
@@ -351,7 +357,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
 
             if (!config.type.isHttpProxy) {
               item {
-                OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it)) } }, label = { FieldLabel(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it, unreadableSecrets = config.unreadableSecrets - "privateKey")) } }, label = { FieldLabel(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
               }
               item {
                 OutlinedButton(shape = RoundedCornerShape(12.dp),
@@ -397,7 +403,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                     OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { FieldLabel(stringResource(R.string.https_jump_username)) }, isError = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username) != null, supportingText = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
                 }
                 item {
-                    PasswordField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it)) } }, label = stringResource(R.string.https_jump_password),
+                    PasswordField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it, unreadableSecrets = config.unreadableSecrets - "jumpPassword")) } }, label = stringResource(R.string.https_jump_password),
                     error = fieldError(R.string.validation_jump_basic_password), modifier = Modifier.fillMaxWidth())
                 }
               }
@@ -433,11 +439,11 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                     OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { FieldLabel(stringResource(R.string.jump_ssh_username)) }, isError = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username) != null, supportingText = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
                   }
                   item {
-                    PasswordField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it)) } }, label = stringResource(R.string.jump_ssh_password_optional),
+                    PasswordField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it, unreadableSecrets = config.unreadableSecrets - "jumpPassword")) } }, label = stringResource(R.string.jump_ssh_password_optional),
                     error = fieldError(R.string.validation_jump_basic_password), modifier = Modifier.fillMaxWidth())
                   }
                   item {
-                    OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(jumpPrivateKey = it)) } }, label = { FieldLabel(stringResource(R.string.jump_private_key_optional)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(jumpPrivateKey = it, unreadableSecrets = config.unreadableSecrets - "jumpPrivateKey")) } }, label = { FieldLabel(stringResource(R.string.jump_private_key_optional)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
                   }
                   item {
                     OutlinedButton(shape = RoundedCornerShape(12.dp),

@@ -57,7 +57,7 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 ### DNS and transport
 
-- DNS-over-HTTPS through the configured transport.
+- UDP/53 DNS interception with DNS-over-HTTPS through the configured transport.
 - Cloudflare, Google, Quad9, Yandex Basic, Yandex Safe, Yandex Family, and custom DoH endpoints.
 - DNS-provider fallback where it does not weaken an explicitly selected filtering policy.
 - HTTPS ClientHello profiles powered by uTLS, MASQUE TLS/QUIC presets powered by uQUIC,
@@ -94,6 +94,9 @@ Chrome's. Responses and fingerprint data are not stored in diagnostic logs. See 
 
 - HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and
   validity. Normal CA certificate renewal does not require certificate pinning.
+- UDP/53 queries received by the VPN are converted to DoH. Application-managed TCP DNS,
+  Private DNS and browser Secure DNS follow normal traffic/routing rules; they are not
+  rewritten to the selected DoH provider.
 - Application TLS remains between the application and its destination. MegaProxy does not install
   a CA certificate and does not perform TLS interception.
 - Proxy passwords and imported private keys are encrypted with AES-GCM using a key held by Android
@@ -181,7 +184,7 @@ Chrome QUIC preset with randomized extension/parameter order. These approximate
 browser TLS/QUIC handshakes; HTTP/3 SETTINGS and congestion behavior remain those
 of the networking library. Firefox's 1200-byte datagram-frame limit cannot carry
 an inner QUIC Initial of 1200 bytes plus MASQUE framing; use Chrome for that traffic.
-The pinned uQUIC production sources include two compatibility fixes, documented in
+The pinned uQUIC production sources include compatibility and integration patches, documented in
 [native/third_party/uquic/MEGAPROXY.md](native/third_party/uquic/MEGAPROXY.md).
 
 ### HTTPS with Jump
@@ -207,8 +210,8 @@ exports support single HTTPS and MASQUE proxies and omit chain profiles.
 
 ### Experimental MASQUE α
 
-MASQUE over HTTP/3 is being developed in [PR #70](https://github.com/andre487/AndroidMegaProxy/pull/70)
-and is not included in the published v1.0.3 APKs. It adds TCP CONNECT and CONNECT-UDP
+MASQUE over HTTP/3 is available in `main` after [PR #70](https://github.com/andre487/AndroidMegaProxy/pull/70)
+was merged. It is not included in the published v1.0.3 APKs. It adds TCP CONNECT and CONNECT-UDP
 with Basic authentication and browser TLS/QUIC presets. Setup and known limits:
 [English](docs/en/masque.md) / [Русский](docs/ru/masque.md).
 

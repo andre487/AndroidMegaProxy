@@ -39,9 +39,14 @@ data class ProxyConfig(
     val sshMaxChannels: Int = 32,
     val sshRotationMinutes: Int = 0,
     val sshRotationMb: Int = 0,
+    // Opaque recovery data, never exported or put into Android saved state.
+    internal val unreadableSecrets: Map<String, String> = emptyMap(),
+    internal val storageUnavailable: Boolean = false,
 ) {
     @StringRes
     fun connectionValidationError(): Int? = when {
+        storageUnavailable -> R.string.error_config_storage
+        unavailableAuthentication() -> R.string.error_credentials_unavailable
         host.isBlank() -> if (type.isHttpProxy) R.string.validation_proxy_host else R.string.validation_ssh_host
         host.contains(Regex("[/:\\s]")) -> R.string.validation_host_format
         port !in 1..65535 -> R.string.validation_port
@@ -64,6 +69,18 @@ data class ProxyConfig(
 
     @StringRes
     fun validationError(): Int? = connectionValidationError()
+
+    private fun unavailableAuthentication(): Boolean {
+        val fields = if (type.isHttpProxy) listOf("password") else when (sshAuthMode) {
+            SshAuthMode.PASSWORD_ONLY -> listOf("password")
+            SshAuthMode.KEY_ONLY -> listOf("privateKey")
+            else -> listOf("password", "privateKey")
+        }
+        return fields.any { it in unreadableSecrets } ||
+            (type.hasJump && !sameJumpAuthentication && fields.any {
+                "jump${it.replaceFirstChar(Char::uppercaseChar)}" in unreadableSecrets
+            })
+    }
 }
 
 enum class ProxyType(val title: String, val defaultPort: Int) {

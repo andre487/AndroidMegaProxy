@@ -51,6 +51,7 @@ object ConfigTransfer {
     fun exportProxyList(profiles: List<ProxyProfile>, includePasswords: Boolean): String =
         profiles.filter { it.config.type == ProxyType.HTTPS || it.config.type == ProxyType.MASQUE }.joinToString("\n", postfix = "\n") { profile ->
             val config = profile.config
+            requireExportableSecrets(config, includePasswords, false)
             val password = if (includePasswords) config.password else ""
             val userInfo = "${encode(config.username)}:${encode(password)}"
             val query = buildList {
@@ -190,6 +191,7 @@ object ConfigTransfer {
     }
 
     internal fun encodeProfile(profile: ProxyProfile, includePasswords: Boolean, includePrivateKeys: Boolean) = JSONObject().apply {
+        requireExportableSecrets(profile.config, includePasswords, includePrivateKeys)
         put("id", profile.id)
         put("name", profile.name.trim())
         put("color", profile.colorIndex)
@@ -297,6 +299,14 @@ object ConfigTransfer {
         enumValues<T>().firstOrNull { it.name == value } ?: default
 
     private const val MAX_CUSTOM_JA3_LENGTH = 8 * 1024
+
+    private fun requireExportableSecrets(config: ProxyConfig, passwords: Boolean, privateKeys: Boolean) {
+        requireUi(!config.storageUnavailable) { UiException(R.string.error_config_storage) }
+        requireUi(config.unreadableSecrets.keys.none {
+            (passwords && it in setOf("password", "jumpPassword")) ||
+                (privateKeys && it in setOf("privateKey", "jumpPrivateKey"))
+        }) { UiException(R.string.error_credentials_unavailable) }
+    }
 
     private fun encode(value: String): String = URLEncoder.encode(value, StandardCharsets.UTF_8.name())
         .replace("+", "%20")

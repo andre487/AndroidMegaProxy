@@ -8,8 +8,6 @@ if [[ -f "$HOME/.zshrc.extra" ]]; then
     source "$HOME/.zshrc.extra"
 fi
 
-if [[ -z "${JAVA_HOME:-}" && -d /opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home ]]; then
-    export JAVA_HOME=/opt/homebrew/opt/openjdk@21/libexec/openjdk.jdk/Contents/Home
-fi
+source "$project_dir/scripts/java-toolchain.sh"
 
 exec "$project_dir/gradlew" -q :app:kotlinLanguageServerClasspath --no-daemon

@@ -218,18 +218,18 @@ jobs:
   emulator26:
     name: Android emulator API 26
     needs: changes
-    if: needs.changes.outputs.emulator26 == 'true'
     uses: ./.github/workflows/android-device.yml
     with:
       api: 26
+      enabled: ${{ needs.changes.outputs.emulator26 == 'true' }}
 
   emulator35:
     name: Android emulator API 35
     needs: changes
-    if: needs.changes.outputs.emulator35 == 'true'
     uses: ./.github/workflows/android-device.yml
     with:
       api: 35
+      enabled: ${{ needs.changes.outputs.emulator35 == 'true' }}
 
   report-native-tests:
     name: Publish Native Go results

@@ -5,6 +5,8 @@ import (
 	"crypto/ed25519"
 	"crypto/rand"
 	"io"
+	"net"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -201,5 +203,48 @@ func TestAbandonedSSHOpenEventuallyReleasesPool(t *testing.T) {
 	d.mu.Unlock()
 	if current != nil {
 		t.Fatal("stalled session not cleared for next connection")
+	}
+}
+
+func TestSSHCloseCancelsPendingHandshake(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		conn, err := listener.Accept()
+		if err == nil {
+			accepted <- conn
+		}
+	}()
+	port, _ := strconv.Atoi(strings.Split(listener.Addr().String(), ":")[1])
+	d := &sshDialer{config: config{Host: "127.0.0.1", Port: port, Username: "test", Password: "test"}, protector: &jumpTestProtector{}}
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	finished := make(chan error, 1)
+	go func() { _, err := d.session(ctx); finished <- err }()
+	var peer net.Conn
+	select {
+	case peer = <-accepted:
+	case <-ctx.Done():
+		t.Fatal(ctx.Err())
+	}
+	defer peer.Close()
+	closed := make(chan struct{})
+	go func() { _ = d.Close(); close(closed) }()
+	select {
+	case <-closed:
+	case <-time.After(time.Second):
+		t.Error("Close blocked behind pending SSH handshake")
+	}
+	select {
+	case err := <-finished:
+		if err == nil {
+			t.Error("Canceled handshake succeeded")
+		}
+	case <-ctx.Done():
+		t.Error("Handshake was not canceled")
 	}
 }

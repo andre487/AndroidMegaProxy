@@ -374,6 +374,9 @@
     <string name="error_foxy_no_usable">The FoxyProxy configuration contains no usable proxies</string>
     <string name="error_foxy_host">FoxyProxy entry %1$d has an invalid hostname</string>
     <string name="error_invalid_input">Invalid configuration data</string>
+    <string name="error_credentials_unavailable">Some saved credentials could not be decrypted. Their encrypted data was kept. Re-enter the affected credentials before connecting or exporting them.</string>
+    <string name="profile_storage_unavailable">Saved profiles unavailable</string>
+    <string name="error_config_storage">Saved profiles could not be read. Their stored data was kept. Import a configuration backup to restore them.</string>
     <string name="error_open_export">Could not open the export file</string>
     <string name="error_read_file">Could not read the selected file</string>
     <string name="error_open_file">Unable to open the selected file</string>

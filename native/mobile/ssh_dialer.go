@@ -26,7 +26,9 @@ type sshDialer struct {
 	reporter       Reporter
 	mu             sync.Mutex
 	client         *ssh.Client
-	closed         bool
+	closed         atomic.Bool
+	openingMu      sync.Mutex
+	openingCancel  context.CancelFunc
 	jumpClient     *ssh.Client
 	channels       chan struct{}
 	sessionCreated time.Time
@@ -41,10 +43,7 @@ func (d *sshDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.
 }
 
 func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn, error) {
-	d.mu.Lock()
-	closed := d.closed
-	d.mu.Unlock()
-	if closed {
+	if d.closed.Load() {
 		return nil, net.ErrClosed
 	}
 	if !d.config.AllowIPv6 {
@@ -110,12 +109,26 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.closed {
+	if d.closed.Load() {
 		return nil, net.ErrClosed
 	}
 	if d.client != nil {
 		return d.client, nil
 	}
+	d.openingMu.Lock()
+	if d.closed.Load() {
+		d.openingMu.Unlock()
+		return nil, net.ErrClosed
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	d.openingCancel = cancel
+	d.openingMu.Unlock()
+	defer func() {
+		cancel()
+		d.openingMu.Lock()
+		d.openingCancel = nil
+		d.openingMu.Unlock()
+	}()
 	if d.config.Type == "SSH_JUMP" {
 		started := time.Now()
 		raw, err := dialMeasuredTCP(ctx, d.protectedDialer(), d.config.jumpAddress(), d.stats)
@@ -422,9 +435,12 @@ func (d *sshDialer) invalidateClient(expected *ssh.Client) {
 }
 
 func (d *sshDialer) Close() error {
-	d.mu.Lock()
-	d.closed = true
-	d.mu.Unlock()
+	d.closed.Store(true)
+	d.openingMu.Lock()
+	if d.openingCancel != nil {
+		d.openingCancel()
+	}
+	d.openingMu.Unlock()
 	d.invalidate()
 	d.mu.Lock()
 	if d.dohClient != nil {
@@ -493,7 +509,9 @@ func (c *sshTrackedConn) Write(p []byte) (int, error) {
 	c.bytes.Add(uint64(n))
 	return n, err
 }
-func (c *sshTrackedConn) Close() error { err := c.Conn.Close(); c.once.Do(c.release); return err }
+func (c *sshTrackedConn) Close() error      { err := c.Conn.Close(); c.once.Do(c.release); return err }
+func (c *sshTrackedConn) CloseRead() error  { return closeConnRead(c.Conn) }
+func (c *sshTrackedConn) CloseWrite() error { return closeConnWrite(c.Conn) }
 
 // x/crypto's DialContext returns on cancellation while its internal Dial may still
 // wait for CHANNEL_OPEN confirmation. Keep admission charged to that worker.

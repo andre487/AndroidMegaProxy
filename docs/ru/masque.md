@@ -1,7 +1,7 @@
 # MASQUE α (HTTP/3)
 
 MASQUE — экспериментальная поддержка, обозначенная **α** в интерфейсе. Реализация
-находится в [PR #70](https://github.com/andre487/AndroidMegaProxy/pull/70);
+влита в `main` в [PR #70](https://github.com/andre487/AndroidMegaProxy/pull/70);
 опубликованные APK v1.0.3 поддерживают только HTTPS/SSH. Нужна сборка, включающая
 эту реализацию. APK из PR предназначены для тестирования; см. [установку](installation.md).
 
@@ -48,6 +48,10 @@ VPN на компьютере с эмулятором: доступность TC
 учёт трафика, DoH/fallback, диагностика, переподключение/failover и шифрование реквизитов.
 JSON использует `proxy.type: "MASQUE"`; ProxyList —
 `masque://user:password@host:port`. Jump поддерживается только для HTTPS/SSH.
+
+Запросы UDP/53, поступающие в VPN, преобразуются в DoH. TCP DNS приложений,
+Private DNS и Secure DNS браузера следуют обычной маршрутизации и не преобразуются
+в запросы к выбранному DoH-провайдеру.
 
 ## Отпечатки и ограничения
 

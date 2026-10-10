@@ -1,5 +1,8 @@
 package net.megaproxy487.data
 
+import net.megaproxy487.R
+import net.megaproxy487.UiException
+import net.megaproxy487.requireUi
 import net.megaproxy487.uiText
 import net.megaproxy487.localizedName
 
@@ -39,22 +42,19 @@ class ConfigStore(context: Context) {
     private val context = context.applicationContext
     private val prefs = context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE)
 
-    @Synchronized
-    fun profiles(): List<ProxyProfile> {
+    fun profiles(): List<ProxyProfile> = synchronized(storageLock) {
         ensureMigrated()
         val decoded = decodeProfiles(prefs.getString(PROFILES, null)).ifEmpty {
-            val recovered = createInitialProfile()
-            prefs.edit()
-                .putString(PROFILES, encodeProfiles(listOf(recovered)))
-                .putString(ACTIVE_PROFILE_ID, recovered.id)
-                .putString(ALWAYS_ON_PROFILE_ID, recovered.id)
-                .putString(CONNECTION_PROFILE_ID, recovered.id)
-                .putBoolean(FAILOVER_ACTIVE, false)
-                .remove(FAILOVER_NOTICE)
-                .apply()
-            listOf(recovered)
+            // A parser failure must not destroy the only remaining recovery data.
+            listOf(ProxyProfile(
+                id = prefs.getString(ACTIVE_PROFILE_ID, null) ?: "unavailable-storage",
+                name = context.uiText(R.string.profile_storage_unavailable),
+                colorIndex = 0,
+                config = ProxyConfig(storageUnavailable = true),
+            ))
         }
-        if (prefs.getInt(FLAG_COLOR_VERSION, 0) >= CURRENT_FLAG_COLOR_VERSION) return decoded
+        if (decoded.any { it.config.storageUnavailable }) return@synchronized decoded
+        if (prefs.getInt(FLAG_COLOR_VERSION, 0) >= CURRENT_FLAG_COLOR_VERSION) return@synchronized decoded
         val recolored = decoded.map { profile ->
             if (profile.countryCode.isEmpty()) profile
             else profile.copy(
@@ -65,7 +65,7 @@ class ConfigStore(context: Context) {
             .putString(PROFILES, encodeProfiles(recolored))
             .putInt(FLAG_COLOR_VERSION, CURRENT_FLAG_COLOR_VERSION)
             .apply()
-        return recolored
+        return@synchronized recolored
     }
 
     fun activeProfile(): ProxyProfile = profile(activeProfileId()) ?: profiles().first()
@@ -74,12 +74,11 @@ class ConfigStore(context: Context) {
 
     fun sortedProfiles(): List<ProxyProfile> = profiles()
 
-    @Synchronized
-    fun reorderProfiles(orderedIds: List<String>) {
+    fun reorderProfiles(orderedIds: List<String>) = synchronized(storageLock) {
         val current = profiles()
         val byId = current.associateBy(ProxyProfile::id)
         val reordered = orderedIds.mapNotNull(byId::get) + current.filter { it.id !in orderedIds }
-        if (reordered.map(ProxyProfile::id) == current.map(ProxyProfile::id)) return
+        if (reordered.map(ProxyProfile::id) == current.map(ProxyProfile::id)) return@synchronized
         writeProfiles(reordered)
     }
 
@@ -133,18 +132,17 @@ class ConfigStore(context: Context) {
 
     fun pendingReconnectToken(): String? = prefs.getString(PENDING_RECONNECT, null)
 
-    fun markPendingReconnect() {
+    fun markPendingReconnect() = synchronized(storageLock) {
         prefs.edit().putString(PENDING_RECONNECT, UUID.randomUUID().toString()).apply()
     }
 
-    fun clearPendingReconnect(appliedToken: String?) {
+    fun clearPendingReconnect(appliedToken: String?) = synchronized(storageLock) {
         if (appliedToken != null && pendingReconnectToken() == appliedToken) {
             prefs.edit().remove(PENDING_RECONNECT).apply()
         }
     }
 
-    @Synchronized
-    fun globalConnectionSettings(): GlobalConnectionSettings {
+    fun globalConnectionSettings(): GlobalConnectionSettings = synchronized(storageLock) {
         ensureMigrated()
         val stored = prefs.getString(GLOBAL_CONNECTION_SETTINGS, null)
         if (stored != null) {
@@ -153,9 +151,9 @@ class ConfigStore(context: Context) {
             if (!operationResult { JSONObject(stored).has("sshProfile") }.getOrDefault(false)) {
                 val upgraded = decoded.copy(sshProfile = activeProfile().config.sshProfile)
                 saveGlobalConnectionSettings(upgraded)
-                return upgraded
+                return@synchronized upgraded
             }
-            return decoded
+            return@synchronized decoded
         }
         val source = activeProfile().config
         val migrated = GlobalConnectionSettings(
@@ -168,18 +166,19 @@ class ConfigStore(context: Context) {
         )
         saveGlobalConnectionSettings(migrated)
         prefs.edit().putBoolean(IPV6_PROFILE_MIGRATED, true).apply()
-        return migrated
+        return@synchronized migrated
     }
 
-    @Synchronized
-    private fun migrateGlobalIpv6ToProfiles(storedSettings: String) {
-        if (prefs.getBoolean(IPV6_PROFILE_MIGRATED, false)) return
+    private fun migrateGlobalIpv6ToProfiles(storedSettings: String) = synchronized(storageLock) {
+        if (prefs.getBoolean(IPV6_PROFILE_MIGRATED, false)) return@synchronized
+        val current = profiles()
+        if (current.any { it.config.storageUnavailable }) return@synchronized
         val enabled = operationResult { JSONObject(storedSettings).optBoolean("allowIpv6", false) }.getOrDefault(false)
-        writeProfiles(profiles().map { it.copy(config = it.config.copy(allowIpv6 = enabled)) })
+        writeProfiles(current.map { it.copy(config = it.config.copy(allowIpv6 = enabled)) })
         prefs.edit().putBoolean(IPV6_PROFILE_MIGRATED, true).apply()
     }
 
-    fun saveGlobalConnectionSettings(settings: GlobalConnectionSettings) {
+    fun saveGlobalConnectionSettings(settings: GlobalConnectionSettings) = synchronized(storageLock) {
         val normalized = settings.copy(
             tlsProfile = settings.tlsProfile.takeIf { it.available } ?: TlsProfile.DEFAULT,
             sshKeepaliveSeconds = settings.sshKeepaliveSeconds.coerceIn(0, 3600),
@@ -191,36 +190,34 @@ class ConfigStore(context: Context) {
         prefs.edit().putString(GLOBAL_CONNECTION_SETTINGS, encodeGlobalConnectionSettings(normalized)).commitOrThrow()
     }
 
-    @Synchronized
-    fun newProfileDraft(id: String = UUID.randomUUID().toString()): ProxyProfile {
+    fun newProfileDraft(id: String = UUID.randomUUID().toString()): ProxyProfile = synchronized(storageLock) {
         val existing = profiles()
         val profile = ProxyProfile(
             id = id,
             colorIndex = nextColorIndex(existing),
             config = ProxyConfig(port = 443),
         )
-        return profile
+        return@synchronized profile
     }
 
-    @Synchronized
-    fun addProfile(): ProxyProfile = newProfileDraft().also { writeProfiles(profiles() + it) }
+    fun addProfile(): ProxyProfile = synchronized(storageLock) {
+        newProfileDraft().also { writeProfiles(profiles() + it) }
+    }
 
-    @Synchronized
-    fun cloneProfile(id: String): ProxyProfile? {
+    fun cloneProfile(id: String): ProxyProfile? = synchronized(storageLock) {
         val existing = profiles()
         val sourceIndex = existing.indexOfFirst { it.id == id }
-        if (sourceIndex < 0) return null
+        if (sourceIndex < 0) return@synchronized null
         val source = existing[sourceIndex]
         val clone = source.copy(
             id = UUID.randomUUID().toString(),
-            name = context.uiText(net.megaproxy487.R.string.profile_copy, source.localizedName(context)),
+            name = context.uiText(R.string.profile_copy, source.localizedName(context)),
         )
         writeProfiles(existing.toMutableList().apply { add(sourceIndex + 1, clone) })
-        return clone
+        return@synchronized clone
     }
 
-    @Synchronized
-    fun importProfiles(imported: List<ImportedProxy>): List<ProxyProfile> {
+    fun importProfiles(imported: List<ImportedProxy>): List<ProxyProfile> = synchronized(storageLock) {
         val existing = profiles()
         val allocated = existing.toMutableList()
         val changed = mutableListOf<ProxyProfile>()
@@ -257,12 +254,11 @@ class ConfigStore(context: Context) {
             }
         }
         if (allocated != existing) writeProfiles(allocated)
-        return changed
+        return@synchronized changed
     }
 
-    @Synchronized
-    fun importConfiguration(configuration: PortableConfiguration): ConfigurationImportResult {
-        val existing = profiles()
+    fun importConfiguration(configuration: PortableConfiguration): ConfigurationImportResult = synchronized(storageLock) {
+        val existing = profiles().filterNot { it.config.storageUnavailable }
         val existingById = existing.associateBy(ProxyProfile::id)
         val importedById = configuration.profiles.associateBy(ProxyProfile::id)
         val added = mutableListOf<ProxyProfile>()
@@ -276,6 +272,15 @@ class ConfigStore(context: Context) {
                 privateKey = source.config.privateKey.takeIf { presence.privateKey } ?: current.config.privateKey,
                 jumpPassword = source.config.jumpPassword.takeIf { presence.jumpPassword } ?: current.config.jumpPassword,
                 jumpPrivateKey = source.config.jumpPrivateKey.takeIf { presence.jumpPrivateKey } ?: current.config.jumpPrivateKey,
+                unreadableSecrets = current.config.unreadableSecrets.filterKeys { name ->
+                    when (name) {
+                        "password" -> !presence.password
+                        "privateKey" -> !presence.privateKey
+                        "jumpPassword" -> !presence.jumpPassword
+                        "jumpPrivateKey" -> !presence.jumpPrivateKey
+                        else -> false
+                    }
+                },
             ))
             when {
                 current == null -> added += resolved
@@ -285,18 +290,28 @@ class ConfigStore(context: Context) {
             resolved
         }
         val missing = existing.filter { it.id !in importedById }
+        requireUi(merged.isNotEmpty()) { UiException(R.string.error_config_no_usable) }
         writeProfiles(mergeResolvedProfiles(existing, merged, added))
         val editor = prefs.edit()
             .putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
+        if (existing.isEmpty()) {
+            val first = merged.first().id
+            editor.putString(ACTIVE_PROFILE_ID, first)
+                .putString(ALWAYS_ON_PROFILE_ID, first)
+                .putString(CONNECTION_PROFILE_ID, first)
+                .putBoolean(FAILOVER_ACTIVE, false)
+                .remove(FAILOVER_NOTICE)
+        }
         configuration.activeProfileId?.takeIf(importedById::containsKey)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
         configuration.alwaysOnProfileId?.takeIf(importedById::containsKey)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
         editor.apply()
         configuration.globalConnectionSettings?.let { importedSettings ->
+            prefs.edit().putBoolean(IPV6_PROFILE_MIGRATED, true).apply()
             saveGlobalConnectionSettings(importedSettings.copy(
                 failoverProfileIds = importedSettings.failoverProfileIds.filter(importedById::containsKey),
             ))
         }
-        return ConfigurationImportResult(added, updated, unchanged, missing)
+        return@synchronized ConfigurationImportResult(added, updated, unchanged, missing)
     }
 
     private fun ProxyProfile.importIdentity(): String = config.importIdentity()
@@ -308,8 +323,7 @@ class ConfigStore(context: Context) {
         jumpHost.trim().lowercase(), jumpPort.toString(), jumpUsername,
     ).joinToString("\u0000")
 
-    @Synchronized
-    fun saveProfile(profile: ProxyProfile, createIfMissing: Boolean = false) {
+    fun saveProfile(profile: ProxyProfile, createIfMissing: Boolean = false) = synchronized(storageLock) {
         val current = profiles()
         val updated = if (createIfMissing && current.none { it.id == profile.id }) current + profile
             else current.map { if (it.id == profile.id) profile else it }
@@ -317,9 +331,8 @@ class ConfigStore(context: Context) {
         writeProfiles(updated)
     }
 
-    @Synchronized
-    fun trustSshHostKey(profileId: String, hop: String, fingerprint: String): Boolean {
-        if (!fingerprint.matches(Regex("SHA256:[A-Za-z0-9+/]{20,}={0,2}"))) return false
+    fun trustSshHostKey(profileId: String, hop: String, fingerprint: String): Boolean = synchronized(storageLock) {
+        if (!fingerprint.matches(Regex("SHA256:[A-Za-z0-9+/]{20,}={0,2}"))) return@synchronized false
         val current = profiles()
         var changed = false
         val updated = current.map { profile ->
@@ -333,13 +346,12 @@ class ConfigStore(context: Context) {
             }
         }
         if (changed) writeProfiles(updated)
-        return changed
+        return@synchronized changed
     }
 
-    @Synchronized
-    fun deleteProfile(id: String): Boolean {
+    fun deleteProfile(id: String): Boolean = synchronized(storageLock) {
         val current = profiles()
-        if (current.size <= 1 || current.none { it.id == id }) return false
+        if (current.size <= 1 || current.none { it.id == id }) return@synchronized false
         val connectionWasDeleted = connectionProfile().id == id
         val remaining = current.filterNot { it.id == id }
         val replacement = remaining.first().id
@@ -354,15 +366,14 @@ class ConfigStore(context: Context) {
             saveGlobalConnectionSettings(settings.copy(failoverProfileIds = settings.failoverProfileIds - id))
         }
         if (connectionWasDeleted && isFailoverActive()) setFailoverState(false, null)
-        return true
+        return@synchronized true
     }
 
-    @Synchronized
-    fun deleteProfiles(ids: Set<String>): Boolean {
-        if (ids.isEmpty()) return false
+    fun deleteProfiles(ids: Set<String>): Boolean = synchronized(storageLock) {
+        if (ids.isEmpty()) return@synchronized false
         val current = profiles()
         val remaining = current.filter { it.id !in ids }
-        if (remaining.isEmpty() || remaining.size == current.size) return false
+        if (remaining.isEmpty() || remaining.size == current.size) return@synchronized false
         val removedIds = current.map(ProxyProfile::id).toSet() - remaining.map(ProxyProfile::id).toSet()
         val replacement = remaining.first().id
         val connectionWasDeleted = connectionProfileId() in removedIds
@@ -377,7 +388,7 @@ class ConfigStore(context: Context) {
             failoverProfileIds = settings.failoverProfileIds.filterNot(removedIds::contains),
         ))
         if (connectionWasDeleted && isFailoverActive()) setFailoverState(false, null)
-        return connectionWasDeleted
+        return@synchronized connectionWasDeleted
     }
 
     /** Compatibility accessor for callers that operate on the selected profile. */
@@ -400,7 +411,7 @@ class ConfigStore(context: Context) {
 
     private fun ensureMigrated() {
         if (prefs.contains(PROFILES)) return
-        synchronized(prefs) {
+        synchronized(storageLock) {
             if (prefs.contains(PROFILES)) return
             val profile = createInitialProfile()
             prefs.edit()
@@ -417,21 +428,25 @@ class ConfigStore(context: Context) {
         config = legacyConfig(),
     )
 
-    private fun legacyConfig() = ProxyConfig(
-        host = prefs.getString("host", "").orEmpty(),
-        port = prefs.getInt("port", 443),
-        username = prefs.getString("username", "").orEmpty(),
-        password = decrypt(prefs.getString("password", null)),
-        allowInvalidProxyCertificate = false,
-        profile = enumValue(prefs.getString("profile", null), TlsProfile.DEFAULT),
-        customJa3 = prefs.getString("custom_ja3", "").orEmpty(),
-        dnsProvider = enumValue(prefs.getString("dns_provider", null), DnsProvider.CLOUDFLARE),
-        customDohUrl = prefs.getString("custom_doh_url", "").orEmpty(),
-        selectedPackages = prefs.getStringSet("packages", emptySet())?.toSet().orEmpty(),
-        allowIpv6 = prefs.getBoolean("allow_ipv6", false),
-        routeAllApps = true,
-        bypassLocalNetworks = true,
-    )
+    private fun legacyConfig(): ProxyConfig {
+        val unreadable = mutableMapOf<String, String>()
+        return ProxyConfig(
+            host = prefs.getString("host", "").orEmpty(),
+            port = prefs.getInt("port", 443),
+            username = prefs.getString("username", "").orEmpty(),
+            password = decryptStored(prefs.getString("password", null), "password", unreadable),
+            allowInvalidProxyCertificate = false,
+            profile = enumValue(prefs.getString("profile", null), TlsProfile.DEFAULT),
+            customJa3 = prefs.getString("custom_ja3", "").orEmpty(),
+            dnsProvider = enumValue(prefs.getString("dns_provider", null), DnsProvider.CLOUDFLARE),
+            customDohUrl = prefs.getString("custom_doh_url", "").orEmpty(),
+            selectedPackages = prefs.getStringSet("packages", emptySet())?.toSet().orEmpty(),
+            allowIpv6 = prefs.getBoolean("allow_ipv6", false),
+            routeAllApps = true,
+            bypassLocalNetworks = true,
+            unreadableSecrets = unreadable.toMap(),
+        )
+    }
 
     private inline fun <reified T : Enum<T>> enumValue(value: String?, default: T): T =
         operationResult { enumValueOf<T>(value ?: default.name) }.getOrDefault(default)
@@ -447,6 +462,9 @@ class ConfigStore(context: Context) {
     }
 
     private fun encodeProfiles(profiles: List<ProxyProfile>) = JSONArray().apply {
+        requireUi(profiles.none { it.config.storageUnavailable }) {
+            UiException(R.string.error_config_storage)
+        }
         profiles.forEach { profile ->
             put(JSONObject().apply {
                 put("id", profile.id)
@@ -459,20 +477,22 @@ class ConfigStore(context: Context) {
     }.toString()
 
     private fun encodeConfig(config: ProxyConfig) = JSONObject().apply {
+        fun secret(name: String, value: String): String =
+            if (value.isEmpty()) config.unreadableSecrets[name] ?: encrypt(value) else encrypt(value)
         put("type", config.type.name)
         put("host", config.host.trim())
         put("port", config.port)
         put("username", config.username)
-        put("password", encrypt(config.password))
-        put("privateKey", encrypt(config.privateKey))
+        put("password", secret("password", config.password))
+        put("privateKey", secret("privateKey", config.privateKey))
         put("sshProfile", config.sshProfile.name)
         put("trustedHostKey", config.trustedHostKey)
         put("acceptAnyHostKey", config.acceptAnyHostKey)
         put("jumpHost", config.jumpHost.trim())
         put("jumpPort", config.jumpPort)
         put("jumpUsername", config.jumpUsername)
-        put("jumpPassword", encrypt(config.jumpPassword))
-        put("jumpPrivateKey", encrypt(config.jumpPrivateKey))
+        put("jumpPassword", secret("jumpPassword", config.jumpPassword))
+        put("jumpPrivateKey", secret("jumpPrivateKey", config.jumpPrivateKey))
         put("jumpTrustedHostKey", config.jumpTrustedHostKey)
         put("jumpAllowInvalidProxyCertificate", config.jumpAllowInvalidProxyCertificate)
         put("jumpAcceptAnyHostKey", config.jumpAcceptAnyHostKey)
@@ -502,37 +522,42 @@ class ConfigStore(context: Context) {
         }
     }.getOrDefault(emptyList())
 
-    private fun decodeConfig(item: JSONObject) = ProxyConfig(
-        type = enumValue(item.optString("type"), ProxyType.HTTPS),
-        host = item.optString("host"),
-        port = item.optInt("port", 443),
-        username = item.optString("username"),
-        password = decrypt(item.optString("password").ifEmpty { null }),
-        privateKey = decrypt(item.optString("privateKey").ifEmpty { null }),
-        sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),
-        trustedHostKey = item.optString("trustedHostKey"),
-        acceptAnyHostKey = item.optBoolean("acceptAnyHostKey", false),
-        jumpHost = item.optString("jumpHost"),
-        jumpPort = item.optInt("jumpPort", enumValue(item.optString("type"), ProxyType.HTTPS).defaultPort),
-        jumpUsername = item.optString("jumpUsername"),
-        jumpPassword = decrypt(item.optString("jumpPassword").ifEmpty { null }),
-        jumpPrivateKey = decrypt(item.optString("jumpPrivateKey").ifEmpty { null }),
-        jumpTrustedHostKey = item.optString("jumpTrustedHostKey"),
-        jumpAllowInvalidProxyCertificate = item.optBoolean("jumpAllowInvalidProxyCertificate", false),
-        jumpAcceptAnyHostKey = item.optBoolean("jumpAcceptAnyHostKey", false),
-        sameJumpAuthentication = item.optBoolean("sameJumpAuthentication", true),
-        allowInvalidProxyCertificate = item.optBoolean("allowInvalidProxyCertificate", false),
-        profile = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT),
-        customJa3 = item.optString("customJa3"),
-        dnsProvider = enumValue(item.optString("dnsProvider"), DnsProvider.CLOUDFLARE),
-        customDohUrl = item.optString("customDohUrl"),
-        selectedPackages = item.optJSONArray("packages")?.let { array ->
-            (0 until array.length()).map { array.getString(it) }.toSet()
-        }.orEmpty(),
-        allowIpv6 = item.optBoolean("allowIpv6", false),
-        routeAllApps = item.optBoolean("routeAllApps", false),
-        bypassLocalNetworks = item.optBoolean("bypassLocalNetworks", true),
-    )
+    private fun decodeConfig(item: JSONObject): ProxyConfig {
+        val unreadable = mutableMapOf<String, String>()
+        fun secret(name: String) = decryptStored(item.optString(name).ifEmpty { null }, name, unreadable)
+        return ProxyConfig(
+            type = enumValue(item.optString("type"), ProxyType.HTTPS),
+            host = item.optString("host"),
+            port = item.optInt("port", 443),
+            username = item.optString("username"),
+            password = secret("password"),
+            privateKey = secret("privateKey"),
+            sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),
+            trustedHostKey = item.optString("trustedHostKey"),
+            acceptAnyHostKey = item.optBoolean("acceptAnyHostKey", false),
+            jumpHost = item.optString("jumpHost"),
+            jumpPort = item.optInt("jumpPort", enumValue(item.optString("type"), ProxyType.HTTPS).defaultPort),
+            jumpUsername = item.optString("jumpUsername"),
+            jumpPassword = secret("jumpPassword"),
+            jumpPrivateKey = secret("jumpPrivateKey"),
+            jumpTrustedHostKey = item.optString("jumpTrustedHostKey"),
+            jumpAllowInvalidProxyCertificate = item.optBoolean("jumpAllowInvalidProxyCertificate", false),
+            jumpAcceptAnyHostKey = item.optBoolean("jumpAcceptAnyHostKey", false),
+            sameJumpAuthentication = item.optBoolean("sameJumpAuthentication", true),
+            allowInvalidProxyCertificate = item.optBoolean("allowInvalidProxyCertificate", false),
+            profile = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT),
+            customJa3 = item.optString("customJa3"),
+            dnsProvider = enumValue(item.optString("dnsProvider"), DnsProvider.CLOUDFLARE),
+            customDohUrl = item.optString("customDohUrl"),
+            selectedPackages = item.optJSONArray("packages")?.let { array ->
+                (0 until array.length()).map { array.getString(it) }.toSet()
+            }.orEmpty(),
+            allowIpv6 = item.optBoolean("allowIpv6", false),
+            routeAllApps = item.optBoolean("routeAllApps", false),
+            bypassLocalNetworks = item.optBoolean("bypassLocalNetworks", true),
+            unreadableSecrets = unreadable.toMap(),
+        )
+    }
 
     private fun encodeGlobalConnectionSettings(settings: GlobalConnectionSettings) = JSONObject().apply {
         put("fingerprint", settings.tlsProfile.name)
@@ -576,12 +601,12 @@ class ConfigStore(context: Context) {
 
     private var cachedKey: SecretKey? = null
 
-    @Synchronized
-    private fun key(): SecretKey {
-        cachedKey?.let { return it }
+    private fun key(createIfMissing: Boolean = true): SecretKey = synchronized(storageLock) {
+        cachedKey?.let { return@synchronized it }
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { cachedKey = it; return it }
-        return KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
+        (store.getKey(KEY_ALIAS, null) as? SecretKey)?.let { cachedKey = it; return@synchronized it }
+        check(createIfMissing) { "Stored credential key is unavailable" }
+        return@synchronized KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore").run {
             init(KeyGenParameterSpec.Builder(KEY_ALIAS, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
@@ -596,16 +621,21 @@ class ConfigStore(context: Context) {
         return Base64.encodeToString(cipher.iv + cipher.doFinal(plain.toByteArray(Charsets.UTF_8)), Base64.NO_WRAP)
     }
 
-    private fun decrypt(packed: String?): String = operationResult {
+    private fun decryptStored(packed: String?, name: String, unreadable: MutableMap<String, String>): String = operationResult {
         if (packed == null) return ""
         val bytes = Base64.decode(packed, Base64.NO_WRAP)
         require(bytes.size > IV_SIZE)
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
-        cipher.init(Cipher.DECRYPT_MODE, key(), GCMParameterSpec(128, bytes.copyOfRange(0, IV_SIZE)))
+        cipher.init(Cipher.DECRYPT_MODE, key(createIfMissing = false), GCMParameterSpec(128, bytes.copyOfRange(0, IV_SIZE)))
         cipher.doFinal(bytes.copyOfRange(IV_SIZE, bytes.size)).toString(Charsets.UTF_8)
-    }.getOrDefault("")
+    }.getOrElse {
+        if (packed != null) unreadable[name] = packed
+        ""
+    }
 
     private companion object {
+        // ponytail: one lock per app process; split by store only if concurrent disk writes become a bottleneck.
+        val storageLock = Any()
         const val KEY_ALIAS = "megaproxy.proxy.credentials.v1"
         const val IV_SIZE = 12
         const val PROFILES = "profiles_v2"

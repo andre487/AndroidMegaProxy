@@ -78,6 +78,14 @@ class UpdateNotificationsTest {
         UpdateNotifications.show(app, AppUpdate(UpdateSource.FDROID, "0.1.2"))
         assertNull(shadowOf(notifications).getNotification(UPDATE_NOTIFICATION_ID))
     }
+    @Test fun disablingChecksSuppressesPreviouslyDetectedDialog() {
+        AppUpdates(app).select(UpdateSource.GITHUB)
+        val prefs = UpdatePreferences(app)
+        prefs.detected(UpdateSource.GITHUB, AppUpdate(UpdateSource.GITHUB, "99.0.0"))
+        assertNotNull(prefs.pending())
+        prefs.automatic = false
+        assertNull(prefs.pending())
+    }
     @Test fun detectionSurvivesDeniedNotificationsAndReminderAndSkipPersist() {
         AppUpdates(app).select(UpdateSource.GITHUB)
         val update = AppUpdate(UpdateSource.GITHUB, "99.0.0")

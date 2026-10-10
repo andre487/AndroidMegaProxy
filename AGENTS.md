@@ -29,6 +29,8 @@ branch names, credentials, signing material, or other secrets.
   Failed/skipped/cancelled jobs do not advance coverage. Fall back to the full PR diff when
   history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope`, `Python tests and style` and both emulator scenarios
   alongside native/Android JVM checks when this workflow is adopted.
+  Gate reusable emulator suites inside the called job, keeping the caller unconditional so
+  skipped suites retain their required `Android emulator API 26/35 / Device tests` check names.
 - Every push to main runs all suites without diff/history filtering. The README CI badge is
   pinned to main/push; selective checks apply to initial PR runs.
 - A full CI rerun disables change filtering when Change scope executes on run attempt > 1,
@@ -108,6 +110,8 @@ branch names, credentials, signing material, or other secrets.
 - Configuration writes must outlive individual screens and expose pending/failure state. Keep
   transfer operations across configuration changes; never put credentials or export payloads into
   Android saved-state bundles, and reject a lost export before opening the output stream.
+  Serialize profile read/modify/write operations and Keystore key creation across ConfigStore
+  instances. Preserve unreadable ciphertext and malformed profile storage; recovery must be explicit.
 
 ## Privacy and documentation
 
