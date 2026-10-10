@@ -80,12 +80,12 @@ func waitForMasqueMTU(ctx context.Context, s *masqueSession, host string, packet
 	}
 }
 
-// Reserve the largest short header (20-byte CID, 4-byte packet number and
-// 16-byte tag), DATAGRAM framing, HTTP/3 quarter-stream ID and UDP context ID.
+// The QUIC send limit already includes its packet and DATAGRAM headers.
+// Reserve HTTP/3 quarter-stream ID and UDP context ID in both directions.
 // The receive direction uses our immutable source CID length.
 func nestedPacketMTU(s *masqueSession, streamIDBytes int) int {
 	framing := streamIDBytes + 1
-	send := int(s.conn.DatagramPayloadLimit()) - (1 + 20 + 4 + 16 + 3) - framing
+	send := int(s.conn.DatagramPayloadLimit()) - framing
 	receive := int(s.peerMTU.largest.Load()) - (1 + s.sourceCIDLength + 4 + 16 + 3) - framing
 	return min(send, receive)
 }

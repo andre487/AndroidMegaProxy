@@ -285,6 +285,10 @@ func (d *masqueDialer) dialSession(ctx context.Context) (session *masqueSession,
 			return nil, err
 		}
 	}
+	if d.jump != nil && conn.DatagramPayloadLimit() < 1350+8+1 {
+		s.close()
+		return nil, fmt.Errorf("%w: nested datagram budget too small", errMasqueSettings)
+	}
 	if d.stats != nil {
 		s.metrics = d.stats.trackQUIC(conn)
 	}

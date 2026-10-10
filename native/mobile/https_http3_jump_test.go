@@ -475,6 +475,19 @@ func TestHTTPSJumpGoAwayPreservesActiveStreams(t *testing.T) {
 					}
 				}
 			}
+			// CONNECTION_CLOSE is best effort, especially inside a UDP association
+			// that we have already closed. Stop guarantees local resource cleanup;
+			// explicitly end the remote fixtures instead of assuming delivery.
+			if hop != "destination" {
+				if err := jump.server.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if hop != "jump" {
+				if err := exit.server.Close(); err != nil {
+					t.Fatal(err)
+				}
+			}
 			for _, done := range shutdowns {
 				select {
 				case err := <-done:

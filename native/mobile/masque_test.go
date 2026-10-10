@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/base64"
 	"errors"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -35,6 +36,10 @@ func newMasqueFixture(t *testing.T, wrap func(net.PacketConn) net.PacketConn, ha
 }
 
 func newMasqueFixtureWithDatagrams(t *testing.T, wrap func(net.PacketConn) net.PacketConn, datagrams bool, handler ...http.Handler) masqueFixture {
+	return newMasqueFixtureWithCID(t, wrap, datagrams, 4, handler...)
+}
+
+func newMasqueFixtureWithCID(t *testing.T, wrap func(net.PacketConn) net.PacketConn, datagrams bool, cidLength int, handler ...http.Handler) masqueFixture {
 	t.Helper()
 	certificateServer := httptest.NewTLSServer(nil)
 	certificate := certificateServer.TLS.Certificates[0]
@@ -74,7 +79,7 @@ func newMasqueFixtureWithDatagrams(t *testing.T, wrap func(net.PacketConn) net.P
 	if len(handler) > 0 {
 		server.Handler = handler[0]
 	}
-	transport := &quic.Transport{Conn: packet}
+	transport := &quic.Transport{Conn: packet, ConnectionIDLength: cidLength}
 	listener, err := transport.Listen(http3.ConfigureTLSConfig(server.TLSConfig), &quic.Config{EnableDatagrams: true})
 	if err != nil {
 		t.Fatal(err)
@@ -278,5 +283,42 @@ func TestMASQUERoutingPolicy(t *testing.T) {
 	}
 	if protector.calls.Load() != 1 || d.session != nil {
 		t.Fatal("local bypass must use a protected socket without a QUIC session")
+	}
+}
+
+// The advertised send budget must fit a real packet after PMTU discovery and
+// after the peer replaces the client's initial destination CID.
+func TestMASQUEDatagramBudgetAfterMTUDiscovery(t *testing.T) {
+	for _, cidLength := range []int{4, 20} {
+		t.Run(fmt.Sprint(cidLength), func(t *testing.T) {
+			fixture := newMasqueFixtureWithCID(t, nil, true, cidLength)
+			d := &masqueDialer{config: fixture.config, protector: &jumpTestProtector{}, probePeerMTU: true}
+			defer d.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			stream, err := d.openTunnel(ctx, "target.example:443", true)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer stream.Close()
+			// First request has a one-byte quarter-stream ID and context ID.
+			limit := int(stream.session.conn.DatagramPayloadLimit())
+			if limit < 1352 || limit > 1452-(1+cidLength+4+16+3) {
+				t.Fatalf("unsafe packet budget %d for CID %d", limit, cidLength)
+			}
+			payload := bytes.Repeat([]byte{0x42}, limit-2)
+			framed := append([]byte{0}, payload...)
+			if err := stream.SendDatagram(framed); err != nil {
+				t.Fatal(err)
+			}
+			got, err := stream.ReceiveDatagram(ctx)
+			if err != nil || !bytes.Equal(got, framed) {
+				t.Fatalf("maximum admitted DATAGRAM lost: %v", err)
+			}
+			var tooLarge *quic.DatagramTooLargeError
+			if err := stream.session.conn.SendDatagram(make([]byte, limit+1)); !errors.As(err, &tooLarge) {
+				t.Fatalf("oversized DATAGRAM admitted: %v", err)
+			}
+		})
 	}
 }
