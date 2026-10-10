@@ -6,8 +6,8 @@ creation of a release PR, automatic squash merge after full CI, and a release ta
 The existing **Release Android artifacts** workflow then builds/signs/publishes APKs.
 This does not replace the [device release review](release-testing.md).
 
-The workflow is installed by merging its implementation PR. No release is created
-merely by merging that implementation or adding secrets.
+The workflow is already present in `main`. Adding secrets does not create a release;
+start the workflow explicitly with a new version.
 
 ## One-time setup
 
@@ -24,7 +24,9 @@ Keep the existing Android signing secrets for the tag workflow:
 `ANDROID_KEY_PASSWORD`. The preparation and PR checks do not receive them.
 
 Enable squash merges. Protect `main`, require `Change scope`, `Python tests and style`,
-`Native Go tests`, and `Android tests and checks`, and disable bypass for the bot.
+`Native Go tests`, `Android tests and checks`,
+`Android emulator API 26 / Device tests`, and `Android emulator API 35 / Device tests`,
+and disable bypass for the bot.
 If policy requires human review, approve the generated PR yourself; automation does
 not approve its own PR or bypass that policy. A denied merge stops finalization;
 rerun the failed finalization job after approval. Merge queues are not supported by
@@ -63,8 +65,8 @@ allows PR CI and the tag-triggered release build to run normally.
    so F-Droid can find the notes by the APK version code.
    Old changelogs and store descriptions are not rewritten. Open a PR to `main`.
 6. Wait up to 60 minutes for **CI / pull_request** for the exact PR and head commit.
-   Release branches run every suite even on their first CI attempt. All four named
-   jobs must finish with `success`; skipped, neutral, failed and cancelled jobs
+   Release branches run every suite even on their first CI attempt. All six required
+   jobs listed above must finish with `success`; skipped, neutral, failed and cancelled jobs
    are insufficient. The recorded comparison base must match the release parent. The PR number is
    also recorded as a successful CI step because GitHub may remove run-to-PR
    links after merge; this allows a verified retry of tag creation.

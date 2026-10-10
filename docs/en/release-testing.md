@@ -55,7 +55,7 @@ insufficient time to restore personal devices and remove temporary access.
 
 ## Four-device execution matrix
 
-Run I01–I05, P01–P05, T01–T09, L01–L06, D01–D04, U01–U04 and E01–E03
+Run I01–I05, P01–P05, T01–T09, L01–L08, D01–D04, U01–U04 and E01–E03
 on all four devices where applicable. Run advanced capture, Direct Boot, forced
 Doze and destructive-data cases on the dedicated emulators first. Repeat applicable
 cases on phones only within the recorded authorization. A phone exception remains
@@ -75,25 +75,25 @@ visible in the matrix; an emulator result never silently substitutes for it.
 
 | ID | Steps → required observation |
 | --- | --- |
-| P01 | Create, edit, clone, select, reorder and delete synthetic HTTPS/SSH and jump profiles. Cancel a new draft. Restart after saving; check independent profile fields and active/Always-on references. Delete only test profiles. |
+| P01 | Create, edit, clone, select, reorder and delete synthetic HTTPS/SSH and jump profiles; include MASQUE α when present in the candidate. Cancel a new draft. Restart after saving; check independent profile fields and active/Always-on references. Delete only test profiles. |
 | P02 | Import supported URI/text and full JSON; export with secrets excluded and explicitly included; reimport and make a real connection. Check omitted versus empty secrets, stable IDs, duplicate merge, old schema, unknown future schema, malformed/truncated/oversized data and cancelled SAF picker. No partial destructive import or silent secret loss. |
 | P03 | Rotate/background during save/import/export; repeat after activity/process death on an emulator. Failed/lost export must not truncate an existing destination. Review saved-state/logs for credentials using a synthetic secret marker. Device-protected/credential-protected storage and real Keystore failures are distinct tests. |
 | P04 | SSH first-use prompt: Cancel, verify fingerprint independently, Accept and reconnect. Change the server host key, confirm rejection; test jump and destination separately, including password/key modes and different credentials. No silent trust change or direct fallback. |
-| P05 | HTTPS valid identity, untrusted/self-signed and wrong-host certificates; explicitly allow an exception only for its selected hop and restore verification. Check malformed custom JA3/profile selection. An allowed self-signed fixture is not positive evidence of CA/hostname verification. |
+| P05 | HTTPS and, where included, MASQUE α: valid identity, untrusted/self-signed and wrong-host certificates; explicitly allow an exception only for its selected hop and restore verification. Check malformed custom JA3/profile selection. An allowed self-signed fixture is not positive evidence of CA/hostname verification. |
 
 ### Real forwarding, routing and diagnostics
 
 | ID | Steps → required observation |
 | --- | --- |
-| T01 | Ordinary-app HTTP and HTTPS requests through HTTPS/GOST, SSH/OpenSSH, HTTPS Jump and SSH Jump. Use unique tokens, binary upload/download comparisons and server-side evidence. Exercise multiple requests and simultaneous streams; confirm destination/jump roles and no double traffic counting. |
+| T01 | Ordinary-app HTTP and HTTPS requests through HTTPS/GOST, SSH/OpenSSH, HTTPS Jump and SSH Jump; include MASQUE α when present in the candidate. Use unique tokens, binary upload/download comparisons and server-side evidence. Exercise multiple requests and simultaneous streams; confirm destination/jump roles and no double traffic counting. |
 | T02 | Correct → wrong → missing → restored credentials at each authenticated hop. Require working controls and no successful origin delivery for the negative token. A “Connected” label with rejected requests is not success. |
 | T03 | Proxy refused, timeout, reset, unreachable origin and truncated response; restore each. Application must report bounded errors and recover. No direct fallback unless the selected routing policy explicitly calls for it. |
 | T04 | All-app routing on an emulator; selected-app routing on every device with two ordinary UIDs (included/excluded). Toggle local-network bypass and probe controlled LAN/private and public targets. Confirm included/excluded decisions from observed route, not just checkboxes. |
-| T05 | IPv4 and, with a verified IPv6 uplink/origin, IPv6 allow/block. Probe arbitrary UDP/QUIC: MegaProxy intentionally blocks non-DNS UDP. Verify blocked tokens never reach the UDP origin with a working direct control; a browser falling back to HTTP/2 is not QUIC support. |
+| T05 | IPv4 and, with a verified IPv6 uplink/origin, IPv6 allow/block. HTTPS/SSH must block arbitrary UDP/QUIC; blocked tokens must not reach the UDP origin with a working direct control. If the candidate includes MASQUE α, verify tunneled UDP with origin evidence, local UDP bypass and oversized datagram failure; test Chrome/Firefox constraints and GOST IPv6-target limitations separately. A browser falling back to HTTP/2 is not QUIC support. See [MASQUE limits](masque.md). |
 | T06 | Run connection diagnostics: exit IP/country, primary failure and fallback. Compare with controlled server egress. Check cancellation and invalid/offline profile behaviour; inspect logs for synthetic credential leakage. Distinguish failed external providers from broken tunnelling. |
 | T07 | Transfer a known amount, inspect upload/download totals, reset/limit behaviour and persistence. The SSH session rotation threshold in MiB must rotate the session as documented; it is not a traffic quota and must not be tested as a VPN cutoff. Test selected/all failover with unavailable primary, healthy secondary and exhausted candidates; verify actual egress and Stop during failover. |
 | T08 | Check [TCP metrics](connection-metrics.md) with controlled traffic: RTT is to the first proxy, not website latency; no data differs from zero. Induce loss on a dedicated fixture, correlate outgoing retransmits with independent capture, and verify expiry after five minutes without new readings. Check jump/multiplexed sockets are counted once, standalone diagnostics do not change these metrics, and a new VPN session resets them. Record native-test evidence separately from device observations. |
-| T09 | Inspect successful HTTPS and SSH negotiation logs against the controlled server: TLS version/cipher/ALPN, actual HTTP CONNECT version after fallback, and initial SSH algorithms in both directions. Exercise both jump hops. Verify events contain no IPs, domains, credentials, certificate identities or raw banners; use synthetic markers. RTT/retransmits alone must not trigger failover; timeout/reset recovery remains a separate check. |
+| T09 | Inspect successful HTTPS and SSH negotiation logs (plus MASQUE α HTTP/3 multiplexing and selected fingerprint where included) against the controlled server: TLS version/cipher/ALPN, actual HTTP CONNECT version after fallback, and initial SSH algorithms in both directions. Exercise both jump hops. Verify events contain no IPs, domains, credentials, certificate identities or raw banners; use synthetic markers. RTT/retransmits alone must not trigger failover; timeout/reset recovery remains a separate check. |
 
 ### Lifecycle, network changes and background operation
 
@@ -147,8 +147,9 @@ main (or use an isolated worktree), add a regression test that fails before the
 fix, then apply the smallest root-cause correction. Put parsers/state/formatting
 in JVM tests, screen interactions in existing Robolectric tests, native transport
 logic in Go tests, real server interoperability in `native_integration`, and
-platform lifecycle/routing in local device evidence. Do not introduce required
-hosted emulator CI. Retest the reproducer and adjacent paths on affected devices;
+platform lifecycle/routing in the existing API 26/35 emulator CI and local device
+evidence. Keep hosted checks deterministic; physical-network, OEM and long-soak
+coverage remains local. Retest the reproducer and adjacent paths on affected devices;
 identify the new commit/APK explicitly. Original FAIL does not become PASS without
 an executed retest.
 

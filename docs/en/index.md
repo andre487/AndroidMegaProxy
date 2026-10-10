@@ -8,6 +8,7 @@ Client documentation:
 - [Installation](installation.md)
 - [App updates](updates.md)
 - [Connection quality metrics](connection-metrics.md)
+- [MASQUE α (HTTP/3), experimental](masque.md)
 - [HTTPS with Jump](../../README.md#https-with-jump)
 
 Developer documentation:

@@ -127,7 +127,8 @@ After updating, check the selected profile before connecting.
 
 ### Test builds from pull requests
 
-For a requested test, open the pull request's APK-links comment or its successful Android check.
+For a requested test, open the APK-links block at the bottom of the pull request description
+or its successful Android check.
 The job summary links to artifacts; they are also listed under **Artifacts** on the workflow run.
 You must be signed into GitHub with access to the repository to download them. See
 [GitHub's artifact download instructions](https://docs.github.com/en/actions/how-tos/manage-workflow-runs/download-workflow-artifacts).

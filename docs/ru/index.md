@@ -8,6 +8,7 @@
 - [Установка](installation.md)
 - [Обновления приложения](updates.md)
 - [Метрики качества соединения](connection-metrics.md)
+- [MASQUE α (HTTP/3), экспериментальная поддержка](masque.md)
 - [HTTPS через Jump](#https-через-jump)
 
 Документация для разработчиков:

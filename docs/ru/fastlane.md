@@ -49,7 +49,7 @@ bundle exec fastlane lanes
 | `bundle exec fastlane android device_test_build` | Собирает native AAR, debug APK и instrumentation APK. |
 | `bundle exec fastlane android device_tests api:26` | Проверяет интеграционные сценарии на запущенном одноразовом эмуляторе API 26. |
 | `bundle exec fastlane android device_tests api:35` | Проверяет интеграционные сценарии на запущенном одноразовом эмуляторе API 35. |
-| `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом. |
+| `bundle exec fastlane android test` | Выполняет `native_tests` и `android_checks`; основная команда перед коммитом; без Python, Docker-интеграции и тестов на эмуляторах. |
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_prepare version:0.1.2` | Генерирует EN/RU changelog, повышает версию и создаёт release PR (нужна настройка API/токенов). |
 | `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Ждёт полного CI, выполняет squash merge указанного head PR и тегирует итоговый commit. |
@@ -180,8 +180,7 @@ CI загружает XML каждого набора отдельным арт�
 
 Право `checks: write` есть у publisher; тестовые задания сохраняют доступ к репозиторию только на
 чтение. Внутренние PR и push публикуют отчёты независимо после завершения соответствующего тестового задания. PR из форков используют
-доверенный workflow `workflow_run`, который становится доступен после merge этого workflow в
-`main`. Он читает артефакты без checkout и исполнения кода PR. Разбираются только JUnit-артефакты;
+доверенный workflow `workflow_run`, который уже находится в `main`. Он читает артефакты без checkout и исполнения кода PR. Разбираются только JUnit-артефакты;
 XML иерархии интерфейса эмулятора остаётся в отдельном артефакте диагностических данных.
 
 ## Интерактивный запуск GitHub Actions

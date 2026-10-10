@@ -28,8 +28,8 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 - **Flexible routing.** Route the whole device or only selected applications through the VPN.
 - **Resilient connections.** Profile failover, encrypted DNS fallback, SSH keepalives, and
   connection health reporting help recover from network and server failures.
-- **Fully open source.** The Android application and Go network core are available under the MIT
-  License.
+- **Fully open source.** MegaProxy application code is under the MIT License. Bundled
+  dependencies retain their own licenses; see `native/go.mod` and their source distributions.
 
 ## Features
 
@@ -168,6 +168,13 @@ JSON schema version 8 stores this mode as `proxy.type: "HTTPS_JUMP"`, with first
 reject version 8 files, preventing a chain from being imported as a single proxy. ProxyList
 exports support single HTTPS proxies only and omit chain profiles.
 
+### Experimental MASQUE α
+
+MASQUE over HTTP/3 is being developed in [PR #70](https://github.com/andre487/AndroidMegaProxy/pull/70)
+and is not included in the published v1.0.3 APKs. It adds TCP CONNECT and CONNECT-UDP
+with Basic authentication and browser TLS/QUIC presets. Setup and known limits:
+[English](docs/en/masque.md) / [Русский](docs/ru/masque.md).
+
 ## Current limitations
 
 - Only TCP application traffic is forwarded. General SOCKS5 UDP and QUIC forwarding are not
@@ -222,6 +229,10 @@ adb shell am start -n net.megaproxy487/.MainActivity
 
 The project pins Gradle 8.11.1 through the checked-in wrapper. Use `./gradlew` rather than a globally
 installed Gradle version. See [native/README.md](native/README.md) for Go data-plane details.
+
+The `test` lane runs native unit tests and Android JVM/lint/build checks. Run
+`python_checks`, `native_integration` and API 26/35 device scenarios separately
+when applicable; main CI runs all of them.
 
 ## Development workflow
 
