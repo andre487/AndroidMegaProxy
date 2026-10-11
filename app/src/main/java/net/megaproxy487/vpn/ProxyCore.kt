@@ -136,7 +136,7 @@ class NativeProxyCore(
             val reporter = reporter { message ->
                 diagnostics(message)
                 VpnRuntimeState.observeDiagnostic(message)
-                if ("SSH_HOST_KEY_" in message || "dpi_hint=possible" in message) status(message)
+                if ("SSH_HOST_KEY_" in message || "dpi_hint=possible" in message || isProxyTunnelEstablished(message)) status(message)
             }
             val json = configJson(config)
             // Java keeps its duplicate alive for the call; Go duplicates it on entry.

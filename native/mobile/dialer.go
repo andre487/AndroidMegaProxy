@@ -511,6 +511,7 @@ func (r *limitedHeaderReader) Read(p []byte) (int, error) {
 type diagnosticConn struct {
 	net.Conn
 	connectionID                uint64
+	quicSessionID               uint64
 	reporter                    Reporter
 	stats                       *connectionStats
 	once                        sync.Once
@@ -583,7 +584,7 @@ func (c *diagnosticConn) reportError(operation string, err error) {
 			} else if (c.proxyContext != nil && c.proxyContext.Err() == nil) || (c.proxyHealthy != nil && c.proxyHealthy()) {
 				scope, hint = "target", "none"
 			}
-			report(c.reporter, "event=connection conn=%d stage=tunnel_io result=failed operation=%s reason=%s transferred_bytes=%d dpi_hint=%s scope=%s", c.connectionID, operation, reason, c.transferred.Load(), hint, scope)
+			report(c.reporter, "event=connection conn=%d stage=tunnel_io result=failed operation=%s reason=%s transferred_bytes=%d dpi_hint=%s scope=%s quic_session=%d", c.connectionID, operation, reason, c.transferred.Load(), hint, scope, c.quicSessionID)
 		})
 	}
 }
