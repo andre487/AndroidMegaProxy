@@ -6,7 +6,6 @@ import androidx.compose.ui.test.onNodeWithText
 import org.junit.Assert.assertFalse
 import org.junit.Test
 import java.util.concurrent.CountDownLatch
-import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicBoolean
 
 class ConfigurationReadUiTest : MainUiTestBase() {
@@ -19,7 +18,7 @@ class ConfigurationReadUiTest : MainUiTestBase() {
                 val configuration = readConfiguration("slow") {
                     onMain.set(Looper.myLooper() == Looper.getMainLooper())
                     entered.countDown()
-                    check(release.await(10, TimeUnit.SECONDS))
+                    release.await() // The test owns completion; finally always releases the worker.
                     "Loaded configuration"
                 }
                 if (configuration != null) Text(configuration)
@@ -29,6 +28,7 @@ class ConfigurationReadUiTest : MainUiTestBase() {
             compose.onNodeWithText("Loaded configuration").assertDoesNotExist()
             assertFalse(onMain.get())
             release.countDown()
+            drainConfigIo()
             waitForText("Loaded configuration")
         } finally { release.countDown() }
     }

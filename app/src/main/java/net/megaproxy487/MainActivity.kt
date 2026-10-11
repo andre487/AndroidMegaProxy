@@ -102,6 +102,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import net.megaproxy487.data.operationResult
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.vpn.ProxyVpnService
@@ -278,7 +279,7 @@ internal fun MainScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 scope.launch {
-                    val refreshed = withContext(ConfigIoDispatcher) {
+                    val refreshed = withContext(ConfigIoDispatcher) { operationResult {
                         val status = readAlwaysOnVpnStatus(activity)
                         RefreshedMainConfig(
                             status = status,
@@ -288,6 +289,9 @@ internal fun MainScreen(
                             pendingReconnect = store.hasPendingReconnect(),
                             globalSettings = store.globalConnectionSettings(),
                         )
+                    } }.getOrElse {
+                        error = activity.uiText(R.string.error_config_storage)
+                        return@launch
                     }
                     systemVpnStatus = refreshed.status
                     profiles = refreshed.profiles
@@ -303,9 +307,12 @@ internal fun MainScreen(
     }
     LaunchedEffect(connection, writeStatus, subscriptionRevision) {
         if (writeStatus.pending == 0) {
-            val saved = withContext(ConfigIoDispatcher) {
+            val saved = withContext(ConfigIoDispatcher) { operationResult {
                 RefreshedMainConfig(systemVpnStatus, store.sortedProfiles(), store.activeProfileId(),
                     store.connectionProfileId(), store.hasPendingReconnect(), store.globalConnectionSettings())
+            } }.getOrElse {
+                error = activity.uiText(R.string.error_config_storage)
+                return@LaunchedEffect
             }
             profiles = saved.profiles
             activeProfileId = saved.activeProfileId
@@ -515,7 +522,7 @@ internal fun MainScreen(
                 Spacer(Modifier.height(12.dp))
             }
             if (profiles.isEmpty()) {
-                Text(stringResource(R.string.loading_configuration))
+                Text(error ?: stringResource(R.string.loading_configuration))
                 return@Column
             }
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId

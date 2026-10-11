@@ -27,6 +27,7 @@ import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import net.megaproxy487.MainActivity
+import net.megaproxy487.data.operationResult
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.model.FailoverMode
@@ -101,7 +102,7 @@ class ProxyVpnService : VpnService() {
                             startTunnel(testOnly = false, generation = generation)
                         } catch (error: Exception) {
                             if (!isStartCurrent(generation)) return@thread
-                            handleStartFailure(false, "VPN recovery failed", error.message.orEmpty(), ConfigStore(this@ProxyVpnService).connectionProfile().id)
+                            runForGeneration(generation) { handleStartFailure(false, "VPN recovery failed", error.message.orEmpty(), ConfigStore(this@ProxyVpnService).connectionProfileId()) }
                         } finally {
                             finishStartAttempt()
                         }
@@ -117,7 +118,7 @@ class ProxyVpnService : VpnService() {
         val store = ConfigStore(this)
         failoverNotice = store.failoverNotice()
         if (!store.isFailoverActive()) blockingWarning = failoverNotice
-        failoverNotice?.let(VpnRuntimeState::updateNetworkWarning)
+        failoverNotice?.let { VpnRuntimeState.updateNetworkWarning(it) }
         createChannel()
         registerUnderlyingNetworkCallback()
         monitorHandler.post(monitor)
@@ -199,7 +200,7 @@ class ProxyVpnService : VpnService() {
                         startTunnel(testOnly = false, generation = generation)
                     } catch (error: Exception) {
                         if (!isStartCurrent(generation)) return@thread
-                        handleStartFailure(false, "VPN reconnect failed", error.message.orEmpty(), ConfigStore(this@ProxyVpnService).connectionProfile().id)
+                        runForGeneration(generation) { handleStartFailure(false, "VPN reconnect failed", error.message.orEmpty(), ConfigStore(this@ProxyVpnService).connectionProfileId()) }
                     } finally {
                         finishStartAttempt()
                     }
@@ -216,18 +217,30 @@ class ProxyVpnService : VpnService() {
                 TestDiagnosticLog.add("Connection test is already running")
                 return START_NOT_STICKY
             }
+            // Temporary startup shares the same native core as a normal start.
+            if (!startRunning.compareAndSet(false, true)) {
+                testRunning.set(false)
+                TestDiagnosticLog.fail("Wait for the current VPN connection attempt to finish")
+                return START_NOT_STICKY
+            }
+            val generation = startGeneration.get()
             hostKeyPrompt = null
             SshHostKeyPromptState.clear()
             startForeground(NOTIFICATION_ID, notification(this@ProxyVpnService.uiText(R.string.status_testing_connection)))
             TestDiagnosticLog.begin()
             thread(name = "megaproxy-connection-test") {
                 try {
-                    testConnection()
+                    testConnection(generation)
                 } catch (error: Exception) {
-                    TestDiagnosticLog.fail("Connection test stopped unexpectedly: ${error.message ?: error.javaClass.simpleName}")
-                    if (tunnelTestOnly) stopTunnel()
+                    runForGeneration(generation) {
+                        TestDiagnosticLog.fail("Connection test stopped unexpectedly: ${error.message ?: error.javaClass.simpleName}")
+                        if (tunnelTestOnly) { stopTunnel(); stopSelf() }
+                    }
                 } finally {
-                    testRunning.set(false)
+                    monitorHandler.post {
+                        if (!isStartCurrent(generation) && TestDiagnosticLog.state.value == TestState.RUNNING) TestDiagnosticLog.fail("VPN session changed during connection test")
+                        testRunning.set(false)
+                    }
                 }
             }
             return START_NOT_STICKY
@@ -241,7 +254,7 @@ class ProxyVpnService : VpnService() {
                     startTunnel(testOnly = false, generation = generation)
                 } catch (error: Exception) {
                     if (!isStartCurrent(generation)) return@thread
-                    handleStartFailure(false, "VPN start failed", error.message.orEmpty(), ConfigStore(this@ProxyVpnService).connectionProfile().id)
+                    runForGeneration(generation) { handleStartFailure(false, "VPN start failed", error.message.orEmpty(), ConfigStore(this@ProxyVpnService).connectionProfileId()) }
                 } finally {
                     finishStartAttempt()
                 }
@@ -273,39 +286,53 @@ class ProxyVpnService : VpnService() {
         }
     }
 
-    private fun testConnection() {
-        val target = connectionTestTarget(synchronized(tunnelStateLock) { activeSession }) {
-            val store = ConfigStore(this)
-            val profile = store.activeProfile()
-            ConnectionTestTarget(profile.id, store.globalConnectionSettings().applyTo(profile.config))
-        }
-        target.config.connectionValidationError()?.let { uiText(it) }?.let {
-            TestDiagnosticLog.fail("Connection test cannot start: $it")
-            if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
-            return
-        }
+    internal fun runForGeneration(generation: Long, action: () -> Unit) {
+        monitorHandler.post { if (isStartCurrent(generation)) action() }
+    }
+
+    private fun testConnection(generation: Long) {
         val temporaryVpn = tunnel == null
-        if (temporaryVpn && !startTunnel(testOnly = true, suppliedTarget = target, generation = startGeneration.get())) {
-            TestDiagnosticLog.fail("Connection test failed: temporary VPN could not be started")
-            if (hostKeyPrompt == null) {
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+        val session = try {
+            if (!isStartCurrent(generation)) return
+            val target = connectionTestTarget(synchronized(tunnelStateLock) { activeSession }) {
+                val store = ConfigStore(this)
+                val profile = store.activeProfile()
+                ConnectionTestTarget(profile.id, store.globalConnectionSettings().applyTo(profile.config))
             }
-            return
+            target.config.connectionValidationError()?.let { validation ->
+                runForGeneration(generation) {
+                    TestDiagnosticLog.fail("Connection test cannot start: ${uiText(validation)}")
+                    if (temporaryVpn) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
+                }
+                return
+            }
+            if (temporaryVpn && !startTunnel(testOnly = true, suppliedTarget = target, generation = generation)) {
+                runForGeneration(generation) {
+                    TestDiagnosticLog.fail("Connection test failed: temporary VPN could not be started")
+                    if (hostKeyPrompt == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
+                }
+                return
+            }
+            synchronized(tunnelStateLock) { activeSession } ?: return
+        } finally {
+            finishStartAttempt()
         }
-        val session = synchronized(tunnelStateLock) { activeSession } ?: run {
-            TestDiagnosticLog.fail("Connection test failed: active VPN configuration is unavailable")
-            return
-        }
+        if (!isStartCurrent(generation)) return
         val testConfig = session.withStoredTrust(ConfigStore(this).profile(session.profileId)).config
-        val result = NativeProxyCore(this, TestDiagnosticLog::add).test(testConfig) { message ->
-            configureHostKeyPrompt(message, session.profileId, true, testConfig)
-            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
-        }
-        if (result != null) TestDiagnosticLog.succeed(result.exitIp, result.countryCode, result.http3, result.http3Fallback) else TestDiagnosticLog.fail()
-        if (temporaryVpn) {
-            stopTunnel()
-            stopSelf()
+        val result = NativeProxyCore(this, TestDiagnosticLog::add) { isStartCurrent(generation) }
+            .test(testConfig) { message ->
+                runForGeneration(generation) {
+                    configureHostKeyPrompt(message, session.profileId, true, testConfig)
+                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
+                }
+            }
+        finishConnectionTest(generation, temporaryVpn, result)
+    }
+
+    internal fun finishConnectionTest(generation: Long, temporaryVpn: Boolean, result: ConnectionTestResult?) {
+        runForGeneration(generation) {
+            if (result != null) TestDiagnosticLog.succeed(result.exitIp, result.countryCode, result.http3, result.http3Fallback) else TestDiagnosticLog.fail()
+            if (temporaryVpn) { stopTunnel(); stopSelf() }
         }
     }
 
@@ -316,9 +343,21 @@ class ProxyVpnService : VpnService() {
     ): Boolean {
         val configStore = ConfigStore(this)
         val pendingReconnectToken = if (testOnly) null else configStore.pendingReconnectToken()
-        val storedProfile = configStore.connectionProfile()
-        val storedConfig = suppliedTarget?.config ?: configStore.globalConnectionSettings().applyTo(storedProfile.config)
-        val promptProfileId = suppliedTarget?.profileId ?: storedProfile.id
+        val target = operationResult {
+            suppliedTarget ?: configStore.effectiveConnectionProfile().let { ConnectionTestTarget(it.id, it.config) }
+        }.getOrElse {
+            runForGeneration(generation) {
+                val notice = uiText(R.string.error_config_storage)
+                if (testOnly) TestDiagnosticLog.fail(notice) else {
+                    connectionBlockedForAction = true
+                    VpnRuntimeState.updateNetworkWarning(notice)
+                    if (!isAlwaysOnMode) { configStore.setConnectionDesired(false); stopTunnel(); stopSelf() }
+                }
+            }
+            return false
+        }
+        val storedConfig = target.config
+        val promptProfileId = target.profileId
         val diagnostics = if (testOnly) TestDiagnosticLog::add else DiagnosticLog::add
         var failureDetail = ""
         diagnostics(
@@ -328,20 +367,22 @@ class ProxyVpnService : VpnService() {
         )
         val validationError = if (testOnly) storedConfig.connectionValidationError()?.let { uiText(it) } else storedConfig.validationError()?.let { uiText(it) }
         validationError?.let {
-            if (testOnly) TestDiagnosticLog.fail(it) else {
-                val notice = if (isAlwaysOnMode)
-                    this@ProxyVpnService.uiText(R.string.vpn_config_always_on)
-                else this@ProxyVpnService.uiText(R.string.vpn_config_attention)
-                VpnRuntimeState.updateNetworkWarning(notice)
-                if (isAlwaysOnMode) {
-                    connectionBlockedForAction = true
-                    startForeground(NOTIFICATION_ID, notification(notice))
-                    VpnRuntimeState.update(VpnConnectionState.CONNECTING)
-                } else {
-                    ConfigStore(this).setConnectionDesired(false)
-                    VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
-                    stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
+            runForGeneration(generation) {
+                if (testOnly) TestDiagnosticLog.fail(it) else {
+                    val notice = if (isAlwaysOnMode)
+                        this@ProxyVpnService.uiText(R.string.vpn_config_always_on)
+                    else this@ProxyVpnService.uiText(R.string.vpn_config_attention)
+                    VpnRuntimeState.updateNetworkWarning(notice)
+                    if (isAlwaysOnMode) {
+                        connectionBlockedForAction = true
+                        startForeground(NOTIFICATION_ID, notification(notice))
+                        VpnRuntimeState.update(VpnConnectionState.CONNECTING)
+                    } else {
+                        ConfigStore(this).setConnectionDesired(false)
+                        VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
+                        stopForeground(STOP_FOREGROUND_REMOVE)
+                        stopSelf()
+                    }
                 }
             }
             return false
@@ -374,7 +415,7 @@ class ProxyVpnService : VpnService() {
             }
         }
         val establishedTunnel = builder.establish() ?: run {
-            handleStartFailure(testOnly, "VPN interface could not be established")
+            runForGeneration(generation) { handleStartFailure(testOnly, "VPN interface could not be established") }
             return false
         }
         val proxyCore = NativeProxyCore(this, diagnostics) {
@@ -406,13 +447,13 @@ class ProxyVpnService : VpnService() {
             }
             val proxyIp = if (storedConfig.type == net.megaproxy487.model.ProxyType.HTTPS_JUMP) "" else resolveHost(storedConfig.host, "proxy") ?: run {
                 if (!isStartCurrent(generation)) return false
-                handleStartFailure(testOnly, "Proxy bootstrap DNS failed", failureDetail, promptProfileId)
+                runForGeneration(generation) { handleStartFailure(testOnly, "Proxy bootstrap DNS failed", failureDetail, promptProfileId) }
                 return false
             }
             val jumpIp = if (storedConfig.type.hasJump) {
                 resolveHost(storedConfig.jumpHost, "jump") ?: run {
                     if (!isStartCurrent(generation)) return false
-                    handleStartFailure(testOnly, "Jump host bootstrap DNS failed", failureDetail, promptProfileId)
+                    runForGeneration(generation) { handleStartFailure(testOnly, "Jump host bootstrap DNS failed", failureDetail, promptProfileId) }
                     return false
                 }
             } else ""
@@ -423,13 +464,13 @@ class ProxyVpnService : VpnService() {
             val startupBlockingDetail = java.util.concurrent.atomic.AtomicReference<String?>(null)
             val started = proxyCore.start(establishedTunnel.fd, VPN_MTU, config) { message ->
                     failureDetail = message
-                    configureHostKeyPrompt(message, promptProfileId, testOnly, storedConfig)
                     if (BlockingDetection.classify(message) != null || isBootstrapConnectionFailure(message)) startupBlockingDetail.set(message)
-                    if (!testOnly && ("dpi_hint=possible" in message || isProxyTunnelEstablished(message) || isBootstrapConnectionFailure(message))) monitorHandler.post {
-                        if (isStartCurrent(generation)) handleRuntimeDiagnostic(promptProfileId, message)
-                    }
-                    if (!isProxyTunnelEstablished(message)) {
-                        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
+                    runForGeneration(generation) {
+                        configureHostKeyPrompt(message, promptProfileId, testOnly, storedConfig)
+                        if (!testOnly && ("dpi_hint=possible" in message || isProxyTunnelEstablished(message) || isBootstrapConnectionFailure(message))) handleRuntimeDiagnostic(promptProfileId, message)
+                        if (!isProxyTunnelEstablished(message)) {
+                            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
+                        }
                     }
                 }
             nativeStarted = started
@@ -437,7 +478,7 @@ class ProxyVpnService : VpnService() {
                 if (isStartCurrent(generation)) {
                     isRunning = false
                     val detail = failureDetail.takeIf(::requiresUserAction) ?: startupBlockingDetail.get() ?: failureDetail
-                    handleStartFailure(testOnly, "Native proxy core failed to start", detail, promptProfileId, config)
+                    runForGeneration(generation) { handleStartFailure(testOnly, "Native proxy core failed to start", detail, promptProfileId, config) }
                 }
                 return false
             }
@@ -456,17 +497,26 @@ class ProxyVpnService : VpnService() {
             if (!committed) {
                 return false
             }
-            underlyingNetwork?.let { setUnderlyingNetworks(arrayOf(it)) }
-            blockingEvidence.remove(promptProfileId)
-            if (failoverNotice == null) VpnRuntimeState.updateNetworkWarning(null)
-            else VpnRuntimeState.updateNetworkWarning(failoverNotice)
-            VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, promptProfileId)
-            if (!testOnly) {
-                configStore.clearPendingReconnect(pendingReconnectToken)
-                if (!configStore.hasPendingReconnect()) SubscriptionNotifications.cancel(this)
+            var storageFailed = false
+            val reconnectToken = if (!testOnly && isStartCurrent(generation)) operationResult {
+                configStore.reconcileStartedConfiguration(promptProfileId, storedConfig, pendingReconnectToken)
+            }.getOrElse {
+                storageFailed = true
+                configStore.markPendingReconnect()
+                configStore.pendingReconnectToken()
+            } else null
+            runForGeneration(generation) {
+                underlyingNetwork?.let { setUnderlyingNetworks(arrayOf(it)) }
+                blockingEvidence.remove(promptProfileId)
+                VpnRuntimeState.updateNetworkWarning(if (storageFailed) uiText(R.string.error_config_storage) else failoverNotice)
+                VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, promptProfileId)
+                if (!testOnly) {
+                    if (reconnectToken == null && !configStore.hasPendingReconnect()) SubscriptionNotifications.cancel(this)
+                    else reconnectToken?.let { SubscriptionNotifications.show(this, it) }
+                }
+                resetRetryState()
+                VpnRuntimeState.update(VpnConnectionState.CONNECTED)
             }
-            resetRetryState()
-            VpnRuntimeState.update(VpnConnectionState.CONNECTED)
             return true
         } finally {
             synchronized(tunnelStateLock) {
@@ -488,7 +538,7 @@ class ProxyVpnService : VpnService() {
         }
     }
 
-    private fun isStartCurrent(generation: Long): Boolean = startGeneration.get() == generation
+    private fun isStartCurrent(generation: Long): Boolean = !serviceDestroyed && startGeneration.get() == generation
 
     private fun handleStartFailure(testOnly: Boolean, message: String, detail: String = message, profileId: String = "", failedConfig: net.megaproxy487.model.ProxyConfig? = null) {
         if (testOnly) {
@@ -633,7 +683,7 @@ class ProxyVpnService : VpnService() {
             FailoverMode.SELECTED -> afterCurrent.filter { it.id in settings.failoverProfileIds }
             FailoverMode.ALL -> afterCurrent
             else -> emptyList()
-        }.filter { it.id != profileId && it.id !in attemptedFailoverProfiles }
+        }.filter { it.id != profileId && it.id !in attemptedFailoverProfiles && settings.applyTo(it.config).validationError() == null }
         val next = candidates.firstOrNull() ?: run {
             val notice = this@ProxyVpnService.uiText(R.string.vpn_failover_empty, warning)
             failoverNotice = notice

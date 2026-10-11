@@ -126,7 +126,12 @@ class ConfigStore(context: Context) {
     fun connectionProfileId(): String =
         prefs.getString(CONNECTION_PROFILE_ID, null).orEmpty().ifEmpty(::activeProfileId)
 
-    fun connectionConfig(): ProxyConfig = globalConnectionSettings().applyTo(connectionProfile().config)
+    fun effectiveConnectionProfile(): ProxyProfile = synchronized(storageLock) {
+        val profile = connectionProfile()
+        profile.copy(config = globalConnectionSettings().applyTo(profile.config))
+    }
+
+    fun connectionConfig(): ProxyConfig = effectiveConnectionProfile().config
 
     fun setConnectionProfile(id: String) {
         if (profile(id) != null) prefs.edit().putString(CONNECTION_PROFILE_ID, id).apply()
@@ -156,12 +161,20 @@ class ConfigStore(context: Context) {
         }
     }
 
+    /** Compare the config actually started, before bootstrap IPs were filled in. */
+    fun reconcileStartedConfiguration(profileId: String, config: ProxyConfig, appliedToken: String?): String? = synchronized(storageLock) {
+        if (connectionProfileId() != profileId || connectionConfig() != config) {
+            if (!hasPendingReconnect()) markPendingReconnect()
+        } else clearPendingReconnect(appliedToken)
+        pendingReconnectToken()
+    }
+
     fun globalConnectionSettings(): GlobalConnectionSettings = synchronized(storageLock) {
         ensureMigrated()
         val stored = prefs.getString(GLOBAL_CONNECTION_SETTINGS, null)
         if (stored != null) {
-            migrateGlobalIpv6ToProfiles(stored)
             val decoded = decodeGlobalConnectionSettings(stored)
+            migrateGlobalIpv6ToProfiles(stored)
             if (!operationResult { JSONObject(stored).has("sshProfile") }.getOrDefault(false)) {
                 val upgraded = decoded.copy(sshProfile = activeProfile().config.sshProfile)
                 saveGlobalConnectionSettings(upgraded)
@@ -709,6 +722,15 @@ class ConfigStore(context: Context) {
 
     private fun decodeGlobalConnectionSettings(value: String): GlobalConnectionSettings = operationResult {
         val item = JSONObject(value)
+        for (key in listOf("routeAllApps", "bypassLocalNetworks", "allowIpv6")) {
+            require(!item.has(key) || item.get(key) is Boolean)
+        }
+        for (key in listOf("packages", "failoverProfileIds")) {
+            if (item.has(key)) {
+                val values = item.getJSONArray(key)
+                require((0 until values.length()).all { values.get(it) is String })
+            }
+        }
         val parsedTls = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT)
         GlobalConnectionSettings(
             tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
@@ -729,7 +751,7 @@ class ConfigStore(context: Context) {
             routeAllApps = item.optBoolean("routeAllApps", true),
             bypassLocalNetworks = item.optBoolean("bypassLocalNetworks", true),
         )
-    }.getOrDefault(GlobalConnectionSettings())
+    }.getOrElse { throw UiException(R.string.error_config_storage) }
 
     private var cachedKey: SecretKey? = null
 

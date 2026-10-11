@@ -31,6 +31,7 @@ import org.junit.rules.RuleChain
 import org.junit.rules.TestWatcher
 import org.junit.runner.Description
 import java.io.File
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
 
@@ -100,6 +101,7 @@ abstract class DeviceTestBase {
         saved()
     }
     protected fun roundTrip() {
+        dnsPolicyRoundTrip()
         val payload = "MegaProxy device ${System.nanoTime()}"
         Socket().use { socket ->
             socket.soTimeout = 15_000
@@ -112,6 +114,41 @@ abstract class DeviceTestBase {
             assertEquals(payload, response.substringAfter("\r\n\r\n"))
         }
     }
+    // Local AAAA suppression proves both DNS transports reach the native TUN
+    // interceptor. Network DoH/fallback is tested by the native TLS fixtures.
+    private fun dnsPolicyRoundTrip() {
+        val query = byteArrayOf(0x48, 0x73, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 7) +
+            "example".toByteArray(Charsets.US_ASCII) + byteArrayOf(4) +
+            "test".toByteArray(Charsets.US_ASCII) + byteArrayOf(0, 0, 28, 0, 1)
+        fun verify(response: ByteArray) {
+            assertTrue(response.size >= 12)
+            assertEquals(0x48, response[0].toInt())
+            assertEquals(0x73, response[1].toInt())
+            assertTrue(response[2].toInt() and 0x80 != 0)
+            assertEquals(0, response[6].toInt())
+            assertEquals(0, response[7].toInt())
+        }
+        java.net.DatagramSocket().use { socket ->
+            socket.soTimeout = 15_000
+            socket.send(java.net.DatagramPacket(query, query.size, InetAddress.getByName("10.77.0.2"), 53))
+            val reply = java.net.DatagramPacket(ByteArray(512), 512)
+            socket.receive(reply)
+            verify(reply.data.copyOf(reply.length))
+        }
+        Socket().use { socket ->
+            socket.soTimeout = 15_000
+            socket.connect(InetSocketAddress("10.77.0.2", 53), 15_000)
+            val output = java.io.DataOutputStream(socket.getOutputStream())
+            val input = java.io.DataInputStream(socket.getInputStream())
+            repeat(2) { output.writeShort(query.size); output.write(query) }
+            repeat(2) {
+                val response = ByteArray(input.readUnsignedShort())
+                input.readFully(response)
+                verify(response)
+            }
+        }
+    }
+
     protected fun directOriginUnavailable() {
         assertFalse("Origin is reachable without the VPN", runCatching {
             Socket().use { it.connect(InetSocketAddress(argument("originHost"), 8080), 1_000) }

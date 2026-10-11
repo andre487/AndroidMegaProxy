@@ -68,7 +68,8 @@ private data class VisibilityReport(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
-    var report by remember { mutableStateOf(buildVisibilityReport(activity)) }
+    var revision by remember { mutableStateOf(0) }
+    val report = readConfiguration(revision) { buildVisibilityReport(activity) } ?: return
     Scaffold(
         topBar = {
             TopAppBar(
@@ -90,7 +91,7 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
                 stringResource(R.string.visibility_intro),
                 style = MaterialTheme.typography.bodyMedium,
             )
-            Button(shape = RoundedCornerShape(12.dp), onClick = { report = buildVisibilityReport(activity) }, modifier = Modifier.fillMaxWidth()) {
+            Button(shape = RoundedCornerShape(12.dp), onClick = { revision++ }, modifier = Modifier.fillMaxWidth()) {
                 Text(stringResource(R.string.run_checks_again))
             }
             VisibilitySection(stringResource(R.string.globally_observable_signals), report.global)

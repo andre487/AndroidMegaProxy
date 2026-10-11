@@ -83,7 +83,7 @@ The proxy's advertised UDP relay must be reachable through its firewall/NAT.
 
 ### DNS and transport
 
-- UDP/53 DNS interception with DNS-over-HTTPS through the configured transport.
+- UDP/TCP port 53 DNS interception with DNS-over-HTTPS through the configured transport.
 - Cloudflare, Google, Quad9, Yandex Basic, Yandex Safe, Yandex Family, and custom DoH endpoints.
 - DNS-provider fallback where it does not weaken an explicitly selected filtering policy.
 - HTTPS ClientHello profiles powered by uTLS, MASQUE TLS/QUIC presets powered by uQUIC,
@@ -120,9 +120,9 @@ Chrome's. Responses and fingerprint data are not stored in diagnostic logs. See 
 
 - HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and
   validity. Normal CA certificate renewal does not require certificate pinning.
-- UDP/53 queries received by the VPN are converted to DoH. Application-managed TCP DNS,
-  Private DNS and browser Secure DNS follow normal traffic/routing rules; they are not
-  rewritten to the selected DoH provider.
+- UDP and TCP port 53 queries received by the VPN are converted to DoH. Private DNS
+  and browser Secure DNS follow normal traffic/routing rules; they are not rewritten
+  to the selected DoH provider.
 - Application TLS remains between the application and its destination. MegaProxy does not install
   a CA certificate and does not perform TLS interception.
 - Proxy passwords and imported private keys are encrypted with AES-GCM using a key held by Android

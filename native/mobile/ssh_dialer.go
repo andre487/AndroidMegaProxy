@@ -20,6 +20,7 @@ import (
 // sshDialer implements OpenSSH-style dynamic forwarding. SOCKS CONNECT semantics
 // are mapped directly to SSH direct-tcpip channels; SSH has no general UDP relay.
 type sshDialer struct {
+	direct         httpsConnectDialer // Owns bypass and virtual DNS sockets.
 	stats          *connectionStats
 	config         config
 	protector      Protector
@@ -39,6 +40,9 @@ type sshDialer struct {
 }
 
 func (d *sshDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
+	if metadata.DstPort == 53 {
+		return dialDNSStream(ctx, metadata, d.DialUDP, d.direct.own)
+	}
 	return d.connectTarget(ctx, metadata.DestinationAddress())
 }
 
@@ -53,7 +57,7 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 		}
 	}
 	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
-		return d.protectedDialer().DialContext(ctx, "tcp", target)
+		return d.direct.dialDirect(ctx, d.protectedDialer(), "tcp", target)
 	}
 	if d.rotationDue() {
 		d.invalidate()
@@ -68,6 +72,8 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	case channels <- struct{}{}:
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-d.direct.lifetimeContext().Done():
+		return nil, net.ErrClosed
 	}
 	release := true
 	defer func() {
@@ -393,6 +399,9 @@ func (d *sshDialer) protectedDialer() *net.Dialer {
 }
 
 func (d *sshDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
+	if d.closed.Load() {
+		return nil, net.ErrClosed
+	}
 	if metadata.DstPort != 53 {
 		return nil, errUDPBlocked
 	}
@@ -436,6 +445,7 @@ func (d *sshDialer) invalidateClient(expected *ssh.Client) {
 
 func (d *sshDialer) Close() error {
 	d.closed.Store(true)
+	_ = d.direct.Close()
 	d.openingMu.Lock()
 	if d.openingCancel != nil {
 		d.openingCancel()

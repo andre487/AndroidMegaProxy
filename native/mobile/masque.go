@@ -27,6 +27,7 @@ var errMasqueSettings = errors.New("MASQUE server missing datagram or extended C
 var errMasqueCapsuleProtocol = errors.New("MASQUE response missing Capsule-Protocol")
 
 type masqueDialer struct {
+	direct        httpsConnectDialer // Owns bypass and virtual DNS sockets.
 	hop           string
 	jump          *masqueDialer
 	probePeerMTU  bool
@@ -70,6 +71,7 @@ func (s *masqueSession) close() {
 }
 
 func (d *masqueDialer) Close() error {
+	_ = d.direct.Close()
 	d.mu.Lock()
 	d.closed = true
 	if d.openingCancel != nil {
@@ -455,7 +457,7 @@ func (d *masqueDialer) connectTarget(ctx context.Context, target string) (net.Co
 	var c net.Conn
 	var err error
 	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
-		c, err = (&httpsConnectDialer{protector: d.protector}).protectedDialer().DialContext(ctx, "tcp", target)
+		c, err = d.direct.dialDirect(ctx, (&httpsConnectDialer{protector: d.protector}).protectedDialer(), "tcp", target)
 	} else {
 		c, err = d.openTunnel(ctx, target, false)
 	}
@@ -476,6 +478,10 @@ func (d *masqueDialer) connectTarget(ctx context.Context, target string) (net.Co
 
 func (d *masqueDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
 	d.mu.Lock()
+	if d.closed {
+		d.mu.Unlock()
+		return nil, net.ErrClosed
+	}
 	if d.connections == nil {
 		d.connections = make(chan struct{}, 256)
 	}
@@ -485,8 +491,16 @@ func (d *masqueDialer) DialContext(ctx context.Context, metadata *M.Metadata) (n
 	case slots <- struct{}{}:
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-d.direct.lifetimeContext().Done():
+		return nil, net.ErrClosed
 	}
-	c, err := d.connectTarget(ctx, metadata.DestinationAddress())
+	var c net.Conn
+	var err error
+	if metadata.DstPort == 53 {
+		c, err = dialDNSStream(ctx, metadata, d.DialUDP, d.direct.own)
+	} else {
+		c, err = d.connectTarget(ctx, metadata.DestinationAddress())
+	}
 	if err != nil {
 		<-slots
 		return nil, err
@@ -516,7 +530,7 @@ func (d *masqueDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
 	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
-		c, err := (&httpsConnectDialer{protector: d.protector}).protectedDialer().DialContext(ctx, "udp", target)
+		c, err := d.direct.dialDirect(ctx, (&httpsConnectDialer{protector: d.protector}).protectedDialer(), "udp", target)
 		if err != nil {
 			return nil, err
 		}
