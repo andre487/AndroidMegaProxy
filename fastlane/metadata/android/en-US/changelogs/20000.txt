@@ -1,0 +1,5 @@
+- Fixed VPN connection lifecycle, stale DNS recovery and TCP DNS handling.
+- Improved recovery from damaged settings and preserved migrated settings at startup.
+- VPN Stop remains available when settings cannot be read.
+- Proxy warnings now clear after recovery; duplicate QUIC failure messages are removed.
+- Added a GitHub repository shortcut beside the app version.
