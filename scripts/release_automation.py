@@ -409,7 +409,7 @@ def finish(version, number, head):
         )
         result = api(
             f"pulls/{number}/merge",
-            {"sha": head, "merge_method": "squash"},
+            {"sha": head, "merge_method": "merge"},
             method="PUT",
         )
         require(
@@ -420,6 +420,10 @@ def finish(version, number, head):
     require(pr["merged"], "PR is not merged; refusing tag")
     merged = pr["merge_commit_sha"]
     command("git", "fetch", "origin", "main")
+    require(
+        command("git", "show", "-s", "--format=%P", merged).split() == [parent, head],
+        "Release must have a merge commit with the verified base and head; refusing tag",
+    )
     require(
         command("git", "show", "-s", "--format=%T", merged)
         == command("git", "show", "-s", "--format=%T", head),

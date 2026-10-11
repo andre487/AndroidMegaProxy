@@ -72,6 +72,8 @@ branch names, credentials, signing material, or other secrets.
 
 - Release builds and signing are separate from PR CI. Release artifacts are created only through
   the dedicated release workflow/Fastlane lane.
+- Automated release PRs use a merge commit preserving the release branch history; verify both
+  parents and the tested tree before tagging the actual merge commit.
 - Tagged releases publish signed APKs and `SHA256SUMS` to GitHub Releases. Google Play integration
   is removed. Document installation from release assets; PR APKs are for testing only.
 - Tagged releases scan all signed APKs with VirusTotal before publication using the release-only
