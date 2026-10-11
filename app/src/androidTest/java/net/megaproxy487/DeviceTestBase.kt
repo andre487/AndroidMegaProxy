@@ -101,7 +101,6 @@ abstract class DeviceTestBase {
         saved()
     }
     protected fun roundTrip() {
-        dnsPolicyRoundTrip()
         val payload = "MegaProxy device ${System.nanoTime()}"
         Socket().use { socket ->
             socket.soTimeout = 15_000
@@ -113,27 +112,13 @@ abstract class DeviceTestBase {
             assertTrue(response.contains("X-MegaProxy-Origin: integration"))
             assertEquals(payload, response.substringAfter("\r\n\r\n"))
         }
+        // A successful round trip to the private origin proves Android has
+        // installed this UID's VPN route before the one-shot UDP DNS probe.
+        dnsPolicyRoundTrip()
     }
     // Local AAAA suppression proves both DNS transports reach the native TUN
     // interceptor. Network DoH/fallback is tested by the native TLS fixtures.
     private fun dnsPolicyRoundTrip() {
-        // Native startup can precede Android's UID routing switch (especially on
-        // API 35 reconnect/failover). A one-shot UDP probe must wait for the OS
-        // default-network callback; never mask a lost packet with a test retry.
-        val connectivity = context.getSystemService(ConnectivityManager::class.java)
-        val routed = java.util.concurrent.CountDownLatch(1)
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onCapabilitiesChanged(network: android.net.Network, capabilities: NetworkCapabilities) {
-                if (capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN)) routed.countDown()
-            }
-        }
-        connectivity.registerDefaultNetworkCallback(callback)
-        try {
-            assertTrue("Android did not route this app through the VPN",
-                routed.await(15, java.util.concurrent.TimeUnit.SECONDS))
-        } finally {
-            connectivity.unregisterNetworkCallback(callback)
-        }
         val query = byteArrayOf(0x48, 0x73, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 7) +
             "example".toByteArray(Charsets.US_ASCII) + byteArrayOf(4) +
             "test".toByteArray(Charsets.US_ASCII) + byteArrayOf(0, 0, 28, 0, 1)
