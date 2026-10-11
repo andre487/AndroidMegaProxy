@@ -39,6 +39,17 @@ class MainScreenUiTest : MainUiTestBase() {
         assertEquals("{broken", prefs.getString("global_connection_settings_v1", null))
     }
 
+    @Test fun corruptSettingsStillAllowStoppingAnExistingVpn() {
+        activity.getSharedPreferences("proxy_config", android.content.Context.MODE_PRIVATE).edit()
+            .putString("global_connection_settings_v1", "{broken").commit()
+        VpnRuntimeState.update(VpnConnectionState.CONNECTED)
+        screen()
+        waitForText(text(R.string.error_config_storage))
+        node(R.string.disconnect).assertIsEnabled().performClick()
+        command("STOP")
+        assertFalse(store.isConnectionDesired())
+    }
+
     @Test fun githubLinkNextToVersionOpensApplicationRepository() {
         screen()
         compose.onNodeWithText(activity.getString(R.string.version_and_commit,

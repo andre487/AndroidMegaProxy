@@ -523,6 +523,13 @@ internal fun MainScreen(
             }
             if (profiles.isEmpty()) {
                 Text(error ?: stringResource(R.string.loading_configuration))
+                if (connection != VpnConnectionState.DISCONNECTED) {
+                    Button(onClick = {
+                        if (!isAlwaysOnVpnActive(activity)) ProxyVpnService.stop(activity)
+                    }, enabled = !alwaysOn, modifier = Modifier.fillMaxWidth()) {
+                        Text(stringResource(R.string.disconnect))
+                    }
+                }
                 return@Column
             }
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
