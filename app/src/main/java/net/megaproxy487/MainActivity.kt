@@ -2,8 +2,10 @@ package net.megaproxy487
 
 import android.Manifest
 import android.app.Activity
+import android.content.ActivityNotFoundException
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.net.VpnService
 import android.os.Build
 import android.os.Bundle
@@ -23,6 +25,8 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -235,7 +239,7 @@ private fun ProfileSelectorLabel(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 internal fun MainScreen(
     activity: Activity,
@@ -667,12 +671,27 @@ internal fun MainScreen(
             connectionStats?.let { stats ->
                 ConnectionStatsCard(stats, quic = transportProtocol == VpnTransportProtocol.HTTP_3)
             }
-            Text(
-                stringResource(R.string.version_and_commit, BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.align(Alignment.CenterHorizontally).padding(top = 8.dp),
-            )
+            FlowRow(
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+            ) {
+                Text(
+                    stringResource(R.string.version_and_commit, BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.align(Alignment.CenterVertically),
+                )
+                TextButton(onClick = {
+                    try {
+                        activity.startActivity(Intent(Intent.ACTION_VIEW,
+                            Uri.parse("https://github.com/andre487/AndroidMegaProxy")))
+                    } catch (_: ActivityNotFoundException) {
+                        error = activity.uiText(R.string.no_browser)
+                    }
+                }) {
+                    Text(stringResource(R.string.update_github), style = MaterialTheme.typography.bodySmall)
+                }
+            }
             }
         }
     }
