@@ -127,8 +127,9 @@ class ConfigStore(context: Context) {
         prefs.getString(CONNECTION_PROFILE_ID, null).orEmpty().ifEmpty(::activeProfileId)
 
     fun effectiveConnectionProfile(): ProxyProfile = synchronized(storageLock) {
+        val settings = globalConnectionSettings()
         val profile = connectionProfile()
-        profile.copy(config = globalConnectionSettings().applyTo(profile.config))
+        profile.copy(config = settings.applyTo(profile.config))
     }
 
     fun connectionConfig(): ProxyConfig = effectiveConnectionProfile().config

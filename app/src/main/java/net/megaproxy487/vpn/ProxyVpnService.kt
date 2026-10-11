@@ -442,7 +442,9 @@ class ProxyVpnService : VpnService() {
                 }
                 return proxyCore.resolveProxy(host) { message ->
                     failureDetail = message
-                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
+                    runForGeneration(generation) {
+                        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
+                    }
                 }?.also { addressCache.put(host, it) }
             }
             val proxyIp = if (storedConfig.type == net.megaproxy487.model.ProxyType.HTTPS_JUMP) "" else resolveHost(storedConfig.host, "proxy") ?: run {

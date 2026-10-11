@@ -65,6 +65,17 @@ class ConfigurationRecoveryRegressionTest {
             .getString("global_connection_settings_v1", null))
     }
 
+    @Test fun startupSnapshotIncludesLegacyIpv6Migration() {
+        store.activeProfile()
+        store.saveGlobalConnectionSettings(GlobalConnectionSettings())
+        val prefs = context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE)
+        val legacy = org.json.JSONObject(prefs.getString("global_connection_settings_v1", null)!!).put("allowIpv6", true)
+        prefs.edit().remove("ipv6_profile_migrated_v1")
+            .putString("global_connection_settings_v1", legacy.toString()).commit()
+        assertTrue(store.effectiveConnectionProfile().config.allowIpv6)
+        assertTrue(store.connectionProfile().config.allowIpv6)
+    }
+
     @Test fun malformedRoutingTypesFailClosed() {
         store.saveGlobalConnectionSettings(GlobalConnectionSettings())
         val prefs = context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE)
