@@ -144,6 +144,7 @@ internal class AppUpdates(private val context: Context) {
     suspend fun download(update: AppUpdate): File = withContext(Dispatchers.IO) {
         require(update.source == UpdateSource.GITHUB)
         val directory = File(context.cacheDir, "updates").apply { mkdirs() }
+        pruneUpdateCache(directory)
         val partial = File.createTempFile("update-", ".part", directory)
         val apk = File(directory, partial.nameWithoutExtension + ".apk")
         try {
@@ -170,6 +171,7 @@ internal class AppUpdates(private val context: Context) {
             require(digest.digest().hex() == update.sha256)
             verifyApk(partial, update.version)
             check(partial.renameTo(apk))
+            pruneUpdateCache(directory, apk)
             apk
         } finally {
             partial.delete()
@@ -227,4 +229,14 @@ internal fun readUpdateMetadata(input: InputStream): ByteArray {
         require(output.size() + count <= 1024 * 1024)
         output.write(buffer, 0, count)
     }
+}
+
+/** Keep the current APK and one predecessor for an installer still reading its URI. */
+internal fun pruneUpdateCache(directory: File, current: File? = null, now: Long = System.currentTimeMillis()) {
+    val files = directory.listFiles().orEmpty().filter { it.isFile }
+    val apks = files.filter { it.extension == "apk" }.sortedByDescending { it.lastModified() }
+    val keep = (listOfNotNull(current) + apks).distinct().take(2).toSet()
+    apks.filter { it !in keep }.forEach { it.delete() }
+    files.filter { it.extension == "part" && now - it.lastModified() > 2L * 24 * 60 * 60 * 1000 }
+        .forEach { it.delete() }
 }

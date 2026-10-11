@@ -36,7 +36,10 @@ abstract class MainUiTestBase {
     protected fun text(id: Int) = activity.uiText(id)
     protected fun node(id: Int) = compose.onNodeWithText(text(id))
     protected fun icon(id: Int) = compose.onNodeWithContentDescription(text(id))
-    protected fun content(block: @Composable () -> Unit) = compose.setContent { MaterialTheme { block() } }
+    protected fun content(block: @Composable () -> Unit) {
+        compose.setContent { MaterialTheme { block() } }
+        drainConfigIo()
+    }
     protected fun drainConfigIo() {
         compose.waitForIdle()
         val completed = AtomicBoolean()

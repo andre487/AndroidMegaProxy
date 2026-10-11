@@ -99,7 +99,8 @@ again for the next APK update.
 
 Downloads survive screen rotation while the update screen remains in the navigation stack.
 Leaving it can cancel the operation. Process death loses the pending installation state; check and
-download again. Cached APKs are temporary and may be cleared by Android or by clearing app data.
+download again. The cache keeps the current APK and one previous APK; abandoned partial downloads
+older than two days are removed during downloads. Android or clearing app data may also remove cached files.
 No failed check or download uninstalls or replaces the working app. Do not uninstall to resolve
 signature or downgrade errors: that would remove local profiles and settings.
 

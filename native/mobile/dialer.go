@@ -39,32 +39,87 @@ type httpsConnectDialer struct {
 	drainingHTTP2 map[*http2ConnectSession]struct{}
 	h2Disabled    bool
 	closed        bool
+	lifetime      context.Context
+	cancel        context.CancelFunc
+	socketMu      sync.Mutex
+	sockets       map[*httpsOwnedConn]struct{}
 }
 
 func (d *httpsConnectDialer) Close() error {
 	d.cacheMu.Lock()
-	defer d.cacheMu.Unlock()
 	d.closed = true
-	if d.jump != nil {
-		_ = d.jump.Close()
+	if d.cancel != nil {
+		d.cancel()
 	}
-	if d.dohClient != nil {
-		d.dohClient.CloseIdleConnections()
-		d.dohClient = nil
+	d.socketMu.Lock()
+	sockets := make([]*httpsOwnedConn, 0, len(d.sockets))
+	for socket := range d.sockets {
+		sockets = append(sockets, socket)
 	}
-	if d.h2Session != nil {
-		_ = d.h2Session.close()
-		d.h2Session = nil
+	d.socketMu.Unlock()
+	jump, client, session, draining := d.jump, d.dohClient, d.h2Session, d.drainingHTTP2
+	d.dohClient, d.h2Session, d.drainingHTTP2 = nil, nil, nil
+	d.cacheMu.Unlock()
+	// Close physical sockets first: TLS close_notify must never delay Stop.
+	for _, socket := range sockets {
+		_ = socket.Close()
 	}
-	for session := range d.drainingHTTP2 {
+	if session != nil {
 		_ = session.close()
 	}
-	d.drainingHTTP2 = nil
+	for old := range draining {
+		_ = old.close()
+	}
+	if client != nil {
+		client.CloseIdleConnections()
+	}
+	if jump != nil {
+		_ = jump.Close()
+	}
 	return nil
+}
+
+type httpsOwnedConn struct {
+	net.Conn
+	owner *httpsConnectDialer
+	once  sync.Once
+}
+
+func (c *httpsOwnedConn) Close() error {
+	err := c.Conn.Close()
+	c.once.Do(func() { c.owner.socketMu.Lock(); delete(c.owner.sockets, c); c.owner.socketMu.Unlock() })
+	return err
+}
+func (c *httpsOwnedConn) CloseRead() error  { return closeConnRead(c.Conn) }
+func (c *httpsOwnedConn) CloseWrite() error { return closeConnWrite(c.Conn) }
+func (d *httpsConnectDialer) own(conn net.Conn) (net.Conn, error) {
+	d.cacheMu.Lock()
+	if d.closed {
+		d.cacheMu.Unlock()
+		_ = conn.Close()
+		return nil, net.ErrClosed
+	}
+	d.socketMu.Lock()
+	if d.sockets == nil {
+		d.sockets = make(map[*httpsOwnedConn]struct{})
+	}
+	owned := &httpsOwnedConn{Conn: conn, owner: d}
+	d.sockets[owned] = struct{}{}
+	d.socketMu.Unlock()
+	d.cacheMu.Unlock()
+	return owned, nil
 }
 
 func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
 	d.cacheMu.Lock()
+	if d.closed {
+		d.cacheMu.Unlock()
+		return nil, net.ErrClosed
+	}
+	if d.lifetime == nil {
+		d.lifetime, d.cancel = context.WithCancel(context.Background())
+	}
+	lifetime := d.lifetime
 	if d.connections == nil {
 		d.connections = make(chan struct{}, 256)
 	}
@@ -74,6 +129,8 @@ func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metada
 	case connections <- struct{}{}:
 	case <-ctx.Done():
 		return nil, ctx.Err()
+	case <-lifetime.Done():
+		return nil, net.ErrClosed
 	}
 	connection, err := d.connectTarget(ctx, metadata.DestinationAddress())
 	if err != nil {
@@ -86,10 +143,18 @@ func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metada
 func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (net.Conn, error) {
 	d.cacheMu.Lock()
 	closed := d.closed
+	if d.lifetime == nil {
+		d.lifetime, d.cancel = context.WithCancel(context.Background())
+	}
+	lifetime := d.lifetime
 	d.cacheMu.Unlock()
 	if closed {
 		return nil, net.ErrClosed
 	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stopLifetime := context.AfterFunc(lifetime, cancel)
+	defer stopLifetime()
 	connectionID := nextDiagnosticConnectionID()
 	totalStarted := time.Now()
 	if !d.config.AllowIPv6 {
@@ -109,6 +174,10 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		if err != nil {
 			err = fmt.Errorf("dial local network directly: %w", err)
 			report(d.reporter, "event=connection conn=%d mode=direct stage=tcp_connect result=failed reason=%s elapsed_ms=%d", connectionID, errorClass(err), time.Since(directStarted).Milliseconds())
+			return nil, err
+		}
+		connection, err = d.own(connection)
+		if err != nil {
 			return nil, err
 		}
 		report(d.reporter, "event=connection conn=%d mode=direct stage=tcp_connect result=success elapsed_ms=%d", connectionID, time.Since(directStarted).Milliseconds())
@@ -141,6 +210,12 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	}
 
 	report(d.reporter, "event=connection conn=%d mode=proxy stage=tcp_connect result=success elapsed_ms=%d", connectionID, time.Since(dialStarted).Milliseconds())
+	raw, err = d.own(raw)
+	if err != nil {
+		return nil, err
+	}
+	stopOpening := context.AfterFunc(ctx, func() { _ = raw.Close() })
+	defer stopOpening()
 	closeOnError := true
 	defer func() {
 		if closeOnError {
@@ -191,6 +266,10 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 		if sessionErr != nil {
 			return nil, fmt.Errorf("initialize HTTP/2 proxy session: %w", sessionErr)
 		}
+		if !stopOpening() || ctx.Err() != nil {
+			_ = session.close()
+			return nil, ctx.Err()
+		}
 		closeOnError = false // The HTTP/2 session now owns the outer TLS connection.
 		session = d.installHTTP2Session(session)
 		if session == nil {
@@ -240,6 +319,9 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	}
 
 	report(d.reporter, "event=connection conn=%d mode=proxy hop=%s protocol=http1_1 http_version=HTTP/1.1 stage=tunnel result=established total_ms=%d", connectionID, hop, time.Since(totalStarted).Milliseconds())
+	if !stopOpening() || ctx.Err() != nil {
+		return nil, ctx.Err()
+	}
 	closeOnError = false
 	var connection net.Conn = uconn
 	if reader.Buffered() > 0 {

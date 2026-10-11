@@ -277,13 +277,47 @@ class ConfigStoreIntegrationTest {
         )) }.also(store::saveProfile)
         val other = store.cloneProfile(original.id)!!
         val pin = "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBB"
-        assertTrue(store.trustSshHostKey(original.id, "jump", pin))
+        assertTrue(store.trustSshHostKey(original.id, "jump", pin, original.config.jumpHost, original.config.jumpPort, original.config.jumpTrustedHostKey))
         assertEquals(original.copy(config = original.config.copy(
             jumpTrustedHostKey = pin, jumpAcceptAnyHostKey = false,
         )), store.profile(original.id))
         assertEquals(other, store.profile(other.id))
-        assertFalse(store.trustSshHostKey(original.id, "jump", "invalid"))
-        assertFalse(store.trustSshHostKey("deleted", "jump", pin))
+        assertFalse(store.trustSshHostKey(original.id, "jump", "invalid", original.config.jumpHost, original.config.jumpPort, original.config.jumpTrustedHostKey))
+        assertFalse(store.trustSshHostKey("deleted", "jump", pin, original.config.jumpHost, original.config.jumpPort, original.config.jumpTrustedHostKey))
         assertEquals(pin, store.profile(original.id)!!.config.jumpTrustedHostKey)
     }
+    @Test fun staleHostKeyPromptCannotTrustChangedEndpointPortOrPin() {
+        val original = secretProfile()
+        val pin = "SHA256:BBBBBBBBBBBBBBBBBBBBBBBBBBBB"
+        val changed = listOf(
+            original.config.copy(host = "replacement.example"),
+            original.config.copy(port = 2222),
+            original.config.copy(trustedHostKey = "SHA256:AAAAAAAAAAAAAAAAAAAAAAAAAAAA"),
+            original.config.copy(type = ProxyType.HTTPS),
+        )
+        changed.forEach { config ->
+            store.saveProfile(original.copy(config = config))
+            assertFalse(store.trustSshHostKey(original.id, "destination", pin,
+                original.config.host, original.config.port, original.config.trustedHostKey))
+            assertEquals(config, store.profile(original.id)!!.config)
+        }
+        store.saveProfile(original.copy(name = "Renamed"))
+        assertFalse(store.trustSshHostKey(original.id, "unexpected", pin,
+            original.config.host, original.config.port, original.config.trustedHostKey))
+        assertFalse(store.trustSshHostKey(original.id, "destination", pin, "", 0, ""))
+        assertTrue(store.trustSshHostKey(original.id, "destination", pin,
+            original.config.host, original.config.port, original.config.trustedHostKey))
+        assertEquals("Renamed", store.profile(original.id)!!.name)
+    }
+
+    @Test fun singleProfileLookupDoesNotDecryptOtherProfiles() {
+        val original = secretProfile()
+        val other = store.cloneProfile(original.id)!!
+        UiTestKeyStore.encodedReads.set(0)
+        assertEquals(original, store.profile(original.id))
+        assertEquals(4, UiTestKeyStore.encodedReads.get())
+        assertEquals(other, store.profile(other.id))
+        assertEquals(8, UiTestKeyStore.encodedReads.get())
+    }
+
 }

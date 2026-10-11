@@ -24,8 +24,18 @@ class UiTestKeyStoreProvider : Provider("AndroidKeyStore", 1.0, "In-memory UI te
 }
 
 class UiTestKeyStore : KeyStoreSpi() {
-    companion object { val keys = java.util.concurrent.ConcurrentHashMap<String, Key>() }
-    override fun engineGetKey(alias: String, password: CharArray?) = keys[alias]
+    companion object {
+        val keys = java.util.concurrent.ConcurrentHashMap<String, Key>()
+        val encodedReads = java.util.concurrent.atomic.AtomicInteger()
+    }
+    override fun engineGetKey(alias: String, password: CharArray?): Key? {
+        val key = keys[alias] as? SecretKey ?: return keys[alias]
+        return object : SecretKey {
+            override fun getAlgorithm() = key.algorithm
+            override fun getFormat() = key.format
+            override fun getEncoded(): ByteArray { encodedReads.incrementAndGet(); return key.encoded }
+        }
+    }
     override fun engineGetCertificateChain(alias: String): Array<Certificate>? = null
     override fun engineGetCertificate(alias: String): Certificate? = null
     override fun engineGetCreationDate(alias: String) = Date(0)

@@ -114,9 +114,12 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     SecureScreen(activity)
     val draftId = rememberSaveable { java.util.UUID.randomUUID().toString() }
     val isNew = profileId == "new"
-    val editorState = viewModel {
+    val initial = readConfiguration(profileId.orEmpty() + draftId) {
         val existing = if (isNew) store.profile(draftId) else store.profile(profileId.orEmpty()) ?: store.activeProfile()
-        ProfileEditorState(existing ?: store.newProfileDraft(draftId)).also { it.persisted = existing != null }
+        Triple(existing ?: store.newProfileDraft(draftId), existing != null, store.globalConnectionSettings())
+    } ?: return
+    val editorState = viewModel {
+        ProfileEditorState(initial.first).also { it.persisted = initial.second }
     }
     val coroutineScope = editorState.viewModelScope
     var profile by editorState::profile
@@ -141,7 +144,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     }
 
     val writeStatus by ConfigWrites.status.collectAsState()
-    var globalSettings by remember(store) { mutableStateOf(store.globalConnectionSettings()) }
+    var globalSettings by remember(store) { mutableStateOf(initial.third) }
     androidx.compose.runtime.LaunchedEffect(writeStatus) {
         if (writeStatus.pending == 0) {
             globalSettings = withContext(net.megaproxy487.data.ConfigIoDispatcher) { store.globalConnectionSettings() }

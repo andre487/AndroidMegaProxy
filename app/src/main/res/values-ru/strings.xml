@@ -536,4 +536,5 @@
     <string name="subscription_notification_channel">Изменения конфигурации</string>
     <string name="subscription_notification_title">Настройки VPN обновлены</string>
     <string name="subscription_notification_text">Фоновое обновление подписки изменило настройки активного соединения. Переподключитесь, чтобы применить их.</string>
+    <string name="loading_configuration">Загрузка конфигурации…</string>
 </resources>

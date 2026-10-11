@@ -46,6 +46,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -87,28 +90,35 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
             }
         }
     }
+    val scope = rememberCoroutineScope()
     val runTest = runTest@{
         if (TestDiagnosticLog.state.value == TestState.RUNNING) return@runTest
-        val configStore = ConfigStore(activity)
-        // A live VPN is tested with its actual runtime configuration in the service.
-        val error = if (ProxyVpnService.isRunning) null else
-            configStore.globalConnectionSettings().applyTo(configStore.activeProfile().config)
-                .connectionValidationError()?.let { activity.uiText(it) }
-        if (error != null) {
-            TestDiagnosticLog.fail(error)
-        } else {
-            TestDiagnosticLog.begin()
-            val status = readAlwaysOnVpnStatus(activity)
-            if (status.hasOtherProvider) {
-                TestDiagnosticLog.fail(activity.uiText(R.string.other_always_on_vpn))
-                showAlwaysOnConflict = true
-            } else {
-                val intent = VpnService.prepare(activity)
-                if (intent == null) {
-                    ProxyVpnService.test(activity)
-                } else {
-                    permission.launch(intent)
+        TestDiagnosticLog.begin()
+        scope.launch {
+            try {
+                // A live VPN is tested with its actual runtime configuration in the service.
+                val error = if (ProxyVpnService.isRunning) null else withContext(net.megaproxy487.data.ConfigIoDispatcher) {
+                    val store = ConfigStore(activity)
+                    store.globalConnectionSettings().applyTo(store.activeProfile().config)
+                        .connectionValidationError()?.let { activity.uiText(it) }
                 }
+                if (error != null) {
+                    TestDiagnosticLog.fail(error)
+                } else {
+                    val status = readAlwaysOnVpnStatus(activity)
+                    if (status.hasOtherProvider) {
+                        TestDiagnosticLog.fail(activity.uiText(R.string.other_always_on_vpn))
+                        showAlwaysOnConflict = true
+                    } else {
+                        val intent = VpnService.prepare(activity)
+                        if (intent == null) ProxyVpnService.test(activity) else permission.launch(intent)
+                    }
+                }
+            } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                TestDiagnosticLog.reset()
+                throw cancelled
+            } catch (_: Exception) {
+                TestDiagnosticLog.fail(activity.uiText(R.string.error_config_storage))
             }
         }
     }

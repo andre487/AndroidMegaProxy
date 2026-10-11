@@ -273,9 +273,10 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
 @Composable
 internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
-    val profiles = remember(store) { store.sortedProfiles() }
+    val initial = readConfiguration(store) { store.sortedProfiles() to store.globalConnectionSettings() } ?: return
+    val profiles = initial.first
     val scope = rememberCoroutineScope()
-    var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
+    var settings by remember { mutableStateOf(initial.second) }
     val edits = remember { net.megaproxy487.data.ConfigEdits<net.megaproxy487.model.GlobalConnectionSettings>() }
     var expanded by remember { mutableStateOf(false) }
     var pendingAll by remember { mutableStateOf(false) }
@@ -351,10 +352,11 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
 @Composable
 internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
-    val profiles = remember(store) { store.sortedProfiles() }
+    val initial = readConfiguration(store) { store.sortedProfiles() to store.alwaysOnProfile() } ?: return
+    val profiles = initial.first
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
-    var selected by remember { mutableStateOf(store.alwaysOnProfile()) }
+    var selected by remember { mutableStateOf(initial.second) }
     val alwaysOnActive = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
     SettingsScaffold(onBack, stringResource(R.string.always_on_vpn)) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
@@ -392,7 +394,8 @@ internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
 internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
-    var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
+    val initial = readConfiguration(store) { store.globalConnectionSettings() } ?: return
+    var settings by remember { mutableStateOf(initial) }
     val edits = remember { net.megaproxy487.data.ConfigEdits<net.megaproxy487.model.GlobalConnectionSettings>() }
     var expanded by remember { mutableStateOf(false) }
     var sshExpanded by remember { mutableStateOf(false) }

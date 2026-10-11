@@ -299,7 +299,7 @@ class ProxyVpnService : VpnService() {
         }
         val testConfig = session.withStoredTrust(ConfigStore(this).profile(session.profileId)).config
         val result = NativeProxyCore(this, TestDiagnosticLog::add).test(testConfig) { message ->
-            configureHostKeyPrompt(message, session.profileId, true)
+            configureHostKeyPrompt(message, session.profileId, true, testConfig)
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
         }
         if (result != null) TestDiagnosticLog.succeed(result.exitIp, result.countryCode, result.http3, result.http3Fallback) else TestDiagnosticLog.fail()
@@ -423,9 +423,9 @@ class ProxyVpnService : VpnService() {
             val startupBlockingDetail = java.util.concurrent.atomic.AtomicReference<String?>(null)
             val started = proxyCore.start(establishedTunnel.fd, VPN_MTU, config) { message ->
                     failureDetail = message
-                    configureHostKeyPrompt(message, promptProfileId, testOnly)
-                    if (BlockingDetection.classify(message) != null) startupBlockingDetail.set(message)
-                    if (!testOnly && ("dpi_hint=possible" in message || isProxyTunnelEstablished(message))) monitorHandler.post {
+                    configureHostKeyPrompt(message, promptProfileId, testOnly, storedConfig)
+                    if (BlockingDetection.classify(message) != null || isBootstrapConnectionFailure(message)) startupBlockingDetail.set(message)
+                    if (!testOnly && ("dpi_hint=possible" in message || isProxyTunnelEstablished(message) || isBootstrapConnectionFailure(message))) monitorHandler.post {
                         if (isStartCurrent(generation)) handleRuntimeDiagnostic(promptProfileId, message)
                     }
                     if (!isProxyTunnelEstablished(message)) {
@@ -437,7 +437,7 @@ class ProxyVpnService : VpnService() {
                 if (isStartCurrent(generation)) {
                     isRunning = false
                     val detail = failureDetail.takeIf(::requiresUserAction) ?: startupBlockingDetail.get() ?: failureDetail
-                    handleStartFailure(testOnly, "Native proxy core failed to start", detail, promptProfileId)
+                    handleStartFailure(testOnly, "Native proxy core failed to start", detail, promptProfileId, config)
                 }
                 return false
             }
@@ -490,7 +490,7 @@ class ProxyVpnService : VpnService() {
 
     private fun isStartCurrent(generation: Long): Boolean = startGeneration.get() == generation
 
-    private fun handleStartFailure(testOnly: Boolean, message: String, detail: String = message, profileId: String = "") {
+    private fun handleStartFailure(testOnly: Boolean, message: String, detail: String = message, profileId: String = "", failedConfig: net.megaproxy487.model.ProxyConfig? = null) {
         if (testOnly) {
             TestDiagnosticLog.fail(message)
             if (hostKeyPrompt != null) {
@@ -502,6 +502,9 @@ class ProxyVpnService : VpnService() {
                 stopSelf()
             }
         } else {
+            if (isBootstrapConnectionFailure(detail) && failedConfig != null) {
+                refreshFailedBootstrap(profileId, failedConfig)
+            }
             val signal = BlockingDetection.classify(detail)
             if (signal != null && profileId.isNotEmpty()) {
                 val count = recordProbableFailure(profileId, detail)
@@ -653,6 +656,14 @@ class ProxyVpnService : VpnService() {
         getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
     }
 
+    private fun refreshFailedBootstrap(profileId: String, config: net.megaproxy487.model.ProxyConfig): Boolean {
+        if (profileId in freshDnsRecoveryProfiles) return false
+        if (!BootstrapAddressCache(this).invalidateFailedAddresses(config)) return false
+        freshDnsRecoveryProfiles.add(profileId)
+        DiagnosticLog.add("event=bootstrap_dns result=invalidated reason=upstream_unreachable")
+        return true
+    }
+
     private fun handleRuntimeDiagnostic(profileId: String, detail: String) {
         if (!isRunning || activeSession?.profileId != profileId) return
         if (isProxyTunnelEstablished(detail)) {
@@ -668,6 +679,14 @@ class ProxyVpnService : VpnService() {
                 ConfigStore(this).setFailoverState(false, null)
             }
             DiagnosticLog.add("event=blocking_detection result=recovered")
+            return
+        }
+        if (isBootstrapConnectionFailure(detail)) {
+            val session = activeSession ?: return
+            if (refreshFailedBootstrap(profileId, session.config)) {
+                stopTunnel(removeForeground = false)
+                scheduleRecovery()
+            }
             return
         }
         val signal = BlockingDetection.classify(detail) ?: return
@@ -806,7 +825,7 @@ class ProxyVpnService : VpnService() {
         getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
     }
 
-    private fun configureHostKeyPrompt(message: String, profileId: String, testOnly: Boolean) {
+    private fun configureHostKeyPrompt(message: String, profileId: String, testOnly: Boolean, config: net.megaproxy487.model.ProxyConfig) {
         val marker = when {
             "SSH_HOST_KEY_UNKNOWN|" in message -> "SSH_HOST_KEY_UNKNOWN|"
             "SSH_HOST_KEY_CHANGED|" in message -> "SSH_HOST_KEY_CHANGED|"
@@ -817,6 +836,10 @@ class ProxyVpnService : VpnService() {
         val changed = marker.startsWith("SSH_HOST_KEY_CHANGED")
         val fingerprint = if (changed) parts.getOrNull(3) else parts.getOrNull(2)
         if (fingerprint == null || !fingerprint.startsWith("SHA256:")) return
+        if (parts[0] !in setOf("jump", "destination")) return
+        val host = if (parts[0] == "jump") config.jumpHost else config.host
+        val port = if (parts[0] == "jump") config.jumpPort else config.port
+        val previous = if (parts[0] == "jump") config.jumpTrustedHostKey else config.trustedHostKey
         val intent = Intent(this, net.megaproxy487.SshHostKeyReviewActivity::class.java)
             .setAction(MainActivity.ACTION_REVIEW_SSH_HOST_KEY)
             .putExtra(MainActivity.EXTRA_PROFILE_ID, profileId)
@@ -825,8 +848,11 @@ class ProxyVpnService : VpnService() {
             .putExtra(MainActivity.EXTRA_FINGERPRINT, fingerprint)
             .putExtra(MainActivity.EXTRA_CHANGED, changed)
             .putExtra(MainActivity.EXTRA_TEST_ONLY, testOnly)
+            .putExtra(MainActivity.EXTRA_HOST, host)
+            .putExtra(MainActivity.EXTRA_PORT, port)
+            .putExtra(MainActivity.EXTRA_PREVIOUS_FINGERPRINT, previous)
         SshHostKeyPromptState.show(
-            PendingSshHostKey(profileId, parts[0], parts[1], fingerprint, changed, testOnly),
+            PendingSshHostKey(profileId, parts[0], parts[1], fingerprint, changed, testOnly, host, port, previous),
         )
         hostKeyPrompt = PendingIntent.getActivity(
             this, profileId.hashCode() xor parts[0].hashCode(), intent,

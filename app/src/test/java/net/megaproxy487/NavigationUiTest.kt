@@ -23,6 +23,7 @@ class NavigationUiTest : MainUiTestBase() {
         compose.onNodeWithTag("screen-settings").assertIsDisplayed()
         for (destination in settingsDestinations) {
             node(destination.titleRes).performScrollTo().performClick()
+            drainConfigIo()
             compose.onNodeWithTag("screen-${destination.route}").assertIsDisplayed()
             icon(R.string.back).performClick()
             compose.onNodeWithTag("screen-settings").assertIsDisplayed()
@@ -37,6 +38,7 @@ class NavigationUiTest : MainUiTestBase() {
         node(R.string.settings).performClick()
         node(R.string.profiles).performClick()
         node(R.string.add_profile).performClick()
+        drainConfigIo()
         compose.onNodeWithTag("screen-profile-editor").assertIsDisplayed()
         icon(R.string.back).performClick()
         compose.onNodeWithTag("screen-profiles").assertIsDisplayed()
