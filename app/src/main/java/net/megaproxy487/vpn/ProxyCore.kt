@@ -135,7 +135,7 @@ class NativeProxyCore(
         return operationResult {
             val reporter = reporter { message ->
                 diagnostics(message)
-                VpnRuntimeState.observeDiagnostic(message)
+                VpnRuntimeState.observeDiagnostic(message) { callbacksEnabled.get() && isCurrent() }
                 if ("SSH_HOST_KEY_" in message || "dpi_hint=possible" in message || isProxyTunnelEstablished(message) || isBootstrapConnectionFailure(message)) status(message)
             }
             val json = configJson(config)

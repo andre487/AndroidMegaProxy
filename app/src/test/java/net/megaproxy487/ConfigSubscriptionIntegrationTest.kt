@@ -51,6 +51,36 @@ class ConfigSubscriptionIntegrationTest {
     private fun apply(value: PortableConfiguration, running: Boolean = false) = store.applySubscriptionSnapshot(
         store.subscriptionState()!!.generation, value, 0, 1000, running)
 
+    @Test fun updateDuringStartupRequiresReconnectAndNotificationAfterCommit() {
+        bootstrap(profile("one"))
+        store.setConnectionProfile("one")
+        store.setConnectionDesired(true)
+        val started = store.effectiveConnectionProfile()
+        val tokenAtStart = store.pendingReconnectToken()
+        val updated = profile("one").let { it.copy(config = it.config.copy(password = "rotated")) }
+        apply(PortableConfiguration(listOf(updated), "one", "one", secretPresence = mapOf("one" to ProfileSecretPresence(password = true))), running = false)
+        assertFalse(store.hasPendingReconnect())
+        val token = store.reconcileStartedConfiguration(started.id, started.config, tokenAtStart)
+        assertNotNull(token)
+        shadowOf(context).grantPermissions(android.Manifest.permission.POST_NOTIFICATIONS)
+        SubscriptionNotifications.show(context, token!!) { true }
+        assertNotNull(shadowOf(context.getSystemService(NotificationManager::class.java)).getNotification(SUBSCRIPTION_NOTIFICATION_ID))
+        val fresh = store.effectiveConnectionProfile()
+        assertNull(store.reconcileStartedConfiguration(fresh.id, fresh.config, token))
+    }
+
+    @Test fun startupReconciliationPreservesNewerReconnectToken() {
+        bootstrap(profile("one"))
+        store.setConnectionProfile("one")
+        store.markPendingReconnect()
+        val oldToken = store.pendingReconnectToken()
+        val started = store.effectiveConnectionProfile()
+        store.markPendingReconnect()
+        val newerToken = store.pendingReconnectToken()
+        assertEquals(newerToken, store.reconcileStartedConfiguration(started.id, started.config, oldToken))
+        assertNull(store.reconcileStartedConfiguration(started.id, started.config, newerToken))
+    }
+
     @Test fun settingsTokensAndCredentialsAreEncryptedAndExportFollowsPasswordChoice() {
         store.saveProfile(store.activeProfile().let { it.copy(config = profile("initial").config) })
         store.saveSubscription(settings)

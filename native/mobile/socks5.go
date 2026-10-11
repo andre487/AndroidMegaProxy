@@ -223,6 +223,9 @@ func writeSOCKS5(c net.Conn, b []byte) error {
 }
 
 func (d *socks5Dialer) DialContext(ctx context.Context, m *M.Metadata) (net.Conn, error) {
+	if m.DstPort == 53 {
+		return dialDNSStream(ctx, m, d.DialUDP, d.track)
+	}
 	return d.connectTarget(ctx, m.DestinationAddress())
 }
 func (d *socks5Dialer) connectTarget(ctx context.Context, target string) (net.Conn, error) {

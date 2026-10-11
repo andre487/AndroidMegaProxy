@@ -49,9 +49,9 @@ connection diagnostics, reconnect/failover and encrypted credentials apply to
 MASQUE. JSON uses `proxy.type: "MASQUE"`; ProxyList uses
 `masque://user:password@host:port`. Jump modes remain HTTPS/SSH only.
 
-UDP/53 queries entering the VPN are converted to DoH. Application-managed TCP DNS,
-Private DNS and browser Secure DNS follow normal routing and are not rewritten to
-the selected DoH provider.
+UDP and TCP port 53 queries entering the VPN are converted to DoH, including
+TCP retries and pipelined queries. Private DNS and browser Secure DNS follow
+normal routing and are not rewritten to the selected DoH provider.
 
 ## Fingerprints and limits
 

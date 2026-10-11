@@ -147,7 +147,9 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     var globalSettings by remember(store) { mutableStateOf(initial.third) }
     androidx.compose.runtime.LaunchedEffect(writeStatus) {
         if (writeStatus.pending == 0) {
-            globalSettings = withContext(net.megaproxy487.data.ConfigIoDispatcher) { store.globalConnectionSettings() }
+            withContext(net.megaproxy487.data.ConfigIoDispatcher) {
+                net.megaproxy487.data.operationResult { store.globalConnectionSettings() }
+            }.onSuccess { globalSettings = it }.onFailure { error = activity.uiText(R.string.error_config_storage) }
         }
     }
     val editedConnectionProfileId = net.megaproxy487.vpn.VpnRuntimeState.connectionProfileId.value

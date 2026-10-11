@@ -110,6 +110,35 @@ func (d *httpsConnectDialer) own(conn net.Conn) (net.Conn, error) {
 	return owned, nil
 }
 
+// Direct and virtual sockets use the same ownership and cancellation as HTTPS.
+func (d *httpsConnectDialer) lifetimeContext() context.Context {
+	d.cacheMu.Lock()
+	defer d.cacheMu.Unlock()
+	if d.lifetime == nil {
+		d.lifetime, d.cancel = context.WithCancel(context.Background())
+	}
+	if d.closed {
+		d.cancel()
+	}
+	return d.lifetime
+}
+
+func (d *httpsConnectDialer) dialDirect(ctx context.Context, dialer *net.Dialer, network, target string) (net.Conn, error) {
+	lifetime := d.lifetimeContext()
+	if lifetime.Err() != nil {
+		return nil, net.ErrClosed
+	}
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	stop := context.AfterFunc(lifetime, cancel)
+	defer stop()
+	c, err := dialer.DialContext(ctx, network, target)
+	if err != nil {
+		return nil, err
+	}
+	return d.own(c)
+}
+
 func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metadata) (net.Conn, error) {
 	d.cacheMu.Lock()
 	if d.closed {
@@ -132,7 +161,13 @@ func (d *httpsConnectDialer) DialContext(ctx context.Context, metadata *M.Metada
 	case <-lifetime.Done():
 		return nil, net.ErrClosed
 	}
-	connection, err := d.connectTarget(ctx, metadata.DestinationAddress())
+	var connection net.Conn
+	var err error
+	if metadata.DstPort == 53 {
+		connection, err = dialDNSStream(ctx, metadata, d.DialUDP, d.own)
+	} else {
+		connection, err = d.connectTarget(ctx, metadata.DestinationAddress())
+	}
 	if err != nil {
 		<-connections
 		return nil, err

@@ -1,5 +1,6 @@
 package net.megaproxy487.vpn
 
+import java.util.concurrent.atomic.AtomicLong
 import android.os.Handler
 import android.os.SystemClock
 import android.os.Looper
@@ -48,10 +49,19 @@ object VpnRuntimeState {
     private val mutableSession = mutableStateOf<ConnectionSession?>(null)
     val session: State<ConnectionSession?> = mutableSession
 
-    fun update(value: VpnConnectionState) {
+    private val connectionRevision = AtomicLong()
+    private val systemRevision = AtomicLong()
+    private val warningRevision = AtomicLong()
+    private val diagnosticEpoch = AtomicLong()
+
+    fun update(value: VpnConnectionState, isCurrent: () -> Boolean = { true }) {
+        if (!isCurrent()) return
+        val revision = connectionRevision.incrementAndGet()
+        if (value != VpnConnectionState.CONNECTED) diagnosticEpoch.incrementAndGet()
         val wallTime = System.currentTimeMillis()
         val elapsedTime = SystemClock.elapsedRealtime()
-        val update = {
+        val update = update@{
+            if (!isCurrent() || connectionRevision.get() != revision) return@update
             mutableSession.value = connectionSessionForState(
                 mutableSession.value, value == VpnConnectionState.CONNECTED, wallTime, elapsedTime,
             )
@@ -64,24 +74,33 @@ object VpnRuntimeState {
         if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
     }
 
-    fun observeDiagnostic(message: String) {
+    fun observeDiagnostic(message: String, isCurrent: () -> Boolean = { true }) {
+        val epoch = diagnosticEpoch.get()
         val protocol = transportProtocolFromDiagnostic(message)
         val fallback = isHttp3FallbackDiagnostic(message)
         if (protocol == null && !fallback) return
-        val update = {
+        val update = update@{
+            if (!isCurrent() || diagnosticEpoch.get() != epoch) return@update
             if (protocol != null) mutableTransportProtocol.value = protocol
             if (fallback) mutableHttp3Fallback.value = true
         }
         if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
     }
 
-    fun updateNetworkWarning(value: String?) {
-        if (Looper.myLooper() == Looper.getMainLooper()) mutableNetworkWarning.value = value
-        else mainHandler.post { mutableNetworkWarning.value = value }
+    fun updateNetworkWarning(value: String?, isCurrent: () -> Boolean = { true }) {
+        if (!isCurrent()) return
+        val revision = warningRevision.incrementAndGet()
+        val update = {
+            if (isCurrent() && warningRevision.get() == revision) mutableNetworkWarning.value = value
+        }
+        if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
     }
 
-    fun updateSystem(alwaysOn: Boolean, lockdown: Boolean, connectionProfileId: String) {
-        val update = {
+    fun updateSystem(alwaysOn: Boolean, lockdown: Boolean, connectionProfileId: String, isCurrent: () -> Boolean = { true }) {
+        if (!isCurrent()) return
+        val revision = systemRevision.incrementAndGet()
+        val update = update@{
+            if (!isCurrent() || systemRevision.get() != revision) return@update
             mutableAlwaysOn.value = alwaysOn
             mutableLockdown.value = lockdown
             mutableConnectionProfileId.value = connectionProfileId
