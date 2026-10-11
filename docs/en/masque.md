@@ -69,6 +69,11 @@ normal routing and are not rewritten to the selected DoH provider.
   Oversized outgoing packets are dropped whole, with one diagnostic per UDP flow;
   following smaller packets keep working. The advertised receive limit also bounds
   outgoing payloads to avoid GOST closing a flow on an echo-sized oversized reply.
+- The 2026-10-11 API 35 verification found lost final TCP bytes on immediate write
+  half-close with GOST 3.3.0: its relay handles EOF before bytes returned by the same
+  read. The failure also reproduces with the native client without Android TUN.
+  This is a server limitation; delaying FIN is not a fix. See the
+  [verification report](../reviews/release-api35-2026-10-11.md).
 - GOST 3.3.0 rejects IPv6 literal CONNECT-UDP targets. TCP IPv6 and local UDP bypass
   follow the profile's IPv6/routing policy. IPv4-only is the default.
 - The stats card shows QUIC RTT and outgoing packets declared lost over five minutes.
