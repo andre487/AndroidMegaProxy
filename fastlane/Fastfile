@@ -158,7 +158,7 @@ platform :android do
     end
   end
 
-  desc "Wait for full release PR CI, squash merge, and tag its verified merged commit"
+  desc "Wait for full release PR CI, create a merge commit, and tag its verified merged commit"
   lane :release_finish do |options|
     version = options[:version] || ENV.fetch("RELEASE_VERSION")
     pr = options[:pr] || ENV.fetch("RELEASE_PR")

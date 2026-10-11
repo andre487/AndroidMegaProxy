@@ -2,7 +2,7 @@
 
 Run **Actions → Prepare and merge release → Run workflow**, select `main`, and enter
 an explicit new version such as `0.1.2` (without `v`). Starting this workflow authorizes
-creation of a release PR, automatic squash merge after full CI, and a release tag.
+creation of a release PR, automatic merge with a merge commit after full CI, and a release tag.
 The existing **Release Android artifacts** workflow then builds/signs/publishes APKs.
 This does not replace the [device release review](release-testing.md).
 
@@ -38,14 +38,14 @@ Keep the existing Android signing secrets for the tag workflow:
 `ANDROID_SIGNING_KEY_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
 `ANDROID_KEY_PASSWORD`. The preparation and PR checks do not receive them.
 
-Enable squash merges. Protect `main`, require `Change scope`, `Python tests and style`,
+Enable merge commits. Protect `main`, require `Change scope`, `Python tests and style`,
 `Native Go tests`, `Android tests and checks`,
 `Android emulator API 26 / Device tests`, and `Android emulator API 35 / Device tests`,
 and disable bypass for the bot.
 If policy requires human review, approve the generated PR yourself; automation does
 not approve its own PR or bypass that policy. A denied merge stops finalization;
 rerun the failed finalization job after approval. Merge queues are not supported by
-this direct squash-merge workflow. Tag rules must permit the bot to create `v*` tags.
+this direct merge workflow. Tag rules must permit the bot to create `v*` tags.
 
 Use a separate bot account if you want its permissions distinct from your own.
 This initial implementation uses a PAT; GitHub App token minting/renewal is not
@@ -85,9 +85,10 @@ allows PR CI and the tag-triggered release build to run normally.
    are insufficient. The recorded comparison base must match the release parent. The PR number is
    also recorded as a successful CI step because GitHub may remove run-to-PR
    links after merge; this allows a verified retry of tag creation.
-7. Recheck PR identity and unchanged `main`, then request squash merge with the
+7. Recheck PR identity and unchanged `main`, then request a merge commit with the
    expected head SHA. GitHub protections still apply. Verify that the resulting
-   commit belongs to `main` and has exactly the tested head's tree.
+   commit belongs to `main`, has the verified base and head as its two parents,
+   and has exactly the tested head's tree.
 8. Create lightweight tag `vX.Y.Z` on **the actual merged commit**, never on the
    release branch head or whatever `main` happens to point to later. The PAT causes
    the existing tag build to run. Its new GitHub Release uses the same committed

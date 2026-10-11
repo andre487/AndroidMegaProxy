@@ -306,12 +306,11 @@ class ReleaseTests(unittest.TestCase):
                     return copy.deepcopy(pr)
                 if path == "pulls/7/merge":
                     self.assertEqual(
-                        {"sha": pr["head"]["sha"], "merge_method": "squash"}, payload
+                        {"sha": pr["head"]["sha"], "merge_method": "merge"}, payload
                     )
                     self.assertEqual("PUT", method)
                     git("switch", "-q", "main")
-                    git("merge", "--squash", pr["head"]["sha"])
-                    git("commit", "-qm", "Release v0.1.2")
+                    git("merge", "--no-ff", "-qm", "Release v0.1.2", pr["head"]["sha"])
                     git("push", "-q", "origin", "main")
                     pr.update(
                         merged=True,
@@ -427,6 +426,19 @@ class ReleaseTests(unittest.TestCase):
                             git("rev-parse", "refs/tags/v0.1.2", cwd=remote),
                         )
                         self.assertNotEqual(head, pr["merge_commit_sha"])
+                        self.assertEqual(
+                            [base, head],
+                            git(
+                                "show", "-s", "--format=%P", pr["merge_commit_sha"]
+                            ).split(),
+                        )
+                        merged_commit = pr["merge_commit_sha"]
+                        pr["merge_commit_sha"] = head
+                        with self.assertRaisesRegex(
+                            RuntimeError, "must have a merge commit"
+                        ):
+                            m.finish("0.1.2", 7, head)
+                        pr["merge_commit_sha"] = merged_commit
                         m.finish("0.1.2", 7, head)
                         self.assertEqual(1, calls.count("pulls/7/merge"))
                         self.assertEqual(1, calls.count("git/refs"))
