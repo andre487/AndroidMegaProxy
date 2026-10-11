@@ -65,6 +65,20 @@ class ConfigurationRecoveryRegressionTest {
             .getString("global_connection_settings_v1", null))
     }
 
+    @Test fun corruptSettingsDoNotCrashFailoverOrChangeTheActiveProfile() {
+        val profile = store.activeProfile()
+        store.setConnectionProfile(profile.id)
+        store.setConnectionDesired(true)
+        context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE).edit()
+            .putString("global_connection_settings_v1", "{broken").commit()
+        val service = Robolectric.buildService(ProxyVpnService::class.java).get()
+        ProxyVpnService::class.java.getDeclaredMethod("handleProbableBlocking", String::class.java, BlockingSignal::class.java)
+            .apply { isAccessible = true }.invoke(service, profile.id, BlockingSignal.TCP_TIMEOUT)
+        assertEquals(profile.id, store.connectionProfileId())
+        assertTrue(store.isConnectionDesired())
+        assertEquals(context.uiText(R.string.error_config_storage), VpnRuntimeState.networkWarning.value)
+    }
+
     @Test fun startupSnapshotIncludesLegacyIpv6Migration() {
         store.activeProfile()
         store.saveGlobalConnectionSettings(GlobalConnectionSettings())

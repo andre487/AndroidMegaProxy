@@ -648,7 +648,13 @@ class ProxyVpnService : VpnService() {
     @Synchronized
     private fun handleProbableBlocking(profileId: String, signal: BlockingSignal) {
         val store = ConfigStore(this)
-        val settings = store.globalConnectionSettings()
+        val settings = operationResult { store.globalConnectionSettings() }.getOrElse {
+            val notice = uiText(R.string.error_config_storage)
+            blockingWarning = notice
+            VpnRuntimeState.updateNetworkWarning(notice)
+            getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
+            return
+        }
         val warning = uiText(R.string.vpn_probably_blocked, uiText(signal.titleRes))
         blockingWarning = warning
         VpnRuntimeState.updateNetworkWarning(warning)
