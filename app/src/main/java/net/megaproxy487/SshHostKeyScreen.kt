@@ -38,7 +38,7 @@ internal fun SshHostKeyScreen(activity: Activity, prompt: PendingSshHostKey, onD
         prompt = prompt,
         saveAndResume = {
             val saved = withContext(ConfigIoDispatcher) {
-                ConfigStore(app).trustSshHostKey(prompt.profileId, prompt.hop, prompt.fingerprint)
+                ConfigStore(app).trustSshHostKey(prompt.profileId, prompt.hop, prompt.fingerprint, prompt.host, prompt.port, prompt.previousFingerprint)
             }
             if (saved) {
                 if (prompt.testOnly) ProxyVpnService.test(app) else ProxyVpnService.reconnect(app)
@@ -59,7 +59,7 @@ internal fun SshHostKeyReview(
     onDismiss: () -> Unit,
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    val state = viewModel<HostKeyReviewState>(key = "${prompt.profileId}:${prompt.hop}:${prompt.fingerprint}") {
+    val state = viewModel<HostKeyReviewState>(key = "${prompt.profileId}:${prompt.hop}:${prompt.host}:${prompt.port}:${prompt.previousFingerprint}:${prompt.fingerprint}") {
         HostKeyReviewState()
     }
     LaunchedEffect(state.completed) { if (state.completed) onDismiss() }

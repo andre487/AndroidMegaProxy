@@ -323,6 +323,8 @@ func (d *socks5Dialer) openUDP(ctx context.Context, target string, peer *net.UDP
 }
 
 type socks5PacketConn struct {
+	readMu     sync.Mutex
+	readBuffer []byte
 	net.Conn
 	control net.Conn
 	target  S.Addr
@@ -339,7 +341,12 @@ func (p *socks5PacketConn) Close() error {
 func (p *socks5PacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	// SOCKS headers must not reduce the application's receive buffer or expose
 	// stale bytes from a preceding datagram to the address decoder.
-	packet := make([]byte, 65535)
+	p.readMu.Lock()
+	defer p.readMu.Unlock()
+	if p.readBuffer == nil {
+		p.readBuffer = make([]byte, 65535)
+	}
+	packet := p.readBuffer
 	for {
 		n, err := p.Conn.Read(packet)
 		if err != nil {

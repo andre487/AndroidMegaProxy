@@ -72,7 +72,8 @@ private data class AppItem(val packageName: String, val label: String)
 internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val writeStatus by ConfigWrites.status.collectAsState()
-    var settings by remember { mutableStateOf(store.globalConnectionSettings()) }
+    val initial = readConfiguration(store) { store.globalConnectionSettings() } ?: return
+    var settings by remember { mutableStateOf(initial) }
     val edits = remember { net.megaproxy487.data.ConfigEdits<GlobalConnectionSettings>() }
     var appSearch by remember { mutableStateOf("") }
     var showReconnectPrompt by remember { mutableStateOf(false) }

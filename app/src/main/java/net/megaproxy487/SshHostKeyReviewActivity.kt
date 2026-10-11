@@ -18,6 +18,9 @@ class SshHostKeyReviewActivity : Activity() {
                 fingerprint = intent.getStringExtra(MainActivity.EXTRA_FINGERPRINT).orEmpty(),
                 changed = intent.getBooleanExtra(MainActivity.EXTRA_CHANGED, false),
                 testOnly = intent.getBooleanExtra(MainActivity.EXTRA_TEST_ONLY, false),
+                host = intent.getStringExtra(MainActivity.EXTRA_HOST).orEmpty(),
+                port = intent.getIntExtra(MainActivity.EXTRA_PORT, 0),
+                previousFingerprint = intent.getStringExtra(MainActivity.EXTRA_PREVIOUS_FINGERPRINT).orEmpty(),
             ))
         }
         startActivity(Intent(this, MainActivity::class.java).addFlags(

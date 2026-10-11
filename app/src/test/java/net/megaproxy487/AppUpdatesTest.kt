@@ -103,4 +103,27 @@ class AppUpdatesTest {
         assertArrayEquals(byteArrayOf(1, 2), readUpdateMetadata(ByteArrayInputStream(byteArrayOf(1, 2))))
         assertThrows(IllegalArgumentException::class.java) { readUpdateMetadata(ByteArrayInputStream(ByteArray(1024 * 1024 + 1))) }
     }
+    @Test fun updateCacheKeepsCurrentAndPreviousApkAndRemovesAbandonedParts() {
+        val directory = java.nio.file.Files.createTempDirectory("update-cache").toFile()
+        try {
+            fun file(name: String, modified: Long) = java.io.File(directory, name).apply {
+                writeText("fixture")
+                check(setLastModified(modified))
+            }
+            val current = file("current.apk", 1)
+            val previous = file("previous.apk", 300)
+            val obsolete = file("obsolete.apk", 200)
+            val active = file("active.part", 400)
+            val abandoned = file("abandoned.part", 1)
+            val unrelated = file("metadata.json", 1)
+            pruneUpdateCache(directory, current, 2L * 24 * 60 * 60 * 1000 + 200)
+            assertTrue(current.exists())
+            assertTrue(previous.exists())
+            assertFalse(obsolete.exists())
+            assertTrue(active.exists())
+            assertFalse(abandoned.exists())
+            assertTrue(unrelated.exists())
+        } finally { directory.deleteRecursively() }
+    }
+
 }

@@ -480,7 +480,10 @@ func (d *sshDialer) startKeepalive() {
 		for {
 			select {
 			case <-ticker.C:
-				if _, _, err := client.SendRequest("keepalive@openssh.com", true, nil); err != nil {
+				if err := sendSSHKeepalive(client, stop, 10*time.Second); err != nil {
+					if errors.Is(err, context.Canceled) {
+						return
+					}
 					report(d.reporter, "event=ssh_keepalive result=failed reason=%s", errorClass(err))
 					d.invalidateClient(client)
 					return
@@ -558,5 +561,20 @@ func dialSSHChannel(ctx context.Context, client *ssh.Client, target string, rele
 			}
 		}()
 		return nil, ctx.Err(), true
+	}
+}
+
+func sendSSHKeepalive(client *ssh.Client, stop <-chan struct{}, timeout time.Duration) error {
+	done := make(chan error, 1)
+	go func() { _, _, err := client.SendRequest("keepalive@openssh.com", true, nil); done <- err }()
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	select {
+	case err := <-done:
+		return err
+	case <-stop:
+		return context.Canceled
+	case <-timer.C:
+		return context.DeadlineExceeded
 	}
 }

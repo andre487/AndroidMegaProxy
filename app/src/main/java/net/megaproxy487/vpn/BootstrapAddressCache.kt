@@ -7,9 +7,9 @@ import java.security.MessageDigest
 class BootstrapAddressCache(context: Context) {
     private val preferences = context.getSharedPreferences("bootstrap_address_cache", Context.MODE_PRIVATE)
 
-    fun get(host: String, now: Long = System.currentTimeMillis()): String? {
-        val value = preferences.getString(key(host), null) ?: return null
-        return runCatching {
+    fun get(host: String, now: Long = System.currentTimeMillis()): String? = synchronized(preferences) {
+        val value = preferences.getString(key(host), null) ?: return@synchronized null
+        runCatching {
             val json = JSONObject(value)
             val address = json.getString("address")
             val savedAt = json.getLong("savedAt")
@@ -19,14 +19,29 @@ class BootstrapAddressCache(context: Context) {
 
     fun put(host: String, address: String, now: Long = System.currentTimeMillis()) {
         if (!isNumericIpv4(address)) return
-        preferences.edit().putString(
-            key(host),
-            JSONObject().put("address", address).put("savedAt", now).toString(),
-        ).apply()
+        synchronized(preferences) {
+            preferences.edit().putString(
+                key(host),
+                JSONObject().put("address", address).put("savedAt", now).toString(),
+            ).apply()
+        }
     }
 
     fun remove(host: String) {
-        preferences.edit().remove(key(host)).apply()
+        synchronized(preferences) { preferences.edit().remove(key(host)).apply() }
+    }
+
+    internal fun invalidateFailedAddresses(config: net.megaproxy487.model.ProxyConfig): Boolean = synchronized(preferences) {
+        val hosts = listOf(config.host to config.resolvedProxyIp) +
+            if (config.type.hasJump) listOf(config.jumpHost to config.resolvedJumpIp) else emptyList()
+        var removed = false
+        hosts.forEach { (host, failedAddress) ->
+            if (failedAddress.isNotEmpty() && get(host) == failedAddress) {
+                remove(host)
+                removed = true
+            }
+        }
+        removed
     }
 
     private fun key(host: String): String = MessageDigest.getInstance("SHA-256")

@@ -33,6 +33,12 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 ## Features
 
+Proxy bootstrap addresses are cached for up to seven days. Refused or unreachable proxy
+connections discard a matching cached address and retry DNS once per profile recovery period,
+without treating the failure alone as evidence of blocking. SSH keepalive replies have a ten-second
+deadline; a silent session is closed so subsequent connections can reconnect. SSH key approval
+is bound to the captured server hostname, port and previous pin, so a changed profile must be reviewed again.
+
 ### SOCKS5
 
 Select **SOCKS5** and enter the server hostname and port (default 1080). Leave both

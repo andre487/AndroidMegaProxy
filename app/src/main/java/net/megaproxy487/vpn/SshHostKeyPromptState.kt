@@ -11,6 +11,9 @@ data class PendingSshHostKey(
     val fingerprint: String,
     val changed: Boolean,
     val testOnly: Boolean,
+    val host: String = "",
+    val port: Int = 0,
+    val previousFingerprint: String = "",
 )
 
 object SshHostKeyPromptState {

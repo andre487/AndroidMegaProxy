@@ -10,6 +10,7 @@ import android.os.Bundle
 import android.os.SystemClock
 import net.megaproxy487.vpn.ConnectionSession
 import net.megaproxy487.vpn.connectionDuration
+import androidx.lifecycle.lifecycleScope
 import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -135,10 +136,14 @@ class MainActivity : LocalizedActivity() {
     override fun onResume() {
         super.onResume()
         ProxyVpnService.refreshStatus(this)
-        val status = readAlwaysOnVpnStatus(this)
-        val store = ConfigStore(this)
-        val profileId = if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfileId()
-        VpnRuntimeState.updateSystem(status.enabled, status.lockdown, profileId)
+        lifecycleScope.launch {
+            val status = readAlwaysOnVpnStatus(this@MainActivity)
+            val profileId = withContext(ConfigIoDispatcher) {
+                val store = ConfigStore(this@MainActivity)
+                if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfileId()
+            }
+            VpnRuntimeState.updateSystem(status.enabled, status.lockdown, profileId)
+        }
     }
 
     companion object {
@@ -149,6 +154,9 @@ class MainActivity : LocalizedActivity() {
         const val EXTRA_FINGERPRINT = "fingerprint"
         const val EXTRA_CHANGED = "changed"
         const val EXTRA_TEST_ONLY = "test_only"
+        const val EXTRA_HOST = "host"
+        const val EXTRA_PORT = "port"
+        const val EXTRA_PREVIOUS_FINGERPRINT = "previous_fingerprint"
     }
 }
 
@@ -249,15 +257,15 @@ internal fun MainScreen(
     var error by remember { mutableStateOf<String?>(null) }
     var actionsMenuExpanded by remember { mutableStateOf(false) }
     var profileMenuExpanded by remember { mutableStateOf(false) }
-    var profiles by remember { mutableStateOf(store.sortedProfiles()) }
-    var activeProfileId by remember { mutableStateOf(store.activeProfileId()) }
-    var connectionProfileId by remember { mutableStateOf(store.connectionProfileId()) }
+    var profiles by remember { mutableStateOf(emptyList<net.megaproxy487.model.ProxyProfile>()) }
+    var activeProfileId by remember { mutableStateOf("") }
+    var connectionProfileId by remember { mutableStateOf("") }
     var connectionStats by remember { mutableStateOf<DisplayedConnectionStats?>(null) }
     var systemVpnStatus by remember { mutableStateOf(readAlwaysOnVpnStatus(activity)) }
     var showCrashReport by remember { mutableStateOf(CrashHandler.hasPendingReport()) }
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
-    var pendingReconnect by remember { mutableStateOf(store.hasPendingReconnect()) }
-    var globalSettings by remember { mutableStateOf(store.globalConnectionSettings()) }
+    var pendingReconnect by remember { mutableStateOf(false) }
+    var globalSettings by remember { mutableStateOf(net.megaproxy487.model.GlobalConnectionSettings()) }
     val alwaysOn = runtimeAlwaysOn || systemVpnStatus.enabled
     val lockdown = runtimeLockdown || systemVpnStatus.lockdown
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -371,7 +379,7 @@ internal fun MainScreen(
             systemVpnStatus = readAlwaysOnVpnStatus(activity)
             error = null
         } else {
-            error = globalSettings.applyTo(store.activeProfile().config).validationError()?.let { activity.uiText(it) }
+            error = globalSettings.applyTo((profiles.firstOrNull { it.id == activeProfileId } ?: profiles.first()).config).validationError()?.let { activity.uiText(it) }
         }
         if (error == null && !isAlwaysOnVpnActive(activity)) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
@@ -501,6 +509,10 @@ internal fun MainScreen(
                     Text(it, color = MaterialTheme.colorScheme.onTertiaryContainer, modifier = Modifier.padding(14.dp))
                 }
                 Spacer(Modifier.height(12.dp))
+            }
+            if (profiles.isEmpty()) {
+                Text(stringResource(R.string.loading_configuration))
+                return@Column
             }
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
             val activeProfile = profiles.firstOrNull { it.id == displayedProfileId } ?: profiles.first()

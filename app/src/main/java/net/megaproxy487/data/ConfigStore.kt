@@ -82,7 +82,21 @@ class ConfigStore(context: Context) {
         writeProfiles(reordered)
     }
 
-    fun profile(id: String): ProxyProfile? = profiles().firstOrNull { it.id == id }
+    fun profile(id: String): ProxyProfile? = synchronized(storageLock) {
+        ensureMigrated()
+        if (prefs.getInt(FLAG_COLOR_VERSION, 0) < CURRENT_FLAG_COLOR_VERSION)
+            return@synchronized profiles().firstOrNull { it.id == id }
+        operationResult {
+            val array = JSONArray(prefs.getString(PROFILES, null))
+            // Validate the envelope without decrypting unrelated credentials.
+            val items = List(array.length()) { index -> array.getJSONObject(index).also {
+                it.getString("id")
+                it.getJSONObject("config")
+            } }
+            val index = items.indexOfFirst { it.getString("id") == id }
+            if (index < 0) null else decodeProfile(items[index], index)
+        }.getOrElse { profiles().firstOrNull { it.id == id } }
+    }
 
     fun activeProfileId(): String {
         ensureMigrated()
@@ -436,9 +450,18 @@ class ConfigStore(context: Context) {
         saveGlobalConnectionSettings(updated.copy(failoverProfileIds = updated.failoverProfileIds.filter { it in ids }))
     }
 
-    fun trustSshHostKey(profileId: String, hop: String, fingerprint: String): Boolean = synchronized(storageLock) {
+    fun trustSshHostKey(profileId: String, hop: String, fingerprint: String,
+        expectedHost: String, expectedPort: Int, expectedFingerprint: String): Boolean = synchronized(storageLock) {
         if (!fingerprint.matches(Regex("SHA256:[A-Za-z0-9+/]{20,}={0,2}"))) return@synchronized false
+        if (hop !in setOf("jump", "destination")) return@synchronized false
         val current = profiles()
+        val config = current.firstOrNull { it.id == profileId }?.config ?: return@synchronized false
+        if (!config.type.isSsh || (hop == "jump" && config.type != ProxyType.SSH_JUMP)) return@synchronized false
+        val host = if (hop == "jump") config.jumpHost else config.host
+        val port = if (hop == "jump") config.jumpPort else config.port
+        val trusted = if (hop == "jump") config.jumpTrustedHostKey else config.trustedHostKey
+        if (host.trim().lowercase() != expectedHost.trim().lowercase() || port != expectedPort ||
+            trusted != expectedFingerprint) return@synchronized false
         var changed = false
         val updated = current.map { profile ->
             if (profile.id != profileId) profile else {
@@ -618,15 +641,17 @@ class ConfigStore(context: Context) {
         val array = JSONArray(value ?: return emptyList())
         List(array.length()) { index ->
             val item = array.getJSONObject(index)
-            ProxyProfile(
-                id = item.getString("id"),
-                name = item.optString("name"),
-                colorIndex = item.optInt("color", index),
-                countryCode = item.optString("countryCode"),
-                config = decodeConfig(item.getJSONObject("config")),
-            )
+            decodeProfile(item, index)
         }
     }.getOrDefault(emptyList())
+
+    private fun decodeProfile(item: JSONObject, index: Int): ProxyProfile = ProxyProfile(
+        id = item.getString("id"),
+        name = item.optString("name"),
+        colorIndex = item.optInt("color", index),
+        countryCode = item.optString("countryCode"),
+        config = decodeConfig(item.getJSONObject("config")),
+    )
 
     private fun decodeConfig(item: JSONObject): ProxyConfig {
         val unreadable = mutableMapOf<String, String>()

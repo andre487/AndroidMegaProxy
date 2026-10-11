@@ -76,3 +76,12 @@ internal class BlockingEvidence {
 
 internal fun isProxyTunnelEstablished(message: String): Boolean =
     "hop=jump" !in message && transportProtocolFromDiagnostic(message)?.let { it != VpnTransportProtocol.SSH_MULTIPLEXED } == true
+
+/** Upstream reachability failures refresh bootstrap DNS without claiming interference. */
+internal fun isBootstrapConnectionFailure(message: String): Boolean =
+    "scope=target" !in message && "mode=direct" !in message &&
+        ("stage=tcp_connect" in message || "stage=socks_handshake" in message ||
+            ("stage=tls_handshake" in message && "protocol=http3" in message) ||
+            ("stage=direct_tcpip" in message && "event=ssh_transport" in message)) &&
+        "result=failed" in message &&
+        ("reason=refused" in message || "reason=unreachable" in message)
