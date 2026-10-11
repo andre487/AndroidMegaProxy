@@ -476,3 +476,12 @@ func TestRetiredSessionFailureDoesNotRestartHealthyReplacement(t *testing.T) {
 		}
 	}
 }
+
+func TestQUICStreamDiagnosticsIdentifySharedFailedSession(t *testing.T) {
+	logs := &diagnosticRecorder{}
+	conn := &diagnosticConn{reporter: logs, connectionID: 17, quicSessionID: 12}
+	conn.reportError("read", os.ErrDeadlineExceeded)
+	if !strings.Contains(logs.text(), "quic_session=12") {
+		t.Fatalf("missing shared QUIC session identity: %s", logs.text())
+	}
+}

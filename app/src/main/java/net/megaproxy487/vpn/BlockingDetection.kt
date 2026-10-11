@@ -47,3 +47,32 @@ internal fun nativeFailureReason(message: String): String {
         else -> "other"
     }
 }
+
+/** Count independent failures within a bounded window, rather than every failed stream. */
+internal class BlockingEvidence {
+    private var firstFailureAt: Long? = null
+    private var count = 0
+    private val failedSessions = mutableSetOf<String>()
+
+    @Synchronized fun failure(now: Long, detail: String): Int {
+        val first = firstFailureAt
+        if (first == null || now - first > 60_000L) {
+            firstFailureAt = now
+            count = 0
+            failedSessions.clear()
+        }
+        val session = detail.split(' ').firstOrNull { it.startsWith("quic_session=") }
+            ?.removePrefix("quic_session=")?.takeUnless { it == "0" }
+        if (session != null && !failedSessions.add(session)) return 0
+        return ++count
+    }
+
+    @Synchronized fun recovered() {
+        firstFailureAt = null
+        count = 0
+        failedSessions.clear()
+    }
+}
+
+internal fun isProxyTunnelEstablished(message: String): Boolean =
+    "hop=jump" !in message && transportProtocolFromDiagnostic(message)?.let { it != VpnTransportProtocol.SSH_MULTIPLEXED } == true

@@ -54,8 +54,8 @@ class ProxyVpnService : VpnService() {
     private val tunnelStateLock = Any()
     private var pendingStart: Pair<ParcelFileDescriptor, ProxyCore>? = null
     private val startGeneration = AtomicLong(0)
-    private val probableFailureCounts = ConcurrentHashMap<String, Int>()
-    private val probableFailureTimes = ConcurrentHashMap<String, Long>()
+    private val blockingEvidence = ConcurrentHashMap<String, BlockingEvidence>()
+    @Volatile private var blockingWarning: String? = null
     private val attemptedFailoverProfiles = ConcurrentHashMap.newKeySet<String>()
     private val freshDnsRecoveryProfiles = ConcurrentHashMap.newKeySet<String>()
     private val underlyingCapabilities = ConcurrentHashMap<Network, NetworkCapabilities>()
@@ -114,7 +114,9 @@ class ProxyVpnService : VpnService() {
 
     override fun onCreate() {
         super.onCreate()
-        failoverNotice = ConfigStore(this).failoverNotice()
+        val store = ConfigStore(this)
+        failoverNotice = store.failoverNotice()
+        if (!store.isFailoverActive()) blockingWarning = failoverNotice
         failoverNotice?.let(VpnRuntimeState::updateNetworkWarning)
         createChannel()
         registerUnderlyingNetworkCallback()
@@ -155,7 +157,7 @@ class ProxyVpnService : VpnService() {
             }
         }
         if (intent?.action == ACTION_START_MANUAL) {
-            probableFailureCounts.clear(); probableFailureTimes.clear(); attemptedFailoverProfiles.clear(); failoverNotice = null
+            blockingEvidence.clear(); attemptedFailoverProfiles.clear(); failoverNotice = null; blockingWarning = null
             freshDnsRecoveryProfiles.clear()
             connectionBlockedForAction = false
             resetRetryState()
@@ -179,11 +181,11 @@ class ProxyVpnService : VpnService() {
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_RECONNECT) {
-            hostKeyPrompt = null; failoverNotice = null
+            hostKeyPrompt = null; failoverNotice = null; blockingWarning = null
             connectionBlockedForAction = false
             resetRetryState()
             store.setFailoverState(false, null)
-            probableFailureCounts.clear(); probableFailureTimes.clear(); attemptedFailoverProfiles.clear()
+            blockingEvidence.clear(); attemptedFailoverProfiles.clear()
             VpnRuntimeState.updateNetworkWarning(null)
             DiagnosticLog.add("event=vpn_reconnect reason=${intent.getStringExtra(EXTRA_RECONNECT_REASON) ?: "settings_changed"}")
             startForeground(NOTIFICATION_ID, notification(this@ProxyVpnService.uiText(R.string.status_reconnecting)))
@@ -423,10 +425,12 @@ class ProxyVpnService : VpnService() {
                     failureDetail = message
                     configureHostKeyPrompt(message, promptProfileId, testOnly)
                     if (BlockingDetection.classify(message) != null) startupBlockingDetail.set(message)
-                    if (!testOnly && "dpi_hint=possible" in message) monitorHandler.post {
+                    if (!testOnly && ("dpi_hint=possible" in message || isProxyTunnelEstablished(message))) monitorHandler.post {
                         if (isStartCurrent(generation)) handleRuntimeDiagnostic(promptProfileId, message)
                     }
-                    getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
+                    if (!isProxyTunnelEstablished(message)) {
+                        getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(uiText(if (hostKeyPrompt != null) R.string.ssh_key_approval else if (isRunning) R.string.status_connected else R.string.status_connecting_progress)))
+                    }
                 }
             nativeStarted = started
             if (!started) {
@@ -453,8 +457,7 @@ class ProxyVpnService : VpnService() {
                 return false
             }
             underlyingNetwork?.let { setUnderlyingNetworks(arrayOf(it)) }
-            probableFailureCounts.remove(promptProfileId)
-            probableFailureTimes.remove(promptProfileId)
+            blockingEvidence.remove(promptProfileId)
             if (failoverNotice == null) VpnRuntimeState.updateNetworkWarning(null)
             else VpnRuntimeState.updateNetworkWarning(failoverNotice)
             VpnRuntimeState.updateSystem(isAlwaysOnMode, isLockdownMode, promptProfileId)
@@ -501,7 +504,7 @@ class ProxyVpnService : VpnService() {
         } else {
             val signal = BlockingDetection.classify(detail)
             if (signal != null && profileId.isNotEmpty()) {
-                val count = recordProbableFailure(profileId)
+                val count = recordProbableFailure(profileId, detail)
                 DiagnosticLog.add("event=blocking_detection result=suspected signal=${signal.name.lowercase()} consecutive=$count network=${networkKind()} profile_type=${ConfigStore(this).profile(profileId)?.config?.type?.name?.lowercase() ?: "unknown"}")
                 if (count >= 2) handleProbableBlocking(profileId, signal)
             }
@@ -592,6 +595,7 @@ class ProxyVpnService : VpnService() {
         val store = ConfigStore(this)
         val settings = store.globalConnectionSettings()
         val warning = uiText(R.string.vpn_probably_blocked, uiText(signal.titleRes))
+        blockingWarning = warning
         VpnRuntimeState.updateNetworkWarning(warning)
         // DNS failover may move a hostname away from a filtered or stale address. Give
         // the current profile one fresh resolution attempt before changing exit IP or
@@ -604,6 +608,7 @@ class ProxyVpnService : VpnService() {
                 }
             }
             val notice = this@ProxyVpnService.uiText(R.string.vpn_refresh_dns, warning)
+            blockingWarning = notice
             VpnRuntimeState.updateNetworkWarning(notice)
             DiagnosticLog.add("event=blocking_recovery action=refresh_dns profile_type=${store.profile(profileId)?.config?.type?.name?.lowercase() ?: "unknown"}")
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
@@ -612,6 +617,7 @@ class ProxyVpnService : VpnService() {
         }
         if (settings.failoverMode == FailoverMode.DISABLED) {
             val notice = this@ProxyVpnService.uiText(R.string.vpn_failover_disabled, warning)
+            blockingWarning = notice
             VpnRuntimeState.updateNetworkWarning(notice)
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
             return
@@ -628,6 +634,7 @@ class ProxyVpnService : VpnService() {
         val next = candidates.firstOrNull() ?: run {
             val notice = this@ProxyVpnService.uiText(R.string.vpn_failover_empty, warning)
             failoverNotice = notice
+            blockingWarning = notice
             store.setFailoverState(false, notice)
             VpnRuntimeState.updateNetworkWarning(notice)
             getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
@@ -648,21 +655,29 @@ class ProxyVpnService : VpnService() {
 
     private fun handleRuntimeDiagnostic(profileId: String, detail: String) {
         if (!isRunning || activeSession?.profileId != profileId) return
+        if (isProxyTunnelEstablished(detail)) {
+            blockingEvidence[profileId]?.recovered()
+            freshDnsRecoveryProfiles.remove(profileId)
+            val warning = blockingWarning ?: return
+            blockingWarning = null
+            if (VpnRuntimeState.networkWarning.value == warning) {
+                VpnRuntimeState.updateNetworkWarning(null)
+            }
+            if (failoverNotice == warning) {
+                failoverNotice = null
+                ConfigStore(this).setFailoverState(false, null)
+            }
+            DiagnosticLog.add("event=blocking_detection result=recovered")
+            return
+        }
         val signal = BlockingDetection.classify(detail) ?: return
-        val count = recordProbableFailure(profileId)
+        val count = recordProbableFailure(profileId, detail)
         if (count >= 2) handleProbableBlocking(profileId, signal)
     }
 
-    private fun recordProbableFailure(profileId: String): Int {
-        val now = SystemClock.elapsedRealtime()
-        val previous = probableFailureTimes.put(profileId, now)
-        return if (previous == null || now - previous > FAILURE_WINDOW_MS) {
-            probableFailureCounts[profileId] = 1
-            1
-        } else {
-            probableFailureCounts.merge(profileId, 1, Int::plus) ?: 1
-        }
-    }
+    private fun recordProbableFailure(profileId: String, detail: String): Int =
+        blockingEvidence.computeIfAbsent(profileId) { BlockingEvidence() }
+            .failure(SystemClock.elapsedRealtime(), detail)
 
     private fun networkKind(): String {
         val manager = getSystemService(ConnectivityManager::class.java)
@@ -844,7 +859,6 @@ class ProxyVpnService : VpnService() {
         private const val EXTRA_RECONNECT_PROFILE_ID = "reconnect_profile_id"
         private const val EXTRA_RECONNECT_REASON = "reconnect_reason"
         private const val MONITOR_INTERVAL_MS = 10_000L
-        private const val FAILURE_WINDOW_MS = 60_000L
         private const val NETWORK_CHANGE_DEBOUNCE_MS = 1_500L
         private const val MAX_MANUAL_START_FAILURES = 5
         private const val VPN_MTU = 1_400

@@ -465,6 +465,7 @@ func (d *masqueDialer) connectTarget(ctx context.Context, target string) (net.Co
 	result := &diagnosticConn{Conn: c, reporter: d.reporter, stats: d.stats}
 	if stream, ok := c.(*masqueStreamConn); ok {
 		result.connectionID, result.proxyContext = stream.connectionID, stream.proxyContext
+		result.quicSessionID = stream.sessionID
 		result.proxyHealthy = d.sessionHealthy
 	} else {
 		result.connectionID = nextDiagnosticConnectionID()

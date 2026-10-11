@@ -28,7 +28,13 @@ and mixed connection-setup timings.
 The old warning based on at least 75% failed connection openings is removed.
 Existing timeout/reset-based suspected-blocking detection and recovery remain;
 its message says the proxy may be blocked **or unavailable**. It is a heuristic,
-not proof of filtering. RTT and retransmits do not trigger automatic failover.
+not proof of filtering. Recovery requires at least two independent proxy failures
+within 60 seconds without a successful proxy tunnel between them. Multiple stream
+errors from one QUIC session count once. A successful end-to-end proxy tunnel
+clears the suspicion and its warning, including an exhausted-failover warning;
+local bypass and the first jump hop alone do not prove recovery. A notice about
+an actual switch to another profile is preserved. RTT and retransmits do not
+trigger automatic failover.
 
 MASQUE displays **QUIC RTT** and **outgoing QUIC packets declared lost in the last
 five minutes** from uQUIC's passive connection statistics. RTT is the smoothed
