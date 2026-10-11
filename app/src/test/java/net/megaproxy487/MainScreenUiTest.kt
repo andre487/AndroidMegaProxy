@@ -30,6 +30,17 @@ class MainScreenUiTest : MainUiTestBase() {
         assertNull(shadowOf(activity.application as Application).nextStartedService)
     }
 
+    @Test fun githubLinkNextToVersionOpensApplicationRepository() {
+        screen()
+        compose.onNodeWithText(activity.getString(R.string.version_and_commit,
+            BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH)).performScrollTo().assertIsDisplayed()
+        node(R.string.update_github).performScrollTo().assertIsDisplayed().performClick()
+        val intent = shadowOf(activity).nextStartedActivity
+        assertEquals(Intent.ACTION_VIEW, intent?.action)
+        assertEquals("https://github.com/andre487/AndroidMegaProxy", intent?.dataString)
+        noCommand()
+    }
+
     @Test fun connectDispatchesStartAndPersistsDesiredState() {
         screen()
         node(R.string.connect).performScrollTo().assertIsEnabled().performClick()
