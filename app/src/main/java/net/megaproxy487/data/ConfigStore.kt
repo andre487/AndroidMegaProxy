@@ -305,7 +305,7 @@ class ConfigStore(context: Context) {
         val missing = existing.filter { it.id !in importedById }
         requireUi(merged.isNotEmpty()) { UiException(R.string.error_config_no_usable) }
         val editor = prefs.edit().putString(PROFILES, encodeProfiles(mergeResolvedProfiles(existing, merged, added)))
-            .putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
+        if (configuration.diagnosticLogLimitPresent) editor.putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
         if (existing.isEmpty()) {
             val first = merged.first().id
             editor.putString(ACTIVE_PROFILE_ID, first)
@@ -316,10 +316,11 @@ class ConfigStore(context: Context) {
         }
         configuration.activeProfileId?.takeIf(importedById::containsKey)?.let { editor.putString(ACTIVE_PROFILE_ID, it) }
         configuration.alwaysOnProfileId?.takeIf(importedById::containsKey)?.let { editor.putString(ALWAYS_ON_PROFILE_ID, it) }
-        configuration.globalConnectionSettings?.let { importedSettings ->
+        configuration.globalConnectionSettings?.let {
+            val importedSettings = configuration.mergeGlobalSettings(globalConnectionSettings())
             editor.putBoolean(IPV6_PROFILE_MIGRATED, true)
                 .putString(GLOBAL_CONNECTION_SETTINGS, encodeGlobalConnectionSettings(importedSettings.copy(
-                    failoverProfileIds = importedSettings.failoverProfileIds.filter(importedById::containsKey),
+                    failoverProfileIds = importedSettings.failoverProfileIds.filter { it in importedById || it in existingById },
                 )))
         }
         if (configuration.subscriptionPresent) {
@@ -385,7 +386,7 @@ class ConfigStore(context: Context) {
         requireUi(ids.size == merged.size) { UiException(R.string.error_config_duplicate_ids) }
         val oldGlobal = globalConnectionSettings()
         val oldConnection = oldGlobal.applyTo(connectionProfile().config)
-        val nextGlobal = (configuration.globalConnectionSettings ?: oldGlobal).let {
+        val nextGlobal = configuration.mergeGlobalSettings(oldGlobal).let {
             it.copy(failoverProfileIds = it.failoverProfileIds.filter(ids::contains))
         }
         val preferred = configuration.activeProfileId?.takeIf { id -> incoming.any { it.id == id } } ?: incoming.first().id
@@ -399,7 +400,7 @@ class ConfigStore(context: Context) {
             .putString(CONNECTION_PROFILE_ID, nextConnection)
             .putString(GLOBAL_CONNECTION_SETTINGS, encodeGlobalConnectionSettings(nextGlobal))
             .putBoolean(IPV6_PROFILE_MIGRATED, true)
-        if (configuration.globalConnectionSettings != null) editor.putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
+        if (configuration.diagnosticLogLimitPresent) editor.putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
         if ((connectionProfileId() !in ids || alwaysOnProfileId() !in ids) && isFailoverActive()) {
             editor.putBoolean(FAILOVER_ACTIVE, false).remove(FAILOVER_NOTICE)
         }
