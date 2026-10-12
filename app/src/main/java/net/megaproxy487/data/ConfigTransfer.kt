@@ -34,7 +34,29 @@ data class PortableConfiguration(
     val notice: ConfigImportNotice = ConfigImportNotice(),
     val subscriptionPresent: Boolean = false,
     val subscription: ConfigSubscription? = null,
-)
+    val globalSettingFields: Set<String>? = null,
+    val diagnosticLogLimitPresent: Boolean = true,
+) {
+    internal fun mergeGlobalSettings(current: GlobalConnectionSettings): GlobalConnectionSettings {
+        val incoming = globalConnectionSettings ?: return current
+        val fields = globalSettingFields ?: return incoming
+        return current.copy(
+            tlsProfile = if ("tls.fingerprint" in fields) incoming.tlsProfile else current.tlsProfile,
+            customJa3 = if ("tls.customJa3" in fields) incoming.customJa3 else current.customJa3,
+            sshProfile = if ("ssh.fingerprint" in fields) incoming.sshProfile else current.sshProfile,
+            sshAuthMode = if ("ssh.authMode" in fields) incoming.sshAuthMode else current.sshAuthMode,
+            sshKeepaliveSeconds = if ("ssh.keepaliveSeconds" in fields) incoming.sshKeepaliveSeconds else current.sshKeepaliveSeconds,
+            sshMaxChannels = if ("ssh.maxChannels" in fields) incoming.sshMaxChannels else current.sshMaxChannels,
+            sshRotationMinutes = if ("ssh.rotationMinutes" in fields) incoming.sshRotationMinutes else current.sshRotationMinutes,
+            sshRotationMb = if ("ssh.rotationMb" in fields) incoming.sshRotationMb else current.sshRotationMb,
+            failoverMode = if ("failover.mode" in fields) incoming.failoverMode else current.failoverMode,
+            failoverProfileIds = if ("failover.profileIds" in fields) incoming.failoverProfileIds else current.failoverProfileIds,
+            selectedPackages = if ("routing.selectedPackages" in fields) incoming.selectedPackages else current.selectedPackages,
+            routeAllApps = if ("routing.routeAllApps" in fields) incoming.routeAllApps else current.routeAllApps,
+            bypassLocalNetworks = if ("routing.bypassLocalNetworks" in fields) incoming.bypassLocalNetworks else current.bypassLocalNetworks,
+        )
+    }
+}
 
 data class ProfileSecretPresence(
     val password: Boolean = false,
@@ -137,7 +159,12 @@ object ConfigTransfer {
         val profiles = if (version in 2..5) decodedProfiles.map {
             it.copy(config = it.config.copy(allowIpv6 = legacyIpv6))
         } else decodedProfiles
+        val globalFields = listOf("tls", "ssh", "failover", "routing").flatMap { group ->
+            root.optJSONObject(group)?.keys()?.asSequence()?.map { "$group.$it" }?.toList().orEmpty()
+        }.toSet()
         return PortableConfiguration(
+            globalSettingFields = globalFields + if (version in 2..3) setOf("ssh.fingerprint") else emptySet(),
+            diagnosticLogLimitPresent = root.has("diagnosticLogLimitMb"),
             notice = ConfigImportNotices.inspect(root),
             subscriptionPresent = acceptSubscription && root.has("subscription"),
             subscription = if (!acceptSubscription || !root.has("subscription") || root.isNull("subscription")) null
@@ -147,7 +174,7 @@ object ConfigTransfer {
             activeProfileId = root.optString("activeProfileId").ifBlank { null },
             alwaysOnProfileId = root.optString("alwaysOnProfileId").ifBlank { null },
             diagnosticLogLimitMb = root.optInt("diagnosticLogLimitMb", 3).coerceIn(1, 100),
-            globalConnectionSettings = if (version >= 2) {
+            globalConnectionSettings = if (version >= 2 && (globalFields.isNotEmpty() || version < 4)) {
                 decodeGlobalSettings(root).let { global ->
                     if (version < 4) global.copy(sshProfile = profiles.first().config.sshProfile) else global
                 }

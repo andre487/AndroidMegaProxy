@@ -51,6 +51,52 @@ class ConfigSubscriptionIntegrationTest {
     private fun apply(value: PortableConfiguration, running: Boolean = false) = store.applySubscriptionSnapshot(
         store.subscriptionState()!!.generation, value, 0, 1000, running)
 
+    @Test fun omittedAndPartialGlobalsPreserveLocalSettingsOnImportAndRefresh() {
+        bootstrap(profile("one"))
+        store.setConnectionProfile("one")
+        val local = GlobalConnectionSettings(
+            tlsProfile = TlsProfile.FIREFOX_ANDROID, customJa3 = "local-ja3",
+            sshProfile = SshProfile.OPENSSH_TERMUX, sshAuthMode = SshAuthMode.KEY_ONLY,
+            sshKeepaliveSeconds = 90, sshMaxChannels = 16, sshRotationMinutes = 10, sshRotationMb = 128,
+            failoverMode = FailoverMode.SELECTED, failoverProfileIds = listOf("one"),
+            routeAllApps = false, selectedPackages = setOf("org.example.app"), bypassLocalNetworks = false,
+        )
+        store.saveGlobalConnectionSettings(local)
+        store.setDiagnosticLogLimitMb(20)
+        val json = document(profile("one"))
+        val minimal = parseSubscriptionSnapshot(json.toString(), store.profiles())
+        assertNull(minimal.globalConnectionSettings)
+        assertTrue(apply(minimal, running = true))
+        assertEquals(local, ConfigStore(context).globalConnectionSettings())
+        assertEquals(20, store.diagnosticLogLimitMb())
+        assertFalse(store.hasPendingReconnect())
+        store.importConfiguration(ConfigTransfer.importJson(json.toString()))
+        assertEquals(local, store.globalConnectionSettings())
+        assertEquals(20, store.diagnosticLogLimitMb())
+
+        json.put("tls", JSONObject().put("fingerprint", "CHROME_ANDROID"))
+        json.put("routing", JSONObject().put("bypassLocalNetworks", true))
+        val partial = parseSubscriptionSnapshot(json.toString(), store.profiles())
+        // Resolve against storage at commit time, including edits made after parsing.
+        val newer = local.copy(selectedPackages = setOf("org.example.new"))
+        store.saveGlobalConnectionSettings(newer)
+        assertTrue(apply(partial, running = true))
+        val expected = newer.copy(tlsProfile = TlsProfile.CHROME_ANDROID, bypassLocalNetworks = true)
+        assertEquals(expected, ConfigStore(context).globalConnectionSettings())
+        assertEquals(20, store.diagnosticLogLimitMb())
+        assertTrue(store.hasPendingReconnect())
+        store.saveGlobalConnectionSettings(newer)
+        store.importConfiguration(ConfigTransfer.importJson(json.toString()))
+        assertEquals(expected, store.globalConnectionSettings())
+
+        json.put("routing", JSONObject().put("routeAllApps", true).put("selectedPackages", JSONArray()))
+        json.put("diagnosticLogLimitMb", 8)
+        assertTrue(apply(parseSubscriptionSnapshot(json.toString(), store.profiles())))
+        assertTrue(store.globalConnectionSettings().routeAllApps)
+        assertTrue(store.globalConnectionSettings().selectedPackages.isEmpty())
+        assertEquals(8, store.diagnosticLogLimitMb())
+    }
+
     @Test fun updateDuringStartupRequiresReconnectAndNotificationAfterCommit() {
         bootstrap(profile("one"))
         store.setConnectionProfile("one")
