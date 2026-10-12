@@ -1,0 +1,1 @@
+• Subscription updates now preserve existing global settings when those settings are omitted from the subscription.
