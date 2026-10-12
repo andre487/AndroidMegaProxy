@@ -103,6 +103,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: junit-Android API ${{ inputs.api }}
+          overwrite: true
           path: test-results/android-api${{ inputs.api }}/junit.xml
           retention-days: 7
       - name: Link evidence in job summary
