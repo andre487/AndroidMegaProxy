@@ -19,11 +19,15 @@ func TestLocalResetNeverMarksProxyFailure(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer listener.Close()
+			reset := make(chan struct{})
+			defer close(reset)
 			go func() {
 				c, err := listener.Accept()
 				if err != nil {
 					return
 				}
+				// Wait until Dial completes so RST exercises Read, not connection setup.
+				<-reset
 				_ = c.(*net.TCPConn).SetLinger(0)
 				_ = c.Close()
 			}()
@@ -44,6 +48,7 @@ func TestLocalResetNeverMarksProxyFailure(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer connection.Close()
+			reset <- struct{}{}
 			_ = connection.SetReadDeadline(time.Now().Add(time.Second))
 			_, err = connection.Read(make([]byte, 1))
 			if err == nil {

@@ -86,6 +86,7 @@ class MainScreenUiTest : MainUiTestBase() {
         val other = store.cloneProfile(store.activeProfileId())!!.copy(name = "Secondary")
         store.saveProfile(other)
         screen()
+        waitForText("Primary")
         compose.onNodeWithText("Primary").performClick()
         compose.onNodeWithText("Secondary").performClick()
         saved()
@@ -107,6 +108,7 @@ class MainScreenUiTest : MainUiTestBase() {
                     .setInsets(WindowInsetsCompat.Type.navigationBars(), Insets.of(0, 0, 0, (200 * density).toInt()))
                     .build())
         }
+        waitForText("Primary")
         compose.onNodeWithText("Primary").performClick()
         val menuBounds = compose.onNode(isPopup()).getUnclippedBoundsInRoot()
         val menuHeight = menuBounds.bottom - menuBounds.top

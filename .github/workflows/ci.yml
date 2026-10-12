@@ -85,6 +85,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: junit-Native Go
+          overwrite: true
           path: test-results/native/*.xml
           retention-days: 7
 
@@ -121,6 +122,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: junit-Python
+          overwrite: true
           path: test-results/python/*.xml
           retention-days: 7
 
@@ -175,6 +177,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: junit-Android JVM
+          overwrite: true
           path: app/build/test-results/testDebugUnitTest/*.xml
           retention-days: 7
 
