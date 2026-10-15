@@ -7,19 +7,6 @@
 You need a phone or tablet running Android 8.0 or newer. No computer, commands, or GitHub account
 are needed. An APK is an Android app installation file.
 
-### Through F-Droid
-
-1. Install the [F-Droid client](https://f-droid.org/) on your phone if you do not have it yet.
-2. Open F-Droid, wait for its catalog to refresh, and search for **MegaProxy**
-   (`net.megaproxy487`). [App listing](https://f-droid.org/packages/net.megaproxy487/).
-3. Tap **Install**. If Android asks for permission to install apps from F-Droid,
-   grant it and confirm installation.
-4. Open MegaProxy, add or import your server settings, and tap **Connect**.
-   Confirm Android's VPN connection request.
-
-You can install updates through F-Droid. MegaProxy does not provide servers or passwords:
-ask the person who set up your server for its settings.
-
 ### From a GitHub APK
 
 **[Download the latest MegaProxy for Android](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**
@@ -59,6 +46,19 @@ architecture-specific APK or a build from another source and the update fails, d
 see the update section below or ask a developer for help.
 
 Update checks, notifications, skipped versions, and installation: [App updates](updates.md).
+
+### Through F-Droid
+
+1. Install the [F-Droid client](https://f-droid.org/) on your phone if you do not have it yet.
+2. Open F-Droid, wait for its catalog to refresh, and search for **MegaProxy**
+   (`net.megaproxy487`). [App listing](https://f-droid.org/packages/net.megaproxy487/).
+3. Tap **Install**. If Android asks for permission to install apps from F-Droid,
+   grant it and confirm installation.
+4. Open MegaProxy, add or import your server settings, and tap **Connect**.
+   Confirm Android's VPN connection request.
+
+You can install updates through F-Droid. MegaProxy does not provide servers or passwords:
+ask the person who set up your server for its settings.
 
 ## For developers: APK variants, verification, and troubleshooting
 
