@@ -143,9 +143,9 @@ vendors may impose additional background-execution restrictions.
 ## Installation
 
 MegaProxy requires Android 8.0 (API 26) or newer. Download a signed APK from
-[GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest).
+[GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest) or install it through
+[F-Droid](https://f-droid.org/packages/net.megaproxy487/).
 For most users, choose **[mega-proxy-universal.apk](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**.
-The app is not yet available in F-Droid.
 
 Detailed instructions cover choosing an APK, installation permissions, checksums, ADB,
 updates without losing settings, and troubleshooting:
