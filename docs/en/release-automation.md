@@ -15,7 +15,7 @@ In repository **Settings → Secrets and variables → Actions**, configure:
 
 | Kind | Name | Value |
 | --- | --- | --- |
-| Secret | `OPENAI_API_KEY` | OpenAI API key, used only for generating the two changelog texts. |
+| Secret | `OPENAI_API_KEY` | OpenAI API key, used only for generating EN/RU GitHub and F-Droid notes. |
 | Variable / Secret | `OPENAI_RELEASE_MODEL` | A model available to your API project that supports Responses API Structured Outputs, for example `gpt-6.1-sol`. Variables take priority over Secrets if both are set. No implicit model fallback. |
 | Secret | `RELEASE_BOT_TOKEN` | Fine-grained PAT limited to this repository: Contents read/write, Pull requests read/write, Actions read. |
 
@@ -61,16 +61,18 @@ allows PR CI and the tag-triggered release build to run normally.
 
 1. Check out the selected `main` commit. Fail if `main` has already advanced,
    the checkout is dirty, or the version, branch or tag is invalid/existing.
-2. Find the highest stable `vX.Y.Z` tag reachable from that commit. Send commit
-   subjects/bodies and diff statistics since that tag to OpenAI. Code, repository
-   secrets and signing material are not included. History over 100,000 characters
-   fails rather than being silently truncated. API calls incur charges on the API
-   project; no live API call is part of unit tests.
-3. Validate the complete structured response: English and Russian text only,
-   each 1–500 characters. Refusal, incomplete/malformed output or API errors stop
-   before release files are written. The model only writes text; it does not execute
-   commands, choose versions, merge or tag. Structured output does not guarantee
-   factual correctness: notes are visible in the PR and Actions summary.
+2. Find the highest stable `vX.Y.Z` tag reachable from that commit. Send non-merge
+   commit subjects/bodies and the actual diff to OpenAI, excluding historical changelogs,
+   generated release notes and lock/sum files. Repository secrets and signing material
+   are not read. Context over 600,000 characters fails without truncation.
+   API calls incur charges; unit tests mock the API.
+3. Generate equivalent EN/RU bullet lists with one sentence per change: up to 10 bullets
+   and 3,000 characters per locale for GitHub, plus a separate F-Droid summary of at most
+   500 characters per locale. Describe concrete behavior, combine related fixes and avoid
+   vague improvements; maintenance-only releases briefly name the maintenance work and
+   say app behavior is unchanged. Refusals, invalid output and API errors stop before writes.
+   The actual returned model, Git range and token usage are logged without credentials.
+   JSON validation does not establish factual correctness; review the notes in the PR.
 4. Create `release/vX.Y.Z`. Set `versionName` and increment `versionCodeBase` by one
    in `app/build.gradle.kts`. Keep `base * 1000 + ABI offset` unchanged for F-Droid
    and variant-preserving updates. For example base 14 → 15 produces universal
@@ -78,6 +80,7 @@ allows PR CI and the tag-triggered release build to run normally.
 5. Add `fastlane/metadata/android/{en-US,ru-RU}/changelogs/15000.txt` through `15004.txt`
    for that example. Each locale uses the same text for universal and all ABI APKs,
    so F-Droid can find the notes by the APK version code.
+   Commit the separate bilingual GitHub notes in `release-notes/X.Y.Z.md`.
    Old changelogs and store descriptions are not rewritten. Open a PR to `main`.
 6. Wait up to 60 minutes for **CI / pull_request** for the exact PR and head commit.
    Release branches run every suite even on their first CI attempt. All six required
@@ -92,8 +95,8 @@ allows PR CI and the tag-triggered release build to run normally.
 8. Create lightweight tag `vX.Y.Z` on **the actual merged commit**, never on the
    release branch head or whatever `main` happens to point to later. The PAT causes
    the existing tag build to run. Its new GitHub Release uses the same committed
-   EN/RU notes. A finalization rerun accepts an existing matching tag and never
-   moves a conflicting tag.
+   GitHub notes from `release-notes/X.Y.Z.md`. A finalization rerun accepts an existing
+   matching tag and never moves a conflicting tag.
 
 The version must exceed both the version in code and the previous stable tag.
 Prereleases and automatic version selection are deliberately unsupported. Preparation
@@ -132,5 +135,15 @@ from a clean current-main checkout, with the same API/token/model configuration.
 
 API format: [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
 Merge contract: [GitHub merge API](https://docs.github.com/en/rest/pulls/pulls#merge-a-pull-request).
+
+
+Preview an existing release without writing release files or publishing anything:
+
+```shell
+bundle exec fastlane android release_notes_preview version:1.1.3 previous:v1.1.2 ref:v1.1.3
+```
+
+Set `OPENAI_API_KEY` and `OPENAI_RELEASE_MODEL` in the environment first. The explicit
+`ref` keeps later commits out of the preview; both GitHub and F-Droid notes print to stdout.
 
 [Русская версия](../ru/release-automation.md)

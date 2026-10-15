@@ -19,6 +19,7 @@ spec.loader.exec_module(m)
 
 SOURCE = 'val versionCodeBase = 14\nval abiOffset = 2\nandroid {\n    versionCode = versionCodeBase * 1000 + abiOffset\n    versionName = "0.1.1"\n}\n'
 NOTES = {"en-US": "- Improved connections.", "ru-RU": "- Улучшено подключение."}
+GENERATED = {"store": NOTES, "github": NOTES}
 
 
 class ReleaseTests(unittest.TestCase):
@@ -78,11 +79,11 @@ class ReleaseTests(unittest.TestCase):
             "output": [
                 {
                     "type": "message",
-                    "content": [{"type": "output_text", "text": json.dumps(NOTES)}],
+                    "content": [{"type": "output_text", "text": json.dumps(GENERATED)}],
                 }
             ],
         }
-        self.assertEqual(NOTES, m.response_notes(good))
+        self.assertEqual(GENERATED, m.response_notes(good))
         for response in [
             dict(good, status="incomplete"),
             {
@@ -101,6 +102,105 @@ class ReleaseTests(unittest.TestCase):
         ]:
             with self.assertRaises(RuntimeError):
                 m.validate_notes(notes)
+
+    def test_generator_sends_diff_at_requested_ref_and_keeps_distinct_outputs(self):
+        from io import BytesIO
+
+        generated = {
+            "store": NOTES,
+            "github": {
+                "en-US": "- " + "Specific behavior " * 40 + ".",
+                "ru-RU": "- " + "Конкретное изменение " * 40 + ".",
+            },
+        }
+        response = {
+            "status": "completed",
+            "model": "test-model",
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": json.dumps(generated)}],
+                }
+            ],
+        }
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENAI_API_KEY": "synthetic-key",
+                    "OPENAI_RELEASE_MODEL": "test-model",
+                },
+            ),
+            patch.object(
+                m,
+                "command",
+                side_effect=["Fix stale DNS", "-cachedAddress\n+freshAddress"],
+            ) as run,
+            patch.object(m.urllib.request, "build_opener") as opener,
+        ):
+            opener.return_value.open.return_value.__enter__.return_value = BytesIO(
+                json.dumps(response).encode()
+            )
+            self.assertEqual(generated, m.generate_notes("1.1.3", "v1.1.2", "v1.1.3"))
+            payload = json.loads(opener.return_value.open.call_args.args[0].data)
+            evidence = json.loads(payload["input"])
+            self.assertEqual("-cachedAddress\n+freshAddress", evidence["diff"])
+            self.assertEqual("v1.1.3", evidence["head"])
+            self.assertIn("v1.1.2..v1.1.3", run.call_args_list[0].args)
+            self.assertIn("v1.1.3", run.call_args_list[1].args)
+            self.assertIn("exactly one sentence per change", payload["instructions"])
+            self.assertEqual(
+                {"store", "github"},
+                set(payload["text"]["format"]["schema"]["properties"]),
+            )
+        response["output"][0]["content"][0]["text"] = json.dumps(
+            {"store": generated["github"], "github": NOTES}
+        )
+        with self.assertRaisesRegex(RuntimeError, "500 characters"):
+            m.response_notes(response)
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENAI_API_KEY": "synthetic-key",
+                    "OPENAI_RELEASE_MODEL": "test-model",
+                },
+            ),
+            patch.object(m, "command", side_effect=["history", "x" * 600001]),
+            patch.object(m.urllib.request, "build_opener") as opener,
+            self.assertRaisesRegex(RuntimeError, "too large"),
+        ):
+            m.generate_notes("1.1.3", "v1.1.2", "v1.1.3")
+        opener.assert_not_called()
+
+    def test_preview_prints_both_formats_without_release_mutations(self):
+        from io import StringIO
+
+        with (
+            patch.object(
+                sys,
+                "argv",
+                [
+                    "release_automation.py",
+                    "preview",
+                    "--version",
+                    "1.1.3",
+                    "--previous",
+                    "v1.1.2",
+                    "--ref",
+                    "v1.1.3",
+                ],
+            ),
+            patch.object(m, "generate_notes", return_value=GENERATED) as generate,
+            patch.object(
+                m, "command", side_effect=AssertionError("Preview must not mutate git")
+            ),
+            patch.object(sys, "stdout", new_callable=StringIO) as output,
+        ):
+            self.assertEqual(0, m.main())
+            generate.assert_called_once_with("1.1.3", "v1.1.2", "v1.1.3")
+            self.assertIn("### F-Droid", output.getvalue())
+            self.assertEqual(2, output.getvalue().count(NOTES["ru-RU"]))
 
     def test_changed_draft_closed_and_fork_prs_stop_before_fetch_or_merge(self):
         pr = {
@@ -330,7 +430,7 @@ class ReleaseTests(unittest.TestCase):
             try:
                 with (
                     patch.object(m, "api", side_effect=fake_api),
-                    patch.object(m, "generate_notes", return_value=NOTES),
+                    patch.object(m, "generate_notes", return_value=GENERATED),
                     patch.object(m, "emit"),
                 ):
                     # ruby/setup-ruby creates these before release preparation.
@@ -357,11 +457,21 @@ class ReleaseTests(unittest.TestCase):
                     m.prepare("0.1.2")
                     head = pr["head"]["sha"]
                     self.assertEqual(
+                        m.render_notes(GENERATED["github"]),
+                        (work / m.release_notes_path("0.1.2")).read_text(),
+                    )
+                    self.assertEqual(
                         "Historical note\n",
                         (work / m.notes_paths(14000)[0]).read_text(),
                     )
                     self.assertEqual(
-                        set([str(m.GRADLE), *map(str, m.notes_paths(15000))]),
+                        set(
+                            [
+                                str(m.GRADLE),
+                                *map(str, m.notes_paths(15000)),
+                                str(m.release_notes_path("0.1.2")),
+                            ]
+                        ),
                         set(git("diff", "--name-only", base, head).splitlines()),
                     )
                     for locale in m.LOCALES:
@@ -396,6 +506,28 @@ class ReleaseTests(unittest.TestCase):
                     ci.assert_not_called()
                     self.assertNotIn("pulls/7/merge", calls)
                     self.assertNotIn("git/refs", calls)
+                    with (
+                        patch.object(
+                            m,
+                            "command",
+                            side_effect=lambda *args, **kwargs: (
+                                "## English\n\n- Missing translation."
+                                if args
+                                == (
+                                    "git",
+                                    "show",
+                                    f"{head}:{m.release_notes_path('0.1.2')}",
+                                )
+                                else original_command(*args, **kwargs)
+                            ),
+                        ),
+                        patch.object(m, "wait_ci") as ci,
+                        self.assertRaisesRegex(
+                            RuntimeError, "Missing Russian release notes"
+                        ),
+                    ):
+                        m.finish("0.1.2", 7, head)
+                    ci.assert_not_called()
                     # A failed CI gate must not merge or tag.
                     with (
                         patch.object(
