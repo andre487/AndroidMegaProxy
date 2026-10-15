@@ -84,7 +84,8 @@ branch names, credentials, signing material, or other secrets.
   fdroidrepo/fdroidrepos links use its API; other named installers use GitHub. Unknown installers
   or failed capability lookup require a source choice. Preserve the installed APK variant and existing version-code offsets. Downloads require explicit consent;
   ignored notifications repeat after a week, with skip-version and disable-checks actions.
-- The app is not yet available in F-Droid; do not document it as an installation source.
+- The app is available in F-Droid: https://f-droid.org/packages/net.megaproxy487/. Keep installation
+  instructions for F-Droid and GitHub APKs in both English and Russian.
 - After creating and verifying a release, update the corresponding F-Droid submission/build recipe
   when required. The repository's F-Droid-related files are for reproducible verification, not an
   excuse to maintain a duplicate unused build path.

@@ -71,7 +71,7 @@ MegaProxy queries the official per-app API and compares its **suggested**, publi
 with the installed APK. It does not choose a higher experimental version just because one exists.
 Installation is handled by F-Droid, including package selection and verification.
 
-MegaProxy is not yet published in F-Droid. A missing listing is displayed as unavailable, not as
+A missing listing is displayed as unavailable, not as
 an up-to-date result. Network/API failures never silently switch the source to GitHub.
 
 ## GitHub
