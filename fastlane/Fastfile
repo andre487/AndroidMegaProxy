@@ -161,11 +161,12 @@ platform :android do
   desc "Preview EN/RU changelogs for an explicit Git range without changing release files"
   lane :release_notes_preview do |options|
     version = options.fetch(:version)
-    previous = options.fetch(:previous)
+    previous = options[:previous]
     ref = options[:ref] || "HEAD"
     Dir.chdir(project_root) do
-      sh(ENV.fetch("PYTHON", "python3"), "scripts/release_automation.py", "preview",
-         "--version", version.to_s, "--previous", previous.to_s, "--ref", ref.to_s)
+      args = ["--version", version.to_s, "--ref", ref.to_s]
+      args += ["--previous", previous.to_s] if previous
+      sh(ENV.fetch("PYTHON", "python3"), "scripts/release_automation.py", "preview", *args)
     end
   end
 

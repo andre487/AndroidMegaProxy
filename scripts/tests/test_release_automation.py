@@ -173,6 +173,59 @@ class ReleaseTests(unittest.TestCase):
             m.generate_notes("1.1.3", "v1.1.2", "v1.1.3")
         opener.assert_not_called()
 
+    def test_previous_release_skips_unpublished_incomplete_and_unreachable_tags(self):
+        def release(tag, **changes):
+            assets = [
+                {"name": f"mega-proxy-{variant}.apk", "state": "uploaded", "size": 123}
+                for variant in (
+                    "universal",
+                    "arm64-v8a",
+                    "armeabi-v7a",
+                    "x86",
+                    "x86_64",
+                )
+            ]
+            assets.append({"name": "SHA256SUMS", "state": "uploaded", "size": 123})
+            return (
+                dict(tag_name=tag, draft=False, prerelease=False, assets=assets)
+                | changes
+            )
+
+        good = release("v1.1.1")
+        bad = [
+            release("v1.1.2", assets=[]),
+            release("v1.1.2", assets=good["assets"][:-1]),
+            release("v1.1.2", draft=True),
+            release("v1.1.2", prerelease=True),
+            release("v1.1.2", assets=[dict(a, size=0) for a in good["assets"]]),
+            release("v1.1.2", assets=[dict(a, state="new") for a in good["assets"]]),
+        ]
+        for broken in bad:
+            with (
+                self.subTest(broken=broken),
+                patch.object(m, "command", return_value="v1.1.1\nv1.1.2\nv1.1.3"),
+                patch.object(
+                    m,
+                    "api",
+                    return_value=[release("v1.1.3"), broken, release("v1.0.0"), good],
+                ),
+            ):
+                self.assertEqual("v1.1.1", m.previous_release("1.1.3", "v1.1.3"))
+        with (
+            patch.object(m, "command", return_value="v1.1.1\nv1.1.2"),
+            patch.object(
+                m, "api", side_effect=[[release("v1.1.2", assets=[])] * 100, [good]]
+            ) as api,
+        ):
+            self.assertEqual("v1.1.1", m.previous_release("1.1.3"))
+            self.assertEqual("releases?per_page=100&page=2", api.call_args.args[0])
+        with (
+            patch.object(m, "command", return_value="v1.1.2"),
+            patch.object(m, "api", return_value=[release("v1.1.2", assets=[])]),
+            self.assertRaisesRegex(RuntimeError, "No previous published"),
+        ):
+            m.previous_release("1.1.3")
+
     def test_preview_prints_both_formats_without_release_mutations(self):
         from io import StringIO
 
@@ -375,6 +428,30 @@ class ReleaseTests(unittest.TestCase):
 
             def fake_api(path, payload=None, method=None):
                 calls.append(path)
+                if path == "releases?per_page=100&page=1":
+                    return [
+                        {
+                            "tag_name": "v0.1.0",
+                            "draft": False,
+                            "prerelease": False,
+                            "assets": [
+                                {"name": name, "state": "uploaded", "size": 123}
+                                for name in [
+                                    "SHA256SUMS",
+                                    *[
+                                        f"mega-proxy-{v}.apk"
+                                        for v in (
+                                            "universal",
+                                            "arm64-v8a",
+                                            "armeabi-v7a",
+                                            "x86",
+                                            "x86_64",
+                                        )
+                                    ],
+                                ]
+                            ],
+                        }
+                    ]
                 if path == "git/ref/heads/main":
                     return {
                         "object": {

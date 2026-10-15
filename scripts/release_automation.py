@@ -277,6 +277,42 @@ def emit(**values):
     print(json.dumps(values))
 
 
+def previous_release(version, head="HEAD"):
+    tags = set(command("git", "tag", "--merged", head, "--list", "v*").splitlines())
+    required_assets = {
+        f"mega-proxy-{variant}.apk"
+        for variant in ("universal", "arm64-v8a", "armeabi-v7a", "x86", "x86_64")
+    } | {"SHA256SUMS"}
+    candidates = []
+    page = 1
+    while True:
+        releases = api(f"releases?per_page=100&page={page}")
+        for release in releases:
+            tag = release["tag_name"]
+            assets = {
+                asset["name"]
+                for asset in release.get("assets", [])
+                if asset.get("state") == "uploaded" and asset.get("size", 0) > 0
+            }
+            if (
+                tag in tags
+                and re.fullmatch("v" + VERSION, tag)
+                and version_tuple(tag[1:]) < version_tuple(version)
+                and not release["draft"]
+                and not release["prerelease"]
+                and required_assets <= assets
+            ):
+                candidates.append(tag)
+        if len(releases) < 100:
+            break
+        page += 1
+    require(
+        candidates,
+        "No previous published stable release with complete APK assets found",
+    )
+    return max(candidates, key=lambda tag: version_tuple(tag[1:]))
+
+
 def prepare(version):
     version_tuple(version)
     require(not command("git", "status", "--porcelain"), "Use a clean checkout")
@@ -303,11 +339,12 @@ def prepare(version):
     tags = command("git", "tag", "--merged", "HEAD", "--list", "v*").splitlines()
     tags = [t for t in tags if re.fullmatch("v" + VERSION, t)]
     require(tags, "No previous stable release tag found")
-    previous = max(tags, key=lambda t: version_tuple(t[1:]))
+    latest_tag = max(tags, key=lambda t: version_tuple(t[1:]))
     require(
-        version_tuple(version) > version_tuple(previous[1:]),
+        version_tuple(version) > version_tuple(latest_tag[1:]),
         "Version must exceed the previous release tag",
     )
+    previous = previous_release(version)
     release_path = release_notes_path(version)
     require(not release_path.exists(), "Release notes already exist")
     generated = generate_notes(version, previous)
@@ -537,8 +574,8 @@ def main():
     args = parser.parse_args()
     try:
         if args.action == "preview":
-            require(args.previous, "preview requires --previous")
-            notes = generate_notes(args.version, args.previous, args.ref)
+            previous = args.previous or previous_release(args.version, args.ref)
+            notes = generate_notes(args.version, previous, args.ref)
             print(render_notes(notes["github"]))
             print("### F-Droid\n" + render_notes(notes["store"]))
         elif args.action == "prepare":

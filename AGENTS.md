@@ -72,7 +72,9 @@ branch names, credentials, signing material, or other secrets.
 
 - Release builds and signing are separate from PR CI. Release artifacts are created only through
   the dedicated release workflow/Fastlane lane.
-- Release notes use the actual Git diff and concise EN/RU bullets with one sentence per change.
+- Release notes compare against the last reachable published stable release with all APKs and
+  checksums; skip failed releases and bare tags. Use the actual Git diff and concise EN/RU bullets
+  with one sentence per change.
   Keep GitHub notes in `release-notes/X.Y.Z.md` separate from F-Droid's 500-character summaries;
   preview existing releases through `release_notes_preview` without rewriting published history.
 - Automated release PRs use a merge commit preserving the release branch history; verify both

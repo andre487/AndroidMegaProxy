@@ -60,7 +60,9 @@ workflow с прямым merge не поддерживается. Правила
 
 1. Checkout выбранного commit `main`. Остановка, если `main` уже изменился,
    checkout грязный, версия некорректна либо ветка/тег уже существуют.
-2. Выбор максимального стабильного `vX.Y.Z`, достижимого из этого commit.
+2. Выбор максимального стабильного опубликованного `vX.Y.Z`, достижимого из этого commit,
+   со всеми пятью загруженными непустыми APK и `SHA256SUMS`; черновики, prerelease,
+   голые теги и неполные релизы пропускаются.
    В OpenAI передаются сообщения коммитов без merge и сам diff, кроме исторических
    changelog, сгенерированных release notes и lock/sum-файлов.
    Repository secrets и материалы подписи не читаются. Контекст больше 600 000 символов
@@ -142,10 +144,12 @@ bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_40_CH
 Предпросмотр существующего релиза без записи релизных файлов и публикации:
 
 ```shell
-bundle exec fastlane android release_notes_preview version:1.1.3 previous:v1.1.2 ref:v1.1.3
+bundle exec fastlane android release_notes_preview version:1.1.3 ref:v1.1.3
 ```
 
 Заранее задайте `OPENAI_API_KEY` и `OPENAI_RELEASE_MODEL` в окружении. Явный `ref`
 исключает более поздние коммиты; тексты GitHub и F-Droid выводятся в терминал.
+Для автоматического выбора базы нужны `GITHUB_REPOSITORY=owner/repo` и авторизованный `gh`.
+Параметр `previous:v1.1.1` позволяет явно переопределить базу.
 
 [English version](../en/release-automation.md)

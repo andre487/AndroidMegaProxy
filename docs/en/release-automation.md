@@ -61,7 +61,9 @@ allows PR CI and the tag-triggered release build to run normally.
 
 1. Check out the selected `main` commit. Fail if `main` has already advanced,
    the checkout is dirty, or the version, branch or tag is invalid/existing.
-2. Find the highest stable `vX.Y.Z` tag reachable from that commit. Send non-merge
+2. Find the highest stable published `vX.Y.Z` release reachable from that commit,
+   with all five nonempty uploaded APK assets and `SHA256SUMS`; skip drafts, prereleases,
+   bare tags and incomplete releases. Send non-merge
    commit subjects/bodies and the actual diff to OpenAI, excluding historical changelogs,
    generated release notes and lock/sum files. Repository secrets and signing material
    are not read. Context over 600,000 characters fails without truncation.
@@ -140,10 +142,12 @@ Merge contract: [GitHub merge API](https://docs.github.com/en/rest/pulls/pulls#m
 Preview an existing release without writing release files or publishing anything:
 
 ```shell
-bundle exec fastlane android release_notes_preview version:1.1.3 previous:v1.1.2 ref:v1.1.3
+bundle exec fastlane android release_notes_preview version:1.1.3 ref:v1.1.3
 ```
 
 Set `OPENAI_API_KEY` and `OPENAI_RELEASE_MODEL` in the environment first. The explicit
 `ref` keeps later commits out of the preview; both GitHub and F-Droid notes print to stdout.
+Automatic baseline selection requires `GITHUB_REPOSITORY=owner/repo` and authenticated `gh`.
+Use `previous:v1.1.1` only to override that selection explicitly.
 
 [Русская версия](../ru/release-automation.md)
