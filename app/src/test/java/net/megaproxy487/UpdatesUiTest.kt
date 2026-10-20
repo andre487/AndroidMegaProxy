@@ -1,10 +1,26 @@
 package net.megaproxy487
 
 import androidx.compose.ui.test.*
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import org.junit.Assert.*
 import org.junit.Test
 
 class UpdatesUiTest : MainUiTestBase() {
+    @Test fun newUpdateScrollsIntoViewOnShortScreens() {
+        val model = UpdatesViewModel(activity.application, checkUpdate = { AppUpdate(it, "99.0.0") })
+        model.select(UpdateSource.GITHUB)
+        content { Box(Modifier.height(300.dp)) { UpdatesScreen(activity, {}, model) } }
+        for (source in UpdateSource.entries) {
+            compose.runOnIdle { model.select(source) }
+            node(R.string.update_check).performScrollTo().performClick()
+            compose.onNodeWithText(activity.uiText(R.string.update_available, "99.0.0")).assertIsDisplayed()
+            node(if (source == UpdateSource.GITHUB) R.string.update_download else R.string.update_in_fdroid).assertIsDisplayed()
+        }
+    }
+
     @Test fun unknownSourceRequiresChoiceAndGithubDownloadRequiresConsent() {
         activity.getSharedPreferences("updates", 0).edit().clear().commit()
         var checks = 0

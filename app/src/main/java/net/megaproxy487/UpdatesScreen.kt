@@ -5,7 +5,12 @@ import android.app.Application
 import android.content.Intent
 import android.net.Uri
 import android.provider.Settings
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -129,6 +134,7 @@ internal class UpdatesViewModel @JvmOverloads constructor(
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 internal fun UpdatesScreen(activity: Activity, onBack: () -> Unit, model: UpdatesViewModel = viewModel(), checkRequest: Int = 0) {
     val lifecycle = LocalLifecycleOwner.current
@@ -196,37 +202,43 @@ internal fun UpdatesScreen(activity: Activity, onBack: () -> Unit, model: Update
             LinearProgressIndicator(Modifier.fillMaxWidth())
             Text(stringResource(R.string.update_working))
         }
-        model.message?.let { Text(stringResource(it)) }
-        model.update?.let { update ->
-            Text(stringResource(R.string.update_available, update.version), style = MaterialTheme.typography.titleMedium)
-            if (update.source == UpdateSource.FDROID) {
-                Button(onClick = {
-                    try {
-                        activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(FDROID_APP_URL)))
-                    } catch (_: Exception) { model.reportOpenError() }
-                }) { Text(stringResource(R.string.update_in_fdroid)) }
-            } else if (model.apk == null) {
-                Button(onClick = { consent = true }, enabled = !model.busy) {
-                    Text(stringResource(R.string.update_download))
-                }
-            } else {
-                Text(stringResource(R.string.update_ready))
-                Text(stringResource(R.string.update_install_permission))
-                Button(onClick = {
-                    try {
-                        if (!activity.packageManager.canRequestPackageInstalls()) {
-                            activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                Uri.parse("package:${activity.packageName}")))
-                        } else {
-                            val apk = requireNotNull(model.apk)
-                            require(apk.isFile)
-                            val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", apk)
-                            activity.startActivity(Intent(Intent.ACTION_VIEW)
-                                .setDataAndType(uri, "application/vnd.android.package-archive")
-                                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+        if (model.message != null || model.update != null) {
+            val resultView = remember { BringIntoViewRequester() }
+            Column(Modifier.bringIntoViewRequester(resultView), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LaunchedEffect(model.update, model.message, model.apk) { resultView.bringIntoView() }
+                model.message?.let { Text(stringResource(it)) }
+                model.update?.let { update ->
+                    Text(stringResource(R.string.update_available, update.version), style = MaterialTheme.typography.titleMedium)
+                    if (update.source == UpdateSource.FDROID) {
+                        Button(onClick = {
+                            try {
+                                activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(FDROID_APP_URL)))
+                            } catch (_: Exception) { model.reportOpenError() }
+                        }) { Text(stringResource(R.string.update_in_fdroid)) }
+                    } else if (model.apk == null) {
+                        Button(onClick = { consent = true }, enabled = !model.busy) {
+                            Text(stringResource(R.string.update_download))
                         }
-                    } catch (_: Exception) { model.reportOpenError() }
-                }, enabled = !model.busy) { Text(stringResource(R.string.update_install)) }
+                    } else {
+                        Text(stringResource(R.string.update_ready))
+                        Text(stringResource(R.string.update_install_permission))
+                        Button(onClick = {
+                            try {
+                                if (!activity.packageManager.canRequestPackageInstalls()) {
+                                    activity.startActivity(Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                                        Uri.parse("package:${activity.packageName}")))
+                                } else {
+                                    val apk = requireNotNull(model.apk)
+                                    require(apk.isFile)
+                                    val uri = FileProvider.getUriForFile(activity, "${activity.packageName}.fileprovider", apk)
+                                    activity.startActivity(Intent(Intent.ACTION_VIEW)
+                                        .setDataAndType(uri, "application/vnd.android.package-archive")
+                                        .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION))
+                                }
+                            } catch (_: Exception) { model.reportOpenError() }
+                        }, enabled = !model.busy) { Text(stringResource(R.string.update_install)) }
+                    }
+                }
             }
         }
     }
