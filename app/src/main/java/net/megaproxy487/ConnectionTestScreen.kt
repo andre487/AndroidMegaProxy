@@ -175,7 +175,9 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                         if (state == TestState.RUNNING) {
                             CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
                         }
-                        exitIp?.let { Text(stringResource(R.string.proxy_exit_ip, it)) }
+                        exitIp?.let {
+                            SelectionContainer { Text(stringResource(R.string.proxy_exit_ip, it)) }
+                        }
                         countryCode?.let { Text(stringResource(R.string.proxy_exit_country, formatCountry(it, systemFormattingLocale()))) }
                         if (http3Fallback) Text(stringResource(R.string.http3_fallback_warning),
                             color = MaterialTheme.colorScheme.tertiary)
