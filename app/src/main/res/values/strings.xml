@@ -162,7 +162,7 @@
     <string name="global_vpn">Global VPN</string>
     <string name="selected_apps_routing_description">Only selected applications use the proxy.</string>
     <string name="global_vpn_description">All applications use the proxy. This is the default mode.</string>
-    <string name="udp_quic_blocked_description">MASQUE forwards UDP and QUIC; HTTPS and SSH block them. DNS uses the profile\'s configured DoH endpoint.</string>
+    <string name="udp_quic_blocked_description">MASQUE forwards UDP and QUIC. HTTPS does too when Prefer HTTP/3 succeeds; fallback HTTPS and SSH block ordinary UDP. DNS always uses the profile\'s configured DoH endpoint.</string>
     <string name="bypass_local_networks">Bypass local networks</string>
     <string name="bypass_local_networks_description">Direct TCP access to private and link-local IP addresses; MASQUE also bypasses local UDP.</string>
     <string name="search_applications">Search applications</string>
@@ -202,7 +202,7 @@
     <string name="close">Close</string>
     <string name="connection_test_clipboard_label">MegaProxy connection test</string>
     <string name="detected">Detected</string><string name="selected_apps_only">Selected apps only</string><string name="not_detected">Not detected</string>
-    <string name="visibility_intro">Local checks show signals that another Android app may observe. No network request, location lookup, or external reputation service is used.</string>
+    <string name="visibility_intro">Local checks show signals that another Android app may observe. The external reputation checks below send a request over the underlying network and VPN tunnel to compare their public IP reputation.</string>
     <string name="globally_observable_signals">Globally observable signals</string><string name="visible_to_selected_apps">Visible to selected apps</string><string name="vpn_network_signals">VPN network signals</string>
     <string name="split_visibility_explanation">The signals below belong to the VPN network. With split tunneling, Android exposes that network to selected apps; excluded apps use the underlying network instead.</string>
     <string name="visibility_disclaimer">A detected signal is not proof by itself. Android VPN APIs intentionally expose some VPN state, and legitimate security or filtering apps can produce the same signals.</string>
@@ -217,6 +217,12 @@
     <string name="vpn_link_proxy">VPN link proxy</string><string name="vpn_link_proxy_yes">A proxy setting is attached to the VPN network.</string><string name="vpn_link_proxy_no">No proxy setting is attached to the VPN network.</string>
     <string name="virtual_default_route">Virtual default route</string><string name="virtual_route_yes">A visible default route uses a VPN-style interface.</string><string name="virtual_route_no">No visible default route uses a VPN-style interface.</string>
     <string name="virtual_dns_address">Virtual DNS address</string><string name="virtual_dns_yes">The VPN network exposes a private, link-local, or loopback DNS address.</string><string name="virtual_dns_no">The VPN network does not expose a local DNS address.</string>
+    <string name="undetermined">Undetermined</string><string name="unavailable">Unavailable</string>
+    <string name="external_underlying_network">Underlying network</string><string name="external_tunnel_network">VPN tunnel</string>
+    <string name="external_network_unavailable">This network is not currently available.</string>
+    <string name="limit_reached">Limit reached</string><string name="proxycheck_reputation">ProxyCheck IP reputation</string>
+    <string name="proxycheck_detected">ProxyCheck identifies this address as a VPN, proxy, Tor exit, or other anonymous connection.</string><string name="proxycheck_not_detected">ProxyCheck does not identify this address as a VPN, proxy, Tor exit, or other anonymous connection.</string>
+    <string name="proxycheck_limit_reached">ProxyCheck’s anonymous daily request limit has been reached. Try again tomorrow.</string><string name="proxycheck_failed">The ProxyCheck request failed.</string><string name="proxycheck_unknown_format">No definite result: ProxyCheck returned an unexpected response format.</string>
     <string name="select_profile">Select profile</string><string name="ssh_key_save_failed">The SSH host key could not be saved to this profile</string>
     <string name="megaproxy_active">MegaProxy is active</string><string name="review_ssh_key">Review SSH key</string>
     <string name="always_on_all_failover_status">Always-on VPN remains active during automatic switching. Every switch is reported in the persistent notification and on the main screen.</string>

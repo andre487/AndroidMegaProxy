@@ -116,7 +116,13 @@ CONNECT-UDP, with verified destination certificates and no TCP fallback. Both pr
 checked independently; an unavailable provider does not invalidate the HTTPS/IP result. These
 native probes verify the proxy UDP path, not Android TUN or per-app routing, and their inner
 QUIC fingerprint is the diagnostic client's, not the selected outer MASQUE fingerprint or
-Chrome's. Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
+Chrome's. The VPN visibility screen obtains each route's public IP through the connection test's
+fallback sequence
+(`ifconfig.me`, `api.ipify.org`, then `icanhazip.com`), then queries `https://proxycheck.io/v3/`
+and reports its VPN, proxy, Tor, or anonymous-IP verdict. Anonymous access is limited to 100 queries
+per source IP per day; MegaProxy reports an exhausted daily allowance separately from request
+failures and caches successful verdicts for each public IP for 24 hours.
+Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
 
 - HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and
   validity. Normal CA certificate renewal does not require certificate pinning.

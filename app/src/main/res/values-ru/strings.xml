@@ -161,7 +161,7 @@
     <string name="global_vpn">Глобальный VPN</string>
     <string name="selected_apps_routing_description">Только выбранные приложения используют прокси.</string>
     <string name="global_vpn_description">Все приложения используют прокси. Это режим по умолчанию.</string>
-    <string name="udp_quic_blocked_description">MASQUE передаёт UDP и QUIC; HTTPS и SSH блокируют их. DNS использует настроенный в профиле DoH-сервер.</string>
+    <string name="udp_quic_blocked_description">MASQUE передаёт UDP и QUIC. HTTPS тоже передаёт их при успешном «Предпочитать HTTP/3»; после отката на HTTPS и через SSH обычный UDP блокируется. DNS всегда использует настроенный в профиле DoH-сервер.</string>
     <string name="bypass_local_networks">Обходить локальные сети</string>
     <string name="bypass_local_networks_description">Прямой доступ по TCP к частным и link-local IP-адресам; MASQUE также пропускает локальный UDP.</string>
     <string name="search_applications">Поиск приложений</string>
@@ -201,7 +201,7 @@
     <string name="close">Закрыть</string>
     <string name="connection_test_clipboard_label">Проверка подключения MegaProxy</string>
     <string name="detected">Обнаружено</string><string name="selected_apps_only">Только выбранные приложения</string><string name="not_detected">Не обнаружено</string>
-    <string name="visibility_intro">Локальные проверки показывают признаки, доступные другому Android-приложению. Сетевые запросы, геолокация и внешние сервисы репутации не используются.</string>
+    <string name="visibility_intro">Локальные проверки показывают признаки, доступные другому Android-приложению. Внешние проверки репутации ниже отправляют запрос через основную сеть и VPN-туннель, чтобы сравнить репутацию их публичных IP.</string>
     <string name="globally_observable_signals">Глобально видимые признаки</string><string name="visible_to_selected_apps">Видно выбранным приложениям</string><string name="vpn_network_signals">Признаки VPN-сети</string>
     <string name="split_visibility_explanation">Признаки ниже относятся к VPN-сети. При раздельном туннелировании Android показывает её выбранным приложениям, а исключённые используют основную сеть.</string>
     <string name="visibility_disclaimer">Обнаруженный признак сам по себе ничего не доказывает. Android намеренно раскрывает часть состояния VPN; такие же признаки создают обычные приложения безопасности и фильтрации.</string>
@@ -216,6 +216,12 @@
     <string name="vpn_link_proxy">Прокси VPN-сети</string><string name="vpn_link_proxy_yes">К VPN-сети привязана настройка прокси.</string><string name="vpn_link_proxy_no">К VPN-сети не привязана настройка прокси.</string>
     <string name="virtual_default_route">Виртуальный маршрут по умолчанию</string><string name="virtual_route_yes">Видимый маршрут по умолчанию использует VPN-интерфейс.</string><string name="virtual_route_no">Маршрут по умолчанию через VPN-интерфейс не виден.</string>
     <string name="virtual_dns_address">Виртуальный адрес DNS</string><string name="virtual_dns_yes">VPN-сеть показывает частный, link-local или loopback-адрес DNS.</string><string name="virtual_dns_no">VPN-сеть не показывает локальный адрес DNS.</string>
+    <string name="undetermined">Не удалось определить</string><string name="unavailable">Недоступно</string>
+    <string name="external_underlying_network">Основная сеть</string><string name="external_tunnel_network">VPN-туннель</string>
+    <string name="external_network_unavailable">Эта сеть сейчас недоступна.</string>
+    <string name="limit_reached">Лимит исчерпан</string><string name="proxycheck_reputation">Репутация IP в ProxyCheck</string>
+    <string name="proxycheck_detected">ProxyCheck определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string><string name="proxycheck_not_detected">ProxyCheck не определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string>
+    <string name="proxycheck_limit_reached">Анонимный дневной лимит запросов ProxyCheck исчерпан. Повторите проверку завтра.</string><string name="proxycheck_failed">Запрос к ProxyCheck завершился ошибкой.</string><string name="proxycheck_unknown_format">Определённого результата нет: ProxyCheck вернул ответ в неизвестном формате.</string>
     <string name="select_profile">Выбрать профиль</string><string name="ssh_key_save_failed">Не удалось сохранить ключ SSH-сервера в этом профиле</string>
     <string name="megaproxy_active">MegaProxy активен</string><string name="review_ssh_key">Проверить ключ SSH</string>
     <string name="always_on_all_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. Каждое переключение отображается в постоянном уведомлении и на главном экране.</string>

@@ -15,6 +15,8 @@ branch names, credentials, signing material, or other secrets.
   `docs/ru/fastlane.md` synchronized with the lanes in `fastlane/Fastfile`.
 - Direct scripts and Gradle tasks may remain implementation details behind Fastlane lanes, but
   documentation and CI should normally expose the Fastlane commands.
+- Launch local Android emulators with `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and
+  their lowercase variants unset, so emulator networking does not inherit the host proxy.
 
 - Python runtime scripts use the standard library and native `gh` for GitHub access. Format with
   pinned Black/isort through `python_format`; `python_tests` and `python_checks` use `PYTHON`.
