@@ -122,6 +122,11 @@ fallback sequence
 and reports its VPN, proxy, Tor, or anonymous-IP verdict. Anonymous access is limited to 100 queries
 per source IP per day; MegaProxy reports an exhausted daily allowance separately from request
 failures and caches successful verdicts for each public IP for 24 hours.
+An explicitly started speed test requests route metadata from
+`https://speed.cloudflare.com/cdn-cgi/trace`, measures median time to first byte with three empty
+downloads, and downloads 10 MiB per available route from `https://speed.cloudflare.com/__down`.
+It displays the exit IP, country, HTTP/TLS protocol reported by Cloudflare, latency and download
+speed for the underlying network and VPN tunnel separately.
 Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
 
 - HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and

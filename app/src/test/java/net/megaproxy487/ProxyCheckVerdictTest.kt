@@ -27,4 +27,13 @@ class ProxyCheckVerdictTest {
         assertEquals(false, isIpAddress("<html>error</html>"))
         assertEquals(false, isIpAddress("999.999.999.999"))
     }
+
+    @Test fun parsesCloudflareTraceAndCalculatesDownloadSpeed() {
+        val trace = parseCloudflareTrace("ip=203.0.113.1\nloc=NL\nhttp=h2\ntls=TLSv1.3\n")
+        assertEquals("203.0.113.1", trace["ip"])
+        assertEquals("NL", trace["loc"])
+        assertEquals("h2", trace["http"])
+        assertEquals(80.0, downloadMbps(10_000_000, 1_000), 0.001)
+        assertEquals(0.0, downloadMbps(10_000_000, 0), 0.001)
+    }
 }

@@ -35,6 +35,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +50,7 @@ import net.megaproxy487.data.ConfigStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.NetworkInterface
@@ -82,6 +84,9 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit, runNetwork
     var revision by remember { mutableStateOf(0) }
     val report = readConfiguration(revision) { buildVisibilityReport(activity) } ?: return
     var proxyCheckChecks by remember { mutableStateOf<List<VisibilityCheck>>(emptyList()) }
+    var speedResults by remember { mutableStateOf<List<Pair<Int, Result<CloudflareRouteResult>?>>>(emptyList()) }
+    var speedRunning by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     LaunchedEffect(revision) {
         if (!runNetworkChecks) return@LaunchedEffect
         proxyCheckChecks = withContext(Dispatchers.IO) { runProxyCheckChecks(activity) }
@@ -122,10 +127,55 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit, runNetwork
                 report.selectedApps,
             )
             VisibilitySection(stringResource(R.string.proxycheck_reputation), proxyCheckChecks)
+            Text(stringResource(R.string.cloudflare_speed_title), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.cloudflare_speed_explanation), style = MaterialTheme.typography.bodySmall)
+            Button(
+                enabled = runNetworkChecks && !speedRunning,
+                shape = RoundedCornerShape(12.dp),
+                onClick = {
+                    speedRunning = true
+                    speedResults = emptyList()
+                    scope.launch {
+                        speedResults = withContext(Dispatchers.IO) { runSpeedChecks(activity) }
+                        speedRunning = false
+                    }
+                },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(if (speedRunning) R.string.cloudflare_speed_running else R.string.cloudflare_speed_run))
+            }
+            speedResults.forEach { (title, result) -> SpeedResultCard(title, result) }
             Text(
                 stringResource(R.string.visibility_disclaimer),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(bottom = 16.dp),
+            )
+        }
+    }
+}
+
+@Composable
+private fun SpeedResultCard(title: Int, result: Result<CloudflareRouteResult>?) {
+    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(stringResource(title), style = MaterialTheme.typography.titleSmall)
+            if (result == null) {
+                Text(stringResource(R.string.external_network_unavailable), style = MaterialTheme.typography.bodySmall)
+            } else result.fold(
+                onSuccess = { value ->
+                    Text(stringResource(R.string.cloudflare_speed_ip, value.exitIp), style = MaterialTheme.typography.bodySmall)
+                    Text(
+                        stringResource(
+                            R.string.cloudflare_speed_country,
+                            value.countryCode.takeIf(String::isNotBlank)?.let { formatCountry(it, systemFormattingLocale()) } ?: "—",
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Text(stringResource(R.string.cloudflare_speed_protocol, value.protocol), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.cloudflare_speed_latency, value.latencyMs), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.cloudflare_speed_download, value.downloadMbps), style = MaterialTheme.typography.bodySmall)
+                },
+                onFailure = { Text(stringResource(R.string.cloudflare_speed_failed), style = MaterialTheme.typography.bodySmall) },
             )
         }
     }
@@ -164,21 +214,28 @@ private fun VisibilityBadge(state: VisibilityState) {
 }
 
 private suspend fun runProxyCheckChecks(context: Context): List<VisibilityCheck> = coroutineScope {
+    val underlying = async { findNetwork(context, false)?.let { queryProxyCheck(context, it) } }
+    val tunnel = async { findNetwork(context, true)?.let { queryProxyCheck(context, it) } }
+    listOf(
+        proxyCheck(context, R.string.external_underlying_network, underlying.await()),
+        proxyCheck(context, R.string.external_tunnel_network, tunnel.await()),
+    )
+}
+
+private fun runSpeedChecks(context: Context) = listOf(
+    R.string.external_underlying_network to findNetwork(context, false)?.let { runCatching { runCloudflareSpeedCheck(it) } },
+    R.string.external_tunnel_network to findNetwork(context, true)?.let { runCatching { runCloudflareSpeedCheck(it) } },
+)
+
+private fun findNetwork(context: Context, transportVpn: Boolean): android.net.Network? {
     val connectivity = context.getSystemService(ConnectivityManager::class.java)
-    val networks = runCatching { connectivity.allNetworks.toList() }.getOrDefault(emptyList())
-    fun networkWith(transportVpn: Boolean) = networks.firstOrNull { network ->
+    return runCatching { connectivity.allNetworks.toList() }.getOrDefault(emptyList()).firstOrNull { network ->
         val capabilities = runCatching { connectivity.getNetworkCapabilities(network) }.getOrNull()
             ?: return@firstOrNull false
         capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
             capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == transportVpn &&
             (transportVpn || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN))
     }
-    val underlying = async { networkWith(false)?.let { queryProxyCheck(context, it) } }
-    val tunnel = async { networkWith(true)?.let { queryProxyCheck(context, it) } }
-    listOf(
-        proxyCheck(context, R.string.external_underlying_network, underlying.await()),
-        proxyCheck(context, R.string.external_tunnel_network, tunnel.await()),
-    )
 }
 
 internal enum class ProxyCheckVerdict { DETECTED, NOT_DETECTED, LIMIT_REACHED, UNKNOWN_FORMAT }
