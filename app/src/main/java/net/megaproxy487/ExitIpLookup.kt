@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import net.megaproxy487.data.readBoundedText
+
 import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
@@ -15,7 +17,7 @@ internal fun lookupExitIp(network: Network): String? = EXIT_IP_URLS.firstNotNull
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000
             if (connection.responseCode !in 200..299) return@runCatching null
-            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            val body = connection.inputStream.use { it.readBoundedText(64 * 1024) }
             if (url == CLOUDFLARE_IP_URL) parseCloudflareExitIp(body) else body.trim().takeIf(::isIpAddress)
         } finally {
             connection.disconnect()

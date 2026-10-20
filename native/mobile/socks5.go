@@ -19,6 +19,7 @@ import (
 var errSOCKS5Auth = errors.New("SOCKS5 authentication rejected")
 
 type socks5Dialer struct {
+	dnsFlows    dnsFlows
 	lifetime    context.Context
 	cancel      context.CancelFunc
 	config      config
@@ -33,6 +34,7 @@ type socks5Dialer struct {
 }
 
 func (d *socks5Dialer) Close() error {
+	d.dnsFlows.close()
 	d.mu.Lock()
 	d.closed = true
 	if d.cancel != nil {
@@ -272,9 +274,11 @@ func (d *socks5Dialer) DialUDP(m *M.Metadata) (net.PacketConn, error) {
 		}
 		client, limiter := d.dohClient, d.dohInFlight
 		d.mu.Unlock()
-		packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
-		packet.connectUDP = d.connectDNSUDP
-		return packet, nil
+		return d.dnsFlows.open(func() *dohPacketConn {
+			packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
+			packet.connectUDP = d.connectDNSUDP
+			return packet
+		})
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

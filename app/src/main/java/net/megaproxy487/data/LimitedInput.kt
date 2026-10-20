@@ -11,8 +11,10 @@ const val MAX_CONFIG_FILE_BYTES = 4 * 1024 * 1024
 const val MAX_IMPORTED_PROFILES = 1_000
 const val MAX_IMPORTED_PACKAGES = 10_000
 
-fun InputStream.readConfigText(checkActive: () -> Unit = {}): String {
-    val output = ByteArrayOutputStream(64 * 1024)
+fun InputStream.readConfigText(checkActive: () -> Unit = {}): String = readBoundedText(MAX_CONFIG_FILE_BYTES, checkActive)
+
+internal fun InputStream.readBoundedText(maxBytes: Int, checkActive: () -> Unit = {}): String {
+    val output = ByteArrayOutputStream(minOf(maxBytes, 64 * 1024))
     val buffer = ByteArray(16 * 1024)
     var total = 0
     while (true) {
@@ -20,7 +22,7 @@ fun InputStream.readConfigText(checkActive: () -> Unit = {}): String {
         val count = read(buffer)
         if (count < 0) break
         total += count
-        requireUi(total <= MAX_CONFIG_FILE_BYTES) { UiException(R.string.error_config_large) }
+        requireUi(total <= maxBytes) { UiException(R.string.error_config_large) }
         output.write(buffer, 0, count)
     }
     return Charsets.UTF_8.newDecoder().decode(java.nio.ByteBuffer.wrap(output.toByteArray())).toString()

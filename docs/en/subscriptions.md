@@ -72,3 +72,7 @@ only for the same normalized URL and username; empty clears it. Downloaded
 subscription settings never replace your configured source list or credentials.
 JSON exports include the definition; its password follows **Include passwords**,
 but query tokens in URLs remain present. Ownership and status are never exported.
+
+The complete local profile store is limited to 1,000 profiles, 4,194,304 characters before encoding,
+and 8 MiB of encoded JSON. Imports, edits and subscription refreshes exceeding these limits
+fail without replacing the previous configuration.

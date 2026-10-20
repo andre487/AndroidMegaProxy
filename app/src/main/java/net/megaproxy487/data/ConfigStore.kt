@@ -61,8 +61,10 @@ class ConfigStore(context: Context) {
                 colorIndex = ProfileColorMatcher.colorIndexForFlag(profile.countryCode, profile.colorIndex),
             )
         }
+        // Existing oversized stores remain readable; a cosmetic migration must not prevent recovery.
+        val encoded = operationResult { encodeProfiles(recolored) }.getOrNull() ?: return@synchronized decoded
         prefs.edit()
-            .putString(PROFILES, encodeProfiles(recolored))
+            .putString(PROFILES, encoded)
             .putInt(FLAG_COLOR_VERSION, CURRENT_FLAG_COLOR_VERSION)
             .apply()
         return@synchronized recolored
@@ -604,20 +606,41 @@ class ConfigStore(context: Context) {
         prefs.edit().putString(PROFILES, encodeProfiles(profiles)).commitOrThrow()
     }
 
-    private fun encodeProfiles(profiles: List<ProxyProfile>) = JSONArray().apply {
+    private fun encodeProfiles(profiles: List<ProxyProfile>): String {
+        requireUi(profiles.size <= MAX_IMPORTED_PROFILES) { UiException(R.string.error_config_capacity) }
         requireUi(profiles.none { it.config.storageUnavailable }) {
             UiException(R.string.error_config_storage)
         }
-        profiles.forEach { profile ->
-            put(JSONObject().apply {
+        requireUi(profiles.all { it.config.selectedPackages.size <= MAX_IMPORTED_PACKAGES }) {
+            UiException(R.string.error_config_capacity)
+        }
+        // Bound plaintext before encryption/base64 and JSON escaping allocate copies.
+        val characters = profiles.sumOf { profile ->
+            val c = profile.config
+            (listOf(profile.id, profile.name, profile.countryCode, c.host, c.username, c.password,
+                c.privateKey, c.trustedHostKey, c.jumpHost, c.jumpUsername, c.jumpPassword,
+                c.jumpPrivateKey, c.jumpTrustedHostKey, c.customJa3, c.customDohUrl).sumOf { it.length.toLong() } +
+                c.selectedPackages.sumOf { it.length.toLong() } +
+                c.unreadableSecrets.values.sumOf { it.length.toLong() })
+        }
+        requireUi(characters <= MAX_CONFIG_FILE_BYTES) { UiException(R.string.error_config_capacity) }
+        val output = StringBuilder("[")
+        var bytes = 2L
+        profiles.forEachIndexed { index, profile ->
+            val item = JSONObject().apply {
                 put("id", profile.id)
                 put("name", profile.name.trim())
                 put("color", profile.colorIndex)
                 put("countryCode", profile.countryCode.uppercase())
                 put("config", encodeConfig(profile.config))
-            })
+            }.toString()
+            bytes += item.toByteArray(Charsets.UTF_8).size + if (index == 0) 0 else 1
+            requireUi(bytes <= 8L * 1024 * 1024) { UiException(R.string.error_config_capacity) }
+            if (index != 0) output.append(',')
+            output.append(item)
         }
-    }.toString()
+        return output.append(']').toString()
+    }
 
     private fun encodeConfig(config: ProxyConfig) = JSONObject().apply {
         fun secret(name: String, value: String): String =
