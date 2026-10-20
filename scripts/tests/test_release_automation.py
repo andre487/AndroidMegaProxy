@@ -245,6 +245,101 @@ class ReleaseTests(unittest.TestCase):
             2, run.call_count
         )  # Reading Git evidence only; no branch/version/tag writes.
 
+    def test_summary_over_target_is_preserved_and_used_in_final_notes(self):
+        from contextlib import redirect_stdout
+        from io import BytesIO, StringIO
+
+        long_summary = "Concrete factual change.\n" * 1000
+        self.assertGreater(len(long_summary), 20_000)
+        requests = []
+
+        def respond(request, **kwargs):
+            payload = json.loads(request.data)
+            requests.append(payload)
+            self.assertLessEqual(len(payload["input"]), m.RELEASE_CONTEXT_LIMIT)
+            content = (
+                {"summary": long_summary}
+                if payload["text"]["format"]["name"] == "release_facts"
+                else GENERATED
+            )
+            return BytesIO(
+                json.dumps(
+                    {
+                        "status": "completed",
+                        "model": "returned-model",
+                        "usage": {"output_tokens": 8000},
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {"type": "output_text", "text": json.dumps(content)}
+                                ],
+                            }
+                        ],
+                    }
+                ).encode()
+            )
+
+        output = StringIO()
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENAI_API_KEY": "synthetic-key",
+                    "OPENAI_RELEASE_MODEL": "test-model",
+                },
+            ),
+            patch.object(m, "command", side_effect=["history", "x" * 650_000]),
+            patch.object(m.urllib.request, "build_opener") as opener,
+            redirect_stdout(output),
+        ):
+            opener.return_value.open.side_effect = respond
+            self.assertEqual(GENERATED, m.generate_notes("1.2.0", "v1.1.3"))
+        self.assertEqual(3, len(requests))
+        self.assertEqual(
+            [long_summary, long_summary], json.loads(requests[-1]["input"])["summaries"]
+        )
+        self.assertIn('"summary_characters": 25000', output.getvalue())
+        self.assertIn('"model": "returned-model"', output.getvalue())
+        self.assertNotIn(long_summary, output.getvalue())
+
+    def test_invalid_summary_logs_usage_and_length_without_content(self):
+        from contextlib import redirect_stdout
+        from io import BytesIO, StringIO
+
+        output = StringIO()
+        response = {
+            "status": "completed",
+            "model": "returned-model",
+            "usage": {"output_tokens": 3},
+            "output": [
+                {
+                    "type": "message",
+                    "content": [{"type": "output_text", "text": '{"summary":""}'}],
+                }
+            ],
+        }
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENAI_API_KEY": "synthetic-key",
+                    "OPENAI_RELEASE_MODEL": "test-model",
+                },
+            ),
+            patch.object(m.urllib.request, "build_opener") as opener,
+            redirect_stdout(output),
+            self.assertRaisesRegex(RuntimeError, "Empty or invalid release summary"),
+        ):
+            opener.return_value.open.return_value.__enter__.return_value = BytesIO(
+                json.dumps(response).encode()
+            )
+            m.request_release_notes("source evidence", "v1.1.3", "HEAD", summarize=True)
+        self.assertIn('"output_tokens": 3', output.getvalue())
+        self.assertIn('"summary_characters": 0', output.getvalue())
+        self.assertNotIn("synthetic-key", output.getvalue())
+        self.assertNotIn("source evidence", output.getvalue())
+
     def test_context_partition_preserves_large_files_and_file_boundaries(self):
         for evidence in (
             "x" * 130,
@@ -324,15 +419,9 @@ class ReleaseTests(unittest.TestCase):
         for result in (
             response([{"type": "output_text", "text": json.dumps({"summary": ""})}]),
             response(
-                [
-                    {
-                        "type": "output_text",
-                        "text": json.dumps(
-                            {"summary": "x" * (m.RELEASE_SUMMARY_LIMIT + 1)}
-                        ),
-                    }
-                ]
+                [{"type": "output_text", "text": json.dumps({"summary": "  \n  "})}]
             ),
+            response([{"type": "output_text", "text": json.dumps({"summary": None})}]),
             response([{"type": "output_text", "text": "{}"}]),
             response([{"type": "refusal"}]),
             {"status": "incomplete"},
