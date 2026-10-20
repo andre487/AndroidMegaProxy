@@ -24,8 +24,17 @@ internal fun lookupExitIp(network: Network): String? = EXIT_IP_URLS.firstNotNull
 
 internal fun findRouteNetwork(context: Context, transportVpn: Boolean): Network? {
     val connectivity = context.getSystemService(ConnectivityManager::class.java)
-    val networks = listOfNotNull(runCatching { connectivity.activeNetwork }.getOrNull()) +
-        runCatching { connectivity.allNetworks.toList() }.getOrDefault(emptyList())
+    val active = runCatching { connectivity.activeNetwork }.getOrNull()
+    val others = runCatching { connectivity.allNetworks.toList() }.getOrDefault(emptyList()).sortedBy { network ->
+        val capabilities = runCatching { connectivity.getNetworkCapabilities(network) }.getOrNull()
+        when {
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) == true -> 0
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET) == true -> 1
+            capabilities?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true -> 2
+            else -> 3
+        }
+    }
+    val networks = listOfNotNull(active) + others
     return networks.distinct().firstOrNull { network ->
         val capabilities = runCatching { connectivity.getNetworkCapabilities(network) }.getOrNull()
             ?: return@firstOrNull false
