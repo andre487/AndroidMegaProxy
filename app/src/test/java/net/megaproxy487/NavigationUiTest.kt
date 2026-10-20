@@ -22,6 +22,8 @@ class NavigationUiTest : MainUiTestBase() {
         node(R.string.visibility).performClick()
         compose.onNodeWithTag("screen-visibility").assertIsDisplayed()
         drainConfigIo()
+        compose.onNodeWithText(activity.uiText(R.string.cloudflare_speed_size, 60)).performScrollTo().performClick()
+        compose.onNodeWithText(activity.uiText(R.string.cloudflare_speed_explanation, 60, 240)).assertIsDisplayed()
         icon(R.string.back).performClick()
         compose.onNodeWithTag("screen-main").assertIsDisplayed()
     }

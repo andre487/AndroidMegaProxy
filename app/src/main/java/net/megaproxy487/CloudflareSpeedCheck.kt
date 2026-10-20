@@ -11,18 +11,23 @@ internal data class CloudflareRouteResult(
     val protocol: String,
     val latencyMs: Long,
     val downloadMbps: Double,
+    val uploadMbps: Double,
 )
 
-internal fun runCloudflareSpeedCheck(network: Network): CloudflareRouteResult {
-    val trace = request(network, CLOUDFLARE_TRACE_URL).body.toString(Charsets.UTF_8).let(::parseCloudflareTrace)
-    val latency = List(3) { request(network, "$CLOUDFLARE_DOWNLOAD_URL?bytes=0").headersMs }.sorted()[1]
-    val download = request(network, "$CLOUDFLARE_DOWNLOAD_URL?bytes=$DOWNLOAD_BYTES")
+internal fun runCloudflareSpeedCheck(network: Network, mebibytes: Int): CloudflareRouteResult {
+    require(mebibytes in SPEED_TEST_MEBIBYTES)
+    val bytes = mebibytes * 1024 * 1024
+    val trace = requestText(network, CLOUDFLARE_TRACE_URL).let(::parseCloudflareTrace)
+    val latency = List(3) { latency(network) }.sorted()[1]
+    val download = download(network, bytes)
+    val upload = upload(network, bytes)
     return CloudflareRouteResult(
         exitIp = checkNotNull(trace["ip"]?.takeIf(::isIpAddress)) { "Cloudflare did not return an exit IP" },
         countryCode = trace["loc"].orEmpty(),
         protocol = listOfNotNull(trace["http"], trace["tls"]).joinToString(" · ").ifBlank { "—" },
         latencyMs = latency,
-        downloadMbps = downloadMbps(download.body.size.toLong(), download.bodyMs),
+        downloadMbps = transferMbps(download.bytes, download.durationMs),
+        uploadMbps = transferMbps(upload.bytes, upload.durationMs),
     )
 }
 
@@ -30,23 +35,82 @@ internal fun parseCloudflareTrace(body: String): Map<String, String> = body.line
     .mapNotNull { line -> line.indexOf('=').takeIf { it > 0 }?.let { line.take(it) to line.drop(it + 1) } }
     .toMap()
 
-internal fun downloadMbps(bytes: Long, durationMs: Long): Double =
+internal fun transferMbps(bytes: Long, durationMs: Long): Double =
     if (bytes <= 0 || durationMs <= 0) 0.0 else bytes * 8_000.0 / durationMs / 1_000_000.0
 
-private data class TimedResponse(val body: ByteArray, val headersMs: Long, val bodyMs: Long)
+private data class TimedTransfer(val bytes: Long, val durationMs: Long)
 
-private fun request(network: Network, url: String): TimedResponse {
-    val connection = network.openConnection(URL(url)) as HttpURLConnection
+private fun connection(network: Network, url: String) =
+    (network.openConnection(URL(url)) as HttpURLConnection).apply {
+        connectTimeout = 10_000
+        readTimeout = 120_000
+        setRequestProperty("Accept-Encoding", "identity")
+    }
+
+private fun requestText(network: Network, url: String): String {
+    val connection = connection(network, url)
     try {
-        connection.connectTimeout = 10_000
-        connection.readTimeout = 30_000
-        connection.setRequestProperty("Accept-Encoding", "identity")
-        val requestStarted = SystemClock.elapsedRealtime()
         check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
-        val headersReceived = SystemClock.elapsedRealtime()
-        val body = connection.inputStream.use { it.readBytes() }
-        val finished = SystemClock.elapsedRealtime()
-        return TimedResponse(body, headersReceived - requestStarted, finished - headersReceived)
+        return connection.inputStream.bufferedReader().use { it.readText() }
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private fun latency(network: Network): Long {
+    val connection = connection(network, "$CLOUDFLARE_DOWNLOAD_URL?bytes=0")
+    try {
+        val started = SystemClock.elapsedRealtime()
+        check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
+        connection.inputStream.close()
+        return SystemClock.elapsedRealtime() - started
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private fun download(network: Network, expectedBytes: Int): TimedTransfer {
+    val connection = connection(network, "$CLOUDFLARE_DOWNLOAD_URL?bytes=$expectedBytes")
+    try {
+        check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
+        val started = SystemClock.elapsedRealtime()
+        var received = 0L
+        connection.inputStream.use { input ->
+            val buffer = ByteArray(64 * 1024)
+            while (true) {
+                val count = input.read(buffer)
+                if (count < 0) break
+                received += count
+            }
+        }
+        return TimedTransfer(received, SystemClock.elapsedRealtime() - started)
+    } finally {
+        connection.disconnect()
+    }
+}
+
+private fun upload(network: Network, bytes: Int): TimedTransfer {
+    val connection = connection(network, CLOUDFLARE_UPLOAD_URL).apply {
+        requestMethod = "POST"
+        doOutput = true
+        setRequestProperty("Content-Type", "application/octet-stream")
+        setFixedLengthStreamingMode(bytes)
+    }
+    try {
+        val output = connection.outputStream
+        val started = SystemClock.elapsedRealtime()
+        output.use {
+            val buffer = ByteArray(64 * 1024)
+            var remaining = bytes
+            while (remaining > 0) {
+                val count = minOf(remaining, buffer.size)
+                it.write(buffer, 0, count)
+                remaining -= count
+            }
+        }
+        check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
+        connection.inputStream.close()
+        return TimedTransfer(bytes.toLong(), SystemClock.elapsedRealtime() - started)
     } finally {
         connection.disconnect()
     }
@@ -54,4 +118,5 @@ private fun request(network: Network, url: String): TimedResponse {
 
 private const val CLOUDFLARE_TRACE_URL = "https://speed.cloudflare.com/cdn-cgi/trace"
 private const val CLOUDFLARE_DOWNLOAD_URL = "https://speed.cloudflare.com/__down"
-private const val DOWNLOAD_BYTES = 10 * 1024 * 1024
+private const val CLOUDFLARE_UPLOAD_URL = "https://speed.cloudflare.com/__up"
+internal val SPEED_TEST_MEBIBYTES = listOf(20, 60, 100)
