@@ -14,8 +14,10 @@ class DiagnosticsUiTest : MainUiTestBase() {
             Http3ProbeResult("Cloudflare", true), Http3ProbeResult("BrowserLeaks", false),
         ))
         content { ConnectionTestScreen(activity, autoStart = false, onBack = {}) }
-        compose.onNodeWithText(activity.uiText(R.string.test_http3_provider, "Cloudflare", activity.uiText(R.string.test_http3_confirmed))).assertIsDisplayed()
-        compose.onNodeWithText(activity.uiText(R.string.test_http3_provider, "BrowserLeaks", activity.uiText(R.string.test_http3_unavailable))).assertIsDisplayed()
+        compose.onNodeWithContentDescription(activity.uiText(
+            R.string.test_http3_provider_a11y, "Cloudflare", activity.uiText(R.string.test_http3_confirmed))).assertIsDisplayed()
+        compose.onNodeWithContentDescription(activity.uiText(
+            R.string.test_http3_provider_a11y, "BrowserLeaks", activity.uiText(R.string.test_http3_unavailable))).assertIsDisplayed()
         compose.runOnIdle { TestDiagnosticLog.begin() }
         compose.runOnIdle { assertTrue(TestDiagnosticLog.http3.value.isEmpty()) }
         node(R.string.test_http3_help).assertDoesNotExist()

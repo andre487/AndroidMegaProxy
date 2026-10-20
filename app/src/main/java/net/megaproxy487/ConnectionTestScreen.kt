@@ -54,6 +54,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.liveRegion
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
@@ -178,8 +180,17 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                         if (http3Fallback) Text(stringResource(R.string.http3_fallback_warning),
                             color = MaterialTheme.colorScheme.tertiary)
                         http3.forEach { probe ->
-                            Text(stringResource(R.string.test_http3_provider, probe.provider,
-                                stringResource(if (probe.confirmed) R.string.test_http3_confirmed else R.string.test_http3_unavailable)))
+                            val status = stringResource(if (probe.confirmed) R.string.test_http3_confirmed else R.string.test_http3_unavailable)
+                            Text(
+                                stringResource(
+                                    R.string.test_http3_provider,
+                                    probe.provider,
+                                    stringResource(if (probe.confirmed) R.string.test_status_success_icon else R.string.test_status_failed_icon),
+                                ),
+                                Modifier.clearAndSetSemantics {
+                                    contentDescription = activity.uiText(R.string.test_http3_provider_a11y, probe.provider, status)
+                                },
+                            )
                         }
                         if (http3.isNotEmpty()) {
                             Text(stringResource(R.string.test_http3_help), style = MaterialTheme.typography.bodySmall)

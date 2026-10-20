@@ -504,7 +504,10 @@
     <string name="option_proxytype_masque">MASQUE α (HTTP/3)</string>
     <string name="masque_proxy_hostname">Адрес MASQUE-прокси</string>
     <string name="transport_http_3">HTTP/3, мультиплексирование</string>
-    <string name="test_http3_provider">HTTP/3 (UDP), %1$s: %2$s</string>
+    <string name="test_http3_provider">HTTP/3 · %1$s %2$s</string>
+    <string name="test_http3_provider_a11y">HTTP/3 по UDP, %1$s: %2$s</string>
+    <string name="test_status_success_icon">✅</string>
+    <string name="test_status_failed_icon">❌</string>
     <string name="test_http3_confirmed">подтверждён</string>
     <string name="test_http3_unavailable">не подтверждён</string>
     <string name="test_http3_help">HTTP/3 проверяет UDP через прокси. Недоступность тестового сервиса не отменяет результат проверки HTTPS.</string>
