@@ -554,4 +554,5 @@
     <string name="subscription_notification_title">Настройки VPN обновлены</string>
     <string name="subscription_notification_text">Фоновое обновление подписки изменило настройки активного соединения. Переподключитесь, чтобы применить их.</string>
     <string name="loading_configuration">Загрузка конфигурации…</string>
+    <string name="speed_protocol_preference">Предпочтительный HTTP-протокол (с переходом на младшие версии)</string>
 </resources>

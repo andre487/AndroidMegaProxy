@@ -48,7 +48,9 @@ device by public IP for 24 hours, and does not add them to diagnostic logs.
 When you explicitly start the speed test, MegaProxy contacts `https://speed.cloudflare.com/`
 through each available route. Cloudflare receives the route's public IP and connection metadata.
 MegaProxy downloads and uploads the selected 10, 25 or 50 MB per route and displays the exit IP,
-country, negotiated protocol, latency and transfer speeds without storing them in diagnostic logs.
+country, negotiated protocol, latency and transfer speeds. The speed screen shows a temporary
+in-memory log of timing, protocol selection, HTTP status and transfer measurements; it contains
+no exit IP or response payloads and is discarded when the screen is closed.
 
 If you configure a configuration subscription, MegaProxy downloads snapshots from the HTTPS
 sources you list, automatically at the interval you choose when Android permits background work,

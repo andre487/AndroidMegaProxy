@@ -555,4 +555,5 @@
     <string name="subscription_notification_title">VPN settings updated</string>
     <string name="subscription_notification_text">A background subscription update changed the active connection settings. Reconnect to apply them.</string>
     <string name="loading_configuration">Loading configuration…</string>
+    <string name="speed_protocol_preference">Preferred HTTP protocol (falls back to lower versions)</string>
 </resources>

@@ -126,7 +126,12 @@ An explicitly started speed test requests route metadata from
 `https://speed.cloudflare.com/cdn-cgi/trace`, measures median time to first byte with three empty
 downloads, and transfers a user-selected 10, 25 or 50 MB per direction and available route through
 `https://speed.cloudflare.com/__down` and `https://speed.cloudflare.com/__up`.
-It displays the exit IP, country, HTTP/TLS protocol reported by Cloudflare, latency and download
+The Go client binds DNS and TCP/UDP sockets to the selected Android network. Users select h3
+(default, falling back to h2 then h1), h2 (falling back to h1), or h1. Only the initial
+metadata probe permits protocol fallback; certificate failures, HTTP service errors, and transfer
+failures do not restart the payload. The screen log includes DNS/TCP/TLS/QUIC timings, HTTP status,
+connection reuse, latency samples, byte counts, transfer rates, and protocol fallback reasons.
+It displays the exit IP, country, negotiated HTTP/TLS protocol, latency and download
 and upload speed for the underlying network and VPN tunnel separately.
 Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
 

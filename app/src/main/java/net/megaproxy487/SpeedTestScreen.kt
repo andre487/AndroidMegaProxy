@@ -61,6 +61,7 @@ private data class RouteSpeedResult(
 internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
     var results by remember { mutableStateOf(List(2) { RouteSpeedResult() }) }
     var running by remember { mutableStateOf(false) }
+    var preferredProtocol by remember { mutableStateOf(SPEED_TEST_PROTOCOLS.first()) }
     var megabytes by remember { mutableStateOf(SPEED_TEST_MEGABYTES.first()) }
     var log by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
@@ -101,6 +102,20 @@ internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
                     }
                 }
             }
+            Text(stringResource(R.string.speed_protocol_preference), style = MaterialTheme.typography.bodyMedium)
+            Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                SPEED_TEST_PROTOCOLS.forEach { protocol ->
+                    Row(
+                        Modifier.selectable(
+                            selected = preferredProtocol == protocol, enabled = !running,
+                            role = Role.RadioButton, onClick = { preferredProtocol = protocol },
+                        ), verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = preferredProtocol == protocol, onClick = null, enabled = !running)
+                        Text(protocol)
+                    }
+                }
+            }
             Button(
                 enabled = !running,
                 shape = RoundedCornerShape(12.dp),
@@ -111,7 +126,7 @@ internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
                     scope.launch {
                         try {
                             withContext(Dispatchers.IO) {
-                                runSpeedChecks(activity, megabytes,
+                                runSpeedChecks(activity, megabytes, preferredProtocol,
                                     update = { index, result ->
                                         withContext(Dispatchers.Main) {
                                             results = results.toMutableList().also { it[index] = result }
@@ -189,6 +204,7 @@ private fun SpeedRow(label: Int, results: List<RouteSpeedResult>, value: @Compos
 private suspend fun runSpeedChecks(
     activity: Activity,
     megabytes: Int,
+    preferredProtocol: String,
     update: suspend (Int, RouteSpeedResult) -> Unit,
     log: suspend (String) -> Unit,
 ) {
@@ -201,7 +217,9 @@ private suspend fun runSpeedChecks(
             log("event=speed_test route=$route result=unavailable")
         } else {
             try {
-                runCloudflareSpeedCheck(network, megabytes) { values ->
+                runCloudflareSpeedCheck(network, megabytes, preferredProtocol,
+                    onLog = { log("route=$route $it") },
+                ) { values ->
                     state = state.copy(values = values)
                     update(index, state)
                 }

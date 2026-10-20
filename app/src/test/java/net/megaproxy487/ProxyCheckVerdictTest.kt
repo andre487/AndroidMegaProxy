@@ -28,14 +28,17 @@ class ProxyCheckVerdictTest {
         assertEquals(false, isIpAddress("999.999.999.999"))
     }
 
-    @Test fun parsesCloudflareTraceAndCalculatesTransferSpeed() {
-        val trace = parseCloudflareTrace("ip=203.0.113.1\nloc=NL\nhttp=h2\ntls=TLSv1.3\n")
-        assertEquals("203.0.113.1", trace["ip"])
-        assertEquals("NL", trace["loc"])
-        assertEquals("h2", trace["http"])
+    @Test fun speedPartialResultKeepsPendingMeasurementsEmpty() {
+        val result = parseSpeedResult("""{"exitIp":"203.0.113.1","countryCode":"AM","protocol":"HTTP/3","latencyMs":0}""")
+        assertEquals("HTTP/3", result.protocol)
+        assertEquals(0L, result.latencyMs)
+        assertEquals(null, result.downloadMbps)
+        assertEquals(null, result.uploadMbps)
+    }
+
+    @Test fun speedMeasurementOptionsRemainBounded() {
         assertEquals(listOf(10, 25, 50), SPEED_TEST_MEGABYTES)
+        assertEquals(listOf("h3", "h2", "h1"), SPEED_TEST_PROTOCOLS)
         assertEquals("🇦🇲 AM", formatCountryCode("am"))
-        assertEquals(80.0, transferMbps(10_000_000, 1_000), 0.001)
-        assertEquals(0.0, transferMbps(10_000_000, 0), 0.001)
     }
 }

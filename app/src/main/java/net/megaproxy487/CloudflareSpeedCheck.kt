@@ -1,9 +1,18 @@
 package net.megaproxy487
 
 import android.net.Network
-import android.os.SystemClock
-import java.net.HttpURLConnection
-import java.net.URL
+import android.os.ParcelFileDescriptor
+import java.util.concurrent.Executors
+import kotlin.coroutines.resume
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withContext
+import mobile.Mobile
+import mobile.SpeedNetwork
+import net.megaproxy487.vpn.BridgeReporter
 
 internal data class CloudflareRouteResult(
     val exitIp: String? = null,
@@ -17,114 +26,68 @@ internal data class CloudflareRouteResult(
 internal suspend fun runCloudflareSpeedCheck(
     network: Network,
     megabytes: Int,
+    preferredProtocol: String,
+    onLog: suspend (String) -> Unit,
     onProgress: suspend (CloudflareRouteResult) -> Unit,
-): CloudflareRouteResult {
+) = coroutineScope {
     require(megabytes in SPEED_TEST_MEGABYTES)
-    val bytes = megabytes * 1_000_000
-    val trace = requestText(network, CLOUDFLARE_TRACE_URL).let(::parseCloudflareTrace)
-    var result = CloudflareRouteResult(
-        exitIp = checkNotNull(trace["ip"]?.takeIf(::isIpAddress)) { "Cloudflare did not return an exit IP" },
-        countryCode = trace["loc"].orEmpty(),
-        protocol = listOfNotNull(trace["http"], trace["tls"]).joinToString(" · ").ifBlank { "—" },
+    require(preferredProtocol in SPEED_TEST_PROTOCOLS)
+    val native = Mobile.newSpeedTest()
+    val executor = Executors.newSingleThreadExecutor()
+    val events = Channel<Pair<Boolean, String>>(Channel.UNLIMITED)
+    val reader = launch {
+        for ((isResult, message) in events) {
+            if (isResult) onProgress(parseSpeedResult(message)) else onLog(message)
+        }
+    }
+    fun reporter(isResult: Boolean) = BridgeReporter(
+        enabled = { true },
+        deliver = { events.trySend(isResult to it) },
+        onFailure = { native.cancel() },
     )
-    onProgress(result)
-    result = result.copy(latencyMs = List(3) { latency(network) }.sorted()[1])
-    onProgress(result)
-    val download = download(network, bytes)
-    result = result.copy(downloadMbps = transferMbps(download.bytes, download.durationMs))
-    onProgress(result)
-    val upload = upload(network, bytes)
-    result = result.copy(uploadMbps = transferMbps(upload.bytes, upload.durationMs))
-    onProgress(result)
-    return result
-}
-
-internal fun parseCloudflareTrace(body: String): Map<String, String> = body.lineSequence()
-    .mapNotNull { line -> line.indexOf('=').takeIf { it > 0 }?.let { line.take(it) to line.drop(it + 1) } }
-    .toMap()
-
-internal fun transferMbps(bytes: Long, durationMs: Long): Double =
-    if (bytes <= 0 || durationMs <= 0) 0.0 else bytes * 8_000.0 / durationMs / 1_000_000.0
-
-private data class TimedTransfer(val bytes: Long, val durationMs: Long)
-
-private fun connection(network: Network, url: String) =
-    (network.openConnection(URL(url)) as HttpURLConnection).apply {
-        connectTimeout = 10_000
-        readTimeout = 120_000
-        setRequestProperty("Accept-Encoding", "identity")
-    }
-
-private fun requestText(network: Network, url: String): String {
-    val connection = connection(network, url)
     try {
-        check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
-        return connection.inputStream.bufferedReader().use { it.readText() }
-    } finally {
-        connection.disconnect()
-    }
-}
-
-private fun latency(network: Network): Long {
-    val connection = connection(network, "$CLOUDFLARE_DOWNLOAD_URL?bytes=0")
-    try {
-        val started = SystemClock.elapsedRealtime()
-        check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
-        connection.inputStream.close()
-        return SystemClock.elapsedRealtime() - started
-    } finally {
-        connection.disconnect()
-    }
-}
-
-private fun download(network: Network, expectedBytes: Int): TimedTransfer {
-    val connection = connection(network, "$CLOUDFLARE_DOWNLOAD_URL?bytes=$expectedBytes")
-    try {
-        check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
-        val started = SystemClock.elapsedRealtime()
-        var received = 0L
-        connection.inputStream.use { input ->
-            val buffer = ByteArray(64 * 1024)
-            while (true) {
-                val count = input.read(buffer)
-                if (count < 0) break
-                received += count
+        val failure = suspendCancellableCoroutine<Exception?> { continuation ->
+            continuation.invokeOnCancellation { native.cancel() }
+            executor.execute {
+                val error = try {
+                    native.run(object : SpeedNetwork {
+                        override fun bind(fd: Long): Boolean {
+                            if (fd !in 0..Int.MAX_VALUE.toLong()) return false
+                            return try {
+                                ParcelFileDescriptor.fromFd(fd.toInt()).use { network.bindSocket(it.fileDescriptor) }
+                                true
+                            } catch (_: Exception) { false }
+                        }
+                        override fun resolve(host: String): String =
+                            network.getAllByName(host).mapNotNull { it.hostAddress }.joinToString("\n")
+                    }, preferredProtocol, megabytes.toLong(), reporter(true), reporter(false))
+                    null
+                } catch (error: Exception) { error }
+                continuation.resume(error)
             }
         }
-        return TimedTransfer(received, SystemClock.elapsedRealtime() - started)
+        events.close()
+        reader.join()
+        failure?.let { throw it }
     } finally {
-        connection.disconnect()
+        native.cancel()
+        events.close()
+        withContext(NonCancellable) { reader.join() }
+        executor.shutdown()
     }
 }
 
-private fun upload(network: Network, bytes: Int): TimedTransfer {
-    val connection = connection(network, CLOUDFLARE_UPLOAD_URL).apply {
-        requestMethod = "POST"
-        doOutput = true
-        setRequestProperty("Content-Type", "application/octet-stream")
-        setFixedLengthStreamingMode(bytes)
-    }
-    try {
-        val output = connection.outputStream
-        val started = SystemClock.elapsedRealtime()
-        output.use {
-            val buffer = ByteArray(64 * 1024)
-            var remaining = bytes
-            while (remaining > 0) {
-                val count = minOf(remaining, buffer.size)
-                it.write(buffer, 0, count)
-                remaining -= count
-            }
-        }
-        check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
-        connection.inputStream.close()
-        return TimedTransfer(bytes.toLong(), SystemClock.elapsedRealtime() - started)
-    } finally {
-        connection.disconnect()
-    }
+internal fun parseSpeedResult(raw: String): CloudflareRouteResult {
+    val json = org.json.JSONObject(raw)
+    return CloudflareRouteResult(
+        exitIp = if (json.has("exitIp")) json.getString("exitIp") else null,
+        countryCode = if (json.has("countryCode")) json.getString("countryCode") else null,
+        protocol = if (json.has("protocol")) json.getString("protocol") else null,
+        latencyMs = if (json.has("latencyMs")) json.getLong("latencyMs") else null,
+        downloadMbps = if (json.has("downloadMbps")) json.getDouble("downloadMbps") else null,
+        uploadMbps = if (json.has("uploadMbps")) json.getDouble("uploadMbps") else null,
+    )
 }
 
-private const val CLOUDFLARE_TRACE_URL = "https://speed.cloudflare.com/cdn-cgi/trace"
-private const val CLOUDFLARE_DOWNLOAD_URL = "https://speed.cloudflare.com/__down"
-private const val CLOUDFLARE_UPLOAD_URL = "https://speed.cloudflare.com/__up"
 internal val SPEED_TEST_MEGABYTES = listOf(10, 25, 50)
+internal val SPEED_TEST_PROTOCOLS = listOf("h3", "h2", "h1")
