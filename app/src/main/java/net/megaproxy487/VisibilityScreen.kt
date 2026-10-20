@@ -18,8 +18,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.selection.selectable
-import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -31,14 +29,12 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,7 +42,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import net.megaproxy487.uiStringResource as stringResource
 import net.megaproxy487.ui.theme.MegaProxyTheme
@@ -54,7 +49,6 @@ import net.megaproxy487.data.ConfigStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.NetworkInterface
@@ -88,10 +82,6 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit, runNetwork
     var revision by remember { mutableStateOf(0) }
     val report = readConfiguration(revision) { buildVisibilityReport(activity) } ?: return
     var proxyCheckChecks by remember { mutableStateOf<List<VisibilityCheck>>(emptyList()) }
-    var speedResults by remember { mutableStateOf<List<Pair<Int, Result<CloudflareRouteResult>?>>>(emptyList()) }
-    var speedRunning by remember { mutableStateOf(false) }
-    var speedMebibytes by remember { mutableStateOf(SPEED_TEST_MEBIBYTES.first()) }
-    val scope = rememberCoroutineScope()
     LaunchedEffect(revision) {
         if (!runNetworkChecks) return@LaunchedEffect
         proxyCheckChecks = withContext(Dispatchers.IO) { runProxyCheckChecks(activity) }
@@ -132,75 +122,10 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit, runNetwork
                 report.selectedApps,
             )
             VisibilitySection(stringResource(R.string.proxycheck_reputation), proxyCheckChecks)
-            Text(stringResource(R.string.cloudflare_speed_title), style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.cloudflare_speed_explanation, speedMebibytes, speedMebibytes * 4),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                SPEED_TEST_MEBIBYTES.forEach { size ->
-                    Row(
-                        Modifier.selectable(
-                            selected = speedMebibytes == size,
-                            enabled = !speedRunning,
-                            role = Role.RadioButton,
-                            onClick = { speedMebibytes = size },
-                        ),
-                        verticalAlignment = Alignment.CenterVertically,
-                    ) {
-                        RadioButton(selected = speedMebibytes == size, onClick = null, enabled = !speedRunning)
-                        Text(stringResource(R.string.cloudflare_speed_size, size))
-                    }
-                }
-            }
-            Button(
-                enabled = runNetworkChecks && !speedRunning,
-                shape = RoundedCornerShape(12.dp),
-                onClick = {
-                    speedRunning = true
-                    speedResults = emptyList()
-                    scope.launch {
-                        speedResults = withContext(Dispatchers.IO) { runSpeedChecks(activity, speedMebibytes) }
-                        speedRunning = false
-                    }
-                },
-                modifier = Modifier.fillMaxWidth(),
-            ) {
-                Text(stringResource(if (speedRunning) R.string.cloudflare_speed_running else R.string.cloudflare_speed_run))
-            }
-            speedResults.forEach { (title, result) -> SpeedResultCard(title, result) }
             Text(
                 stringResource(R.string.visibility_disclaimer),
                 style = MaterialTheme.typography.bodySmall,
                 modifier = Modifier.padding(bottom = 16.dp),
-            )
-        }
-    }
-}
-
-@Composable
-private fun SpeedResultCard(title: Int, result: Result<CloudflareRouteResult>?) {
-    Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(stringResource(title), style = MaterialTheme.typography.titleSmall)
-            if (result == null) {
-                Text(stringResource(R.string.external_network_unavailable), style = MaterialTheme.typography.bodySmall)
-            } else result.fold(
-                onSuccess = { value ->
-                    Text(stringResource(R.string.cloudflare_speed_ip, value.exitIp), style = MaterialTheme.typography.bodySmall)
-                    Text(
-                        stringResource(
-                            R.string.cloudflare_speed_country,
-                            value.countryCode.takeIf(String::isNotBlank)?.let { formatCountry(it, systemFormattingLocale()) } ?: "—",
-                        ),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
-                    Text(stringResource(R.string.cloudflare_speed_protocol, value.protocol), style = MaterialTheme.typography.bodySmall)
-                    Text(stringResource(R.string.cloudflare_speed_latency, value.latencyMs), style = MaterialTheme.typography.bodySmall)
-                    Text(stringResource(R.string.cloudflare_speed_download, value.downloadMbps), style = MaterialTheme.typography.bodySmall)
-                    Text(stringResource(R.string.cloudflare_speed_upload, value.uploadMbps), style = MaterialTheme.typography.bodySmall)
-                },
-                onFailure = { Text(stringResource(R.string.cloudflare_speed_failed), style = MaterialTheme.typography.bodySmall) },
             )
         }
     }
@@ -239,28 +164,12 @@ private fun VisibilityBadge(state: VisibilityState) {
 }
 
 private suspend fun runProxyCheckChecks(context: Context): List<VisibilityCheck> = coroutineScope {
-    val underlying = async { findNetwork(context, false)?.let { queryProxyCheck(context, it) } }
-    val tunnel = async { findNetwork(context, true)?.let { queryProxyCheck(context, it) } }
+    val underlying = async { findRouteNetwork(context, false)?.let { queryProxyCheck(context, it) } }
+    val tunnel = async { findRouteNetwork(context, true)?.let { queryProxyCheck(context, it) } }
     listOf(
         proxyCheck(context, R.string.external_underlying_network, underlying.await()),
         proxyCheck(context, R.string.external_tunnel_network, tunnel.await()),
     )
-}
-
-private fun runSpeedChecks(context: Context, mebibytes: Int) = listOf(
-    R.string.external_underlying_network to findNetwork(context, false)?.let { runCatching { runCloudflareSpeedCheck(it, mebibytes) } },
-    R.string.external_tunnel_network to findNetwork(context, true)?.let { runCatching { runCloudflareSpeedCheck(it, mebibytes) } },
-)
-
-private fun findNetwork(context: Context, transportVpn: Boolean): android.net.Network? {
-    val connectivity = context.getSystemService(ConnectivityManager::class.java)
-    return runCatching { connectivity.allNetworks.toList() }.getOrDefault(emptyList()).firstOrNull { network ->
-        val capabilities = runCatching { connectivity.getNetworkCapabilities(network) }.getOrNull()
-            ?: return@firstOrNull false
-        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == transportVpn &&
-            (transportVpn || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN))
-    }
 }
 
 internal enum class ProxyCheckVerdict { DETECTED, NOT_DETECTED, LIMIT_REACHED, UNKNOWN_FORMAT }

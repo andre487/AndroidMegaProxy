@@ -35,7 +35,8 @@
     <string name="connect">Подключиться</string>
     <string name="disconnect">Отключиться</string>
     <string name="connecting">Подключение…</string>
-    <string name="test_connection">Проверить</string>
+    <string name="test_connection">Тест</string>
+    <string name="speed">Скорость</string>
     <string name="configure">Настроить</string>
     <string name="no_browser">Не найдено приложение для открытия ссылки.</string>
     <string name="connection_test">Проверка подключения</string>
@@ -222,13 +223,13 @@
     <string name="limit_reached">Лимит исчерпан</string><string name="proxycheck_reputation">Репутация IP в ProxyCheck</string>
     <string name="proxycheck_detected">ProxyCheck определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string><string name="proxycheck_not_detected">ProxyCheck не определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string>
     <string name="proxycheck_limit_reached">Анонимный дневной лимит запросов ProxyCheck исчерпан. Повторите проверку завтра.</string><string name="proxycheck_failed">Запрос к ProxyCheck завершился ошибкой.</string><string name="proxycheck_unknown_format">Определённого результата нет: ProxyCheck вернул ответ в неизвестном формате.</string>
-    <string name="cloudflare_speed_title">Проверка скорости Cloudflare</string>
     <string name="cloudflare_speed_explanation">Скачивает и отправляет по %1$d MiB через каждый доступный маршрут (до %2$d MiB всего). Задержка — медианное время до первого байта по трём запросам.</string>
     <string name="cloudflare_speed_size">%1$d MiB</string>
     <string name="cloudflare_speed_run">Измерить скорость</string><string name="cloudflare_speed_running">Измерение…</string>
-    <string name="cloudflare_speed_ip">Выходной IP: %1$s</string><string name="cloudflare_speed_country">Страна: %1$s</string>
-    <string name="cloudflare_speed_protocol">Протокол: %1$s</string><string name="cloudflare_speed_latency">Задержка: %1$d мс</string>
-    <string name="cloudflare_speed_download">Скачивание: %1$.1f Мбит/с</string><string name="cloudflare_speed_upload">Отправка: %1$.1f Мбит/с</string><string name="cloudflare_speed_failed">Не удалось выполнить проверку скорости Cloudflare.</string>
+    <string name="cloudflare_speed_ip">Выходной IP</string><string name="cloudflare_speed_country">Страна</string>
+    <string name="cloudflare_speed_protocol">Протокол</string><string name="cloudflare_speed_latency">Задержка</string>
+    <string name="cloudflare_speed_download">Скачивание</string><string name="cloudflare_speed_upload">Отправка</string>
+    <string name="cloudflare_speed_value">%1$.1f Мбит/с</string><string name="cloudflare_speed_failed_short">Ошибка</string>
     <string name="select_profile">Выбрать профиль</string><string name="ssh_key_save_failed">Не удалось сохранить ключ SSH-сервера в этом профиле</string>
     <string name="megaproxy_active">MegaProxy активен</string><string name="review_ssh_key">Проверить ключ SSH</string>
     <string name="always_on_all_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. Каждое переключение отображается в постоянном уведомлении и на главном экране.</string>

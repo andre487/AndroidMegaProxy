@@ -249,6 +249,7 @@ internal fun MainScreen(
     onEditProfile: (String) -> Unit,
     readConnectionStats: () -> NativeConnectionStats? = ConnectionStatsReader::snapshot,
     onOpenVisibility: () -> Unit = {},
+    onOpenSpeed: () -> Unit = {},
 ) {
     val connection by VpnRuntimeState.connection
     val runtimeAlwaysOn by VpnRuntimeState.alwaysOn
@@ -424,6 +425,10 @@ internal fun MainScreen(
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.visibility)) },
                                 onClick = { actionsMenuExpanded = false; onOpenVisibility() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.speed)) },
+                                onClick = { actionsMenuExpanded = false; onOpenSpeed() },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.settings)) },

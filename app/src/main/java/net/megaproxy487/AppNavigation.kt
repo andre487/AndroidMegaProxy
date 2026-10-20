@@ -29,6 +29,7 @@ internal object AppRoute {
     const val SPLIT_TUNNEL = "split-tunnel"
     const val FAILOVER = "failover"
     const val VISIBILITY = "visibility"
+    const val SPEED = "speed"
     const val CONNECTION_TEST = "connection-test"
     const val DIAGNOSTIC_LOG = "diagnostic-log"
     const val SSH_HOST_KEY = "ssh-host-key"
@@ -44,6 +45,7 @@ internal object AppRoute {
         SPLIT_TUNNEL,
         FAILOVER,
         VISIBILITY,
+        SPEED,
         CONNECTION_TEST,
         DIAGNOSTIC_LOG,
         SSH_HOST_KEY,
@@ -108,6 +110,7 @@ internal fun MegaProxyNavHost(
                 readConnectionStats = readConnectionStats,
                 onOpenSettings = { navController.navigate(AppRoute.SETTINGS) },
                 onOpenVisibility = { navController.navigate(AppRoute.VISIBILITY) },
+                onOpenSpeed = { navController.navigate(AppRoute.SPEED) },
                 onOpenConnectionTest = { navController.navigate(AppRoute.CONNECTION_TEST) },
                 onEditProfile = { navController.navigate(AppRoute.profileEditor(it)) },
             ) }
@@ -133,6 +136,7 @@ internal fun MegaProxyNavHost(
         composable(AppRoute.VISIBILITY) {
             ScreenDestination(AppRoute.VISIBILITY) { VisibilityScreen(activity, back, runVisibilityNetworkChecks) }
         }
+        composable(AppRoute.SPEED) { ScreenDestination(AppRoute.SPEED) { SpeedTestScreen(activity, back) } }
         composable(AppRoute.CONNECTION_TEST) { ScreenDestination(AppRoute.CONNECTION_TEST) { ConnectionTestScreen(activity, autoStart = true, onBack = back) } }
         composable(AppRoute.DIAGNOSTIC_LOG) { ScreenDestination(AppRoute.DIAGNOSTIC_LOG) { DiagnosticLogScreen(activity, back) } }
         composable(AppRoute.SSH_HOST_KEY) {

@@ -36,6 +36,7 @@
     <string name="disconnect">Disconnect</string>
     <string name="connecting">Connecting…</string>
     <string name="test_connection">Test</string>
+    <string name="speed">Speed</string>
     <string name="configure">Configure</string>
     <string name="no_browser">No browser is available.</string>
     <string name="connection_test">Connection test</string>
@@ -223,13 +224,13 @@
     <string name="limit_reached">Limit reached</string><string name="proxycheck_reputation">ProxyCheck IP reputation</string>
     <string name="proxycheck_detected">ProxyCheck identifies this address as a VPN, proxy, Tor exit, or other anonymous connection.</string><string name="proxycheck_not_detected">ProxyCheck does not identify this address as a VPN, proxy, Tor exit, or other anonymous connection.</string>
     <string name="proxycheck_limit_reached">ProxyCheck’s anonymous daily request limit has been reached. Try again tomorrow.</string><string name="proxycheck_failed">The ProxyCheck request failed.</string><string name="proxycheck_unknown_format">No definite result: ProxyCheck returned an unexpected response format.</string>
-    <string name="cloudflare_speed_title">Cloudflare speed test</string>
     <string name="cloudflare_speed_explanation">Downloads and uploads %1$d MiB over each available route (up to %2$d MiB total). Latency is the median time to first byte from three requests.</string>
     <string name="cloudflare_speed_size">%1$d MiB</string>
     <string name="cloudflare_speed_run">Measure speed</string><string name="cloudflare_speed_running">Measuring…</string>
-    <string name="cloudflare_speed_ip">Exit IP: %1$s</string><string name="cloudflare_speed_country">Country: %1$s</string>
-    <string name="cloudflare_speed_protocol">Protocol: %1$s</string><string name="cloudflare_speed_latency">Latency: %1$d ms</string>
-    <string name="cloudflare_speed_download">Download: %1$.1f Mbit/s</string><string name="cloudflare_speed_upload">Upload: %1$.1f Mbit/s</string><string name="cloudflare_speed_failed">Could not complete the Cloudflare speed test.</string>
+    <string name="cloudflare_speed_ip">Exit IP</string><string name="cloudflare_speed_country">Country</string>
+    <string name="cloudflare_speed_protocol">Protocol</string><string name="cloudflare_speed_latency">Latency</string>
+    <string name="cloudflare_speed_download">Download</string><string name="cloudflare_speed_upload">Upload</string>
+    <string name="cloudflare_speed_value">%1$.1f Mbit/s</string><string name="cloudflare_speed_failed_short">Failed</string>
     <string name="select_profile">Select profile</string><string name="ssh_key_save_failed">The SSH host key could not be saved to this profile</string>
     <string name="megaproxy_active">MegaProxy is active</string><string name="review_ssh_key">Review SSH key</string>
     <string name="always_on_all_failover_status">Always-on VPN remains active during automatic switching. Every switch is reported in the persistent notification and on the main screen.</string>
