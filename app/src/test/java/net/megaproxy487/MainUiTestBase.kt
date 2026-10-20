@@ -39,6 +39,10 @@ abstract class MainUiTestBase {
     protected fun content(block: @Composable () -> Unit) {
         compose.setContent { MaterialTheme { block() } }
         drainConfigIo()
+        // Finishing IO does not guarantee that Compose has displayed its result.
+        compose.waitUntil(10_000) {
+            compose.onAllNodesWithText(text(R.string.loading_configuration)).fetchSemanticsNodes().isEmpty()
+        }
     }
     protected fun drainConfigIo() {
         compose.waitForIdle()
