@@ -116,10 +116,8 @@ CONNECT-UDP, with verified destination certificates and no TCP fallback. Both pr
 checked independently; an unavailable provider does not invalidate the HTTPS/IP result. These
 native probes verify the proxy UDP path, not Android TUN or per-app routing, and their inner
 QUIC fingerprint is the diagnostic client's, not the selected outer MASQUE fingerprint or
-Chrome's. The explicit VPN visibility check sends separate requests over the underlying and VPN
-networks to an external service and reads its VPN verdict header. Its exact URL and response-header
-name are Base64 constants in `VisibilityScreen.kt`; decode them with `printf %s VALUE | base64 -d`.
-The same screen obtains each route's public IP through the connection test's fallback sequence
+Chrome's. The VPN visibility screen obtains each route's public IP through the connection test's
+fallback sequence
 (`ifconfig.me`, `api.ipify.org`, then `icanhazip.com`), then queries `https://proxycheck.io/v3/`
 and reports its VPN, proxy, Tor, or anonymous-IP verdict. Anonymous access is limited to 100 queries
 per source IP per day; MegaProxy reports an exhausted daily allowance separately from request

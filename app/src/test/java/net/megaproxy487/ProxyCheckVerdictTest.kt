@@ -3,14 +3,7 @@ package net.megaproxy487
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
-class ExternalVpnVerdictTest {
-    @Test fun headerValuesMapToVpnVerdicts() {
-        assertEquals(ExternalVpnVerdict.NOT_DETECTED, parseExternalVpnVerdict("0"))
-        assertEquals(ExternalVpnVerdict.DETECTED, parseExternalVpnVerdict("1"))
-        assertEquals(ExternalVpnVerdict.UNKNOWN_FORMAT, parseExternalVpnVerdict(null))
-        assertEquals(ExternalVpnVerdict.UNKNOWN_FORMAT, parseExternalVpnVerdict("unexpected"))
-    }
-
+class ProxyCheckVerdictTest {
     @Test fun proxyCheckResponseMapsDetectionAndLimitStates() {
         val clear = """{"status":"ok","198.51.100.1":{"detections":{"vpn":false,"proxy":false,"tor":false,"anonymous":false}}}"""
         val detected = """{"status":"ok","203.0.113.1":{"detections":{"vpn":true,"proxy":false,"tor":false,"anonymous":true}}}"""
