@@ -1,1 +1,1 @@
-Приватный VPN-клиент для собственных HTTPS-, MASQUE α и SSH-серверов
+VPN с jump host для HTTPS/SSH, SOCKS5, MASQUE и выбором приложений

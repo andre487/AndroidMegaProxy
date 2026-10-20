@@ -1,33 +1,6 @@
-# MegaProxy Fastlane lanes
+# Fastlane
 
-Fastlane is the supported entry point for tests and build artifacts. Install Ruby 3.4.10 (see `.ruby-version`), then run
-`bundle install` from the repository root.
-
-| Command | Purpose |
-| --- | --- |
-| `bundle exec fastlane android renew_config_schema` | Explicitly update pinned config schemas/examples; optional `ref:FULL_SHA` |
-| `bundle exec fastlane android python_format` | Format Python with Black and isort |
-| `bundle exec fastlane android python_tests` | Run Python unit tests |
-| `bundle exec fastlane android python_checks` | Check Python style and run unit tests |
-| `bundle exec fastlane android native_fuzz` | Fuzz native parsers for 20 seconds with two workers |
-| `bundle exec fastlane android native_tests` | Run Go tests with the race detector |
-| `bundle exec fastlane android native_integration` | Test real GOST/OpenSSH servers with Docker and the race detector |
-| `bundle exec fastlane android android_checks` | Run Android tests and lint, build a debug APK and release APK, and prove that the release APK is unsigned |
-| `bundle exec fastlane android device_test_build` | Build native AAR, debug APK and instrumentation APK |
-| `bundle exec fastlane android device_tests api:26` | Run integration scenarios on a disposable API 26 emulator |
-| `bundle exec fastlane android device_tests api:35` | Run integration scenarios on a disposable API 35 emulator |
-| `bundle exec fastlane android test` | Run native unit tests and Android JVM/lint/build checks; excludes Python, Docker integration and device tests |
-| `bundle exec fastlane android debug_artifact` | Produce `app/build/outputs/apk/debug/app-debug.apk` |
-| `bundle exec fastlane android release_prepare version:0.1.2` | Generate EN/RU changelogs, bump the version and create a release PR |
-| `bundle exec fastlane android release_notes_preview version:1.1.3 ref:v1.1.3` | Preview EN/RU GitHub and F-Droid notes without publishing |
-| `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Require full CI, squash merge the specified PR head and tag the merged commit |
-| `bundle exec fastlane android virus_total` | Scan signed APKs in `dist/release` (or `artifacts:PATH`); requires `VIRUSTOTAL_API_KEY`, blocks on detections/API failures |
-| `bundle exec fastlane android release_artifacts` | Produce signed APKs and checksums in `dist/release` |
-
-The release lane deliberately delegates signing and artifact verification to the repository's
-existing release scripts. It requires the signing environment documented in the root README.
-
-Full setup and CI scope rules: [English](../docs/en/fastlane.md) / [Русский](../docs/ru/fastlane.md).
-
-Release preparation requires API/token configuration; finalization merges and tags, not a dry run.
-See [release automation setup and recovery](../docs/en/release-automation.md).
+Run `bundle install`, then `bundle exec fastlane lanes` to list commands.
+Setup, command reference and CI: [English](../docs/en/fastlane.md) / [Русский](../docs/ru/fastlane.md).
+Check selection: [English](../docs/en/release-testing.md) / [Русский](../docs/ru/release-testing.md).
+Release signing/publication: [English](../docs/en/release-automation.md) / [Русский](../docs/ru/release-automation.md).

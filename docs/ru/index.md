@@ -6,10 +6,9 @@
 Документация клиента:
 
 - [Подписка на конфигурацию](subscriptions.md)
-
 - [Установка](installation.md)
 - [Обновления приложения](updates.md)
-- [Метрики качества соединения](connection-metrics.md)
+- [Метрики соединения, Тест, Скорость и Видимость VPN](connection-metrics.md)
 - [SOCKS5](#socks5)
 - [MASQUE α (HTTP/3), экспериментальная поддержка](masque.md)
 - [HTTPS через Jump](#https-через-jump)
@@ -17,7 +16,7 @@
 Документация для разработчиков:
 
 - [Работа с Fastlane](fastlane.md)
-- [Проверка релиза](release-testing.md)
+- [Регламент тестирования и приёмка релиза](release-testing.md)
 - [Автоматизация релиза](release-automation.md)
 
 ## HTTPS через Jump

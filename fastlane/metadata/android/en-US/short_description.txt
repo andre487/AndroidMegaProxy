@@ -1,1 +1,1 @@
-Private VPN client for HTTPS, MASQUE α and SSH servers you control
+VPN with HTTPS/SSH jump hosts, SOCKS5, MASQUE and split tunneling
