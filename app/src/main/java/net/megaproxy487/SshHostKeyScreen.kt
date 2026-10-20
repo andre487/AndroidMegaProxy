@@ -37,11 +37,12 @@ internal fun SshHostKeyScreen(activity: Activity, prompt: PendingSshHostKey, onD
     SshHostKeyReview(
         prompt = prompt,
         saveAndResume = {
+            val commandToken = ConfigStore(app).connectionCommandToken()
             val saved = withContext(ConfigIoDispatcher) {
                 ConfigStore(app).trustSshHostKey(prompt.profileId, prompt.hop, prompt.fingerprint, prompt.host, prompt.port, prompt.previousFingerprint)
             }
             if (saved) {
-                if (prompt.testOnly) ProxyVpnService.test(app) else ProxyVpnService.reconnect(app)
+                if (prompt.testOnly) ProxyVpnService.test(app) else ProxyVpnService.reconnect(app, commandToken)
             }
             saved
         },

@@ -122,10 +122,8 @@ private data class ProfileOptionsReview(
 
 private data class ImportOptionsReview(
     val configuration: PortableConfiguration,
-    val existingProfiles: Map<String, ProxyProfile>,
     val profiles: List<ProfileOptionsReview>,
     val globalChanged: Boolean,
-    val currentDiagnosticLogLimitMb: Int,
 )
 
 private fun profileOptionGroups(current: ProxyProfile, imported: ProxyProfile): List<Int> = buildList {
@@ -172,7 +170,7 @@ private fun keepLocalProfileOptions(current: ProxyProfile, imported: ProxyProfil
 
 private fun importOptionKey(profileId: String, group: Int) = "$profileId:$group"
 
-private fun applySelectedProfileOptions(
+internal fun applySelectedProfileOptions(
     current: ProxyProfile,
     imported: ProxyProfile,
     selected: Set<String>,
@@ -321,10 +319,13 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 }
         }
     }
-    fun applyJsonImport(configuration: PortableConfiguration) {
+    fun applyJsonImport(
+        configuration: PortableConfiguration,
+        resolveProfile: (ProxyProfile, ProxyProfile) -> ProxyProfile = { _, imported -> imported },
+    ) {
         uiState.launchOperation {
             val result = withContext(ConfigIoDispatcher) {
-                store.importConfiguration(configuration).also {
+                store.importConfiguration(configuration, resolveProfile).also {
                     if (ProxyVpnService.isRunning) store.markPendingReconnect()
                     PersistentDiagnosticLog.setLimitMb(store.diagnosticLogLimitMb())
                 }
@@ -373,10 +374,8 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                     )
                 ImportOptionsReview(
                     configuration = configuration,
-                    existingProfiles = existing,
                     profiles = profileReviews,
                     globalChanged = globalChanged,
-                    currentDiagnosticLogLimitMb = store.diagnosticLogLimitMb(),
                 )
             }
             if (review.profiles.isEmpty() && !review.globalChanged) {
@@ -729,24 +728,19 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
             confirmButton = {
                 TextButton(shape = RoundedCornerShape(12.dp), onClick = {
                     val selectedOptions = selectedImportOptionKeys.toSet()
-                    val applyGlobals = !review.globalChanged || applyImportedGlobalOptions
+                    val applyGlobals = review.globalChanged && applyImportedGlobalOptions
                     val resolved = review.configuration.copy(
-                        profiles = review.configuration.profiles.map { imported ->
-                            val current = review.existingProfiles[imported.id]
-                            if (current != null) applySelectedProfileOptions(current, imported, selectedOptions)
-                            else imported
-                        },
                         activeProfileId = review.configuration.activeProfileId.takeIf { applyGlobals },
                         alwaysOnProfileId = review.configuration.alwaysOnProfileId.takeIf { applyGlobals },
-                        diagnosticLogLimitMb = if (applyGlobals) {
-                            review.configuration.diagnosticLogLimitMb
-                        } else review.currentDiagnosticLogLimitMb,
+                        diagnosticLogLimitPresent = review.configuration.diagnosticLogLimitPresent && applyGlobals,
                         globalConnectionSettings = review.configuration.globalConnectionSettings.takeIf { applyGlobals },
                     )
                     importOptionsReview = null
                     selectedImportOptionKeys.clear()
                     applyImportedGlobalOptions = false
-                    applyJsonImport(resolved)
+                    applyJsonImport(resolved) { current, imported ->
+                        applySelectedProfileOptions(current, imported, selectedOptions)
+                    }
                 }) { Text(stringResource(R.string.apply_import)) }
             },
             dismissButton = {

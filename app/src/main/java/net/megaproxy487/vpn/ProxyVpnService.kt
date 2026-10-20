@@ -64,7 +64,7 @@ class ProxyVpnService : VpnService() {
     @Volatile private var networkCallbackRegistered = false
     private val monitorHandler = Handler(Looper.getMainLooper())
     private val reconnectForNetworkChange = Runnable {
-        if (ConfigStore(this).isConnectionDesired() && tunnel != null && !testRunning.get()) {
+        if (!serviceDestroyed && ConfigStore(this).isConnectionDesired() && tunnel != null && !testRunning.get()) {
             DiagnosticLog.add("event=network_handover action=reconnect")
             startService(Intent(this, ProxyVpnService::class.java).setAction(ACTION_RECONNECT)
                 .putExtra(EXTRA_RECONNECT_REASON, "underlying_network_changed"))
@@ -125,16 +125,27 @@ class ProxyVpnService : VpnService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        fun ignoreCommand(): Int {
+            if (tunnel == null && !startRunning.get()) {
+                startForeground(NOTIFICATION_ID, notification(this.uiText(R.string.status_disconnected)))
+                stopForeground(STOP_FOREGROUND_REMOVE)
+                stopSelf(startId)
+            }
+            return if (tunnel != null) START_STICKY else START_NOT_STICKY
+        }
+        val commandToken = intent?.getStringExtra(EXTRA_CONNECTION_COMMAND)
+        if (commandToken != null && commandToken != ConfigStore(this).connectionCommandToken()) {
+            return ignoreCommand()
+        }
+        if (intent?.action in setOf(ACTION_RECONNECT, ACTION_START_MANUAL) &&
+            !ConfigStore(this).isConnectionDesired()) {
+            return ignoreCommand()
+        }
         val subscriptionToken = intent?.getStringExtra(EXTRA_SUBSCRIPTION_RECONNECT)
         if (subscriptionToken != null && !canReconnectSubscription(subscriptionToken,
                 ConfigStore(this).pendingReconnectToken(), isRunning, ConfigStore(this).isConnectionDesired())) {
             // A notification action may race Stop or a newer configuration, or survive process death.
-            if (tunnel == null) {
-                startForeground(NOTIFICATION_ID, notification(this.uiText(R.string.status_disconnected)))
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
-            }
-            return if (tunnel != null) START_STICKY else START_NOT_STICKY
+            return ignoreCommand()
         }
         val systemAlwaysOnStart = intent?.action == SERVICE_INTERFACE
         // Android starts the selected service with SERVICE_INTERFACE on older releases;
@@ -148,7 +159,7 @@ class ProxyVpnService : VpnService() {
         // Android may call the sticky service again with a null intent. Do not replace a
         // failover profile on every callback; only a fresh system Always-on start selects
         // the configured base profile.
-        if (isAlwaysOnMode && intent?.action != ACTION_START_MANUAL) {
+        if (isAlwaysOnMode && (systemAlwaysOnStart || intent == null)) {
             store.setConnectionDesired(true)
             if (intent?.action == SERVICE_INTERFACE && !store.isFailoverActive()) {
                 store.setConnectionProfile(store.alwaysOnProfileId())
@@ -176,7 +187,7 @@ class ProxyVpnService : VpnService() {
         }
         if (intent?.action == ACTION_STOP) {
             reconnectAfterStart = false
-            store.setConnectionDesired(false)
+            if (commandToken == null) store.setConnectionDesired(false)
             stopTunnel()
             stopSelf()
             return START_NOT_STICKY
@@ -192,7 +203,6 @@ class ProxyVpnService : VpnService() {
             startForeground(NOTIFICATION_ID, notification(this@ProxyVpnService.uiText(R.string.status_reconnecting)))
             stopTunnel(removeForeground = false)
             val generation = startGeneration.get()
-            ConfigStore(this).setConnectionDesired(true)
             if (startRunning.compareAndSet(false, true)) {
                 VpnRuntimeState.update(VpnConnectionState.CONNECTING)
                 thread(name = "megaproxy-vpn-reconnect") {
@@ -783,6 +793,7 @@ class ProxyVpnService : VpnService() {
 
     private fun reconsiderUnderlyingNetworks(preferred: Network? = null) {
         monitorHandler.post {
+            if (serviceDestroyed) return@post
             val validated = underlyingCapabilities.entries
                 .filter { it.value.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED) }
                 .maxWithOrNull(
@@ -940,6 +951,7 @@ class ProxyVpnService : VpnService() {
         private const val ACTION_START_MANUAL = "net.megaproxy487.START_MANUAL"
         private const val ACTION_REFRESH_STATUS = "net.megaproxy487.REFRESH_STATUS"
         private const val ACTION_DISMISS_HOST_KEY = "net.megaproxy487.DISMISS_HOST_KEY"
+        private const val EXTRA_CONNECTION_COMMAND = "connection_command_token"
         private const val EXTRA_RECONNECT_PROFILE_ID = "reconnect_profile_id"
         private const val EXTRA_RECONNECT_REASON = "reconnect_reason"
         private const val MONITOR_INTERVAL_MS = 10_000L
@@ -974,16 +986,18 @@ class ProxyVpnService : VpnService() {
         fun start(context: Context) {
             val app = context.applicationContext
             launchCommand(app) {
-                ConfigStore(app).setConnectionDesired(true)
+                val token = ConfigStore(app).setConnectionDesired(true)
                 ConfigStore(app).let { it.setConnectionProfile(it.activeProfileId()) }
-                ContextCompat.startForegroundService(app, Intent(app, ProxyVpnService::class.java).setAction(ACTION_START_MANUAL))
+                ContextCompat.startForegroundService(app, Intent(app, ProxyVpnService::class.java).setAction(ACTION_START_MANUAL)
+                    .putExtra(EXTRA_CONNECTION_COMMAND, token))
             }
         }
         fun stop(context: Context) {
             val app = context.applicationContext
             launchCommand(app) {
-                ConfigStore(app).setConnectionDesired(false)
-                app.startService(Intent(app, ProxyVpnService::class.java).setAction(ACTION_STOP))
+                val token = ConfigStore(app).setConnectionDesired(false)
+                app.startService(Intent(app, ProxyVpnService::class.java).setAction(ACTION_STOP)
+                    .putExtra(EXTRA_CONNECTION_COMMAND, token))
             }
         }
         fun reconnectSubscription(context: Context, token: String) {
@@ -996,11 +1010,16 @@ class ProxyVpnService : VpnService() {
                     .putExtra(EXTRA_RECONNECT_REASON, "subscription_updated"))
             }
         }
-        fun reconnect(context: Context) {
+        fun reconnect(context: Context, expectedCommandToken: String? = null) {
             val app = context.applicationContext
             launchCommand(app) {
-                ConfigStore(app).setConnectionDesired(true)
-                ContextCompat.startForegroundService(app, Intent(app, ProxyVpnService::class.java).setAction(ACTION_RECONNECT))
+                val store = ConfigStore(app)
+                if (expectedCommandToken == null && !store.isConnectionDesired()) return@launchCommand
+                val token = if (expectedCommandToken != null) {
+                    store.resumeConnection(expectedCommandToken) ?: return@launchCommand
+                } else store.connectionCommandToken()
+                ContextCompat.startForegroundService(app, Intent(app, ProxyVpnService::class.java).setAction(ACTION_RECONNECT)
+                    .putExtra(EXTRA_CONNECTION_COMMAND, token))
             }
         }
         /** Called from MY_PACKAGE_REPLACED after its receiver has checked persisted state. */
@@ -1019,10 +1038,11 @@ class ProxyVpnService : VpnService() {
                 if (store.profile(profileId) == null) return@launchCommand
                 if (useAsAlwaysOn) store.setAlwaysOnProfile(profileId) else store.setActiveProfile(profileId)
                 store.setConnectionProfile(profileId)
-                store.setConnectionDesired(true)
+                val token = store.setConnectionDesired(true)
                 ContextCompat.startForegroundService(
                     app,
                     Intent(app, ProxyVpnService::class.java).setAction(ACTION_RECONNECT)
+                        .putExtra(EXTRA_CONNECTION_COMMAND, token)
                         .putExtra(EXTRA_RECONNECT_PROFILE_ID, profileId)
                         .putExtra(EXTRA_RECONNECT_REASON, "profile_changed"),
                 )

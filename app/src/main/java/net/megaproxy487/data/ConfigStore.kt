@@ -110,11 +110,11 @@ class ConfigStore(context: Context) {
         return prefs.getString(ALWAYS_ON_PROFILE_ID, null) ?: activeProfileId()
     }
 
-    fun setActiveProfile(id: String) {
+    fun setActiveProfile(id: String) = synchronized(storageLock) {
         if (profile(id) != null) prefs.edit().putString(ACTIVE_PROFILE_ID, id).commitOrThrow()
     }
 
-    fun setAlwaysOnProfile(id: String) {
+    fun setAlwaysOnProfile(id: String) = synchronized(storageLock) {
         if (profile(id) != null) prefs.edit()
             .putString(ALWAYS_ON_PROFILE_ID, id)
             .putBoolean(FAILOVER_ACTIVE, false)
@@ -136,7 +136,7 @@ class ConfigStore(context: Context) {
 
     fun connectionConfig(): ProxyConfig = effectiveConnectionProfile().config
 
-    fun setConnectionProfile(id: String) {
+    fun setConnectionProfile(id: String) = synchronized(storageLock) {
         if (profile(id) != null) prefs.edit().putString(CONNECTION_PROFILE_ID, id).apply()
     }
 
@@ -144,7 +144,7 @@ class ConfigStore(context: Context) {
 
     fun isFailoverActive(): Boolean = prefs.getBoolean(FAILOVER_ACTIVE, false)
 
-    fun setFailoverState(active: Boolean, notice: String?) {
+    fun setFailoverState(active: Boolean, notice: String?) = synchronized(storageLock) {
         prefs.edit().putBoolean(FAILOVER_ACTIVE, active).apply {
             if (notice == null) remove(FAILOVER_NOTICE) else putString(FAILOVER_NOTICE, notice)
         }.apply()
@@ -287,7 +287,11 @@ class ConfigStore(context: Context) {
         return@synchronized changed
     }
 
-    fun importConfiguration(configuration: PortableConfiguration): ConfigurationImportResult = synchronized(storageLock) {
+    /** Resolve reviewed choices against current profiles inside the storage transaction. */
+    fun importConfiguration(
+        configuration: PortableConfiguration,
+        resolveProfile: (ProxyProfile, ProxyProfile) -> ProxyProfile = { _, imported -> imported },
+    ): ConfigurationImportResult = synchronized(storageLock) {
         val existing = profiles().filterNot { it.config.storageUnavailable }
         val existingById = existing.associateBy(ProxyProfile::id)
         val importedById = configuration.profiles.associateBy(ProxyProfile::id)
@@ -296,7 +300,8 @@ class ConfigStore(context: Context) {
         val unchanged = mutableListOf<ProxyProfile>()
         val merged = configuration.profiles.map { source ->
             val current = existingById[source.id]
-            val resolved = retainProfileSecrets(source, current, configuration.secretPresence[source.id] ?: ProfileSecretPresence())
+            val selected = if (current == null) source else resolveProfile(current, source)
+            val resolved = retainProfileSecrets(selected, current, configuration.secretPresence[source.id] ?: ProfileSecretPresence())
             when {
                 current == null -> added += resolved
                 current == resolved -> unchanged += resolved
@@ -542,15 +547,25 @@ class ConfigStore(context: Context) {
     /** Compatibility writer for per-profile settings screens. */
     fun save(config: ProxyConfig) = saveProfile(activeProfile().copy(config = config))
 
-    fun isConnectionDesired(): Boolean = prefs.getBoolean("connection_desired", false)
+    fun connectionCommandToken(): String? = synchronized(storageLock) { prefs.getString("connection_command_token", null) }
 
-    fun setConnectionDesired(desired: Boolean) {
-        prefs.edit().putBoolean("connection_desired", desired).apply()
+    fun isConnectionDesired(): Boolean = synchronized(storageLock) { prefs.getBoolean("connection_desired", false) }
+
+    /** A new token invalidates commands and suspended continuations from an earlier user action. */
+    fun setConnectionDesired(desired: Boolean) = synchronized(storageLock) {
+        val token = UUID.randomUUID().toString()
+        prefs.edit().putBoolean("connection_desired", desired)
+            .putString("connection_command_token", token).apply()
+        token
+    }
+
+    fun resumeConnection(expectedToken: String): String? = synchronized(storageLock) {
+        if (connectionCommandToken() != expectedToken) null else setConnectionDesired(true)
     }
 
     fun diagnosticLogLimitMb(): Int = prefs.getInt(DIAGNOSTIC_LOG_LIMIT_MB, 3).coerceIn(1, 100)
 
-    fun setDiagnosticLogLimitMb(value: Int) {
+    fun setDiagnosticLogLimitMb(value: Int) = synchronized(storageLock) {
         prefs.edit().putInt(DIAGNOSTIC_LOG_LIMIT_MB, value.coerceIn(1, 100)).commitOrThrow()
     }
 

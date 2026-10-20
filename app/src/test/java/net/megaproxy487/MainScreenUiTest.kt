@@ -145,6 +145,7 @@ class MainScreenUiTest : MainUiTestBase() {
     }
 
     @Test fun connectedSessionOffersReconnectAndDisconnectWithoutLoadingJni() {
+        store.setConnectionDesired(true)
         VpnRuntimeState.update(VpnConnectionState.CONNECTED)
         screen()
         node(R.string.reconnect).performScrollTo().performClick()

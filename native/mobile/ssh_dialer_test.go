@@ -248,3 +248,35 @@ func TestSSHCloseCancelsPendingHandshake(t *testing.T) {
 		t.Error("Handshake was not canceled")
 	}
 }
+
+func TestSSHRotationPreservesActiveChannelsAndReplacement(t *testing.T) {
+	old := &rejectedSSHConn{}
+	d := &sshDialer{
+		client:         &ssh.Client{Conn: old},
+		config:         config{SSHRotationMinutes: 1},
+		sessionCreated: time.Now().Add(-2 * time.Minute),
+		channels:       make(chan struct{}, 1),
+	}
+	d.channels <- struct{}{}
+	d.rotateIfDue()
+	if old.closed || d.client == nil {
+		t.Fatal("rotation interrupted an active channel")
+	}
+	<-d.channels
+	d.rotateIfDue()
+	if !old.closed || d.client != nil {
+		t.Fatal("idle expired session was not rotated")
+	}
+	current := &rejectedSSHConn{}
+	d.client = &ssh.Client{Conn: current}
+	d.sessionCreated = time.Now()
+	var workers sync.WaitGroup
+	for i := 0; i < 16; i++ {
+		workers.Add(1)
+		go func() { defer workers.Done(); d.rotateIfDue() }()
+	}
+	workers.Wait()
+	if current.closed || d.client == nil {
+		t.Fatal("a repeated rotation closed the replacement session")
+	}
+}

@@ -59,9 +59,7 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 	if d.config.bypassTarget(target) {
 		return d.direct.dialDirect(ctx, d.protectedDialer(), "tcp", target)
 	}
-	if d.rotationDue() {
-		d.invalidate()
-	}
+	d.rotateIfDue()
 	d.mu.Lock()
 	if d.channels == nil {
 		d.channels = make(chan struct{}, d.config.SSHMaxChannels)
@@ -430,6 +428,10 @@ func (d *sshDialer) invalidate() { d.invalidateClient(nil) }
 func (d *sshDialer) invalidateClient(expected *ssh.Client) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
+	d.invalidateClientLocked(expected)
+}
+
+func (d *sshDialer) invalidateClientLocked(expected *ssh.Client) {
 	// An error from an old channel must not tear down a replacement session.
 	if expected != nil && d.client != expected {
 		return
@@ -465,19 +467,19 @@ func (d *sshDialer) Close() error {
 	return nil
 }
 
-func (d *sshDialer) rotationDue() bool {
+func (d *sshDialer) rotateIfDue() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	if d.client == nil {
-		return false
-	}
-	if d.channels != nil && len(d.channels) > 0 {
-		return false
+	if d.client == nil || len(d.channels) > 0 {
+		return
 	}
 	if d.config.SSHRotationMinutes > 0 && time.Since(d.sessionCreated) >= time.Duration(d.config.SSHRotationMinutes)*time.Minute {
-		return true
+		d.invalidateClientLocked(nil)
+		return
 	}
-	return d.config.SSHRotationMB > 0 && d.sessionBytes.Load() >= uint64(d.config.SSHRotationMB)*1024*1024
+	if d.config.SSHRotationMB > 0 && d.sessionBytes.Load() >= uint64(d.config.SSHRotationMB)*1024*1024 {
+		d.invalidateClientLocked(nil)
+	}
 }
 
 func (d *sshDialer) startKeepalive() {
