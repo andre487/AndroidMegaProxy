@@ -11,3 +11,9 @@ internal fun formatCountry(countryCode: String, locale: Locale = Locale.getDefau
     }.joinToString("")
     return "$flag $name ($code)"
 }
+
+internal fun formatCountryCode(countryCode: String): String {
+    val code = countryCode.trim().uppercase(Locale.ROOT)
+    if (!code.matches(Regex("[A-Z]{2}"))) return "—"
+    return code.map { String(Character.toChars(0x1F1E6 + it.code - 'A'.code)) }.joinToString("") + " " + code
+}

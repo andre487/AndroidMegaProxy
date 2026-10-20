@@ -6,29 +6,37 @@ import java.net.HttpURLConnection
 import java.net.URL
 
 internal data class CloudflareRouteResult(
-    val exitIp: String,
-    val countryCode: String,
-    val protocol: String,
-    val latencyMs: Long,
-    val downloadMbps: Double,
-    val uploadMbps: Double,
+    val exitIp: String? = null,
+    val countryCode: String? = null,
+    val protocol: String? = null,
+    val latencyMs: Long? = null,
+    val downloadMbps: Double? = null,
+    val uploadMbps: Double? = null,
 )
 
-internal fun runCloudflareSpeedCheck(network: Network, megabytes: Int): CloudflareRouteResult {
+internal suspend fun runCloudflareSpeedCheck(
+    network: Network,
+    megabytes: Int,
+    onProgress: suspend (CloudflareRouteResult) -> Unit,
+): CloudflareRouteResult {
     require(megabytes in SPEED_TEST_MEGABYTES)
     val bytes = megabytes * 1_000_000
     val trace = requestText(network, CLOUDFLARE_TRACE_URL).let(::parseCloudflareTrace)
-    val latency = List(3) { latency(network) }.sorted()[1]
-    val download = download(network, bytes)
-    val upload = upload(network, bytes)
-    return CloudflareRouteResult(
+    var result = CloudflareRouteResult(
         exitIp = checkNotNull(trace["ip"]?.takeIf(::isIpAddress)) { "Cloudflare did not return an exit IP" },
         countryCode = trace["loc"].orEmpty(),
         protocol = listOfNotNull(trace["http"], trace["tls"]).joinToString(" · ").ifBlank { "—" },
-        latencyMs = latency,
-        downloadMbps = transferMbps(download.bytes, download.durationMs),
-        uploadMbps = transferMbps(upload.bytes, upload.durationMs),
     )
+    onProgress(result)
+    result = result.copy(latencyMs = List(3) { latency(network) }.sorted()[1])
+    onProgress(result)
+    val download = download(network, bytes)
+    result = result.copy(downloadMbps = transferMbps(download.bytes, download.durationMs))
+    onProgress(result)
+    val upload = upload(network, bytes)
+    result = result.copy(uploadMbps = transferMbps(upload.bytes, upload.durationMs))
+    onProgress(result)
+    return result
 }
 
 internal fun parseCloudflareTrace(body: String): Map<String, String> = body.lineSequence()

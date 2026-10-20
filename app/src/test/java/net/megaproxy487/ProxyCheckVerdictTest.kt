@@ -34,6 +34,7 @@ class ProxyCheckVerdictTest {
         assertEquals("NL", trace["loc"])
         assertEquals("h2", trace["http"])
         assertEquals(listOf(10, 25, 50), SPEED_TEST_MEGABYTES)
+        assertEquals("🇦🇲 AM", formatCountryCode("am"))
         assertEquals(80.0, transferMbps(10_000_000, 1_000), 0.001)
         assertEquals(0.0, transferMbps(10_000_000, 0), 0.001)
     }
