@@ -1,6 +1,7 @@
 package net.megaproxy487
 
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsActions
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.TlsProfile
@@ -13,18 +14,22 @@ class ProfileEditorUiTest : MainUiTestBase() {
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(text(id)))
         return node(id)
     }
+    private fun selectOption(label: Int, option: Int) {
+        val selector = hasText(text(label)) and hasClickAction()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(selector)
+        compose.onNode(selector).performSemanticsAction(SemanticsActions.OnClick) { it() }
+        node(option).assertIsDisplayed().performClick()
+    }
+
     @Test fun newSshProfileSavesCustomDohAndClearsValidationAfterCorrection() {
         content { ProfileEditorScreen(activity, "new", {}) }
         field(R.string.profile_name_optional).performTextReplacement("Custom DNS")
-        field(R.string.profile_type).performClick()
-        node(ProxyType.SSH.titleRes).performClick()
+        saved()
+        selectOption(R.string.profile_type, ProxyType.SSH.titleRes)
         field(R.string.destination_ssh_hostname).performTextReplacement("proxy.example")
         field(R.string.ssh_username).performTextReplacement("user")
         fun selectDns(provider: DnsProvider) {
-            val selector = hasText(text(R.string.dns_over_https)) and hasClickAction()
-            compose.onNode(hasScrollToIndexAction()).performScrollToNode(selector)
-            compose.onNode(selector).performClick()
-            node(provider.titleRes).performClick()
+            selectOption(R.string.dns_over_https, provider.titleRes)
         }
         selectDns(DnsProvider.CUSTOM)
         val input = hasText(text(R.string.custom_doh_url)) and hasSetTextAction()
@@ -73,8 +78,7 @@ class ProfileEditorUiTest : MainUiTestBase() {
         node(R.string.ok).performClick()
         saved()
         assertTrue(store.profile(id)!!.config.allowInsecureDns)
-        field(R.string.dns_transport).performClick()
-        node(R.string.dns_transport_tcp).performClick()
+        selectOption(R.string.dns_transport, R.string.dns_transport_tcp)
         node(R.string.ok).performClick()
         field(R.string.dns_server_ip).performTextReplacement("192.0.2.1:5353")
         saved()
@@ -88,8 +92,7 @@ class ProfileEditorUiTest : MainUiTestBase() {
     @Test fun socks5UsesItsPortAndHidesTlsAndSshControls() {
         val id = store.activeProfileId()
         content { ProfileEditorScreen(activity, id, {}) }
-        field(R.string.profile_type).performClick()
-        node(ProxyType.SOCKS5.titleRes).performClick()
+        selectOption(R.string.profile_type, ProxyType.SOCKS5.titleRes)
         saved()
         assertEquals(ProxyType.SOCKS5, store.profile(id)!!.config.type)
         assertEquals(1080, store.profile(id)!!.config.port)
@@ -116,8 +119,7 @@ class ProfileEditorUiTest : MainUiTestBase() {
     @Test fun switchingProtocolShowsJumpFieldsAndUsesProtocolPort() {
         val id = store.activeProfileId()
         content { ProfileEditorScreen(activity, id, {}) }
-        field(R.string.profile_type).performClick()
-        node(ProxyType.SSH_JUMP.titleRes).performClick()
+        selectOption(R.string.profile_type, ProxyType.SSH_JUMP.titleRes)
         saved()
         assertEquals(ProxyType.SSH_JUMP, store.profile(id)!!.config.type)
         assertEquals(22, store.profile(id)!!.config.port)
@@ -130,13 +132,11 @@ class ProfileEditorUiTest : MainUiTestBase() {
         field(R.string.prefer_http3).performClick()
         saved()
         assertTrue(store.profile(id)!!.config.preferHttp3)
-        field(R.string.profile_type).performClick()
-        node(ProxyType.MASQUE.titleRes).performClick()
+        selectOption(R.string.profile_type, ProxyType.MASQUE.titleRes)
         saved()
         node(R.string.prefer_http3).assertDoesNotExist()
         assertEquals(ProxyType.MASQUE, store.profile(id)!!.config.type)
-        field(R.string.profile_type).performClick()
-        node(ProxyType.HTTPS_JUMP.titleRes).performClick()
+        selectOption(R.string.profile_type, ProxyType.HTTPS_JUMP.titleRes)
         saved()
         field(R.string.prefer_http3).assertExists()
     }
@@ -158,8 +158,7 @@ class ProfileEditorUiTest : MainUiTestBase() {
     @Test fun httpsJumpSettingsAreSavedSeparatelyFromDestination() {
         val id = store.activeProfileId()
         content { ProfileEditorScreen(activity, id, {}) }
-        field(R.string.profile_type).performClick()
-        node(ProxyType.HTTPS_JUMP.titleRes).performClick()
+        selectOption(R.string.profile_type, ProxyType.HTTPS_JUMP.titleRes)
         field(R.string.https_jump_hostname).performTextReplacement("jump.example")
         saved()
         assertEquals(ProxyType.HTTPS_JUMP, store.profile(id)!!.config.type)
