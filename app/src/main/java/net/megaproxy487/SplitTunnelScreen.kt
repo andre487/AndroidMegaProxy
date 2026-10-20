@@ -240,7 +240,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                     Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
                         value = settings.bypassLocalNetworks,
                         onValueChange = { updateSettings(settings.copy(bypassLocalNetworks = it)) },
-                        role = Role.Checkbox,
+                        role = Role.Switch,
                     ),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -249,7 +249,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                         Text(stringResource(R.string.bypass_local_networks))
                         Text(stringResource(R.string.bypass_local_networks_description), style = MaterialTheme.typography.bodySmall)
                     }
-                    Checkbox(settings.bypassLocalNetworks, null)
+                    Switch(settings.bypassLocalNetworks, null)
                 }
             }
             if (!settings.routeAllApps) {
