@@ -8,12 +8,12 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.DataInputStream
 import java.io.DataOutputStream
+import java.io.IOException
 import java.net.DatagramPacket
 import java.net.DatagramSocket
 import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.Socket
-import java.net.SocketTimeoutException
 
 @RunWith(AndroidJUnit4::class)
 class DnsDeviceTest : DeviceTestBase() {
@@ -64,11 +64,14 @@ class DnsDeviceTest : DeviceTestBase() {
                 customDohUrl = "https://${arguments.getString("socks5DnsHost") ?: argument("originHost")}:8444/dns-query",
                 allowInvalidDohCertificate = false, allowInsecureDns = false)))
         }
+        net.megaproxy487.vpn.PersistentDiagnosticLog.clear()
         connect()
         try {
-            dnsQuery(false)
+            // TCP retransmits during Android's UID route installation. A one-shot UDP
+            // packet can be lost before it reaches TUN and never exercise TLS validation.
+            dnsQuery(true)
             fail("Untrusted DoH certificate unexpectedly accepted")
-        } catch (_: SocketTimeoutException) {
+        } catch (_: IOException) {
             await("Expected certificate failure in DNS diagnostics") {
                 net.megaproxy487.vpn.PersistentDiagnosticLog.readTail(128 * 1024).contains("event=doh result=failed provider_index=0 reason=certificate")
             }
