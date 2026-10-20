@@ -1,15 +1,7 @@
-<p>MegaProxy routes all or selected Android apps through your HTTPS, SOCKS5, MASQUE α (HTTP/3) or SSH server, including HTTPS and SSH jump hosts for multi-hop connections. Servers and credentials are not included.</p>
+<p>VPN client for your HTTPS, SOCKS5, MASQUE α (HTTP/3) or SSH server. Supports HTTPS/SSH jump hosts with separate credentials per hop, split tunneling and DoH.</p>
 
-<ul>
-<li>HTTPS and SSH jump hosts with separate authentication and trust checks per hop</li>
-<li>Split tunneling, local-network bypass, optional IPv6 and Always-on VPN</li>
-<li>HTTP/2 multiplexing, experimental HTTP/3 TCP/UDP</li>
-<li>DNS-over-HTTPS and configurable TLS/QUIC/SSH fingerprints</li>
-<li>Profiles, import/export, configuration subscriptions and automatic failover</li>
-<li>Connection and UDP tests, download/upload speed tests, traffic metrics and VPN visibility with IP reputation</li>
-<li>Encrypted stored credentials, local logs, English and Russian interfaces</li>
-</ul>
+<p>Profiles, import/export, configuration subscriptions, automatic failover, connection and speed tests, VPN visibility and IP reputation.</p>
 
-<p>No account, ads, analytics or remote telemetry. Diagnostics contact external services; logs are shared only when you choose.</p>
+<p>No account, ads or analytics. Credentials are encrypted at rest; logs stay local unless shared. Diagnostics contact external services.</p>
 
-<p>SOCKS5 does not encrypt its connection or credentials. HTTPS over TCP and SSH do not forward arbitrary UDP. MASQUE is experimental with packet-size and server limits. Fingerprints approximate handshakes, not complete browser behaviour.</p>
+<p>Servers are not included. SOCKS5 does not encrypt its connection or credentials. MASQUE is experimental.</p>
