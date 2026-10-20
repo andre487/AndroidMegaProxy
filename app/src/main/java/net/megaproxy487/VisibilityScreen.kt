@@ -54,6 +54,7 @@ import java.net.HttpURLConnection
 import java.net.NetworkInterface
 import java.net.URL
 import java.util.Base64
+import org.json.JSONObject
 
 private enum class VisibilityState(val labelResource: Int) {
     DETECTED(R.string.detected),
@@ -61,6 +62,7 @@ private enum class VisibilityState(val labelResource: Int) {
     NOT_DETECTED(R.string.not_detected),
     UNKNOWN(R.string.undetermined),
     UNAVAILABLE(R.string.unavailable),
+    LIMIT_REACHED(R.string.limit_reached),
 }
 
 private data class VisibilityCheck(
@@ -81,8 +83,12 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
     var revision by remember { mutableStateOf(0) }
     val report = readConfiguration(revision) { buildVisibilityReport(activity) } ?: return
     var externalChecks by remember { mutableStateOf<List<VisibilityCheck>>(emptyList()) }
+    var proxyCheckChecks by remember { mutableStateOf<List<VisibilityCheck>>(emptyList()) }
     LaunchedEffect(revision) {
-        externalChecks = withContext(Dispatchers.IO) { runExternalChecks(activity) }
+        val external = async(Dispatchers.IO) { runExternalChecks(activity) }
+        val proxyCheck = async(Dispatchers.IO) { runProxyCheckChecks(activity) }
+        externalChecks = external.await()
+        proxyCheckChecks = proxyCheck.await()
     }
     Scaffold(
         topBar = {
@@ -120,6 +126,7 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
                 report.selectedApps,
             )
             VisibilitySection(stringResource(R.string.external_vpn_reputation), externalChecks)
+            VisibilitySection(stringResource(R.string.proxycheck_reputation), proxyCheckChecks)
             Text(
                 stringResource(R.string.visibility_disclaimer),
                 style = MaterialTheme.typography.bodySmall,
@@ -153,11 +160,98 @@ private fun VisibilityBadge(state: VisibilityState) {
         VisibilityState.NOT_DETECTED -> Color(0xFF2E7D32)
         VisibilityState.UNKNOWN -> Color(0xFFF57C00)
         VisibilityState.UNAVAILABLE -> MaterialTheme.colorScheme.outline
+        VisibilityState.LIMIT_REACHED -> Color(0xFFF57C00)
     }
     val foreground = if (state == VisibilityState.SELECTED_APPS_ONLY) Color.Black else Color.White
     Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(12.dp)) {
         Text(stringResource(state.labelResource), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
     }
+}
+
+private suspend fun runProxyCheckChecks(context: Context): List<VisibilityCheck> = coroutineScope {
+    val connectivity = context.getSystemService(ConnectivityManager::class.java)
+    val networks = runCatching { connectivity.allNetworks.toList() }.getOrDefault(emptyList())
+    fun networkWith(transportVpn: Boolean) = networks.firstOrNull { network ->
+        val capabilities = runCatching { connectivity.getNetworkCapabilities(network) }.getOrNull()
+            ?: return@firstOrNull false
+        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == transportVpn &&
+            (transportVpn || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN))
+    }
+    val underlying = async { networkWith(false)?.let { queryProxyCheck(context, it) } }
+    val tunnel = async { networkWith(true)?.let { queryProxyCheck(context, it) } }
+    listOf(
+        proxyCheck(context, R.string.external_underlying_network, underlying.await()),
+        proxyCheck(context, R.string.external_tunnel_network, tunnel.await()),
+    )
+}
+
+internal enum class ProxyCheckVerdict { DETECTED, NOT_DETECTED, LIMIT_REACHED, UNKNOWN_FORMAT }
+internal data class ProxyCheckResponse(val address: String?, val verdict: ProxyCheckVerdict)
+
+private fun queryProxyCheck(context: Context, network: android.net.Network): Result<ProxyCheckResponse> = runCatching {
+    val address = checkNotNull(lookupExitIp(network)) { "Exit IP unavailable" }
+    cachedProxyCheck(context, address)?.let { return@runCatching ProxyCheckResponse(address, it) }
+    val connection = network.openConnection(URL("$PROXYCHECK_LOOKUP_URL$address?p=0&tag=0")) as HttpURLConnection
+    try {
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 10_000
+        val status = connection.responseCode
+        val body = (if (status in 200..299) connection.inputStream else connection.errorStream)
+            ?.bufferedReader()?.use { it.readText() }.orEmpty()
+        parseProxyCheckResponse(status, body).also { response ->
+            val cacheAddress = response.address ?: address
+            if (response.verdict in setOf(ProxyCheckVerdict.DETECTED, ProxyCheckVerdict.NOT_DETECTED)) {
+                cacheProxyCheck(context, cacheAddress, response.verdict)
+            }
+        }
+    } finally {
+        connection.disconnect()
+    }
+}
+
+internal fun parseProxyCheckResponse(httpStatus: Int, body: String): ProxyCheckResponse {
+    val response = runCatching { JSONObject(body) }.getOrNull()
+        ?: return ProxyCheckResponse(null, ProxyCheckVerdict.UNKNOWN_FORMAT)
+    val message = response.optString("message").lowercase()
+    if (httpStatus == 429 && ("exhausted" in message || "daily" in message || "allowance" in message)) {
+        return ProxyCheckResponse(null, ProxyCheckVerdict.LIMIT_REACHED)
+    }
+    if (httpStatus !in 200..299 || response.optString("status") !in setOf("ok", "warning")) {
+        return ProxyCheckResponse(null, ProxyCheckVerdict.UNKNOWN_FORMAT)
+    }
+    val result = response.keys().asSequence().mapNotNull { key ->
+        response.optJSONObject(key)?.optJSONObject("detections")?.let { key to it }
+    }.firstOrNull() ?: return ProxyCheckResponse(null, ProxyCheckVerdict.UNKNOWN_FORMAT)
+    val (address, detections) = result
+    val fields = listOf("vpn", "proxy", "tor", "anonymous")
+    if (fields.none(detections::has)) return ProxyCheckResponse(address, ProxyCheckVerdict.UNKNOWN_FORMAT)
+    val verdict = if (fields.any { detections.optBoolean(it) }) ProxyCheckVerdict.DETECTED else ProxyCheckVerdict.NOT_DETECTED
+    return ProxyCheckResponse(address, verdict)
+}
+
+private fun cachedProxyCheck(context: Context, address: String, now: Long = System.currentTimeMillis()): ProxyCheckVerdict? {
+    val parts = context.getSharedPreferences(PROXYCHECK_CACHE, Context.MODE_PRIVATE)
+        .getString(address, null)?.split('|', limit = 2) ?: return null
+    val savedAt = parts.getOrNull(0)?.toLongOrNull() ?: return null
+    if (!isFreshProxyCheckCache(savedAt, now)) return null
+    return parts.getOrNull(1)?.let { runCatching { ProxyCheckVerdict.valueOf(it) }.getOrNull() }
+}
+
+private fun cacheProxyCheck(context: Context, address: String, verdict: ProxyCheckVerdict) {
+    context.getSharedPreferences(PROXYCHECK_CACHE, Context.MODE_PRIVATE).edit()
+        .putString(address, "${System.currentTimeMillis()}|${verdict.name}").apply()
+}
+
+internal fun isFreshProxyCheckCache(savedAt: Long, now: Long) = now >= savedAt && now - savedAt < PROXYCHECK_CACHE_TTL_MS
+
+private fun proxyCheck(context: Context, title: Int, result: Result<ProxyCheckResponse>?): VisibilityCheck = when {
+    result == null -> VisibilityCheck(context.uiText(title), VisibilityState.UNAVAILABLE, context.uiText(R.string.external_network_unavailable))
+    result.isFailure -> VisibilityCheck(context.uiText(title), VisibilityState.UNAVAILABLE, context.uiText(R.string.proxycheck_failed))
+    result.getOrThrow().verdict == ProxyCheckVerdict.DETECTED -> VisibilityCheck(context.uiText(title), VisibilityState.DETECTED, context.uiText(R.string.proxycheck_detected))
+    result.getOrThrow().verdict == ProxyCheckVerdict.NOT_DETECTED -> VisibilityCheck(context.uiText(title), VisibilityState.NOT_DETECTED, context.uiText(R.string.proxycheck_not_detected))
+    result.getOrThrow().verdict == ProxyCheckVerdict.LIMIT_REACHED -> VisibilityCheck(context.uiText(title), VisibilityState.LIMIT_REACHED, context.uiText(R.string.proxycheck_limit_reached))
+    else -> VisibilityCheck(context.uiText(title), VisibilityState.UNKNOWN, context.uiText(R.string.proxycheck_unknown_format))
 }
 
 private suspend fun runExternalChecks(context: Context): List<VisibilityCheck> = coroutineScope {
@@ -284,3 +378,6 @@ private fun decode(value: String) = String(Base64.getDecoder().decode(value), Ch
 private const val EXTERNAL_VPN_CHECK_URL_BASE64 =
     "aHR0cHM6Ly9tb2JpbGVwcm94eS5wYXNzcG9ydC55YW5kZXgubmV0L3RtZ3JkZnJlbmQvY2hlY2t2cG4="
 private const val EXTERNAL_VPN_HEADER_BASE64 = "WC1ZYW5kZXgtRVUtUmVxdWVzdA=="
+private const val PROXYCHECK_LOOKUP_URL = "https://proxycheck.io/v3/"
+private const val PROXYCHECK_CACHE = "proxycheck_visibility_cache"
+private const val PROXYCHECK_CACHE_TTL_MS = 24 * 60 * 60 * 1000L

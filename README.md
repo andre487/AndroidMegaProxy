@@ -119,6 +119,11 @@ QUIC fingerprint is the diagnostic client's, not the selected outer MASQUE finge
 Chrome's. The explicit VPN visibility check sends separate requests over the underlying and VPN
 networks to an external service and reads its VPN verdict header. Its exact URL and response-header
 name are Base64 constants in `VisibilityScreen.kt`; decode them with `printf %s VALUE | base64 -d`.
+The same screen obtains each route's public IP through the connection test's fallback sequence
+(`ifconfig.me`, `api.ipify.org`, then `icanhazip.com`), then queries `https://proxycheck.io/v3/`
+and reports its VPN, proxy, Tor, or anonymous-IP verdict. Anonymous access is limited to 100 queries
+per source IP per day; MegaProxy reports an exhausted daily allowance separately from request
+failures and caches successful verdicts for each public IP for 24 hours.
 Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
 
 - HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and

@@ -45,6 +45,12 @@ public source IP and connection metadata. MegaProxy displays the returned verdic
 Its exact URL and response-header name are Base64 constants in `VisibilityScreen.kt`; decode them
 with `printf %s VALUE | base64 -d`.
 
+The visibility screen also obtains each public IP through the same fallback providers listed above,
+then sends it to `https://proxycheck.io/v3/`. The responding IP provider and ProxyCheck receive the
+route's public source IP and connection metadata; ProxyCheck also receives that IP as the lookup
+value and returns reputation data. MegaProxy displays the verdict, caches successful results on the
+device by public IP for 24 hours, and does not add them to diagnostic logs.
+
 If you configure a configuration subscription, MegaProxy downloads snapshots from the HTTPS
 sources you list, automatically at the interval you choose when Android permits background work,
 or when you request an update. Each source receives its configured URL path/query, optional

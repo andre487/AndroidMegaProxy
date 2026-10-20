@@ -221,6 +221,9 @@
     <string name="external_underlying_network">Underlying network</string><string name="external_tunnel_network">VPN tunnel</string>
     <string name="external_vpn_detected">The external service marks this network as a VPN.</string><string name="external_vpn_not_detected">The external service does not mark this network as a VPN.</string>
     <string name="external_network_unavailable">This network is not currently available.</string><string name="external_check_failed">The external reputation request failed.</string><string name="external_check_unknown_format">No definite result: the service responded, but the expected verdict header was missing or had an unknown value. The response format may have changed.</string>
+    <string name="limit_reached">Limit reached</string><string name="proxycheck_reputation">ProxyCheck IP reputation</string>
+    <string name="proxycheck_detected">ProxyCheck identifies this address as a VPN, proxy, Tor exit, or other anonymous connection.</string><string name="proxycheck_not_detected">ProxyCheck does not identify this address as a VPN, proxy, Tor exit, or other anonymous connection.</string>
+    <string name="proxycheck_limit_reached">ProxyCheck’s anonymous daily request limit has been reached. Try again tomorrow.</string><string name="proxycheck_failed">The ProxyCheck request failed.</string><string name="proxycheck_unknown_format">No definite result: ProxyCheck returned an unexpected response format.</string>
     <string name="select_profile">Select profile</string><string name="ssh_key_save_failed">The SSH host key could not be saved to this profile</string>
     <string name="megaproxy_active">MegaProxy is active</string><string name="review_ssh_key">Review SSH key</string>
     <string name="always_on_all_failover_status">Always-on VPN remains active during automatic switching. Every switch is reported in the persistent notification and on the main screen.</string>

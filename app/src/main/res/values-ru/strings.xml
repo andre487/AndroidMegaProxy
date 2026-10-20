@@ -220,6 +220,9 @@
     <string name="external_underlying_network">Основная сеть</string><string name="external_tunnel_network">VPN-туннель</string>
     <string name="external_vpn_detected">Внешний сервис определяет эту сеть как VPN.</string><string name="external_vpn_not_detected">Внешний сервис не определяет эту сеть как VPN.</string>
     <string name="external_network_unavailable">Эта сеть сейчас недоступна.</string><string name="external_check_failed">Внешняя проверка репутации завершилась ошибкой.</string><string name="external_check_unknown_format">Определённого результата нет: сервис ответил, но ожидаемый заголовок отсутствует или содержит неизвестное значение. Возможно, формат ответа изменился.</string>
+    <string name="limit_reached">Лимит исчерпан</string><string name="proxycheck_reputation">Репутация IP в ProxyCheck</string>
+    <string name="proxycheck_detected">ProxyCheck определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string><string name="proxycheck_not_detected">ProxyCheck не определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string>
+    <string name="proxycheck_limit_reached">Анонимный дневной лимит запросов ProxyCheck исчерпан. Повторите проверку завтра.</string><string name="proxycheck_failed">Запрос к ProxyCheck завершился ошибкой.</string><string name="proxycheck_unknown_format">Определённого результата нет: ProxyCheck вернул ответ в неизвестном формате.</string>
     <string name="select_profile">Выбрать профиль</string><string name="ssh_key_save_failed">Не удалось сохранить ключ SSH-сервера в этом профиле</string>
     <string name="megaproxy_active">MegaProxy активен</string><string name="review_ssh_key">Проверить ключ SSH</string>
     <string name="always_on_all_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. Каждое переключение отображается в постоянном уведомлении и на главном экране.</string>
