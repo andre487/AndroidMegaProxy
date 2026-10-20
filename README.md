@@ -125,9 +125,11 @@ and reports its VPN, proxy, Tor, or anonymous-IP verdict. Anonymous access is li
 per source IP per day; MegaProxy reports an exhausted daily allowance separately from request
 failures and caches successful verdicts for each public IP for 24 hours.
 An explicitly started speed test requests route metadata from
-`https://speed.cloudflare.com/cdn-cgi/trace`, measures median time to first byte with three empty
+`https://h3.speed.cloudflare.com/cdn-cgi/trace`, measures median time to first byte with three empty
 downloads, and transfers a user-selected 10, 25 or 50 MB per direction and available route through
-`https://speed.cloudflare.com/__down` and `https://speed.cloudflare.com/__up`.
+`https://h3.speed.cloudflare.com/__down` and `https://h3.speed.cloudflare.com/__up`.
+This protocol-capable hostname is required: the ordinary `speed.cloudflare.com` hostname may
+negotiate only HTTP/1.1.
 The Go client binds DNS and TCP/UDP sockets to the selected Android network. Users select h3
 (default, falling back to h2 then h1), h2 (falling back to h1), or h1. Only the initial
 metadata probe permits protocol fallback; certificate failures, HTTP service errors, and transfer

@@ -45,7 +45,7 @@ route's public source IP and connection metadata; ProxyCheck also receives that 
 value and returns reputation data. MegaProxy displays the verdict, caches successful results on the
 device by public IP for 24 hours, and does not add them to diagnostic logs.
 
-When you explicitly start the speed test, MegaProxy contacts `https://speed.cloudflare.com/`
+When you explicitly start the speed test, MegaProxy contacts `https://h3.speed.cloudflare.com/`
 through each available route. Cloudflare receives the route's public IP and connection metadata.
 MegaProxy downloads and uploads the selected 10, 25 or 50 MB per route and displays the exit IP,
 country, negotiated protocol, latency and transfer speeds. The speed screen shows a temporary

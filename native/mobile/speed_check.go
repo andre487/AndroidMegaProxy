@@ -81,7 +81,7 @@ func (s *SpeedTest) Run(network SpeedNetwork, preferred string, megabytes int, u
 	}
 	ctx, cancel := context.WithTimeout(s.ctx, 5*time.Minute)
 	defer cancel()
-	return runSpeedTest(ctx, preferred, int64(megabytes)*1_000_000, updates, logs, "https://speed.cloudflare.com", func(protocol string) (http.RoundTripper, func()) { return speedTransport(network, protocol, logs) })
+	return runSpeedTest(ctx, preferred, int64(megabytes)*1_000_000, updates, logs, "https://h3.speed.cloudflare.com", func(protocol string) (http.RoundTripper, func()) { return speedTransport(network, protocol, logs) })
 }
 
 func runSpeedTest(ctx context.Context, preferred string, bytes int64, updates Reporter, logs Reporter, origin string, newTransport func(string) (http.RoundTripper, func())) error {
