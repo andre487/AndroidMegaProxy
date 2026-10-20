@@ -26,6 +26,8 @@ class ProxyCheckVerdictTest {
         assertEquals(true, isIpAddress("2001:db8::1"))
         assertEquals(false, isIpAddress("<html>error</html>"))
         assertEquals(false, isIpAddress("999.999.999.999"))
+        assertEquals("203.0.113.1", parseCloudflareExitIp("fl=test\nip=203.0.113.1\nloc=AM\n"))
+        assertEquals(null, parseCloudflareExitIp("ip=invalid\nloc=AM"))
     }
 
     @Test fun speedPartialResultKeepsPendingMeasurementsEmpty() {

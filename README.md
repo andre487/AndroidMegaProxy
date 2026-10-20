@@ -109,16 +109,18 @@ MegaProxy does not operate a proxy service and does not send configuration or us
 project author. Network traffic is sent only where required by the selected profile, destination,
 and DNS configuration. Proxy-hostname bootstrap may contact Cloudflare, Yandex, Google or Quad9
 DoH resolvers directly before the tunnel exists. The explicit connection test contacts `example.com`
-and uses fallback providers for exit IP (`ifconfig.me`, `api.ipify.org`, `icanhazip.com`) and country
-(`ifconfig.co`, `ipapi.co`, `api.country.is`) through the proxy. With MASQUE or SOCKS5 it also sends
+and first obtains exit IP and country together from `speed.cloudflare.com/cdn-cgi/trace`
+through the proxy. Missing or invalid fields independently fall back to IP providers
+(`ifconfig.me`, `api.ipify.org`, `icanhazip.com`) and country providers
+(`ifconfig.co`, `ipapi.co`, `api.country.is`). With MASQUE or SOCKS5 it also sends
 HTTP/3 requests to `www.cloudflare.com/cdn-cgi/trace` and `quic.browserleaks.com/` through
 CONNECT-UDP, with verified destination certificates and no TCP fallback. Both providers are
 checked independently; an unavailable provider does not invalidate the HTTPS/IP result. These
 native probes verify the proxy UDP path, not Android TUN or per-app routing, and their inner
 QUIC fingerprint is the diagnostic client's, not the selected outer MASQUE fingerprint or
 Chrome's. The VPN visibility screen obtains each route's public IP through the connection test's
-fallback sequence
-(`ifconfig.me`, `api.ipify.org`, then `icanhazip.com`), then queries `https://proxycheck.io/v3/`
+provider sequence
+(Cloudflare trace first, then `ifconfig.me`, `api.ipify.org`, and `icanhazip.com`), then queries `https://proxycheck.io/v3/`
 and reports its VPN, proxy, Tor, or anonymous-IP verdict. Anonymous access is limited to 100 queries
 per source IP per day; MegaProxy reports an exhausted daily allowance separately from request
 failures and caches successful verdicts for each public IP for 24 hours.

@@ -86,14 +86,14 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	}
 	report(reporter, "event=connection_test stage=https_check result=success")
 
-	ip, err := lookupTestValue(ctx, connect, testReporter, "exit_ip", publicIPEndpoints)
+	ip, countryCode, err := lookupTestIdentity(ctx, testReporter, func(attemptCtx context.Context, endpoint testEndpoint) (string, error) {
+		return testHTTPSGet(attemptCtx, connect, testReporter, endpoint.host, endpoint.path, true)
+	})
 	if err != nil {
 		return "", fmt.Errorf("public IP check: %w", err)
 	}
 	report(reporter, "event=connection_test stage=exit_ip result=success family=%s", ipFamily(ip))
-
-	countryCode, countryErr := lookupTestValue(ctx, connect, testReporter, "exit_country", countryEndpoints)
-	if countryErr != nil {
+	if countryCode == "" {
 		report(reporter, "event=connection_test stage=exit_country result=unavailable")
 	} else {
 		report(reporter, "event=connection_test stage=exit_country result=success")
@@ -123,10 +123,42 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 	return string(encoded), nil
 }
 
-func lookupTestValue(ctx context.Context, connect func(context.Context, string) (net.Conn, error), reporter Reporter, stage string, endpoints []testEndpoint) (string, error) {
-	return lookupEndpointValue(ctx, reporter, stage, endpoints, func(attemptCtx context.Context, endpoint testEndpoint) (string, error) {
-		return testHTTPSGet(attemptCtx, connect, reporter, endpoint.host, endpoint.path, true)
-	})
+// Reuse one Cloudflare trace so IP and country describe the same response.
+// Missing/invalid fields fall back independently to the existing providers.
+func lookupTestIdentity(ctx context.Context, reporter Reporter, fetch func(context.Context, testEndpoint) (string, error)) (string, string, error) {
+	attemptCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	body, traceErr := fetch(attemptCtx, testEndpoint{host: "speed.cloudflare.com", path: "/cdn-cgi/trace"})
+	cancel()
+	var ip, country string
+	if traceErr == nil {
+		if value, valid := parseIPAddress(cloudflareTraceValue(body, "ip")); valid {
+			ip = value
+		}
+		if value, valid := parseCountryCode(cloudflareTraceValue(body, "loc")); valid {
+			country = value
+		}
+	}
+	report(reporter, "event=connection_test stage=cloudflare_trace result=completed ip_valid=%t country_valid=%t reason=%s", ip != "", country != "", errorClass(traceErr))
+	if ip == "" {
+		var err error
+		ip, err = lookupEndpointValue(ctx, reporter, "exit_ip", publicIPEndpoints, fetch)
+		if err != nil {
+			return "", "", err
+		}
+	}
+	if country == "" {
+		country, _ = lookupEndpointValue(ctx, reporter, "exit_country", countryEndpoints, fetch)
+	}
+	return ip, country, nil
+}
+
+func cloudflareTraceValue(body, key string) string {
+	for _, line := range strings.Split(body, "\n") {
+		if name, value, ok := strings.Cut(line, "="); ok && name == key {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func lookupEndpointValue(ctx context.Context, reporter Reporter, stage string, endpoints []testEndpoint, fetch func(context.Context, testEndpoint) (string, error)) (string, error) {
@@ -223,6 +255,6 @@ func testHTTPExchange(ctx context.Context, connection net.Conn, host, path strin
 	if !readBody {
 		return "", nil
 	}
-	body, err := io.ReadAll(io.LimitReader(response.Body, 256))
+	body, err := io.ReadAll(io.LimitReader(response.Body, 16*1024))
 	return string(body), err
 }

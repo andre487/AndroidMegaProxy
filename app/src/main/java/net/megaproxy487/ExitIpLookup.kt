@@ -15,7 +15,8 @@ internal fun lookupExitIp(network: Network): String? = EXIT_IP_URLS.firstNotNull
             connection.connectTimeout = 10_000
             connection.readTimeout = 10_000
             if (connection.responseCode !in 200..299) return@runCatching null
-            connection.inputStream.bufferedReader().use { it.readText() }.trim().takeIf(::isIpAddress)
+            val body = connection.inputStream.bufferedReader().use { it.readText() }
+            if (url == CLOUDFLARE_IP_URL) parseCloudflareExitIp(body) else body.trim().takeIf(::isIpAddress)
         } finally {
             connection.disconnect()
         }
@@ -48,7 +49,13 @@ internal fun isIpAddress(value: String) = value.length in 7..45 &&
     value.all { it.isDigit() || it in 'a'..'f' || it in 'A'..'F' || it == '.' || it == ':' } &&
     runCatching { InetAddress.getByName(value) }.isSuccess
 
+internal fun parseCloudflareExitIp(body: String): String? = body.lineSequence()
+    .firstOrNull { it.startsWith("ip=") }?.substringAfter("ip=")?.trim()?.takeIf(::isIpAddress)
+
+private const val CLOUDFLARE_IP_URL = "https://speed.cloudflare.com/cdn-cgi/trace"
+
 private val EXIT_IP_URLS = listOf(
+    CLOUDFLARE_IP_URL,
     "https://ifconfig.me/ip",
     "https://api.ipify.org/",
     "https://icanhazip.com/",

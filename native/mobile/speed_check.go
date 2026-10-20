@@ -98,10 +98,8 @@ func runSpeedTest(ctx context.Context, preferred string, bytes int64, updates Re
 			err = readErr
 			if err == nil {
 				trace := map[string]string{}
-				for _, line := range strings.Split(string(body), "\n") {
-					if key, value, ok := strings.Cut(line, "="); ok {
-						trace[key] = value
-					}
+				for _, key := range []string{"ip", "loc", "tls"} {
+					trace[key] = cloudflareTraceValue(string(body), key)
 				}
 				if net.ParseIP(trace["ip"]) == nil {
 					err = errors.New("invalid speed metadata")
