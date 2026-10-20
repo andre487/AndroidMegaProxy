@@ -29,3 +29,6 @@ Portable profiles retain the endpoint in the legacy `dns.customDohUrl` string wi
 endpoints. Security consent stays on this device: exports/imports and subscriptions cannot grant
 permission for insecure DNS or invalid DoH certificates. Confirm locally before connecting.
 Proxy bootstrap DNS is unchanged and precedes the VPN; see the README endpoint inventory.
+
+DNS admission is limited to 64 active flows per proxy, shared by intercepted TCP and UDP.
+Excess flows fail immediately; stopping the VPN closes admitted flows and cancels their queries.

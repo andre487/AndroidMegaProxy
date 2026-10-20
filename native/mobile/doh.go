@@ -47,6 +47,7 @@ type dnsReply struct {
 }
 
 type dohPacketConn struct {
+	onClose        func()
 	connectUDP     func(context.Context, string) (net.PacketConn, error)
 	config         config
 	reporter       Reporter
@@ -290,6 +291,9 @@ func (c *dohPacketConn) Close() error {
 		c.cancel()
 		c.readDeadline.stop()
 		c.writeDeadline.stop()
+		if c.onClose != nil {
+			c.onClose()
+		}
 	})
 	return nil
 }

@@ -24,6 +24,7 @@ var errUDPBlocked = errors.New("UDP is intentionally blocked")
 type Protector interface{ Protect(fd int) bool }
 
 type httpsConnectDialer struct {
+	dnsFlows      dnsFlows
 	jump          *httpsConnectDialer
 	intermediate  bool
 	stats         *connectionStats
@@ -46,6 +47,7 @@ type httpsConnectDialer struct {
 }
 
 func (d *httpsConnectDialer) Close() error {
+	d.dnsFlows.close()
 	d.cacheMu.Lock()
 	d.closed = true
 	if d.cancel != nil {
@@ -584,9 +586,11 @@ func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, erro
 	client := d.dohClient
 	limiter := d.dohInFlight
 	d.cacheMu.Unlock()
-	packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
-	packet.connectUDP = d.connectDNSUDP
-	return packet, nil
+	return d.dnsFlows.open(func() *dohPacketConn {
+		packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
+		packet.connectUDP = d.connectDNSUDP
+		return packet
+	})
 }
 
 type bufferedConn struct {

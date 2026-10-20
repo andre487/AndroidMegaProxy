@@ -7,6 +7,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SettingsUiTest : MainUiTestBase() {
+    @Test
+    fun missingBatterySettingsHandlerShowsError() {
+        org.robolectric.Shadows.shadowOf(activity.application as android.app.Application).checkActivities(true)
+        content { SettingsHomeScreen(activity, {}, {}) }
+        node(R.string.battery_settings).performScrollTo().performClick()
+        node(R.string.battery_settings_unavailable).assertExists()
+    }
+
     @Test fun trafficUnitsSelectionIsPersisted() {
         content { SettingsHomeScreen(activity, {}, {}) }
         node(R.string.traffic_units).performScrollTo().performClick()

@@ -406,9 +406,11 @@ func (d *sshDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 		return nil, errUDPBlocked
 	}
 	client, limiter := d.sharedDoHResources()
-	packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
-	packet.connectUDP = d.connectDNSUDP
-	return packet, nil
+	return d.direct.dnsFlows.open(func() *dohPacketConn {
+		packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
+		packet.connectUDP = d.connectDNSUDP
+		return packet
+	})
 }
 
 func (d *sshDialer) sharedDoHResources() (*http.Client, chan struct{}) {

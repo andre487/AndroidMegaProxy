@@ -575,4 +575,6 @@
     <string name="validation_insecure_dns_disabled">This profile uses insecure DNS. Enable it locally or choose DoH.</string>
     <string name="allow_invalid_doh_certificate">Allow invalid DoH certificates</string>
     <string name="allow_invalid_doh_certificate_warning">Allows self-signed, expired and mismatched certificates for DoH only. DNS traffic may be intercepted. Proxy certificate verification is unchanged.</string>
+    <string name="battery_settings_unavailable">Battery settings are unavailable on this device.</string>
+    <string name="error_config_capacity">Configuration storage limit reached. Remove profiles or reduce their contents.</string>
 </resources>

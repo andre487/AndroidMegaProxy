@@ -525,9 +525,11 @@ func (d *masqueDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 		}
 		client, limiter := d.dohClient, d.dohInFlight
 		d.mu.Unlock()
-		packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
-		packet.connectUDP = d.connectDNSUDP
-		return packet, nil
+		return d.direct.dnsFlows.open(func() *dohPacketConn {
+			packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
+			packet.connectUDP = d.connectDNSUDP
+			return packet
+		})
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()

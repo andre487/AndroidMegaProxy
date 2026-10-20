@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import net.megaproxy487.data.readBoundedText
+
 import android.app.Activity
 import android.content.Context
 import android.net.ConnectivityManager
@@ -53,7 +55,7 @@ import kotlinx.coroutines.withContext
 import java.net.HttpURLConnection
 import java.net.NetworkInterface
 import java.net.URL
-import org.json.JSONObject
+import net.megaproxy487.data.boundedJsonObject
 
 private enum class VisibilityState(val labelResource: Int) {
     DETECTED(R.string.detected),
@@ -184,7 +186,7 @@ private fun queryProxyCheck(context: Context, network: android.net.Network): Res
         connection.readTimeout = 10_000
         val status = connection.responseCode
         val body = (if (status in 200..299) connection.inputStream else connection.errorStream)
-            ?.bufferedReader()?.use { it.readText() }.orEmpty()
+            ?.use { it.readBoundedText(64 * 1024) }.orEmpty()
         parseProxyCheckResponse(status, body).also { response ->
             val cacheAddress = response.address ?: address
             if (response.verdict in setOf(ProxyCheckVerdict.DETECTED, ProxyCheckVerdict.NOT_DETECTED)) {
@@ -197,7 +199,7 @@ private fun queryProxyCheck(context: Context, network: android.net.Network): Res
 }
 
 internal fun parseProxyCheckResponse(httpStatus: Int, body: String): ProxyCheckResponse {
-    val response = runCatching { JSONObject(body) }.getOrNull()
+    val response = runCatching { boundedJsonObject(body) }.getOrNull()
         ?: return ProxyCheckResponse(null, ProxyCheckVerdict.UNKNOWN_FORMAT)
     val message = response.optString("message").lowercase()
     if (httpStatus == 429 && ("exhausted" in message || "daily" in message || "allowance" in message)) {

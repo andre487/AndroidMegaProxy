@@ -16,7 +16,7 @@ import java.security.MessageDigest
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
-import org.json.JSONObject
+import net.megaproxy487.data.boundedJsonObject
 
 internal enum class UpdateSource { FDROID, GITHUB }
 
@@ -55,7 +55,7 @@ internal fun newerVersion(candidate: String, installed: String): Boolean {
 internal fun parseGithubUpdate(json: String, installedVersion: String, variant: String): AppUpdate? {
     require(variant in setOf("universal", "arm64-v8a", "armeabi-v7a", "x86", "x86_64"))
     val filename = "mega-proxy-$variant.apk"
-    val release = JSONObject(json)
+    val release = boundedJsonObject(json)
     require(!release.getBoolean("draft") && !release.getBoolean("prerelease"))
     val tag = release.getString("tag_name")
     require(tag.startsWith("v"))
@@ -77,7 +77,7 @@ internal fun parseGithubUpdate(json: String, installedVersion: String, variant: 
 }
 
 internal fun parseFdroidUpdate(json: String, installedCode: Long): AppUpdate? {
-    val result = JSONObject(json)
+    val result = boundedJsonObject(json)
     require(result.getString("packageName") == "net.megaproxy487")
     val suggested = result.getLong("suggestedVersionCode")
     if (suggested <= installedCode) return null
