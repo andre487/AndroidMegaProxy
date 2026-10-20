@@ -23,8 +23,9 @@ PACKAGE = "net.megaproxy487"
 RUNNER = PACKAGE + ".test/androidx.test.runner.AndroidJUnitRunner"
 GOST = "gogost/gost:3.3.0@sha256:f7a958c451928fbe1b99046d25bd0c9bf42019d4c60a82200f50dc8e617b7580"
 TESTS = (
-    "DnsDeviceTest#resolverModesThroughRealTun",
+    # Must run before any scenario grants the app system VPN consent.
     "VpnDeviceTest#deniedVpnConsentDoesNotStartTunnel",
+    "DnsDeviceTest#resolverModesThroughRealTun",
     "VpnDeviceTest#trafficStopAndRestart",
     "VpnDeviceTest#socks5AuthenticatedTcpUdpStopAndRestart",
     "VpnDeviceTest#socks5AnonymousTcpUdpStopAndRestart",
