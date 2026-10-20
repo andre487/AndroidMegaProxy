@@ -169,7 +169,7 @@ private fun SpeedResultsTable(results: List<RouteSpeedResult>) {
             }
             SpeedRow(R.string.cloudflare_speed_ip, results) { it.exitIp }
             SpeedRow(R.string.cloudflare_speed_country, results) { it.countryCode?.let(::formatCountryCode) }
-            SpeedRow(R.string.cloudflare_speed_protocol, results) { it.protocol }
+            SpeedRow(R.string.cloudflare_speed_protocol, results) { it.protocol?.replace(" · ", "\n") }
             SpeedRow(R.string.cloudflare_speed_latency, results) { it.latencyMs?.let { ms -> stringResource(R.string.latency_milliseconds, ms) } }
             SpeedRow(R.string.cloudflare_speed_download, results) { it.downloadMbps?.let { speed -> stringResource(R.string.cloudflare_speed_value, speed) } }
             SpeedRow(R.string.cloudflare_speed_upload, results) { it.uploadMbps?.let { speed -> stringResource(R.string.cloudflare_speed_value, speed) } }

@@ -5,6 +5,11 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class TransportProtocolTest {
+    @Test fun establishedHttp3SessionIdentifiesTransportBeforeAnyTunnelTraffic() {
+        assertEquals(VpnTransportProtocol.HTTP_3,
+            transportProtocolFromDiagnostic("event=masque_session result=established protocol=http3 hop=proxy multiplexed=true"))
+        assertNull(transportProtocolFromDiagnostic("event=masque_session result=failed protocol=http3"))
+    }
     @Test fun socks5IsRecognizedWithoutClaimingHttpOrMultiplexing() {
         assertEquals(VpnTransportProtocol.SOCKS5,
             transportProtocolFromDiagnostic("event=connection mode=proxy protocol=socks5 stage=tunnel result=established"))
