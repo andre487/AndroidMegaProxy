@@ -3,6 +3,7 @@ package net.megaproxy487
 import android.app.Activity
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -10,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import kotlinx.coroutines.withContext
@@ -98,9 +100,17 @@ internal fun ConfigSubscriptionScreen(activity: Activity, onBack: () -> Unit, dr
                     modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = !busy)
                 OutlinedTextField(draft.backups, { draft.backups = it }, label = { FieldLabel(stringResource(R.string.subscription_backups)) },
                     modifier = Modifier.fillMaxWidth(), enabled = !busy)
-                Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-                    Checkbox(draft.authenticated, { draft.authenticated = it }, enabled = !busy)
+                Row(
+                    Modifier.fillMaxWidth().toggleable(
+                        value = draft.authenticated,
+                        enabled = !busy,
+                        role = Role.Switch,
+                        onValueChange = { draft.authenticated = it },
+                    ),
+                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                ) {
                     Text(stringResource(R.string.subscription_auth), Modifier.weight(1f))
+                    Switch(draft.authenticated, null, enabled = !busy)
                 }
                 if (draft.authenticated) {
                     OutlinedTextField(draft.username, { draft.username = it }, label = { FieldLabel(stringResource(R.string.basic_auth_username)) },
