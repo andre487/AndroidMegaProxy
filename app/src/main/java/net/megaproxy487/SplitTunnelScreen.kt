@@ -31,6 +31,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Switch
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -204,6 +205,32 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                             Text(stringResource(R.string.global_vpn))
                             Text(stringResource(R.string.global_vpn_description), style = MaterialTheme.typography.bodySmall)
                         }
+                    }
+                }
+            }
+            if (!settings.routeAllApps) {
+                item {
+                    val checked = activity.packageName in settings.selectedPackages
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                            value = checked,
+                            onValueChange = { enabled ->
+                                updateSettings(settings.copy(selectedPackages = if (enabled) {
+                                    settings.selectedPackages + activity.packageName
+                                } else {
+                                    settings.selectedPackages - activity.packageName
+                                }))
+                            },
+                            role = Role.Switch,
+                        ),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.route_megaproxy))
+                            Text(stringResource(R.string.route_megaproxy_description), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(checked, null)
                     }
                 }
             }

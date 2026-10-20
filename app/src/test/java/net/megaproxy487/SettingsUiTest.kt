@@ -46,4 +46,38 @@ class SettingsUiTest : MainUiTestBase() {
         assertFalse(store.globalConnectionSettings().routeAllApps)
         assertTrue(store.globalConnectionSettings().selectedPackages.isEmpty())
     }
+
+    @Test fun megaProxyRoutingShortcutAndAppCheckboxStaySynchronized() {
+        val launcher = android.content.Intent(android.content.Intent.ACTION_MAIN)
+            .addCategory(android.content.Intent.CATEGORY_LAUNCHER)
+        org.robolectric.Shadows.shadowOf(activity.packageManager).addResolveInfoForIntent(
+            launcher, android.content.pm.ResolveInfo().apply {
+                nonLocalizedLabel = "MegaProxy"
+                activityInfo = android.content.pm.ActivityInfo().apply {
+                    packageName = activity.packageName
+                    name = "net.megaproxy487.MainActivity"
+                    applicationInfo = activity.applicationInfo
+                }
+            },
+        )
+        store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
+            routeAllApps = false, selectedPackages = setOf("other.package"),
+        ))
+        content { SplitTunnelScreen(activity, {}) }
+        node(R.string.route_megaproxy).assertIsOff().performClick()
+        saved()
+        compose.onNodeWithText("MegaProxy", substring = false).performScrollTo().assertIsOn().performClick()
+        saved()
+        node(R.string.route_megaproxy).performScrollTo().assertIsOff()
+        compose.onNodeWithText("MegaProxy", substring = false).performScrollTo().performClick()
+        saved()
+        node(R.string.route_megaproxy).performScrollTo().assertIsOn()
+        assertEquals(setOf("other.package", activity.packageName), store.globalConnectionSettings().selectedPackages)
+        node(R.string.global_vpn).performScrollTo().performClick()
+        saved()
+        node(R.string.route_megaproxy).assertDoesNotExist()
+        node(R.string.selected_apps_routing_description).performScrollTo().performClick()
+        saved()
+        node(R.string.route_megaproxy).performScrollTo().assertIsOn()
+    }
 }
