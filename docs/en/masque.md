@@ -1,9 +1,7 @@
 # MASQUE α (HTTP/3)
 
-MASQUE is experimental and marked **α** in the interface. Its implementation was merged
-into `main` in [PR #70](https://github.com/andre487/AndroidMegaProxy/pull/70); published v1.0.3 APKs
-contain HTTPS/SSH only. Use an identified build containing that implementation.
-PR APKs are test builds; see [installation](installation.md#test-builds-from-pull-requests).
+MASQUE is experimental and marked **α** in the interface. Use a current release;
+PR APKs are test builds. See [installation](installation.md#pr-test-builds).
 
 ## Configure GOST
 
@@ -72,8 +70,7 @@ normal routing and are not rewritten to the selected DoH provider.
 - The 2026-10-11 API 35 verification found lost final TCP bytes on immediate write
   half-close with GOST 3.3.0: its relay handles EOF before bytes returned by the same
   read. The failure also reproduces with the native client without Android TUN.
-  This is a server limitation; delaying FIN is not a fix. See the
-  [verification report](../reviews/release-api35-2026-10-11.md).
+  This is a server limitation; delaying FIN is not a fix.
 - GOST 3.3.0 rejects IPv6 literal CONNECT-UDP targets. TCP IPv6 and local UDP bypass
   follow the profile's IPv6/routing policy. IPv4-only is the default.
 - The stats card shows QUIC RTT and outgoing packets declared lost over five minutes.

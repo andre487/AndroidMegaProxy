@@ -103,8 +103,8 @@ allows PR CI and the tag-triggered release build to run normally.
 The version must exceed both the version in code and the previous stable tag.
 Prereleases and automatic version selection are deliberately unsupported. Preparation
 and finalization execute trusted workflow source, not code fetched from the release PR.
-Only Gradle's two version fields and the ten changelog files (five APK codes per locale) may be changed by the
-release commit. Concurrent release preparations are serialized.
+The release commit may change only Gradle's two version fields, the ten changelog files
+(five APK codes per locale) and `release-notes/X.Y.Z.md`. Concurrent release preparations are serialized.
 
 ## Failure and recovery
 

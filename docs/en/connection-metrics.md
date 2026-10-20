@@ -1,8 +1,8 @@
 # Connection quality metrics
 
-The main screen shows **TCP RTT** and the **number of outgoing TCP retransmitted
-segments observed in the last five minutes**, replacing connection-opening errors
-and mixed connection-setup timings.
+The main screen displays payload totals/rates and passive metrics to the **first proxy**:
+TCP RTT/retransmits for TCP transports, QUIC RTT/loss declarations for HTTP/3. An established
+HTTP/3 session identifies the transport before any tunnel payload is sent.
 
 - RTT comes from the kernel's smoothed TCP round-trip estimate (`TCP_INFO`). With
   multiple physical connections, the display is their arithmetic mean. It is not
@@ -25,9 +25,7 @@ and mixed connection-setup timings.
 - Counters reset for a new VPN core session. Late work from an old session and
   standalone diagnostics cannot alter the new session's counters.
 
-The old warning based on at least 75% failed connection openings is removed.
-Existing timeout/reset-based suspected-blocking detection and recovery remain;
-its message says the proxy may be blocked **or unavailable**. It is a heuristic,
+Timeout/reset-based suspected-blocking detection says the proxy may be blocked **or unavailable**. It is a heuristic,
 not proof of filtering. Recovery requires at least two independent proxy failures
 within 60 seconds without a successful proxy tunnel between them. Multiple stream
 errors from one QUIC session count once. A successful end-to-end proxy tunnel
@@ -81,10 +79,36 @@ Local sequential diagnostic numbers carry no peer identity. Do not
 log complete TLS/SSH state objects. HTTP rejection messages use numeric status
 codes, not server-provided reason text; connection-test providers use indices.
 
-[Русская версия](../ru/connection-metrics.md)
 
 SOCKS5 profiles support TCP CONNECT and UDP ASSOCIATE, with optional credentials
 (1–255 UTF-8 bytes each), on port 1080 by default. SOCKS5 adds no encryption or TLS
 fingerprint. DNS still uses DoH through the proxy. The connection test also checks
 end-to-end HTTP/3 over SOCKS5 UDP. TCP metrics cover proxy TCP connections, including
 UDP control connections; they do not measure UDP loss or RTT.
+
+## Test, Speed and VPN visibility
+
+These are separate entries in the main menu; they measure different things:
+
+| Screen | Meaning |
+| --- | --- |
+| Test | Proxy connection, HTTPS and exit IP/country; independent UDP/HTTP3 checks for supported transports. IP is selectable/copyable, status icons have spoken labels. If disconnected, a temporary test VPN may be used. |
+| Speed | Active Cloudflare transfer over the underlying network and VPN separately; progressively filled table with IP, flag/code, HTTP and TLS on separate lines, latency, download and upload. |
+| VPN visibility | Local Android/interface signals plus ProxyCheck public-IP reputation per available route. Local heuristics and remote reputation are not proof that all apps can detect the VPN. |
+
+Speed uses 10/25/50 decimal MB per direction per route (10,000,000/25,000,000/50,000,000 bytes).
+Two routes and both directions can consume up to four times the selected payload, plus overhead.
+Default h3 falls back to h2 then h1; h2 permits h1 fallback, h1 stays h1. Fallback applies only to
+initial metadata negotiation, not certificate errors, HTTP failures or failed payload transfers.
+Latency is median **time to first byte** from three empty downloads, including request overhead;
+it is not SSL-handshake time, an ICMP ping or the main screen's passive RTT.
+Cloudflare's `h3.speed.cloudflare.com` endpoint is used for protocol-capable measurements.
+The log records DNS/TCP/TLS/QUIC stages, protocol/fallback, HTTP status, connection reuse,
+bytes and transfer timing; no response payloads or exit IP are added to the log.
+Leaving the screen cancels requests and discards its results/log; Home/background alone does not.
+
+ProxyCheck success is cached per public IP for 24 hours. Daily quota exhaustion, network failure
+and unknown response format are distinct states; unavailable routes are shown separately.
+Tests parse fixtures rather than contacting ProxyCheck. Full endpoint inventory: [README](../../README.md#privacy-and-security).
+
+[Русская версия](../ru/connection-metrics.md)

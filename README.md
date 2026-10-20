@@ -2,6 +2,7 @@
 
 [![CI](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml/badge.svg?branch=main&event=push)](https://github.com/andre487/AndroidMegaProxy/actions/workflows/ci.yml?query=branch%3Amain+event%3Apush)
 [![Release](https://img.shields.io/github/v/release/andre487/AndroidMegaProxy)](https://github.com/andre487/AndroidMegaProxy/releases/latest)
+[![VirusTotal: latest report](https://img.shields.io/badge/VirusTotal-latest%20report-blue?logo=virustotal&logoColor=white)](https://github.com/andre487/AndroidMegaProxy/releases/latest#virustotal)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Android 8+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
 
@@ -18,18 +19,6 @@ statistics and diagnostic logs stay on the device unless you explicitly choose t
 
 > MegaProxy is under active development. Review the current limitations before relying on it for
 > critical connectivity.
-
-## Why MegaProxy
-
-- **Private by design.** No account, ads, analytics, tracking identifiers, or background telemetry.
-- **Your infrastructure.** Connect to your HTTPS, MASQUE or SSH servers, directly or through a jump server.
-- **Preserves application TLS.** HTTPS proxying uses CONNECT without intercepting or
-  decrypting application TLS; plain application protocols still need their own encryption.
-- **Flexible routing.** Route the whole device or only selected applications through the VPN.
-- **Resilient connections.** Profile failover, encrypted DNS fallback, SSH keepalives, and
-  connection health reporting help recover from network and server failures.
-- **Fully open source.** MegaProxy application code is under the MIT License. Bundled
-  dependencies retain their own licenses; see `native/go.mod` and their source distributions.
 
 ## Features
 
@@ -77,7 +66,7 @@ The proxy's advertised UDP relay must be reachable through its firewall/NAT.
 - Local-network bypass enabled by default.
 - Per-profile IPv6 support; IPv4-only operation is the default.
 - Android Always-on VPN integration and a persistent foreground-service notification.
-- Automatic reconnect when the active profile or pending connection settings change.
+- Pending routing/profile changes offer reconnect; Android network recovery and configured failover are automatic.
 - Approximate upload/download speed, kernel TCP RTT to the first proxy, and outgoing TCP retransmits observed over the last five minutes.
 - Session traffic totals with selectable IEC/SI units, connection start time and elapsed duration.
 
@@ -98,7 +87,8 @@ The proxy's advertised UDP relay must be reachable through its firewall/NAT.
 - Local, size-limited, rotating diagnostic and crash logs designed to omit credentials and traffic
   content.
 - [Negotiated TLS/HTTP/SSH parameters](docs/en/connection-metrics.md#negotiation-diagnostics) without peer identities or credentials.
-- On-device connection visibility checks and actionable connection warnings.
+- **VPN visibility** compares local signals and cached ProxyCheck IP reputation per route.
+- **Speed** compares download/upload, latency, exit IP/country and negotiated HTTP/TLS over the underlying network and VPN.
 - Optional feedback or crash reports opened in the user's email client; nothing is submitted
   automatically.
 - English and Russian interfaces with an in-app language selector.
@@ -121,12 +111,11 @@ QUIC fingerprint is the diagnostic client's, not the selected outer MASQUE finge
 Chrome's. The VPN visibility screen obtains each route's public IP through the connection test's
 provider sequence
 (Cloudflare trace first, then `ifconfig.me`, `api.ipify.org`, and `icanhazip.com`), then queries `https://proxycheck.io/v3/`
-and reports its VPN, proxy, Tor, or anonymous-IP verdict. Anonymous access is limited to 100 queries
-per source IP per day; MegaProxy reports an exhausted daily allowance separately from request
+and reports its VPN, proxy, Tor, or anonymous-IP verdict. Quotas are controlled by ProxyCheck; MegaProxy reports an exhausted daily allowance separately from request
 failures and caches successful verdicts for each public IP for 24 hours.
 An explicitly started speed test requests route metadata from
 `https://h3.speed.cloudflare.com/cdn-cgi/trace`, measures median time to first byte with three empty
-downloads, and transfers a user-selected 10, 25 or 50 MB per direction and available route through
+downloads, and transfers a user-selected 10, 25 or 50 decimal megabytes (10,000,000 / 25,000,000 / 50,000,000 bytes) per direction and available route through
 `https://h3.speed.cloudflare.com/__down` and `https://h3.speed.cloudflare.com/__up`.
 This protocol-capable hostname is required: the ordinary `speed.cloudflare.com` hostname may
 negotiate only HTTP/1.1.
@@ -135,8 +124,8 @@ The Go client binds DNS and TCP/UDP sockets to the selected Android network. Use
 metadata probe permits protocol fallback; certificate failures, HTTP service errors, and transfer
 failures do not restart the payload. The screen log includes DNS/TCP/TLS/QUIC timings, HTTP status,
 connection reuse, latency samples, byte counts, transfer rates, and protocol fallback reasons.
-It displays the exit IP, country, negotiated HTTP/TLS protocol, latency and download
-and upload speed for the underlying network and VPN tunnel separately.
+It displays each result as it arrives, with selectable exit IPs, country flag/code and separate
+HTTP/TLS lines. Leaving the speed screen cancels the measurement; backgrounding the app does not.
 Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
 
 - HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and
@@ -163,10 +152,15 @@ vendors may impose additional background-execution restrictions.
 
 ## Installation
 
-MegaProxy requires Android 8.0 (API 26) or newer. Download a signed APK from
-[GitHub Releases](https://github.com/andre487/AndroidMegaProxy/releases/latest) or install it through
-[F-Droid](https://f-droid.org/packages/net.megaproxy487/).
-For most users, choose **[mega-proxy-universal.apk](https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk)**.
+MegaProxy requires Android 8.0 (API 26) or newer and your own server configuration.
+
+<table>
+  <tr><th align="center">GitHub</th><th align="center">F-Droid</th></tr>
+  <tr>
+    <td align="center"><a href="https://github.com/andre487/AndroidMegaProxy/releases/latest/download/mega-proxy-universal.apk"><img src="docs/assets/get-it-on-github.png" alt="Download APK from GitHub" height="75"></a></td>
+    <td align="center"><a href="https://f-droid.org/packages/net.megaproxy487/"><img src="https://fdroid.gitlab.io/artwork/badge/get-it-on.png" alt="Get it on F-Droid" height="75"></a></td>
+  </tr>
+</table>
 
 Detailed instructions cover choosing an APK, installation permissions, checksums, ADB,
 updates without losing settings, and troubleshooting:
@@ -203,57 +197,22 @@ Pinned schemas and examples live in `config-schema/`; update them explicitly wit
 `bundle exec fastlane android renew_config_schema` (or `ref:FULL_SHA`). JVM checks validate real
 exports against both the Android baseline and shared schema. Import results report ignored browser
 settings and fields unknown to the pinned specification once each, without displaying values.
-Neither category is retained or included in later exports. See the
-[compatibility audit](docs/reviews/config-schema.md) for the canonical-format and legacy-import distinction.
+Neither category is retained or included in later exports. Legacy imports remain permissive;
+explicit unsupported transports are rejected instead of silently becoming HTTPS.
 
 ### Configuration subscriptions
 
-Use **Settings → Configuration subscription** to save a trusted HTTPS source,
-up to seven backup URLs, separate optional Basic Auth and a refresh interval.
-Alternatively, import a version 8 JSON with the root `subscription` definition.
-The first automatic check is due immediately; Android may delay background work.
-Pause stops scheduled checks; **Update now** also works while paused.
-
-Updates replace only subscription-owned profiles, keeping separately added
-profiles and surviving local selections. All sources failing retains the last
-working snapshot. Downloads reject redirects, verify TLS, limit decoded bodies
-to 4 MiB and send `X-MegaProxy-Client: android` plus the installed version.
-URLs and subscription credentials are encrypted locally; JSON export includes
-the definition, with its password following **Include passwords**. URL query tokens
-remain sensitive even without exported passwords. Existing VPN tunnels continue
-with their previous settings; changes mark **Reconnect** rather than interrupting
-a working connection. Background updates affecting the running VPN also offer
-a notification with **Reconnect**, when notifications are allowed. It contains
-no profile details and cannot restart a stopped VPN. See [English](docs/en/subscriptions.md) / [Russian](docs/ru/subscriptions.md)
-and the [delivery protocol](https://github.com/andre487/MegaProxyConfig/blob/main/docs/subscription-protocol.md).
+**Settings → Configuration subscription** imports trusted HTTPS snapshots with optional Basic Auth,
+backup URLs and scheduled refresh. Subscription-owned profiles update atomically; local profiles
+and current tunnels survive. Changed connection settings require reconnecting. URLs and credentials
+are encrypted locally; exported URL tokens remain sensitive.
+See [English](docs/en/subscriptions.md) / [Русский](docs/ru/subscriptions.md).
 
 ### MASQUE with GOST
 
-Select **MASQUE α (HTTP/3)**, enter the proxy hostname, UDP port and Basic credentials.
-The proxy certificate is verified by default. For GOST 3.3.0 use:
-
-```shell
-gost -L 'masque+http3://USER:PASSWORD@:8443?enableDatagrams=true'
-```
-
-This short command uses GOST-generated self-signed certificates. For normal verified
-connections, configure `listener.tls.certFile` and `listener.tls.keyFile` with a valid
-certificate chain and key for the proxy hostname.
-
-GOST's `http3` listener handles MASQUE; its `h3` listener is a different transport.
-Global app routing, local-network bypass, traffic accounting, DoH/fallback providers,
-connection checks, reconnect/failover and credential storage also apply to MASQUE.
-JSON uses `proxy.type: "MASQUE"`; ProxyList uses `masque://user:password@host:port`.
-
-QUIC uses the uQUIC Chrome 146 or Firefox 116 presets, independently of the TCP TLS
-preset versions. Custom JA3 requires TLS 1.3 suites and extensions 16, 43, 51 and 57;
-QUIC transport-parameter payloads come from the Chrome preset. Randomized uses the
-Chrome QUIC preset with randomized extension/parameter order. These approximate
-browser TLS/QUIC handshakes; HTTP/3 SETTINGS and congestion behavior remain those
-of the networking library. Firefox's 1200-byte datagram-frame limit cannot carry
-an inner QUIC Initial of 1200 bytes plus MASQUE framing; use Chrome for that traffic.
-The pinned uQUIC production sources include compatibility and integration patches, documented in
-[native/third_party/uquic/MEGAPROXY.md](native/third_party/uquic/MEGAPROXY.md).
+Select **MASQUE α (HTTP/3)** for multiplexed TCP/UDP over QUIC with Basic Auth.
+GOST requires the `http3` listener, not `h3`, and a valid proxy certificate for normal verification.
+Setup, fingerprints and packet-size/IPv6 limits: [English](docs/en/masque.md) / [Русский](docs/ru/masque.md).
 
 ### HTTPS with Jump
 
@@ -368,7 +327,8 @@ For optional local device testing on an ARM64 host, create the API 35 Google API
 
 Robolectric Compose tests do not need an emulator. CI also runs independent hardware-accelerated
 API 26 and API 35 integration scenarios for real VPN/JNI, Keystore and system document providers.
-See the [Fastlane reference](docs/en/fastlane.md#android-emulator-integration-tests).
+See the [testing policy](docs/en/release-testing.md).
+Launch emulators with `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and lowercase variants unset.
 
 The script installs missing components, configures host keyboard and mouse input, and can be run
 more than once. It creates `MegaProxy_API_35` by default; set `MEGAPROXY_AVD_NAME` to override the
@@ -380,26 +340,8 @@ Start the application without a debugger:
 ./scripts/run-without-debugging.sh
 ```
 
-The repository also includes VS Code tasks and launch configurations for creating and starting the
-emulator, building, installing, viewing app-specific Logcat output, running tests, and attaching a
-JDWP debugger. Select **Run MegaProxy on Emulator** for `Ctrl+F5` or **Attach MegaProxy (JDWP)** for
-`F5`.
-
-For Kotlin editing, install the workspace recommendations, including `fwcd.kotlin` and Gradle for
-Java. The repository's `kls-classpath` helper supplies the language server with the Android SDK,
-Compose dependencies, and generated `R` classes that it cannot discover from Android Gradle Plugin
-variants by itself. After installing or updating the extensions, run **Kotlin: Restart the Language
-Server** (or **Developer: Reload Window**) once. Run `./kls-classpath` directly to diagnose
-classpath resolution.
-
-Run all native and Android checks from VS Code with **Tasks: Run Test Task**, or from a shell:
-
-```shell
-bundle exec fastlane android test
-```
-
-JDWP covers Kotlin and Java code only. Debug the Go core with its tests and privacy-safe diagnostic
-logging.
+VS Code tasks support build/install, app Logcat and JDWP attachment; JDWP covers Kotlin/Java,
+not Go. Use native tests for the Go core.
 
 ### Signed release builds
 
@@ -433,9 +375,8 @@ it with `git tag` and push the specific tag with `git push origin`; never reuse 
 ## Contributing
 
 Bug reports and focused pull requests are welcome. Please avoid including proxy credentials,
-private keys, destination history, or other personal data in issues and logs. Run both the Go and
-Android checks with `bundle exec fastlane android test` before opening a pull request. For Python
-changes, also run `bundle exec fastlane android python_checks`; the `test` lane does not include Python.
+private keys, destination history, or other personal data in issues and logs. Select checks using the [testing policy](docs/en/release-testing.md)
+([по-русски](docs/ru/release-testing.md)); docs-only changes do not require APK builds.
 
 ## License
 

@@ -30,7 +30,7 @@ branch names, credentials, signing material, or other secrets.
 - Compare each suite against its last successful ancestor check in the same PR and base.
   Failed/skipped/cancelled jobs do not advance coverage. Fall back to the full PR diff when
   history is unavailable; unknown paths and shared build/CI inputs enable all suites. Require `Change scope`, `Python tests and style` and both emulator scenarios
-  alongside native/Android JVM checks when this workflow is adopted.
+  alongside native/Android JVM checks.
   Gate reusable emulator suites inside the called job, keeping the caller unconditional so
   skipped suites retain their required `Android emulator API 26/35 / Device tests` check names.
 - Every push to main runs all suites without diff/history filtering. The README CI badge is
@@ -54,7 +54,7 @@ branch names, credentials, signing material, or other secrets.
 - Exercise real screens and ConfigStore with a test-only Keystore provider. Before asserting
   service commands or their absence, drain ordered configuration writes and check both completion
   and failure state; `pending == 0` alone does not prove success. Recorded service intents do not
-  establish VPN lifecycle/JNI coverage. See `docs/reviews/test-quality.md` for coverage gaps.
+  establish VPN lifecycle/JNI coverage.
 - Keep device tests focused on real TUN/JNI traffic, service lifecycle, system permissions,
   Keystore process restarts and document providers. Keep deterministic logic in JVM/Go tests.
   Never fall back to unaccelerated software emulation or retry failed tests to obtain green CI.
@@ -135,9 +135,10 @@ branch names, credentials, signing material, or other secrets.
   app-enforced retention timer. Uninstalling the app does not remove email or exported/shared copies.
 - Keep the privacy-policy link at the bottom of Settings, targeting the public policy on `main`,
   with localized labels and an error message when no browser can open it.
-- Update current documentation while preserving historical changelogs. Review reports are dated
-  snapshots, not proof of current coverage or external store compliance; see
-  `docs/reviews/privacy-policy.md` for privacy follow-ups.
+- Update current EN/RU documentation while preserving historical changelogs. Do not maintain
+  `docs/reviews` or require committed review reports. Keep test policy in `docs/en/release-testing.md`
+  and `docs/ru/release-testing.md`; select manual checks by changed risk rather than repeating the
+  entire feature matrix on every device.
 
 - MASQUE uses protected HTTP/3 QUIC sockets with Basic Auth; DNS remains DoH. GOST uses the `http3` listener, not `h3`. Pinned uQUIC sources and compatibility patches live in `native/third_party/uquic`; keep packet-size and GOST IPv6 UDP limitations documented.
 
