@@ -273,7 +273,8 @@
     <string name="validation_jump_port">Jump port must be between 1 and 65535</string>
     <string name="validation_jump_ssh_username">Enter the jump SSH username</string>
     <string name="validation_ja3">JA3 must contain five fields: version,ciphers,extensions,groups,points</string>
-    <string name="validation_doh_url">The custom DoH URL must start with https://</string>
+    <string name="validation_doh_https_required">This field requires DNS over HTTPS (DoH), not plain DNS or DNS over TLS. Use an HTTPS URL, for example https://dns.example/dns-query.</string>
+    <string name="validation_doh_url">Use an HTTPS URL with a valid host and port, no credentials or #fragment. Enclose IPv6 addresses in brackets.</string>
     <string name="validation_jump_basic_username">Enter the jump Basic Auth username</string>
     <string name="validation_jump_basic_password">Enter the jump Basic Auth password</string>
     <string name="connection_started_at">Connected: %1$s</string>

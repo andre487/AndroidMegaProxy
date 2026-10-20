@@ -1,6 +1,7 @@
 package net.megaproxy487
 
 import androidx.compose.ui.test.*
+import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.GlobalConnectionSettings
@@ -12,6 +13,46 @@ class ProfileEditorUiTest : MainUiTestBase() {
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(text(id)))
         return node(id)
     }
+    @Test fun newSshProfileSavesCustomDohAndClearsValidationAfterCorrection() {
+        content { ProfileEditorScreen(activity, "new", {}) }
+        field(R.string.profile_name_optional).performTextReplacement("Custom DNS")
+        field(R.string.profile_type).performClick()
+        node(ProxyType.SSH.titleRes).performClick()
+        field(R.string.destination_ssh_hostname).performTextReplacement("proxy.example")
+        field(R.string.ssh_username).performTextReplacement("user")
+        fun selectDns(provider: DnsProvider) {
+            val selector = hasText(text(R.string.dns_over_https)) and hasClickAction()
+            compose.onNode(hasScrollToIndexAction()).performScrollToNode(selector)
+            compose.onNode(selector).performClick()
+            node(provider.titleRes).performClick()
+        }
+        selectDns(DnsProvider.CUSTOM)
+        val input = hasText(text(R.string.custom_doh_url)) and hasSetTextAction()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(input)
+        compose.onNode(input).performTextReplacement("192.0.2.1")
+        saved()
+        node(R.string.validation_doh_https_required).assertExists()
+        for (url in listOf("https://dns.example", "HTTPS://dns.example/query", "https://192.0.2.1",
+            "https://[2001:db8::1]:8443/dns-query")) {
+            compose.onNode(input).performTextReplacement("  $url  ")
+            saved()
+            node(R.string.validation_doh_url).assertDoesNotExist()
+            node(R.string.validation_doh_https_required).assertDoesNotExist()
+            val profile = store.profiles().single { it.name == "Custom DNS" }
+            assertEquals(ProxyType.SSH, profile.config.type)
+            assertEquals(DnsProvider.CUSTOM, profile.config.dnsProvider)
+            assertEquals(url, profile.config.customDohUrl)
+            assertNull(profile.config.connectionValidationError())
+        }
+        compose.onNode(input).performTextReplacement("invalid")
+        saved()
+        selectDns(DnsProvider.CLOUDFLARE)
+        saved()
+        node(R.string.validation_doh_url).assertDoesNotExist()
+        node(R.string.validation_doh_https_required).assertDoesNotExist()
+        assertNull(store.profiles().single { it.name == "Custom DNS" }.config.connectionValidationError())
+    }
+
     @Test fun socks5UsesItsPortAndHidesTlsAndSshControls() {
         val id = store.activeProfileId()
         content { ProfileEditorScreen(activity, id, {}) }

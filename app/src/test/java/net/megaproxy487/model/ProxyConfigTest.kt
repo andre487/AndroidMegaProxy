@@ -94,14 +94,31 @@ class ProxyConfigTest {
 
     @Test
     fun customDnsUrlValidationMatchesNativeRequirements() {
-        for (url in listOf("https://dns.example/", "https://dns.example:8443/query?mode=1")) {
-            assertNull(validConnection.copy(dnsProvider = DnsProvider.CUSTOM, customDohUrl = url).validationError())
+        val validUrls = listOf(
+            "https://dns.example", "https://dns.example/", "https://dns.example?key=synthetic",
+            "HTTPS://dns.example/query", "https://dns.example:8443/query?mode=1",
+            "https://192.0.2.1", "https://192.0.2.1:8443/dns-query",
+            "https://[2001:db8::1]", "https://[2001:db8::1]:8443/dns-query",
+        )
+        for (type in ProxyType.entries) {
+            val config = validConnection.copy(type = type, jumpHost = "jump.example", dnsProvider = DnsProvider.CUSTOM)
+            for (url in validUrls) {
+                assertNull("$type: $url", config.copy(customDohUrl = "  $url  ").validationError())
+            }
+            for (url in listOf("", "192.0.2.1", "2001:db8::1", "dns.example:53", "udp://192.0.2.1",
+                "tls://dns.example", "http://dns.example/query")) {
+                assertEquals("$type: $url", R.string.validation_doh_https_required,
+                    config.copy(customDohUrl = url).validationError())
+            }
+            for (url in listOf("https:///query",
+                "https://user:secret@dns.example/query", "https://dns.example/query#fragment",
+                "https://dns.example:0/query", "https://dns.example:65536/query", "https://dns.example/bad path",
+                "https://2001:db8::1/dns-query", "https://dns.example/#")) {
+                assertEquals("$type: $url", R.string.validation_doh_url,
+                    config.copy(customDohUrl = url).validationError())
+            }
         }
-        for (url in listOf("http://dns.example/query", "https://user:secret@dns.example/query",
-            "https://dns.example/query#fragment", "https://dns.example:65536/query", "https://dns.example")) {
-            assertEquals(url, R.string.validation_doh_url,
-                validConnection.copy(dnsProvider = DnsProvider.CUSTOM, customDohUrl = url).validationError())
-        }
+        assertNull(validConnection.copy(customDohUrl = "invalid but unused").validationError())
     }
 
     @Test

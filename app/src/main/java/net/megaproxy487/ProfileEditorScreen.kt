@@ -500,7 +500,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 }
             }
           }
-            if (config.dnsProvider == DnsProvider.CUSTOM) item { OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } }, label = { FieldLabel(stringResource(R.string.custom_doh_url)) }, isError = fieldError(R.string.validation_doh_url) != null, supportingText = fieldError(R.string.validation_doh_url)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+            if (config.dnsProvider == DnsProvider.CUSTOM) item { OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } }, label = { FieldLabel(stringResource(R.string.custom_doh_url)) }, isError = fieldError(R.string.validation_doh_https_required, R.string.validation_doh_url) != null, supportingText = fieldError(R.string.validation_doh_https_required, R.string.validation_doh_url)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
 
           item {
             Text(stringResource(if (isNew && !editorState.persisted) R.string.draft_profile_hint else R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall)

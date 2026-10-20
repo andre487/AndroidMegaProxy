@@ -86,7 +86,7 @@ class NativeProxyCore(
         { callbacksEnabled.get() && isCurrent() }, deliver, ::callbackFailure,
     )
 
-    private fun configJson(config: ProxyConfig) = JSONObject()
+    internal fun configJson(config: ProxyConfig) = JSONObject()
         .put("type", config.type.name)
         .put("host", config.host.trim())
         .put("dialHost", config.resolvedProxyIp)

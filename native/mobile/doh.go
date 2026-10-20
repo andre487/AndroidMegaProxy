@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"mime"
 	"net"
 	"net/http"
 	"net/url"
@@ -16,12 +17,17 @@ import (
 	"time"
 )
 
+var errNotDoH = errors.New("HTTPS endpoint did not return a DNS-over-HTTPS response")
+
 func validateDoHURL(raw string) error {
 	u, err := url.Parse(raw)
-	if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.Path == "" {
+	if err != nil || u.Scheme != "https" || u.Hostname() == "" || strings.ContainsAny(raw, " \t\r\n") {
 		return errors.New("invalid HTTPS DoH URL")
 	}
-	if u.User != nil || u.Fragment != "" {
+	if strings.Contains(u.Hostname(), ":") && !strings.HasPrefix(u.Host, "[") {
+		return errors.New("DoH IPv6 address must be enclosed in brackets")
+	}
+	if u.User != nil || strings.Contains(raw, "#") {
 		return errors.New("DoH URL must not contain credentials or fragment")
 	}
 	if port := u.Port(); port != "" {
@@ -187,8 +193,9 @@ func (c *dohPacketConn) queryEndpoint(endpoint string, query []byte) ([]byte, er
 	if response.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("DoH returned %s", response.Status)
 	}
-	if !strings.HasPrefix(response.Header.Get("Content-Type"), "application/dns-message") {
-		return nil, errors.New("DoH returned an unexpected content type")
+	mediaType, _, err := mime.ParseMediaType(response.Header.Get("Content-Type"))
+	if err != nil || mediaType != "application/dns-message" {
+		return nil, errNotDoH
 	}
 	body, err := io.ReadAll(io.LimitReader(response.Body, 65537))
 	if err != nil {
@@ -196,6 +203,9 @@ func (c *dohPacketConn) queryEndpoint(endpoint string, query []byte) ([]byte, er
 	}
 	if len(body) > 65536 {
 		return nil, errors.New("DoH response exceeds 64 KB")
+	}
+	if len(body) < 12 || len(query) < 12 || body[2]&0x80 == 0 || !bytes.Equal(body[:2], query[:2]) {
+		return nil, errNotDoH
 	}
 	return body, nil
 }

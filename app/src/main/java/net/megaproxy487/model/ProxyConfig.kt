@@ -65,6 +65,8 @@ data class ProxyConfig(
         type.isHttpProxy && profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
             R.string.validation_ja3
         type == ProxyType.MASQUE && profile == TlsProfile.CUSTOM && !validQuicJa3(customJa3) -> R.string.validation_quic_ja3
+        dnsProvider == DnsProvider.CUSTOM && !customDohUrl.trim().startsWith("https://", ignoreCase = true) ->
+            R.string.validation_doh_https_required
         dnsProvider == DnsProvider.CUSTOM && !validDohUrl(customDohUrl.trim()) ->
             R.string.validation_doh_url
         else -> null
@@ -245,7 +247,7 @@ data class Ja3Spec(
 
 internal fun validDohUrl(value: String): Boolean = runCatching {
     val uri = URI(value)
-    uri.scheme == "https" && !uri.host.isNullOrBlank() && !uri.rawPath.isNullOrEmpty() &&
+    uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrBlank() &&
         uri.rawUserInfo == null && uri.rawFragment == null &&
         (uri.port == -1 || uri.port in 1..65535)
 }.getOrDefault(false)

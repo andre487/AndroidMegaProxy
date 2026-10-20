@@ -35,11 +35,29 @@ func TestConfigRejectsIPOrSchemeLikeHost(t *testing.T) {
 	}
 }
 
-func TestDoHRequiresHTTPS(t *testing.T) {
-	if validateDoHURL("http://dns.example/query") == nil {
-		t.Fatal("expected HTTPS requirement")
+func TestDoHURLValidation(t *testing.T) {
+	for _, raw := range []string{
+		"https://dns.example", "https://dns.example/", "https://dns.example?key=synthetic",
+		"HTTPS://dns.example/query", "https://dns.example:8443/query?mode=1",
+		"https://192.0.2.1", "https://192.0.2.1:8443/dns-query",
+		"https://[2001:db8::1]", "https://[2001:db8::1]:8443/dns-query",
+	} {
+		t.Run(raw, func(t *testing.T) {
+			if err := validateDoHURL(raw); err != nil {
+				t.Fatalf("valid DoH URL rejected: %v", err)
+			}
+		})
 	}
-	if validateDoHURL("https://dns.example/dns-query") != nil {
-		t.Fatal("expected valid DoH URL")
+	for _, raw := range []string{
+		"", "http://dns.example/query", "https:///query", "https://user:secret@dns.example/query",
+		"https://dns.example/query#fragment", "https://dns.example:0/query",
+		"https://dns.example:65536/query", "https://dns.example/bad path",
+		"https://2001:db8::1/dns-query", "https://dns.example/#",
+	} {
+		t.Run("invalid:"+raw, func(t *testing.T) {
+			if err := validateDoHURL(raw); err == nil {
+				t.Fatal("invalid DoH URL accepted")
+			}
+		})
 	}
 }

@@ -272,7 +272,8 @@
     <string name="validation_jump_port">Порт промежуточного сервера должен быть от 1 до 65535</string>
     <string name="validation_jump_ssh_username">Введите имя пользователя промежуточного SSH-сервера</string>
     <string name="validation_ja3">JA3 должен содержать пять полей: version,ciphers,extensions,groups,points</string>
-    <string name="validation_doh_url">Пользовательский URL DoH должен начинаться с https://</string>
+    <string name="validation_doh_https_required">Здесь нужен DNS over HTTPS (DoH), а не обычный DNS или DNS over TLS. Введите HTTPS URL, например https://dns.example/dns-query.</string>
+    <string name="validation_doh_url">Укажите HTTPS URL с корректным хостом и портом, без логина, пароля и #фрагмента. IPv6-адрес заключите в квадратные скобки.</string>
     <string name="validation_jump_basic_username">Введите имя пользователя Basic Auth промежуточного прокси</string>
     <string name="validation_jump_basic_password">Введите пароль Basic Auth промежуточного прокси</string>
     <string name="connection_started_at">Подключено: %1$s</string>
