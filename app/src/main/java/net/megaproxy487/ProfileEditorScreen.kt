@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.data.readPrivateKeyText
+import net.megaproxy487.model.DnsTransport
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProfileColorMatcher
 import net.megaproxy487.model.ProxyConfig
@@ -98,6 +99,9 @@ private class ProfileEditorState(initialProfile: net.megaproxy487.model.ProxyPro
     var importingKey by mutableStateOf(false)
     var countryExpanded by mutableStateOf(false)
     var dnsExpanded by mutableStateOf(false)
+    var dnsTransportExpanded by mutableStateOf(false)
+    var insecureDnsWarning by mutableStateOf<DnsTransport?>(null)
+    var invalidDohWarning by mutableStateOf(false)
     var invalidCertificateIsJump by mutableStateOf(false)
     var showInvalidCertificateWarning by mutableStateOf(false)
     var typeExpanded by mutableStateOf(false)
@@ -130,6 +134,9 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     var importingKey by editorState::importingKey
     var countryExpanded by editorState::countryExpanded
     var dnsExpanded by editorState::dnsExpanded
+    var dnsTransportExpanded by editorState::dnsTransportExpanded
+    var insecureDnsWarning by editorState::insecureDnsWarning
+    var invalidDohWarning by editorState::invalidDohWarning
     var invalidCertificateIsJump by editorState::invalidCertificateIsJump
     var showInvalidCertificateWarning by editorState::showInvalidCertificateWarning
     var typeExpanded by editorState::typeExpanded
@@ -489,18 +496,71 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             }
           }
 
+          item { Text(stringResource(R.string.dns_settings), style = MaterialTheme.typography.titleMedium) }
           item {
-            Text(stringResource(R.string.dns_over_https), style = MaterialTheme.typography.titleMedium)
+            SettingSwitchRow(config.allowInsecureDns, stringResource(R.string.allow_insecure_dns),
+                stringResource(R.string.allow_insecure_dns_description)) { enabled ->
+                if (enabled) insecureDnsWarning = DnsTransport.DOH else updateConfig(config.copy(
+                    allowInsecureDns = false,
+                    dnsProvider = if (config.dnsTransport != DnsTransport.DOH) DnsProvider.CLOUDFLARE else config.dnsProvider,
+                    customDohUrl = if (config.dnsTransport != DnsTransport.DOH) "" else config.customDohUrl,
+                ))
+            }
           }
-          item {
-            ExposedDropdownMenuBox(dnsExpanded, { dnsExpanded = it }) {
-                OutlinedTextField(activity.uiText(config.dnsProvider.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.dns_over_https)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
-                DropdownMenu(dnsExpanded, { dnsExpanded = false }) {
-                    DnsProvider.entries.forEach { provider -> DropdownMenuItem(text = { Text(activity.uiText(provider.titleRes)) }, onClick = { updateConfig(config.copy(dnsProvider = provider)); dnsExpanded = false }) }
+          if (!config.allowInsecureDns && config.dnsTransport != DnsTransport.DOH) item {
+            TextButton(onClick = { updateConfig(config.copy(dnsProvider = DnsProvider.CLOUDFLARE, customDohUrl = "")) }) {
+                Text(stringResource(R.string.dns_transport_doh))
+            }
+          }
+          if (config.allowInsecureDns) item {
+            ExposedDropdownMenuBox(dnsTransportExpanded, { dnsTransportExpanded = it }) {
+                OutlinedTextField(stringResource(config.dnsTransport.titleRes), {}, readOnly = true,
+                    label = { FieldLabel(stringResource(R.string.dns_transport)) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsTransportExpanded) },
+                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                DropdownMenu(dnsTransportExpanded, { dnsTransportExpanded = false }) {
+                    DnsTransport.entries.forEach { transport ->
+                        DropdownMenuItem(text = { Text(stringResource(transport.titleRes)) }, onClick = {
+                            dnsTransportExpanded = false
+                            if (transport == DnsTransport.DOH) updateConfig(config.copy(dnsProvider = DnsProvider.CLOUDFLARE, customDohUrl = ""))
+                            else insecureDnsWarning = transport
+                        })
+                    }
                 }
             }
           }
-            if (config.dnsProvider == DnsProvider.CUSTOM) item { OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } }, label = { FieldLabel(stringResource(R.string.custom_doh_url)) }, isError = fieldError(R.string.validation_doh_url) != null, supportingText = fieldError(R.string.validation_doh_url)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth()) }
+          if (config.dnsTransport == DnsTransport.DOH) {
+            item {
+                SettingSwitchRow(config.allowInvalidDohCertificate, stringResource(R.string.allow_invalid_doh_certificate),
+                    stringResource(R.string.allow_invalid_doh_certificate_warning)) { enabled ->
+                    if (enabled) invalidDohWarning = true else updateConfig(config.copy(allowInvalidDohCertificate = false))
+                }
+            }
+            item {
+                ExposedDropdownMenuBox(dnsExpanded, { dnsExpanded = it }) {
+                    OutlinedTextField(activity.uiText(config.dnsProvider.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.dns_over_https)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                    DropdownMenu(dnsExpanded, { dnsExpanded = false }) {
+                        DnsProvider.entries.forEach { provider -> DropdownMenuItem(text = { Text(activity.uiText(provider.titleRes)) }, onClick = { updateConfig(config.copy(dnsProvider = provider)); dnsExpanded = false }) }
+                    }
+                }
+            }
+            if (config.dnsProvider == DnsProvider.CUSTOM) item {
+                val dnsError = fieldError(R.string.validation_doh_https_required, R.string.validation_doh_url)
+                OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } },
+                    label = { FieldLabel(stringResource(R.string.custom_doh_url)) }, isError = dnsError != null,
+                    supportingText = dnsError?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+          } else {
+            item {
+                Text(stringResource(if (config.dnsTransport == DnsTransport.TCP) R.string.insecure_dns_tcp_warning else R.string.insecure_dns_udp_warning),
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                val dnsError = fieldError(R.string.validation_dns_server, R.string.validation_insecure_dns_disabled)
+                OutlinedTextField(config.customDohUrl.trim().substringAfter("://", ""), { value -> acceptText(value, 256) {
+                    updateConfig(config.copy(customDohUrl = "${config.dnsTransport.scheme}://$it"))
+                } }, label = { FieldLabel(stringResource(R.string.dns_server_ip)) }, isError = dnsError != null,
+                    supportingText = dnsError?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+            }
+          }
 
           item {
             Text(stringResource(if (isNew && !editorState.persisted) R.string.draft_profile_hint else R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall)
@@ -508,6 +568,32 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
         }
     }
 
+    if (invalidDohWarning) AlertDialog(
+        onDismissRequest = { invalidDohWarning = false },
+        title = { DialogTitle(stringResource(R.string.allow_invalid_doh_certificate)) },
+        text = { ScrollableDialogText(stringResource(R.string.allow_invalid_doh_certificate_warning)) },
+        confirmButton = { TextButton(onClick = { updateConfig(config.copy(allowInvalidDohCertificate = true)); invalidDohWarning = false }) { Text(stringResource(R.string.ok)) } },
+        dismissButton = { TextButton(onClick = { invalidDohWarning = false }) { Text(stringResource(R.string.cancel)) } },
+    )
+    insecureDnsWarning?.let { transport ->
+        AlertDialog(
+            onDismissRequest = { insecureDnsWarning = null },
+            title = { DialogTitle(stringResource(R.string.insecure_dns_warning_title)) },
+            text = { ScrollableDialogText(stringResource(when (transport) {
+                DnsTransport.DOH -> R.string.insecure_dns_warning
+                DnsTransport.TCP -> R.string.insecure_dns_tcp_warning
+                DnsTransport.UDP -> R.string.insecure_dns_udp_warning
+            })) },
+            confirmButton = { TextButton(onClick = {
+                updateConfig(if (transport == DnsTransport.DOH) config.copy(allowInsecureDns = true) else config.copy(
+                    allowInsecureDns = true, dnsProvider = DnsProvider.CUSTOM,
+                    customDohUrl = "${transport.scheme}://${if (config.dnsTransport != DnsTransport.DOH) config.customDohUrl.trim().substringAfter("://", "") else ""}",
+                ))
+                insecureDnsWarning = null
+            }) { Text(stringResource(R.string.ok)) } },
+            dismissButton = { TextButton(onClick = { insecureDnsWarning = null }) { Text(stringResource(R.string.cancel)) } },
+        )
+    }
     if (showInvalidCertificateWarning) {
         AlertDialog(
             onDismissRequest = { showInvalidCertificateWarning = false },

@@ -646,6 +646,8 @@ class ConfigStore(context: Context) {
         put("customJa3", config.customJa3.trim())
         put("dnsProvider", config.dnsProvider.name)
         put("customDohUrl", config.customDohUrl.trim())
+        put("allowInsecureDns", config.allowInsecureDns)
+        put("allowInvalidDohCertificate", config.allowInvalidDohCertificate)
         put("packages", JSONArray(config.selectedPackages.sorted()))
         put("allowIpv6", config.allowIpv6)
         put("routeAllApps", config.routeAllApps)
@@ -696,6 +698,8 @@ class ConfigStore(context: Context) {
             customJa3 = item.optString("customJa3"),
             dnsProvider = enumValue(item.optString("dnsProvider"), DnsProvider.CLOUDFLARE),
             customDohUrl = item.optString("customDohUrl"),
+            allowInsecureDns = item.opt("allowInsecureDns") == true,
+            allowInvalidDohCertificate = item.opt("allowInvalidDohCertificate") == true,
             selectedPackages = item.optJSONArray("packages")?.let { array ->
                 (0 until array.length()).map { array.getString(it) }.toSet()
             }.orEmpty(),

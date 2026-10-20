@@ -202,7 +202,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 			}
 		}
 	}
-	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
+	if d.config.bypassTarget(target) {
 		report(d.reporter, "event=connection conn=%d mode=direct stage=tcp_connect result=started", connectionID)
 		directStarted := time.Now()
 		connection, err := d.protectedDialer().DialContext(ctx, "tcp", target)
@@ -576,7 +576,7 @@ func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, erro
 		return nil, net.ErrClosed
 	}
 	if d.dohClient == nil {
-		d.dohClient = newDoHHTTPClient(d.connectTarget)
+		d.dohClient = newDoHHTTPClient(d.connectTarget, d.config.AllowInvalidDoHCertificate)
 	}
 	if d.dohInFlight == nil {
 		d.dohInFlight = make(chan struct{}, 8)
@@ -584,7 +584,9 @@ func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, erro
 	client := d.dohClient
 	limiter := d.dohInFlight
 	d.cacheMu.Unlock()
-	return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter), nil
+	packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
+	packet.connectUDP = d.connectDNSUDP
+	return packet, nil
 }
 
 type bufferedConn struct {
@@ -735,4 +737,8 @@ func (d *httpsConnectDialer) logHop() string {
 		return "jump"
 	}
 	return "destination"
+}
+
+func (d *httpsConnectDialer) connectDNSUDP(ctx context.Context, target string) (net.PacketConn, error) {
+	return directDNSUDP(ctx, target, d, d.protector)
 }

@@ -31,6 +31,9 @@ func errorClass(err error) string {
 	if err == nil {
 		return "none"
 	}
+	if errors.Is(err, errNotDoH) {
+		return "not_doh"
+	}
 	if errors.Is(err, errSOCKS5Auth) {
 		return "proxy_authentication"
 	}

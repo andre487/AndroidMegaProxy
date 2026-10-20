@@ -23,7 +23,9 @@ PACKAGE = "net.megaproxy487"
 RUNNER = PACKAGE + ".test/androidx.test.runner.AndroidJUnitRunner"
 GOST = "gogost/gost:3.3.0@sha256:f7a958c451928fbe1b99046d25bd0c9bf42019d4c60a82200f50dc8e617b7580"
 TESTS = (
+    # Must run before any scenario grants the app system VPN consent.
     "VpnDeviceTest#deniedVpnConsentDoesNotStartTunnel",
+    "DnsDeviceTest#resolverModesThroughRealTun",
     "VpnDeviceTest#trafficStopAndRestart",
     "VpnDeviceTest#socks5AuthenticatedTcpUdpStopAndRestart",
     "VpnDeviceTest#socks5AnonymousTcpUdpStopAndRestart",
@@ -94,6 +96,18 @@ def finish_case(shell, results, label, case, suite, log_start):
         raise RuntimeError(error_message + "; see collected evidence")
 
 
+class DirectDnsFixture(socketserver.BaseRequestHandler):
+    def handle(self):
+        query, sock = self.request
+        reply = (
+            query[:2]
+            + b"\x81\x80\x00\x01\x00\x01\x00\x00\x00\x00"
+            + query[12:]
+            + b"\xc0\x0c\x00\x01\x00\x01\x00\x00\x00\x3c\x00\x04\xcb\x00\x71\x2a"
+        )
+        sock.sendto(reply, self.client_address)
+
+
 @contextlib.contextmanager
 def fixture():
     name = "megaproxy-device-" + uuid.uuid4().hex[:12]
@@ -103,6 +117,8 @@ def fixture():
     image = name + ":fixture"
     network_created = False
     image_built = False
+    direct_dns = socketserver.UDPServer(("127.0.0.1", 0), DirectDnsFixture)
+    threading.Thread(target=direct_dns.serve_forever, daemon=True).start()
     blackhole = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     try:
         blackhole.bind(("127.0.0.1", 0))
@@ -225,8 +241,12 @@ def fixture():
             deadline = time.monotonic() + 30
             while True:
                 try:
-                    with socket.create_connection((host, int(value)), timeout=1):
-                        return value
+                    with socket.create_connection(
+                        (host, int(value)), timeout=1
+                    ) as probe:
+                        # VM port forwarders can accept before sshd has generated its keys.
+                        if container != ssh or probe.recv(4) == b"SSH-":
+                            return value
                 except OSError:
                     if time.monotonic() >= deadline:
                         raise RuntimeError("Fixture proxy did not start") from None
@@ -246,6 +266,7 @@ def fixture():
         ).split()[1]
         yield {
             "originHost": origin_ip,
+            "directDnsPort": str(direct_dns.server_address[1]),
             "proxyPort": https_port,
             "socksPort": port(socks_auth, "1080"),
             "socksAnonymousPort": port(socks_anonymous, "1080"),
@@ -275,6 +296,8 @@ def fixture():
             "sshFingerprint": fingerprint,
         }
     finally:
+        direct_dns.shutdown()
+        direct_dns.server_close()
         blackhole.close()
         # Cleanup is attempted independently so one failed removal cannot leak siblings.
         for container in reversed(containers):

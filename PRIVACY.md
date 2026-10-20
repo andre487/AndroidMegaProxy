@@ -30,6 +30,11 @@ Choose operators you trust.
 DNS providers receive the names being resolved. Before connecting, MegaProxy may resolve your
 proxy's hostname directly through Cloudflare, Yandex, Google or Quad9; these resolvers can see
 your source IP address and the proxy hostname. DNS queries intercepted by MegaProxy use the configured provider and permitted fallbacks.
+DoH is the default. Optional TCP DNS is unencrypted after the proxy. Optional UDP DNS uses the
+MASQUE or SOCKS5 UDP tunnel when available; HTTPS/TCP and SSH use direct UDP outside the VPN.
+MASQUE encrypts the proxy hop; SOCKS5 and direct UDP add no encryption. Explicitly allowing invalid
+DoH certificates (including self-signed certificates) weakens server authentication and can expose
+DNS queries to interception. These exceptions require local confirmation and are not exported.
 Applications can also use their own encrypted DNS connections; these follow normal routing.
 
 When you run a connection test, MegaProxy contacts a test website and external IP/country lookup

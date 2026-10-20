@@ -15,7 +15,10 @@ data class ProxyConfig(
     val profile: TlsProfile = TlsProfile.DEFAULT,
     val customJa3: String = "",
     val dnsProvider: DnsProvider = DnsProvider.CLOUDFLARE,
+    // Legacy portable key also stores explicit tcp:// and udp:// resolver endpoints.
     val customDohUrl: String = "",
+    internal val allowInsecureDns: Boolean = false,
+    internal val allowInvalidDohCertificate: Boolean = false,
     val selectedPackages: Set<String> = emptySet(),
     val allowIpv6: Boolean = false,
     val routeAllApps: Boolean = true,
@@ -44,6 +47,13 @@ data class ProxyConfig(
     internal val unreadableSecrets: Map<String, String> = emptyMap(),
     internal val storageUnavailable: Boolean = false,
 ) {
+    val dnsTransport: DnsTransport
+        get() = if (dnsProvider != DnsProvider.CUSTOM) DnsTransport.DOH else when (customDohUrl.trim().substringBefore(":").lowercase()) {
+            "tcp" -> DnsTransport.TCP
+            "udp" -> DnsTransport.UDP
+            else -> DnsTransport.DOH
+        }
+
     @StringRes
     fun connectionValidationError(): Int? = when {
         storageUnavailable -> R.string.error_config_storage
@@ -65,7 +75,11 @@ data class ProxyConfig(
         type.isHttpProxy && profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
             R.string.validation_ja3
         type == ProxyType.MASQUE && profile == TlsProfile.CUSTOM && !validQuicJa3(customJa3) -> R.string.validation_quic_ja3
-        dnsProvider == DnsProvider.CUSTOM && !validDohUrl(customDohUrl.trim()) ->
+        dnsTransport != DnsTransport.DOH && !allowInsecureDns -> R.string.validation_insecure_dns_disabled
+        dnsTransport != DnsTransport.DOH && !validPlainDnsUrl(customDohUrl.trim()) -> R.string.validation_dns_server
+        dnsProvider == DnsProvider.CUSTOM && dnsTransport == DnsTransport.DOH && !customDohUrl.trim().startsWith("https://", ignoreCase = true) ->
+            R.string.validation_doh_https_required
+        dnsProvider == DnsProvider.CUSTOM && dnsTransport == DnsTransport.DOH && !validDohUrl(customDohUrl.trim()) ->
             R.string.validation_doh_url
         else -> null
     }
@@ -150,6 +164,12 @@ object ProfileColors {
         0xFF3F51B5, 0xFF2196F3, 0xFF009688, 0xFF4CAF50,
         0xFF8BC34A, 0xFFFF9800, 0xFFFF5722, 0xFF795548,
     )
+}
+
+enum class DnsTransport(@StringRes val titleRes: Int, val scheme: String) {
+    DOH(R.string.dns_transport_doh, "https"),
+    TCP(R.string.dns_transport_tcp, "tcp"),
+    UDP(R.string.dns_transport_udp, "udp"),
 }
 
 enum class DnsProvider(val title: String, val url: String) {
@@ -245,7 +265,7 @@ data class Ja3Spec(
 
 internal fun validDohUrl(value: String): Boolean = runCatching {
     val uri = URI(value)
-    uri.scheme == "https" && !uri.host.isNullOrBlank() && !uri.rawPath.isNullOrEmpty() &&
+    uri.scheme.equals("https", ignoreCase = true) && !uri.host.isNullOrBlank() &&
         uri.rawUserInfo == null && uri.rawFragment == null &&
         (uri.port == -1 || uri.port in 1..65535)
 }.getOrDefault(false)
@@ -254,3 +274,14 @@ internal fun validQuicJa3(value: String): Boolean {
     val spec = Ja3Spec.parse(value) ?: return false
     return spec.cipherSuites.all { it in 4865..4867 } && spec.extensions.containsAll(listOf(16, 43, 51, 57))
 }
+
+internal fun validPlainDnsUrl(value: String): Boolean = runCatching {
+    val uri = URI(value)
+    val host = uri.host.orEmpty()
+    val ipv4 = host.split('.').let { parts -> parts.size == 4 && parts.all { part ->
+        part.toIntOrNull()?.let { it in 0..255 && it.toString() == part } == true
+    } }
+    uri.scheme.lowercase() in setOf("tcp", "udp") && (ipv4 || host.startsWith("[")) &&
+        (uri.port == -1 || uri.port in 1..65535) && uri.rawPath.isNullOrEmpty() &&
+        uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null
+}.getOrDefault(false)

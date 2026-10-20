@@ -194,7 +194,7 @@ object PersistentDiagnosticLog {
 internal class DiagnosticLogLimiter {
     private data class Bucket(var start: Long, var emitted: Int = 0, var suppressed: Int = 0)
     private val buckets = LinkedHashMap<String, Bucket>()
-    private val limitedEvents = setOf("connection", "doh", "ssh_transport", "masque_udp")
+    private val limitedEvents = setOf("connection", "doh", "dns", "ssh_transport", "masque_udp")
     private val fields = Regex("(?:^| )(event|protocol|mode|hop|stage|result|reason|operation|provider_index|status|scope|dpi_hint)=([^ ]+)")
 
     @Synchronized

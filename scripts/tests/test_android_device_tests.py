@@ -12,6 +12,9 @@ import android_device_tests as m
 
 
 class InstrumentationResultTest(unittest.TestCase):
+    def test_vpn_consent_denial_precedes_tests_that_grant_consent(self):
+        self.assertEqual("VpnDeviceTest#deniedVpnConsentDoesNotStartTunnel", m.TESTS[0])
+
     def test_vpn_scenarios_are_registered(self):
         source = (
             m.ROOT / "app/src/androidTest/java/net/megaproxy487/VpnDeviceTest.kt"
@@ -26,6 +29,18 @@ class InstrumentationResultTest(unittest.TestCase):
         selected.add("deniedNotificationsStillAllowVpn")
         self.assertEqual(methods, selected)
         self.assertEqual(len(m.TESTS), len(set(m.TESTS)))
+
+    def test_dns_scenarios_are_registered(self):
+        source = (
+            m.ROOT / "app/src/androidTest/java/net/megaproxy487/DnsDeviceTest.kt"
+        ).read_text()
+        methods = set(re.findall(r"@Test\s+fun\s+(\w+)\s*\(", source))
+        selected = {
+            name.split("#", 1)[1]
+            for name in m.TESTS
+            if name.startswith("DnsDeviceTest#")
+        }
+        self.assertEqual(methods, selected)
 
     def test_document_scenarios_are_registered(self):
         source = (

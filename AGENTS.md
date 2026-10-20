@@ -140,7 +140,9 @@ branch names, credentials, signing material, or other secrets.
   and `docs/ru/release-testing.md`; select manual checks by changed risk rather than repeating the
   entire feature matrix on every device.
 
-- MASQUE uses protected HTTP/3 QUIC sockets with Basic Auth; DNS remains DoH. GOST uses the `http3` listener, not `h3`. Pinned uQUIC sources and compatibility patches live in `native/third_party/uquic`; keep packet-size and GOST IPv6 UDP limitations documented.
+- DNS security exceptions require local confirmation, persist per profile and never export. Plain TCP DNS uses the proxy even for LAN resolvers; UDP uses actual MASQUE/SOCKS5 capability, otherwise protected direct UDP for HTTPS/TCP or SSH, with no direct fallback after tunnel failure. DoH certificate exceptions never change proxy trust.
+
+- MASQUE uses protected HTTP/3 QUIC sockets with Basic Auth; DNS defaults to DoH; optional plain DNS routing is documented in `docs/en/dns.md`. GOST uses the `http3` listener, not `h3`. Pinned uQUIC sources and compatibility patches live in `native/third_party/uquic`; keep packet-size and GOST IPv6 UDP limitations documented.
 
 - Configuration subscriptions use the MegaProxyConfig HTTPS delivery contract and client ID
   `android`. Encrypt URLs/credentials and persist ownership/status locally. Scheduled jobs and
@@ -154,7 +156,7 @@ branch names, credentials, signing material, or other secrets.
 ## Architecture landmarks
 
 - SOCKS5 uses plain TCP CONNECT and UDP ASSOCIATE, with optional RFC 1929 credentials
-  limited to 255 UTF-8 bytes each. DNS stays on DoH through the proxy; TLS fingerprints do not apply.
+  limited to 255 UTF-8 bytes each. DNS defaults to DoH through the proxy; TLS fingerprints do not apply.
 
 - `ProxyVpnService` extends Android's standard `android.net.VpnService`. It owns VPN lifecycle,
   creates the TUN interface, coordinates profiles/reconnects/status, and hands the TUN file

@@ -12,6 +12,24 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConfigTransferTest {
+    @Test fun `DNS endpoints export but local security consent never does`() {
+        for (endpoint in listOf("https://192.0.2.1/dns-query", "tcp://192.0.2.1:5353", "udp://[2001:db8::1]")) {
+            val config = ProxyConfig(host = "proxy.example", username = "user", password = "password",
+                dnsProvider = net.megaproxy487.model.DnsProvider.CUSTOM, customDohUrl = endpoint,
+                allowInsecureDns = true, allowInvalidDohCertificate = true)
+            val encoded = ConfigTransfer.encodeProfile(ProxyProfile(id = "dns", colorIndex = 0, config = config), true, false)
+            val raw = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID).put("version", ConfigTransfer.SCHEMA_VERSION)
+                .put("profiles", JSONArray().put(encoded)).toString()
+            ConfigSchemas.assertValid(raw)
+            assertFalse(raw.contains("allowInsecureDns"))
+            assertFalse(raw.contains("allowInvalidDohCertificate"))
+            val imported = ConfigTransfer.importJson(raw).profiles.single().config
+            assertEquals(endpoint, imported.customDohUrl)
+            assertFalse(imported.allowInsecureDns)
+            assertFalse(imported.allowInvalidDohCertificate)
+        }
+    }
+
     @Test fun `SOCKS5 JSON and URL round trips preserve protocol and optional authentication`() {
         for (auth in listOf(false, true)) {
             val profile = ProxyProfile(id = "socks", colorIndex = 0, config = ProxyConfig(

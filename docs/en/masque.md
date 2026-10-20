@@ -47,7 +47,7 @@ connection diagnostics, reconnect/failover and encrypted credentials apply to
 MASQUE. JSON uses `proxy.type: "MASQUE"`; ProxyList uses
 `masque://user:password@host:port`. Jump modes remain HTTPS/SSH only.
 
-UDP and TCP port 53 queries entering the VPN are converted to DoH, including
+UDP and TCP port 53 queries entering the VPN use the selected resolver (DoH by default; see [DNS](dns.md)), including
 TCP retries and pipelined queries. Private DNS and browser Secure DNS follow
 normal routing and are not rewritten to the selected DoH provider.
 
@@ -108,7 +108,7 @@ type. The app attempts MASQUE on the same host and numeric UDP port for up to
 three seconds. The server must also provide HTTPS over TCP for fallback.
 Unsupported QUIC fingerprints or server settings and unavailable QUIC select the
 existing HTTPS transport (HTTP/2 or HTTP/1.1). The home screen and connection test
-show a warning: fallback blocks ordinary UDP; intercepted DNS still uses DoH.
+show a warning: fallback blocks ordinary UDP; intercepted DNS uses the selected [DNS mode](dns.md).
 
 Certificate, authentication, socket protection and unknown failures do not
 trigger fallback. Once HTTP/3 is selected, failures remain on that transport;

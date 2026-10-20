@@ -86,7 +86,7 @@ class NativeProxyCore(
         { callbacksEnabled.get() && isCurrent() }, deliver, ::callbackFailure,
     )
 
-    private fun configJson(config: ProxyConfig) = JSONObject()
+    internal fun configJson(config: ProxyConfig) = JSONObject()
         .put("type", config.type.name)
         .put("host", config.host.trim())
         .put("dialHost", config.resolvedProxyIp)
@@ -117,6 +117,8 @@ class NativeProxyCore(
         .put("profile", config.profile.name)
         .put("customJa3", config.customJa3.trim())
         .put("dohUrl", if (config.dnsProvider.url.isNotEmpty()) config.dnsProvider.url else config.customDohUrl.trim())
+        .put("allowInsecureDns", config.allowInsecureDns)
+        .put("allowInvalidDohCertificate", config.allowInvalidDohCertificate)
         .put("dohFallbackUrls", JSONArray(config.dnsProvider.fallbackUrls()))
         .put("allowIpv6", config.allowIpv6)
         .put("bypassLocalNetworks", config.bypassLocalNetworks)
