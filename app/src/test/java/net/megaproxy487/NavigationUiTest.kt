@@ -16,6 +16,16 @@ class NavigationUiTest : MainUiTestBase() {
         compose.onNodeWithTag("screen-main").assertIsDisplayed()
     }
 
+    @Test fun visibilityMenuOpensCheckAndBackReturnsHome() {
+        content { MegaProxyNavHost(activity, readConnectionStats = { null }) }
+        icon(R.string.main_actions).performClick()
+        node(R.string.visibility).performClick()
+        compose.onNodeWithTag("screen-visibility").assertIsDisplayed()
+        drainConfigIo()
+        icon(R.string.back).performClick()
+        compose.onNodeWithTag("screen-main").assertIsDisplayed()
+    }
+
     @Test fun settingsDestinationsOpenAndBackReturnsToSettings() {
         content { MegaProxyNavHost(activity, readConnectionStats = { null }) }
         icon(R.string.main_actions).performClick()

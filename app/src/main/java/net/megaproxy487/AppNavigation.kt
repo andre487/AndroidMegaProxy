@@ -67,9 +67,6 @@ internal val connectionSettingsDestinations = listOf(
     SettingsDestination(R.string.failover, R.string.failover_description, AppRoute.FAILOVER),
 )
 
-internal val visibilitySettingsDestination =
-    SettingsDestination(R.string.visibility, R.string.visibility_description, AppRoute.VISIBILITY)
-
 internal val diagnosticLogSettingsDestination =
     SettingsDestination(R.string.diagnostic_log, R.string.diagnostic_log_description, AppRoute.DIAGNOSTIC_LOG)
 
@@ -77,7 +74,6 @@ internal val updatesSettingsDestination =
     SettingsDestination(R.string.updates, R.string.updates_description, AppRoute.UPDATES)
 
 internal val settingsDestinations = connectionSettingsDestinations + listOf(
-    visibilitySettingsDestination,
     diagnosticLogSettingsDestination,
     updatesSettingsDestination,
 )
@@ -110,6 +106,7 @@ internal fun MegaProxyNavHost(
                 activity = activity,
                 readConnectionStats = readConnectionStats,
                 onOpenSettings = { navController.navigate(AppRoute.SETTINGS) },
+                onOpenVisibility = { navController.navigate(AppRoute.VISIBILITY) },
                 onOpenConnectionTest = { navController.navigate(AppRoute.CONNECTION_TEST) },
                 onEditProfile = { navController.navigate(AppRoute.profileEditor(it)) },
             ) }

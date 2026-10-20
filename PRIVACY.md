@@ -39,6 +39,12 @@ identify the proxy's apparent country, not your GPS location. The current servic
 [Network privacy details](README.md#privacy-and-security). These providers handle requests under
 their own policies; MegaProxy does not control their retention practices.
 
+When you open or repeat the VPN visibility checks, MegaProxy sends separate requests through the
+underlying network and the VPN network to an external service. The service receives each route's
+public source IP and connection metadata. MegaProxy displays the returned verdict and does not store it.
+Its exact URL and response-header name are Base64 constants in `VisibilityScreen.kt`; decode them
+with `printf %s VALUE | base64 -d`.
+
 If you configure a configuration subscription, MegaProxy downloads snapshots from the HTTPS
 sources you list, automatically at the interval you choose when Android permits background work,
 or when you request an update. Each source receives its configured URL path/query, optional

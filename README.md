@@ -116,7 +116,10 @@ CONNECT-UDP, with verified destination certificates and no TCP fallback. Both pr
 checked independently; an unavailable provider does not invalidate the HTTPS/IP result. These
 native probes verify the proxy UDP path, not Android TUN or per-app routing, and their inner
 QUIC fingerprint is the diagnostic client's, not the selected outer MASQUE fingerprint or
-Chrome's. Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
+Chrome's. The explicit VPN visibility check sends separate requests over the underlying and VPN
+networks to an external service and reads its VPN verdict header. Its exact URL and response-header
+name are Base64 constants in `VisibilityScreen.kt`; decode them with `printf %s VALUE | base64 -d`.
+Responses and fingerprint data are not stored in diagnostic logs. See [PRIVACY.md](PRIVACY.md).
 
 - HTTPS and MASQUE proxy certificates are checked against the Android trust store, including hostname and
   validity. Normal CA certificate renewal does not require certificate pinning.

@@ -119,11 +119,6 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
             }
         }
         Text(stringResource(R.string.diagnostics), style = MaterialTheme.typography.titleMedium, modifier = Modifier.padding(top = 8.dp))
-        visibilitySettingsDestination.let { destination ->
-            SettingsButton(stringResource(destination.titleRes), stringResource(destination.descriptionRes)) {
-                onNavigate(destination.route)
-            }
-        }
         if (!batteryOptimizationDisabled) {
             SettingsButton(stringResource(R.string.battery_settings), stringResource(R.string.battery_settings_description)) {
                 activity.startActivity(Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {

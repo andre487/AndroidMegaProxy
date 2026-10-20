@@ -34,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,12 +46,21 @@ import androidx.compose.ui.unit.dp
 import net.megaproxy487.uiStringResource as stringResource
 import net.megaproxy487.ui.theme.MegaProxyTheme
 import net.megaproxy487.data.ConfigStore
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
+import java.net.HttpURLConnection
 import java.net.NetworkInterface
+import java.net.URL
+import java.util.Base64
 
 private enum class VisibilityState(val labelResource: Int) {
     DETECTED(R.string.detected),
     SELECTED_APPS_ONLY(R.string.selected_apps_only),
     NOT_DETECTED(R.string.not_detected),
+    UNKNOWN(R.string.undetermined),
+    UNAVAILABLE(R.string.unavailable),
 }
 
 private data class VisibilityCheck(
@@ -70,6 +80,10 @@ private data class VisibilityReport(
 internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
     var revision by remember { mutableStateOf(0) }
     val report = readConfiguration(revision) { buildVisibilityReport(activity) } ?: return
+    var externalChecks by remember { mutableStateOf<List<VisibilityCheck>>(emptyList()) }
+    LaunchedEffect(revision) {
+        externalChecks = withContext(Dispatchers.IO) { runExternalChecks(activity) }
+    }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -105,6 +119,7 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
                 stringResource(if (report.splitTunneling) R.string.visible_to_selected_apps else R.string.vpn_network_signals),
                 report.selectedApps,
             )
+            VisibilitySection(stringResource(R.string.external_vpn_reputation), externalChecks)
             Text(
                 stringResource(R.string.visibility_disclaimer),
                 style = MaterialTheme.typography.bodySmall,
@@ -136,11 +151,60 @@ private fun VisibilityBadge(state: VisibilityState) {
         VisibilityState.DETECTED -> Color(0xFFB3261E)
         VisibilityState.SELECTED_APPS_ONLY -> Color(0xFFF9A825)
         VisibilityState.NOT_DETECTED -> Color(0xFF2E7D32)
+        VisibilityState.UNKNOWN -> Color(0xFFF57C00)
+        VisibilityState.UNAVAILABLE -> MaterialTheme.colorScheme.outline
     }
     val foreground = if (state == VisibilityState.SELECTED_APPS_ONLY) Color.Black else Color.White
     Surface(color = background, contentColor = foreground, shape = RoundedCornerShape(12.dp)) {
         Text(stringResource(state.labelResource), style = MaterialTheme.typography.labelSmall, modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp))
     }
+}
+
+private suspend fun runExternalChecks(context: Context): List<VisibilityCheck> = coroutineScope {
+    val connectivity = context.getSystemService(ConnectivityManager::class.java)
+    val networks = runCatching { connectivity.allNetworks.toList() }.getOrDefault(emptyList())
+    fun networkWith(transportVpn: Boolean) = networks.firstOrNull { network ->
+        val capabilities = runCatching { connectivity.getNetworkCapabilities(network) }.getOrNull()
+            ?: return@firstOrNull false
+        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == transportVpn &&
+            (transportVpn || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN))
+    }
+    val underlying = async { networkWith(false)?.let(::queryExternalVpn) }
+    val tunnel = async { networkWith(true)?.let(::queryExternalVpn) }
+    listOf(
+        externalCheck(context, R.string.external_underlying_network, underlying.await()),
+        externalCheck(context, R.string.external_tunnel_network, tunnel.await()),
+    )
+}
+
+internal enum class ExternalVpnVerdict { DETECTED, NOT_DETECTED, UNKNOWN_FORMAT }
+
+private fun queryExternalVpn(network: android.net.Network): Result<ExternalVpnVerdict> = runCatching {
+    val connection = network.openConnection(URL(decode(EXTERNAL_VPN_CHECK_URL_BASE64))) as HttpURLConnection
+    try {
+        connection.requestMethod = "POST"
+        connection.connectTimeout = 10_000
+        connection.readTimeout = 10_000
+        check(connection.responseCode in 200..299) { "HTTP ${connection.responseCode}" }
+        parseExternalVpnVerdict(connection.getHeaderField(decode(EXTERNAL_VPN_HEADER_BASE64)))
+    } finally {
+        connection.disconnect()
+    }
+}
+
+internal fun parseExternalVpnVerdict(header: String?): ExternalVpnVerdict = when (header) {
+    "0" -> ExternalVpnVerdict.NOT_DETECTED
+    "1" -> ExternalVpnVerdict.DETECTED
+    else -> ExternalVpnVerdict.UNKNOWN_FORMAT
+}
+
+private fun externalCheck(context: Context, title: Int, result: Result<ExternalVpnVerdict>?): VisibilityCheck = when {
+    result == null -> VisibilityCheck(context.uiText(title), VisibilityState.UNAVAILABLE, context.uiText(R.string.external_network_unavailable))
+    result.isFailure -> VisibilityCheck(context.uiText(title), VisibilityState.UNAVAILABLE, context.uiText(R.string.external_check_failed))
+    result.getOrThrow() == ExternalVpnVerdict.DETECTED -> VisibilityCheck(context.uiText(title), VisibilityState.DETECTED, context.uiText(R.string.external_vpn_detected))
+    result.getOrThrow() == ExternalVpnVerdict.NOT_DETECTED -> VisibilityCheck(context.uiText(title), VisibilityState.NOT_DETECTED, context.uiText(R.string.external_vpn_not_detected))
+    else -> VisibilityCheck(context.uiText(title), VisibilityState.UNKNOWN, context.uiText(R.string.external_check_unknown_format))
 }
 
 private fun buildVisibilityReport(context: Context): VisibilityReport {
@@ -214,3 +278,9 @@ private fun buildVisibilityReport(context: Context): VisibilityReport {
         splitTunneling = splitTunneling,
     )
 }
+
+private fun decode(value: String) = String(Base64.getDecoder().decode(value), Charsets.UTF_8)
+
+private const val EXTERNAL_VPN_CHECK_URL_BASE64 =
+    "aHR0cHM6Ly9tb2JpbGVwcm94eS5wYXNzcG9ydC55YW5kZXgubmV0L3RtZ3JkZnJlbmQvY2hlY2t2cG4="
+private const val EXTERNAL_VPN_HEADER_BASE64 = "WC1ZYW5kZXgtRVUtUmVxdWVzdA=="
