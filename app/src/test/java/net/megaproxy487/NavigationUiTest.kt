@@ -26,6 +26,20 @@ class NavigationUiTest : MainUiTestBase() {
         compose.onNodeWithTag("screen-main").assertIsDisplayed()
     }
 
+    @Test fun speedMenuOpensSizeSelectionAndBackReturnsHome() {
+        content { MegaProxyNavHost(activity, readConnectionStats = { null }) }
+        icon(R.string.main_actions).performClick()
+        node(R.string.speed).performClick()
+        compose.onNodeWithTag("screen-speed").assertIsDisplayed()
+        compose.onNodeWithText("h3").assertIsDisplayed()
+        compose.onNodeWithText("h2").performClick()
+        compose.onNodeWithText("h1").assertIsDisplayed()
+        compose.onNodeWithText(activity.uiText(R.string.cloudflare_speed_size, 25)).performClick()
+        compose.onNodeWithText(activity.uiText(R.string.cloudflare_speed_explanation, 25, 100)).assertIsDisplayed()
+        icon(R.string.back).performClick()
+        compose.onNodeWithTag("screen-main").assertIsDisplayed()
+    }
+
     @Test fun settingsDestinationsOpenAndBackReturnsToSettings() {
         content { MegaProxyNavHost(activity, readConnectionStats = { null }) }
         icon(R.string.main_actions).performClick()

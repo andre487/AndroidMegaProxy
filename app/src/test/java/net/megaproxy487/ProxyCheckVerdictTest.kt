@@ -26,5 +26,21 @@ class ProxyCheckVerdictTest {
         assertEquals(true, isIpAddress("2001:db8::1"))
         assertEquals(false, isIpAddress("<html>error</html>"))
         assertEquals(false, isIpAddress("999.999.999.999"))
+        assertEquals("203.0.113.1", parseCloudflareExitIp("fl=test\nip=203.0.113.1\nloc=AM\n"))
+        assertEquals(null, parseCloudflareExitIp("ip=invalid\nloc=AM"))
+    }
+
+    @Test fun speedPartialResultKeepsPendingMeasurementsEmpty() {
+        val result = parseSpeedResult("""{"exitIp":"203.0.113.1","countryCode":"AM","protocol":"HTTP/3","latencyMs":0}""")
+        assertEquals("HTTP/3", result.protocol)
+        assertEquals(0L, result.latencyMs)
+        assertEquals(null, result.downloadMbps)
+        assertEquals(null, result.uploadMbps)
+    }
+
+    @Test fun speedMeasurementOptionsRemainBounded() {
+        assertEquals(listOf(10, 25, 50), SPEED_TEST_MEGABYTES)
+        assertEquals(listOf("h3", "h2", "h1"), SPEED_TEST_PROTOCOLS)
+        assertEquals("🇦🇲 AM", formatCountryCode("am"))
     }
 }

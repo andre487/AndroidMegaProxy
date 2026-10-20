@@ -164,17 +164,8 @@ private fun VisibilityBadge(state: VisibilityState) {
 }
 
 private suspend fun runProxyCheckChecks(context: Context): List<VisibilityCheck> = coroutineScope {
-    val connectivity = context.getSystemService(ConnectivityManager::class.java)
-    val networks = runCatching { connectivity.allNetworks.toList() }.getOrDefault(emptyList())
-    fun networkWith(transportVpn: Boolean) = networks.firstOrNull { network ->
-        val capabilities = runCatching { connectivity.getNetworkCapabilities(network) }.getOrNull()
-            ?: return@firstOrNull false
-        capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == transportVpn &&
-            (transportVpn || capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_VPN))
-    }
-    val underlying = async { networkWith(false)?.let { queryProxyCheck(context, it) } }
-    val tunnel = async { networkWith(true)?.let { queryProxyCheck(context, it) } }
+    val underlying = async { findRouteNetwork(context, false)?.let { queryProxyCheck(context, it) } }
+    val tunnel = async { findRouteNetwork(context, true)?.let { queryProxyCheck(context, it) } }
     listOf(
         proxyCheck(context, R.string.external_underlying_network, underlying.await()),
         proxyCheck(context, R.string.external_tunnel_network, tunnel.await()),

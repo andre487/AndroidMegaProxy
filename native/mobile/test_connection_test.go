@@ -101,3 +101,55 @@ func TestHTTPExchangeCancellationInterruptsResponse(t *testing.T) {
 		t.Fatal("HTTP read ignored cancellation")
 	}
 }
+
+func TestConnectionIdentityPrefersOneCloudflareTraceAndFallsBackPerField(t *testing.T) {
+	for _, tc := range []struct {
+		name, trace, wantIP, wantCountry string
+		failTrace                        bool
+		wantCalls                        int
+	}{
+		{name: "complete", trace: "ip=203.0.113.1\nloc=AM\n", wantIP: "203.0.113.1", wantCountry: "AM", wantCalls: 1},
+		{name: "missing_country", trace: "ip=203.0.113.1\nloc=invalid\n", wantIP: "203.0.113.1", wantCountry: "NL", wantCalls: 2},
+		{name: "missing_ip", trace: "ip=invalid\nloc=AM\n", wantIP: "198.51.100.1", wantCountry: "AM", wantCalls: 2},
+		{name: "unavailable", failTrace: true, wantIP: "198.51.100.1", wantCountry: "NL", wantCalls: 3},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			calls := 0
+			ip, country, err := lookupTestIdentity(context.Background(), nil, func(_ context.Context, endpoint testEndpoint) (string, error) {
+				calls++
+				switch endpoint.host {
+				case "speed.cloudflare.com":
+					if calls != 1 || endpoint.path != "/cdn-cgi/trace" {
+						t.Fatalf("Cloudflare must be first: %+v", endpoint)
+					}
+					if tc.failTrace {
+						return "", errors.New("unavailable")
+					}
+					return tc.trace, nil
+				case "ifconfig.me":
+					return "198.51.100.1", nil
+				case "ifconfig.co":
+					return "NL", nil
+				default:
+					t.Fatalf("unexpected provider %s", endpoint.host)
+					return "", nil
+				}
+			})
+			if err != nil || ip != tc.wantIP || country != tc.wantCountry || calls != tc.wantCalls {
+				t.Fatalf("ip=%s country=%s calls=%d err=%v", ip, country, calls, err)
+			}
+		})
+	}
+}
+
+func TestConnectionIdentityCountryFailureDoesNotLoseValidIP(t *testing.T) {
+	ip, country, err := lookupTestIdentity(context.Background(), nil, func(_ context.Context, e testEndpoint) (string, error) {
+		if e.host == "speed.cloudflare.com" {
+			return "ip=203.0.113.1\n", nil
+		}
+		return "", errors.New("unavailable")
+	})
+	if err != nil || ip != "203.0.113.1" || country != "" {
+		t.Fatalf("%s %s %v", ip, country, err)
+	}
+}
