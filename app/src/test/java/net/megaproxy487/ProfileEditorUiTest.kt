@@ -53,6 +53,38 @@ class ProfileEditorUiTest : MainUiTestBase() {
         assertNull(store.profiles().single { it.name == "Custom DNS" }.config.connectionValidationError())
     }
 
+    @Test fun dnsSecurityExceptionsRequireConfirmationAndPersistLocally() {
+        val id = store.activeProfileId()
+        content { ProfileEditorScreen(activity, id, {}) }
+        field(R.string.allow_invalid_doh_certificate).performClick()
+        node(R.string.cancel).performClick()
+        saved()
+        assertFalse(store.profile(id)!!.config.allowInvalidDohCertificate)
+        field(R.string.allow_invalid_doh_certificate).performClick()
+        node(R.string.ok).performClick()
+        saved()
+        assertTrue(store.profile(id)!!.config.allowInvalidDohCertificate)
+        assertFalse(store.profile(id)!!.config.allowInvalidProxyCertificate)
+        field(R.string.allow_insecure_dns).performClick()
+        node(R.string.cancel).performClick()
+        saved()
+        assertFalse(store.profile(id)!!.config.allowInsecureDns)
+        field(R.string.allow_insecure_dns).performClick()
+        node(R.string.ok).performClick()
+        saved()
+        assertTrue(store.profile(id)!!.config.allowInsecureDns)
+        field(R.string.dns_transport).performClick()
+        node(R.string.dns_transport_tcp).performClick()
+        node(R.string.ok).performClick()
+        field(R.string.dns_server_ip).performTextReplacement("192.0.2.1:5353")
+        saved()
+        assertEquals("tcp://192.0.2.1:5353", store.profile(id)!!.config.customDohUrl)
+        field(R.string.allow_insecure_dns).performClick()
+        saved()
+        assertFalse(store.profile(id)!!.config.allowInsecureDns)
+        assertEquals(DnsProvider.CLOUDFLARE, store.profile(id)!!.config.dnsProvider)
+    }
+
     @Test fun socks5UsesItsPortAndHidesTlsAndSshControls() {
         val id = store.activeProfileId()
         content { ProfileEditorScreen(activity, id, {}) }

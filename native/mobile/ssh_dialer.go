@@ -56,7 +56,7 @@ func (d *sshDialer) connectTarget(ctx context.Context, target string) (net.Conn,
 			return nil, errors.New("IPv6 destination blocked by IPv4-only mode")
 		}
 	}
-	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
+	if d.config.bypassTarget(target) {
 		return d.direct.dialDirect(ctx, d.protectedDialer(), "tcp", target)
 	}
 	if d.rotationDue() {
@@ -406,14 +406,16 @@ func (d *sshDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 		return nil, errUDPBlocked
 	}
 	client, limiter := d.sharedDoHResources()
-	return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter), nil
+	packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
+	packet.connectUDP = d.connectDNSUDP
+	return packet, nil
 }
 
 func (d *sshDialer) sharedDoHResources() (*http.Client, chan struct{}) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.dohClient == nil {
-		d.dohClient = newDoHHTTPClient(d.connectTarget)
+		d.dohClient = newDoHHTTPClient(d.connectTarget, d.config.AllowInvalidDoHCertificate)
 	}
 	if d.dohInFlight == nil {
 		d.dohInFlight = make(chan struct{}, 8)
@@ -587,4 +589,8 @@ func sendSSHKeepalive(client *ssh.Client, stop <-chan struct{}, timeout time.Dur
 	case <-timer.C:
 		return context.DeadlineExceeded
 	}
+}
+
+func (d *sshDialer) connectDNSUDP(ctx context.Context, target string) (net.PacketConn, error) {
+	return directDNSUDP(ctx, target, &d.direct, d.protector)
 }

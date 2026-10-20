@@ -105,7 +105,7 @@ class ProxyConfigTest {
             for (url in validUrls) {
                 assertNull("$type: $url", config.copy(customDohUrl = "  $url  ").validationError())
             }
-            for (url in listOf("", "192.0.2.1", "2001:db8::1", "dns.example:53", "udp://192.0.2.1",
+            for (url in listOf("", "192.0.2.1", "2001:db8::1", "dns.example:53",
                 "tls://dns.example", "http://dns.example/query")) {
                 assertEquals("$type: $url", R.string.validation_doh_https_required,
                     config.copy(customDohUrl = url).validationError())
@@ -119,6 +119,22 @@ class ProxyConfigTest {
             }
         }
         assertNull(validConnection.copy(customDohUrl = "invalid but unused").validationError())
+    }
+
+    @Test fun plainDnsRequiresLocalConsentAndNumericServer() {
+        val base = validConnection.copy(dnsProvider = DnsProvider.CUSTOM)
+        for (scheme in listOf("tcp", "udp")) {
+            for (server in listOf("192.0.2.1", "192.0.2.1:5353", "[2001:db8::1]", "[::1]:5353")) {
+                val config = base.copy(customDohUrl = "$scheme://$server")
+                assertEquals(R.string.validation_insecure_dns_disabled, config.validationError())
+                assertNull(config.copy(allowInsecureDns = true).validationError())
+            }
+            for (server in listOf("dns.example", "192.0.2.1:0", "192.0.2.1:65536", "2001:db8::1", "192.0.2.1/path", "192.0.2.1?x=1")) {
+                assertEquals(server, R.string.validation_dns_server, base.copy(customDohUrl = "$scheme://$server", allowInsecureDns = true).validationError())
+            }
+        }
+        assertFalse(base.allowInvalidDohCertificate)
+        assertNull(base.copy(customDohUrl = "https://dns.example", allowInvalidDohCertificate = true).validationError())
     }
 
     @Test

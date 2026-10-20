@@ -559,4 +559,20 @@
     <string name="subscription_notification_text">A background subscription update changed the active connection settings. Reconnect to apply them.</string>
     <string name="loading_configuration">Loading configuration…</string>
     <string name="speed_protocol_preference">Preferred HTTP protocol (falls back to lower versions)</string>
+    <string name="dns_settings">DNS</string>
+    <string name="dns_transport">DNS transport</string>
+    <string name="dns_transport_doh">DNS over HTTPS (DoH)</string>
+    <string name="dns_transport_tcp">Insecure DNS over VPN (TCP DNS)</string>
+    <string name="dns_transport_udp">Insecure UDP DNS</string>
+    <string name="allow_insecure_dns">Enable insecure DNS modes</string>
+    <string name="allow_insecure_dns_description">DoH is the default. Other DNS modes require confirmation.</string>
+    <string name="insecure_dns_warning_title">Enable insecure DNS?</string>
+    <string name="insecure_dns_warning">TCP DNS is unencrypted after the proxy. UDP DNS is unencrypted and may bypass the VPN.</string>
+    <string name="insecure_dns_tcp_warning">DNS traffic after the proxy is not encrypted.</string>
+    <string name="insecure_dns_udp_warning">UDP DNS is unencrypted and may bypass the VPN.</string>
+    <string name="dns_server_ip">DNS server IP and optional port</string>
+    <string name="validation_dns_server">Enter an IPv4 address or bracketed IPv6 address, optionally with port 1–65535.</string>
+    <string name="validation_insecure_dns_disabled">This profile uses insecure DNS. Enable it locally or choose DoH.</string>
+    <string name="allow_invalid_doh_certificate">Allow invalid DoH certificates</string>
+    <string name="allow_invalid_doh_certificate_warning">Allows self-signed, expired and mismatched certificates for DoH only. DNS traffic may be intercepted. Proxy certificate verification is unchanged.</string>
 </resources>

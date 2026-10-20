@@ -25,7 +25,7 @@ Select **SOCKS5** and enter the server hostname and port (default 1080). Leave b
 credentials empty, or enter a username and password of 1–255 UTF-8 bytes each.
 SOCKS5 does not encrypt the proxy connection or credentials and does not apply a
 browser TLS fingerprint. Application TLS and DoH retain their own encryption.
-DNS uses the selected DoH provider over proxied TCP; other UDP uses UDP ASSOCIATE.
+By default, DNS uses the selected DoH provider over proxied TCP; other UDP uses UDP ASSOCIATE.
 The relay must return a reachable IP address and nonzero UDP port. Wildcard relay
 addresses use the proxy bootstrap IP; hostname relays are rejected without system DNS.
 Local-network bypass, app routing, IPv6 policy, failover and traffic counters apply.
@@ -67,3 +67,5 @@ preference in `profiles[].proxy.preferHttp3`. With Jump, both nodes must support
 MASQUE and a usable datagram MTU; otherwise the entire chain retains HTTPS.
 
 [Русская версия](../ru/index.md)
+
+[DNS: modes, routing and certificates](dns.md).

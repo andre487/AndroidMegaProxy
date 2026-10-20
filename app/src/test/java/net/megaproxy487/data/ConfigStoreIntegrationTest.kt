@@ -57,6 +57,17 @@ class ConfigStoreIntegrationTest {
             .put("profiles", JSONArray().put(profile)).toString()),
     )
 
+    @Test fun dnsConsentSurvivesStorageAndGlobalSettings() {
+        val profile = store.activeProfile()
+        assertFalse(profile.config.allowInsecureDns)
+        assertFalse(profile.config.allowInvalidDohCertificate)
+        store.saveProfile(profile.copy(config = profile.config.copy(allowInsecureDns = true, allowInvalidDohCertificate = true)))
+        val reopened = ConfigStore(context).profile(profile.id)!!.config
+        assertTrue(reopened.allowInsecureDns)
+        assertTrue(reopened.allowInvalidDohCertificate)
+        assertTrue(GlobalConnectionSettings().applyTo(reopened).allowInvalidDohCertificate)
+    }
+
     @Test fun http3PreferenceSurvivesStorageAndGlobalSettings() {
         val original = store.activeProfile()
         assertFalse(original.config.preferHttp3)

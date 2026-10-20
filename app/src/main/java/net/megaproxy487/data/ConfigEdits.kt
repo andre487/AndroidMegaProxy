@@ -52,6 +52,8 @@ internal fun ConfigEdits<ProxyProfile>.profile(before: ProxyProfile, after: Prox
     record("customJa3", before.config.customJa3, after.config.customJa3) { it.copy(config = it.config.copy(customJa3 = after.config.customJa3)) }
     record("dnsProvider", before.config.dnsProvider, after.config.dnsProvider) { it.copy(config = it.config.copy(dnsProvider = after.config.dnsProvider)) }
     record("customDohUrl", before.config.customDohUrl, after.config.customDohUrl) { it.copy(config = it.config.copy(customDohUrl = after.config.customDohUrl)) }
+    record("allowInsecureDns", before.config.allowInsecureDns, after.config.allowInsecureDns) { it.copy(config = it.config.copy(allowInsecureDns = after.config.allowInsecureDns)) }
+    record("allowInvalidDohCertificate", before.config.allowInvalidDohCertificate, after.config.allowInvalidDohCertificate) { it.copy(config = it.config.copy(allowInvalidDohCertificate = after.config.allowInvalidDohCertificate)) }
     record("selectedPackages", before.config.selectedPackages, after.config.selectedPackages) { it.copy(config = it.config.copy(selectedPackages = after.config.selectedPackages)) }
     record("allowIpv6", before.config.allowIpv6, after.config.allowIpv6) { it.copy(config = it.config.copy(allowIpv6 = after.config.allowIpv6)) }
     record("routeAllApps", before.config.routeAllApps, after.config.routeAllApps) { it.copy(config = it.config.copy(routeAllApps = after.config.routeAllApps)) }

@@ -1,6 +1,6 @@
 FROM alpine:3.23.3
 
-RUN apk add --no-cache openssh python3 && \
+RUN apk add --no-cache openssh python3 openssl && \
     adduser -D proxy && mkdir -p /home/proxy/.ssh /run/sshd && \
     printf '%s\n' 'Port 2222' 'HostKey /etc/ssh/ssh_host_ed25519_key' \
       'PasswordAuthentication yes' 'PubkeyAuthentication yes' \

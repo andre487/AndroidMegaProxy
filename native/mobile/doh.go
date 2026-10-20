@@ -3,6 +3,7 @@ package mobile
 import (
 	"bytes"
 	"context"
+	"crypto/tls"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -46,6 +47,7 @@ type dnsReply struct {
 }
 
 type dohPacketConn struct {
+	connectUDP     func(context.Context, string) (net.PacketConn, error)
 	config         config
 	reporter       Reporter
 	connect        func(context.Context, string) (net.Conn, error)
@@ -64,12 +66,13 @@ type dohPacketConn struct {
 }
 
 func newDoHPacketConn(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string) *dohPacketConn {
-	return newDoHPacketConnWithClient(c, reporter, connect, endpoint, newDoHHTTPClient(connect), nil)
+	return newDoHPacketConnWithClient(c, reporter, connect, endpoint, newDoHHTTPClient(connect, c.AllowInvalidDoHCertificate), nil)
 }
 
-func newDoHHTTPClient(connect func(context.Context, string) (net.Conn, error)) *http.Client {
+func newDoHHTTPClient(connect func(context.Context, string) (net.Conn, error), allowInvalid ...bool) *http.Client {
 	transport := &http.Transport{
 		Proxy:                  nil,
+		TLSClientConfig:        &tls.Config{InsecureSkipVerify: len(allowInvalid) > 0 && allowInvalid[0]}, // Explicit local DoH-only opt-in.
 		ForceAttemptHTTP2:      true,
 		TLSHandshakeTimeout:    15 * time.Second,
 		MaxConnsPerHost:        2,
@@ -90,6 +93,9 @@ func newDoHPacketConnWithClient(c config, reporter Reporter, connect func(contex
 	}
 	endpoints := []string{endpoint}
 	for _, fallback := range c.DoHFallbackURLs {
+		if c.plainDNS() {
+			break
+		}
 		if fallback != endpoint {
 			endpoints = append(endpoints, fallback)
 		}
@@ -118,7 +124,7 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 			return 0, err
 		}
 		if isAAAA {
-			report(c.reporter, "event=doh result=suppressed query_type=aaaa reason=ipv4_only")
+			report(c.reporter, "event=%s result=suppressed query_type=aaaa reason=ipv4_only", c.eventName())
 			c.deliver(dnsReply{payload: response, addr: addr})
 			return len(payload), nil
 		}
@@ -142,13 +148,13 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 			if err == nil {
 				c.setActiveEndpoint(candidate.index)
 				c.deliver(dnsReply{payload: body, addr: addr})
-				report(c.reporter, "event=doh result=success provider_index=%d", candidate.index)
+				report(c.reporter, "event=%s result=success provider_index=%d", c.eventName(), candidate.index)
 				return
 			}
 			lastErr = err
-			report(c.reporter, "event=doh result=failed provider_index=%d reason=%s", candidate.index, errorClass(err))
+			report(c.reporter, "event=%s result=failed provider_index=%d reason=%s", c.eventName(), candidate.index, errorClass(err))
 		}
-		c.deliver(dnsReply{addr: addr, err: fmt.Errorf("all DoH providers failed: %w", lastErr)})
+		c.deliver(dnsReply{addr: addr, err: fmt.Errorf("all DNS providers failed: %w", lastErr)})
 	}()
 	return len(payload), nil
 }
@@ -179,6 +185,9 @@ func (c *dohPacketConn) setActiveEndpoint(index int) {
 func (c *dohPacketConn) queryEndpoint(endpoint string, query []byte) ([]byte, error) {
 	requestContext, cancel := context.WithTimeout(c.context, 3*time.Second)
 	defer cancel()
+	if u, parseErr := url.Parse(endpoint); parseErr == nil && (u.Scheme == "tcp" || u.Scheme == "udp") {
+		return c.queryPlainDNS(requestContext, endpoint, query)
+	}
 	req, err := http.NewRequestWithContext(requestContext, http.MethodPost, endpoint, bytes.NewReader(query))
 	if err != nil {
 		return nil, err
@@ -204,7 +213,7 @@ func (c *dohPacketConn) queryEndpoint(endpoint string, query []byte) ([]byte, er
 	if len(body) > 65536 {
 		return nil, errors.New("DoH response exceeds 64 KB")
 	}
-	if len(body) < 12 || len(query) < 12 || body[2]&0x80 == 0 || !bytes.Equal(body[:2], query[:2]) {
+	if !dnsReplyMatches(query, body) {
 		return nil, errNotDoH
 	}
 	return body, nil
@@ -236,7 +245,7 @@ func (c *dohPacketConn) deliver(reply dnsReply) {
 	case <-c.closed:
 	default:
 		// UDP may drop packets. A stalled reader must not consume every shared query slot.
-		report(c.reporter, "event=doh result=dropped reason=reply_queue_full")
+		report(c.reporter, "event=%s result=dropped reason=reply_queue_full", c.eventName())
 	}
 }
 
@@ -320,3 +329,10 @@ type timeoutError struct{}
 func (timeoutError) Error() string   { return "DNS operation deadline exceeded" }
 func (timeoutError) Timeout() bool   { return true }
 func (timeoutError) Temporary() bool { return true }
+
+func (c *dohPacketConn) eventName() string {
+	if c.config.plainDNS() {
+		return "dns"
+	}
+	return "doh"
+}

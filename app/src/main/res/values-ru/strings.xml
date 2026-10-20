@@ -558,4 +558,20 @@
     <string name="subscription_notification_text">Фоновое обновление подписки изменило настройки активного соединения. Переподключитесь, чтобы применить их.</string>
     <string name="loading_configuration">Загрузка конфигурации…</string>
     <string name="speed_protocol_preference">Предпочтительный HTTP-протокол (с переходом на младшие версии)</string>
+    <string name="dns_settings">DNS</string>
+    <string name="dns_transport">Транспорт DNS</string>
+    <string name="dns_transport_doh">DNS over HTTPS (DoH)</string>
+    <string name="dns_transport_tcp">Insecure DNS over VPN (TCP DNS)</string>
+    <string name="dns_transport_udp">Insecure UDP DNS</string>
+    <string name="allow_insecure_dns">Разрешить небезопасные режимы DNS</string>
+    <string name="allow_insecure_dns_description">По умолчанию используется DoH. Другие режимы требуют подтверждения.</string>
+    <string name="insecure_dns_warning_title">Разрешить небезопасный DNS?</string>
+    <string name="insecure_dns_warning">TCP DNS не шифруется после прокси. UDP DNS не шифруется и может идти в обход VPN.</string>
+    <string name="insecure_dns_tcp_warning">DNS-трафик после прокси не шифруется.</string>
+    <string name="insecure_dns_udp_warning">UDP DNS не шифруется и может идти в обход VPN.</string>
+    <string name="dns_server_ip">IP DNS-сервера и необязательный порт</string>
+    <string name="validation_dns_server">Введите IPv4 или IPv6 в квадратных скобках; необязательный порт — 1–65535.</string>
+    <string name="validation_insecure_dns_disabled">Профиль использует небезопасный DNS. Разрешите его локально или выберите DoH.</string>
+    <string name="allow_invalid_doh_certificate">Разрешить недоверенные сертификаты DoH</string>
+    <string name="allow_invalid_doh_certificate_warning">Допускает самоподписанные, просроченные сертификаты и несовпадение имени только для DoH. DNS-трафик может быть перехвачен. Проверка сертификата прокси не меняется.</string>
 </resources>

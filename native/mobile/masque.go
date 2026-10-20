@@ -456,7 +456,7 @@ func (d *masqueDialer) connectTarget(ctx context.Context, target string) (net.Co
 	}
 	var c net.Conn
 	var err error
-	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
+	if d.config.bypassTarget(target) {
 		c, err = d.direct.dialDirect(ctx, (&httpsConnectDialer{protector: d.protector}).protectedDialer(), "tcp", target)
 	} else {
 		c, err = d.openTunnel(ctx, target, false)
@@ -520,16 +520,18 @@ func (d *masqueDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 			return nil, net.ErrClosed
 		}
 		if d.dohClient == nil {
-			d.dohClient = newDoHHTTPClient(d.connectTarget)
+			d.dohClient = newDoHHTTPClient(d.connectTarget, d.config.AllowInvalidDoHCertificate)
 			d.dohInFlight = make(chan struct{}, 8)
 		}
 		client, limiter := d.dohClient, d.dohInFlight
 		d.mu.Unlock()
-		return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter), nil
+		packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
+		packet.connectUDP = d.connectDNSUDP
+		return packet, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
+	if d.config.bypassTarget(target) {
 		c, err := d.direct.dialDirect(ctx, (&httpsConnectDialer{protector: d.protector}).protectedDialer(), "udp", target)
 		if err != nil {
 			return nil, err
@@ -772,4 +774,20 @@ func (p *masqueDirectPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 		return 0, errors.New("UDP target cannot change")
 	}
 	return p.Write(b)
+}
+
+func (d *masqueDialer) connectDNSUDP(ctx context.Context, target string) (net.PacketConn, error) {
+	if err := d.checkTarget(target); err != nil {
+		return nil, err
+	}
+	stream, err := d.openTunnel(ctx, target, true)
+	if err != nil {
+		return nil, err
+	}
+	peer, err := net.ResolveUDPAddr("udp", target)
+	if err != nil {
+		_ = stream.Close()
+		return nil, err
+	}
+	return d.udpPacketConn(stream, peer), nil
 }

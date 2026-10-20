@@ -15,6 +15,19 @@ import org.robolectric.annotation.Config
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [35], application = Application::class)
 class CustomDohConfigTest {
+    @Test fun localDnsExceptionsReachNativeButRemainOffByDefault() {
+        val core = NativeProxyCore(VpnService())
+        for (enabled in listOf(false, true)) {
+            val config = ProxyConfig(dnsProvider = DnsProvider.CUSTOM, customDohUrl = "tcp://192.0.2.1",
+                allowInsecureDns = enabled, allowInvalidDohCertificate = enabled)
+            val json = JSONObject(core.configJson(config))
+            assertEquals(enabled, json.getBoolean("allowInsecureDns"))
+            assertEquals(enabled, json.getBoolean("allowInvalidDohCertificate"))
+            assertFalse(json.getBoolean("allowInvalidProxyCertificate"))
+            assertEquals(0, json.getJSONArray("dohFallbackUrls").length())
+        }
+    }
+
     @Test fun customEndpointReachesNativeConfigurationWithoutDefaultFallbacks() {
         val core = NativeProxyCore(VpnService())
         for (type in ProxyType.entries) {

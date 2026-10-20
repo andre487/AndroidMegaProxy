@@ -233,7 +233,7 @@ func (d *socks5Dialer) connectTarget(ctx context.Context, target string) (net.Co
 		return nil, err
 	}
 	id := nextDiagnosticConnectionID()
-	direct := d.config.BypassLocalNetworks && isLocalNetworkTarget(target)
+	direct := d.config.bypassTarget(target)
 	var c net.Conn
 	var err error
 	if direct {
@@ -267,16 +267,18 @@ func (d *socks5Dialer) DialUDP(m *M.Metadata) (net.PacketConn, error) {
 			return nil, net.ErrClosed
 		}
 		if d.dohClient == nil {
-			d.dohClient = newDoHHTTPClient(d.connectTarget)
+			d.dohClient = newDoHHTTPClient(d.connectTarget, d.config.AllowInvalidDoHCertificate)
 			d.dohInFlight = make(chan struct{}, 8)
 		}
 		client, limiter := d.dohClient, d.dohInFlight
 		d.mu.Unlock()
-		return newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter), nil
+		packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
+		packet.connectUDP = d.connectDNSUDP
+		return packet, nil
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
 	defer cancel()
-	if d.config.BypassLocalNetworks && isLocalNetworkTarget(target) {
+	if d.config.bypassTarget(target) {
 		c, err := d.protectedDial(ctx, "udp", target)
 		if err != nil {
 			return nil, err
@@ -396,4 +398,12 @@ func (p *socks5PacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
 		p.stats.uploadBytes.Add(uint64(len(b)))
 	}
 	return len(b), nil
+}
+
+func (d *socks5Dialer) connectDNSUDP(ctx context.Context, target string) (net.PacketConn, error) {
+	peer, err := net.ResolveUDPAddr("udp", target)
+	if err != nil {
+		return nil, err
+	}
+	return d.openUDP(ctx, target, peer)
 }

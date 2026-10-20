@@ -27,6 +27,18 @@ class InstrumentationResultTest(unittest.TestCase):
         self.assertEqual(methods, selected)
         self.assertEqual(len(m.TESTS), len(set(m.TESTS)))
 
+    def test_dns_scenarios_are_registered(self):
+        source = (
+            m.ROOT / "app/src/androidTest/java/net/megaproxy487/DnsDeviceTest.kt"
+        ).read_text()
+        methods = set(re.findall(r"@Test\s+fun\s+(\w+)\s*\(", source))
+        selected = {
+            name.split("#", 1)[1]
+            for name in m.TESTS
+            if name.startswith("DnsDeviceTest#")
+        }
+        self.assertEqual(methods, selected)
+
     def test_document_scenarios_are_registered(self):
         source = (
             m.ROOT / "app/src/androidTest/java/net/megaproxy487/DocumentsDeviceTest.kt"

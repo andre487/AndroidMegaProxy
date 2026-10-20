@@ -12,6 +12,8 @@ import (
 )
 
 type config struct {
+	AllowInvalidDoHCertificate       bool     `json:"allowInvalidDohCertificate"`
+	AllowInsecureDNS                 bool     `json:"allowInsecureDns"`
 	PreferHTTP3                      bool     `json:"preferHttp3"`
 	Type                             string   `json:"type"`
 	Host                             string   `json:"host"`
@@ -106,7 +108,17 @@ func parseConfig(raw string) (config, error) {
 			return c, errors.New("jump SSH username is required")
 		}
 	}
-	if err := validateDoHURL(c.DoHURL); err != nil {
+	if c.plainDNS() {
+		if !c.AllowInsecureDNS {
+			return c, errors.New("insecure DNS requires local approval")
+		}
+		if _, _, err := plainDNSTarget(c.DoHURL); err != nil {
+			return c, err
+		}
+		if len(c.DoHFallbackURLs) != 0 {
+			return c, errors.New("plain DNS must not enable DoH fallbacks")
+		}
+	} else if err := validateDoHURL(c.DoHURL); err != nil {
 		return c, err
 	}
 	for _, fallbackURL := range c.DoHFallbackURLs {

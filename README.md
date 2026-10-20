@@ -45,7 +45,7 @@ All guides: [English](docs/en/index.md) / [Русский](docs/ru/index.md).
 - SOCKS5 TCP/UDP, experimental MASQUE TCP/UDP over HTTP/3 and SSH.
 - Per-app routing, local-network bypass, optional IPv6 and Android Always-on VPN.
 - Multiple profiles, import/export, HTTPS configuration subscriptions and automatic failover.
-- DNS-over-HTTPS, selectable TLS/QUIC/SSH fingerprints and custom JA3.
+- DNS-over-HTTPS, optional plain TCP/UDP DNS, selectable TLS/QUIC/SSH fingerprints and custom JA3.
 - Traffic totals/rates, passive TCP/QUIC metrics, connection tests, download/upload speed tests
   and VPN visibility with ProxyCheck IP reputation.
 - Local diagnostic logs, encrypted stored credentials, English and Russian interfaces.
@@ -84,7 +84,7 @@ configured subscriptions and enabled app-update checks can also run in the backg
 | Purpose | Services and routing |
 | --- | --- |
 | Proxy bootstrap DNS | Cloudflare, Yandex, Google or Quad9 DoH may be contacted directly before VPN exists |
-| Application DNS | Selected DoH provider and permitted fallbacks through the proxy; intercepted UDP/TCP port 53 only. App-specific encrypted DNS follows normal routing |
+| Application DNS | DoH through the proxy by default; optional TCP DNS through the proxy or UDP DNS (direct for HTTPS/TCP and SSH). Intercepted UDP/TCP port 53 only; app-specific encrypted DNS follows normal routing. [Routing and security](docs/en/dns.md) |
 | Connection test | `example.com`; exit IP/country from `speed.cloudflare.com/cdn-cgi/trace`, then IP fallbacks `ifconfig.me`, `api.ipify.org`, `icanhazip.com` and country fallbacks `ifconfig.co`, `ipapi.co`, `api.country.is` |
 | UDP/HTTP3 test | `www.cloudflare.com/cdn-cgi/trace` and `quic.browserleaks.com/`, independently through MASQUE/SOCKS5 UDP with verified certificates and no TCP fallback |
 | VPN visibility | Route IP lookup as above, then `https://proxycheck.io/v3/`; successful reputation results cached per IP for 24 hours, quota exhaustion shown separately |
