@@ -66,7 +66,11 @@ allows PR CI and the tag-triggered release build to run normally.
    bare tags and incomplete releases. Send non-merge
    commit subjects/bodies and the actual diff to OpenAI, excluding historical changelogs,
    generated release notes and lock/sum files. Repository secrets and signing material
-   are not read. Context over 600,000 characters fails without truncation.
+   are not read. Up to 600,000 input characters use one request. Larger evidence is
+   partitioned, preferably at file boundaries, into bounded requests for factual summaries;
+   every source character is included. Oversized summaries are reduced in further rounds
+   before generating final notes. No model fallback or automatic input truncation is used.
+   Large releases use more API calls; preparation allows 30 minutes.
    API calls incur charges; unit tests mock the API.
 3. Generate equivalent EN/RU bullet lists with one sentence per change: up to 10 bullets
    and 3,000 characters per locale for GitHub, plus a separate F-Droid summary of at most
@@ -74,7 +78,8 @@ allows PR CI and the tag-triggered release build to run normally.
    vague improvements; maintenance-only releases briefly name the maintenance work and
    say app behavior is unchanged. Refusals, invalid output and API errors stop before writes.
    The actual returned model, Git range and token usage are logged without credentials.
-   JSON validation does not establish factual correctness; review the notes in the PR.
+   JSON validation and intermediate summaries do not establish factual completeness or correctness;
+   review the notes in the PR.
 4. Create `release/vX.Y.Z`. Set `versionName` and increment `versionCodeBase` by one
    in `app/build.gradle.kts`. Keep `base * 1000 + ABI offset` unchanged for F-Droid
    and variant-preserving updates. For example base 14 → 15 produces universal

@@ -20,7 +20,7 @@ jobs:
   prepare:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 30
     outputs:
       pr: ${{ steps.prepare.outputs.pr }}
       head: ${{ steps.prepare.outputs.head }}

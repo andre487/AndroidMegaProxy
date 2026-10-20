@@ -166,12 +166,251 @@ class ReleaseTests(unittest.TestCase):
                     "OPENAI_RELEASE_MODEL": "test-model",
                 },
             ),
-            patch.object(m, "command", side_effect=["history", "x" * 600001]),
+            patch.object(m, "command", side_effect=["", "diff"]),
             patch.object(m.urllib.request, "build_opener") as opener,
-            self.assertRaisesRegex(RuntimeError, "too large"),
+            self.assertRaisesRegex(RuntimeError, "history is empty"),
         ):
             m.generate_notes("1.1.3", "v1.1.2", "v1.1.3")
         opener.assert_not_called()
+
+    def test_large_release_context_keeps_every_character_and_combines_all_summaries(
+        self,
+    ):
+        from io import BytesIO
+
+        history = "Add tunnel upload; fix DNS"
+        diff = "diff --git a/network.go b/network.go\n" + "новый код\n" * 70_000
+        chunks = []
+        final = []
+
+        def respond(request, **kwargs):
+            payload = json.loads(request.data)
+            self.assertEqual("disabled", payload["truncation"])
+            self.assertLessEqual(len(payload["input"]), m.RELEASE_CONTEXT_LIMIT)
+            if "summary" in payload["text"]["format"]["schema"]["properties"]:
+                chunks.append(payload["input"])
+                content = {"summary": f"Concrete change from part {len(chunks)}."}
+            else:
+                final.append(json.loads(payload["input"]))
+                content = GENERATED
+            return BytesIO(
+                json.dumps(
+                    {
+                        "status": "completed",
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {"type": "output_text", "text": json.dumps(content)}
+                                ],
+                            }
+                        ],
+                    }
+                ).encode()
+            )
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENAI_API_KEY": "synthetic-key",
+                    "OPENAI_RELEASE_MODEL": "test-model",
+                },
+            ),
+            patch.object(m, "command", side_effect=[history, diff]) as run,
+            patch.object(m.urllib.request, "build_opener") as opener,
+        ):
+            opener.return_value.open.side_effect = respond
+            self.assertEqual(
+                GENERATED, m.generate_notes("1.2.0", "v1.1.3", "tested-head")
+            )
+        original = json.dumps(
+            {
+                "version": "1.2.0",
+                "previous_tag": "v1.1.3",
+                "head": "tested-head",
+                "history": history,
+                "diff": diff,
+            },
+            ensure_ascii=False,
+        )
+        self.assertGreater(len(chunks), 1)
+        self.assertEqual(original, "".join(chunks))
+        self.assertEqual(
+            [f"Concrete change from part {i}." for i in range(1, len(chunks) + 1)],
+            final[0]["summaries"],
+        )
+        self.assertEqual("tested-head", final[0]["head"])
+        self.assertEqual(
+            2, run.call_count
+        )  # Reading Git evidence only; no branch/version/tag writes.
+
+    def test_context_partition_preserves_large_files_and_file_boundaries(self):
+        for evidence in (
+            "x" * 130,
+            r"prefix\ndiff --git a/x b/x\n" + "ю" * 150,
+            "😀" * 125,
+        ):
+            with (
+                self.subTest(evidence=evidence[:20]),
+                patch.object(m, "RELEASE_CONTEXT_LIMIT", 60),
+            ):
+                parts = m.release_context_parts(evidence)
+                self.assertEqual(evidence, "".join(parts))
+                self.assertTrue(all(0 < len(part) <= 60 for part in parts))
+        with patch.object(m, "RELEASE_CONTEXT_LIMIT", 30):
+            parts = m.release_context_parts(r"prefix\ndiff --git a/x b/x\n" + "x" * 60)
+            self.assertEqual(r"prefix\n", parts[0])
+            self.assertTrue(parts[1].startswith("diff --git "))
+
+    def test_summary_rounds_reduce_context_until_final_request_fits(self):
+        from io import BytesIO
+
+        inputs = []
+
+        def respond(request, **kwargs):
+            payload = json.loads(request.data)
+            inputs.append(payload["input"])
+            self.assertLessEqual(len(payload["input"]), 300)
+            content = (
+                {"summary": "Factual change " * 3}
+                if "summary" in payload["text"]["format"]["schema"]["properties"]
+                else GENERATED
+            )
+            return BytesIO(
+                json.dumps(
+                    {
+                        "status": "completed",
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {"type": "output_text", "text": json.dumps(content)}
+                                ],
+                            }
+                        ],
+                    }
+                ).encode()
+            )
+
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENAI_API_KEY": "synthetic-key",
+                    "OPENAI_RELEASE_MODEL": "test-model",
+                },
+            ),
+            patch.object(m, "RELEASE_CONTEXT_LIMIT", 300),
+            patch.object(m, "command", side_effect=["history", "x" * 2200]),
+            patch.object(m.urllib.request, "build_opener") as opener,
+        ):
+            opener.return_value.open.side_effect = respond
+            self.assertEqual(GENERATED, m.generate_notes("1.2.0", "v1.1.3"))
+        self.assertTrue(any('"summaries"' in text for text in inputs[:-1]))
+        self.assertIn('"summaries"', inputs[-1])
+
+    def test_invalid_or_failed_summary_aborts_before_release_writes(self):
+        from io import BytesIO
+        from urllib.error import HTTPError
+
+        def response(content, **changes):
+            return dict(
+                status="completed",
+                output=[{"type": "message", "content": content}],
+                **changes,
+            )
+
+        for result in (
+            response([{"type": "output_text", "text": json.dumps({"summary": ""})}]),
+            response(
+                [
+                    {
+                        "type": "output_text",
+                        "text": json.dumps(
+                            {"summary": "x" * (m.RELEASE_SUMMARY_LIMIT + 1)}
+                        ),
+                    }
+                ]
+            ),
+            response([{"type": "output_text", "text": "{}"}]),
+            response([{"type": "refusal"}]),
+            {"status": "incomplete"},
+        ):
+            with (
+                self.subTest(result=str(result)[:80]),
+                patch.dict(
+                    os.environ,
+                    {
+                        "OPENAI_API_KEY": "synthetic-key",
+                        "OPENAI_RELEASE_MODEL": "test-model",
+                    },
+                ),
+                patch.object(
+                    m, "command", side_effect=["history", "x" * 600_001]
+                ) as run,
+                patch.object(m.urllib.request, "build_opener") as opener,
+                self.assertRaises(RuntimeError),
+            ):
+                opener.return_value.open.return_value.__enter__.return_value = BytesIO(
+                    json.dumps(result).encode()
+                )
+                m.generate_notes("1.2.0", "v1.1.3")
+            self.assertEqual(2, run.call_count)
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENAI_API_KEY": "synthetic-key",
+                    "OPENAI_RELEASE_MODEL": "test-model",
+                },
+            ),
+            patch.object(m, "command", side_effect=["history", "x" * 600_001]) as run,
+            patch.object(m.urllib.request, "build_opener") as opener,
+            self.assertRaisesRegex(RuntimeError, "HTTP 429; no release files written"),
+        ):
+            good = {
+                "status": "completed",
+                "output": [
+                    {
+                        "type": "message",
+                        "content": [
+                            {
+                                "type": "output_text",
+                                "text": json.dumps({"summary": "Earlier part facts."}),
+                            }
+                        ],
+                    }
+                ],
+            }
+            opener.return_value.open.side_effect = [
+                BytesIO(json.dumps(good).encode()),
+                HTTPError(
+                    "https://api.openai.com/v1/responses", 429, "quota", {}, None
+                ),
+            ]
+            m.generate_notes("1.2.0", "v1.1.3")
+        self.assertEqual(2, run.call_count)
+        self.assertEqual(2, opener.return_value.open.call_count)
+
+    def test_nonreducing_summaries_stop_instead_of_looping(self):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "OPENAI_API_KEY": "synthetic-key",
+                    "OPENAI_RELEASE_MODEL": "test-model",
+                },
+            ),
+            patch.object(m, "RELEASE_CONTEXT_LIMIT", 300),
+            patch.object(m, "command", side_effect=["history", "x" * 500]),
+            patch.object(m, "request_release_notes", return_value="x" * 400) as request,
+            self.assertRaisesRegex(RuntimeError, "did not reduce context"),
+        ):
+            m.generate_notes("1.2.0", "v1.1.3")
+        self.assertTrue(
+            all(call.kwargs.get("summarize") for call in request.call_args_list)
+        )
 
     def test_previous_release_skips_unpublished_incomplete_and_unreachable_tags(self):
         def release(tag, **changes):
