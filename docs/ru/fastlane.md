@@ -89,6 +89,11 @@ Runtime-скрипты используют stdlib и native `gh`. Для тес
 Legacy import остаётся permissive; явный неподдерживаемый transport отклоняется. Fastlane обновляется
 через `bundle update fastlane`: проверьте оба Gemfile, список lanes и затронутые проверки.
 
+Перед локальной подписанной сборкой подготовьте закреплённые gomobile tools через Android build lane.
+`release_artifacts` читает `MEGAPROXY_KEYSTORE_PATH`, `MEGAPROXY_KEY_ALIAS`,
+`MEGAPROXY_KEY_PASSWORD_FILE` и необязательный `MEGAPROXY_KEY_PASSWORD`; результат — `dist/release`.
+Defaults и проверка signer описаны в [релизном скрипте](../../scripts/build-release-apks.sh).
+
 Подпись, API/token, публикация и восстановление: [автоматизация релиза](release-automation.md).
 `release_finish` сливает и создаёт тег, это не dry run. PR не подписывает релизы и не отправляет APK в VirusTotal.
 

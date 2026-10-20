@@ -1,26 +1,15 @@
-<p>MegaProxy is an open-source Android VPN client for reliable and secure connections through proxy servers you control or trust.</p>
-
-<p>MegaProxy uses Android's VpnService to route application traffic from all apps or selected apps through an encrypted connection to a user-configured HTTPS, MASQUE (HTTP/3), or SSH proxy.</p>
-
-<p>It contains no advertising, analytics SDKs, tracking identifiers, or remote telemetry. Connection statistics and diagnostic logs remain on the device unless you explicitly choose to share them. Profiles are stored locally; connection credentials are used to authenticate to the configured servers.</p>
-
-<p>Features include:</p>
+<p>MegaProxy routes all or selected Android apps through your HTTPS, SOCKS5, MASQUE α (HTTP/3) or SSH server, including HTTPS and SSH jump hosts for multi-hop connections. Servers and credentials are not included.</p>
 
 <ul>
-<li>HTTPS proxies over TLS using CONNECT without intercepting application traffic</li>
-<li>Experimental MASQUE α over HTTP/3 with multiplexed TCP CONNECT and CONNECT-UDP</li>
-<li>HTTP/2 CONNECT multiplexing with automatic HTTP/1.1 fallback</li>
-<li>Two HTTPS proxies in sequence with HTTPS with Jump</li>
-<li>SSH transport and SSH through a jump host</li>
-<li>Password and unencrypted private-key SSH authentication</li>
-<li>Global VPN and per-application split tunneling</li>
-<li>Android Always-on VPN integration</li>
-<li>DNS-over-HTTPS with configurable providers and fallback</li>
-<li>Configurable HTTPS, MASQUE TLS/QUIC and SSH client fingerprints</li>
-<li>Multiple profiles, import, export, diagnostics, and automatic failover</li>
-<li>English and Russian interfaces</li>
+<li>HTTPS and SSH jump hosts with separate authentication and trust checks per hop</li>
+<li>Split tunneling, local-network bypass, optional IPv6 and Always-on VPN</li>
+<li>HTTP/2 multiplexing, experimental HTTP/3 TCP/UDP</li>
+<li>DNS-over-HTTPS and configurable TLS/QUIC/SSH fingerprints</li>
+<li>Profiles, import/export, configuration subscriptions and automatic failover</li>
+<li>Connection and UDP tests, download/upload speed tests, traffic metrics and VPN visibility with IP reputation</li>
+<li>Encrypted stored credentials, local logs, English and Russian interfaces</li>
 </ul>
 
-<p>MegaProxy does not provide a proxy service. You need HTTPS, MASQUE or SSH servers that you operate or trust. HTTPS and SSH support a jump server.</p>
+<p>No account, ads, analytics or remote telemetry. Diagnostics contact external services; logs are shared only when you choose.</p>
 
-<p>HTTPS and SSH forward TCP only. MASQUE α also forwards UDP, with QUIC datagram-size and server interoperability limits. Browser fingerprints approximate TLS/QUIC handshakes; they do not reproduce all browser behavior.</p>
+<p>SOCKS5 does not encrypt its connection or credentials. HTTPS over TCP and SSH do not forward arbitrary UDP. MASQUE is experimental with packet-size and server limits. Fingerprints approximate handshakes, not complete browser behaviour.</p>

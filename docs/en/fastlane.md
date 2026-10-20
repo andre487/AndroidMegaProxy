@@ -89,6 +89,11 @@ schemas, examples, license and SHA-256 lock together. CI only reads the vendored
 Legacy import remains permissive; explicit unsupported transports fail. Update Fastlane with
 `bundle update fastlane`, review both Gemfiles, list lanes and run affected checks.
 
+For local signed builds, prepare the pinned gomobile tools with an Android build lane first.
+`release_artifacts` reads `MEGAPROXY_KEYSTORE_PATH`, `MEGAPROXY_KEY_ALIAS`,
+`MEGAPROXY_KEY_PASSWORD_FILE` and optional `MEGAPROXY_KEY_PASSWORD`; outputs are in `dist/release`.
+Defaults and signer verification are in [the release script](../../scripts/build-release-apks.sh).
+
 Signed artifacts, API/token setup, publication and recovery: [release automation](release-automation.md).
 `release_finish` merges and tags; it is not a dry run. PR checks never sign releases or submit to VirusTotal.
 
