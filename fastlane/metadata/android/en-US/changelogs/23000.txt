@@ -1,0 +1,4 @@
+- Added Cloudflare speed tests comparing underlying and VPN connections.
+- Added VPN reputation checks via ProxyCheck.
+- Added opt-in TCP/UDP DNS and a separate option to accept invalid DoH certificates.
+- Fixed delayed reconnects restarting the VPN after Stop.
