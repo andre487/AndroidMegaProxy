@@ -30,7 +30,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Switch
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -136,7 +138,10 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
             SaveStatusBanner()
             if (showReconnectPrompt || showAlwaysOnDeferredNotice) {
                 Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                    ),
                     modifier = Modifier.fillMaxWidth().padding(12.dp),
                 ) {
                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
@@ -145,13 +150,17 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                             else activity.uiText(R.string.routing_reconnect),
                         )
                         WrappingActions() {
-                            TextButton(shape = RoundedCornerShape(12.dp), onClick = {
+                            val actionColors = ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                disabledContentColor = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f),
+                            )
+                            TextButton(colors = actionColors, shape = RoundedCornerShape(12.dp), onClick = {
                                 showReconnectPrompt = false
                                 showAlwaysOnDeferredNotice = false
                                 deferChangesUntilNextConnection = true
                             }) { Text(stringResource(if (showAlwaysOnDeferredNotice) R.string.dismiss else R.string.next_connection)) }
                             if (showReconnectPrompt) {
-                                TextButton(shape = RoundedCornerShape(12.dp), enabled = writeStatus.pending == 0 && !writeStatus.failed, onClick = {
+                                TextButton(colors = actionColors, shape = RoundedCornerShape(12.dp), enabled = writeStatus.pending == 0 && !writeStatus.failed, onClick = {
                                     showReconnectPrompt = false
                                     deferChangesUntilNextConnection = true
                                     ProxyVpnService.reconnect(activity)
@@ -207,13 +216,39 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                     }
                 }
             }
+            if (!settings.routeAllApps) {
+                item {
+                    val checked = activity.packageName in settings.selectedPackages
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                            value = checked,
+                            onValueChange = { enabled ->
+                                updateSettings(settings.copy(selectedPackages = if (enabled) {
+                                    settings.selectedPackages + activity.packageName
+                                } else {
+                                    settings.selectedPackages - activity.packageName
+                                }))
+                            },
+                            role = Role.Switch,
+                        ),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.route_megaproxy))
+                            Text(stringResource(R.string.route_megaproxy_description), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(checked, null)
+                    }
+                }
+            }
             item { Text(stringResource(R.string.udp_quic_blocked_description), style = MaterialTheme.typography.bodySmall) }
             item {
                 Row(
                     Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
                         value = settings.bypassLocalNetworks,
                         onValueChange = { updateSettings(settings.copy(bypassLocalNetworks = it)) },
-                        role = Role.Checkbox,
+                        role = Role.Switch,
                     ),
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -222,7 +257,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                         Text(stringResource(R.string.bypass_local_networks))
                         Text(stringResource(R.string.bypass_local_networks_description), style = MaterialTheme.typography.bodySmall)
                     }
-                    Checkbox(settings.bypassLocalNetworks, null)
+                    Switch(settings.bypassLocalNetworks, null)
                 }
             }
             if (!settings.routeAllApps) {

@@ -167,6 +167,8 @@
     <string name="bypass_local_networks">Bypass local networks</string>
     <string name="bypass_local_networks_description">Direct TCP access to private and link-local IP addresses; MASQUE also bypasses local UDP.</string>
     <string name="search_applications">Search applications</string>
+    <string name="route_megaproxy">Route MegaProxy through VPN</string>
+    <string name="route_megaproxy_description">Mirrors the MegaProxy checkbox in the application list below.</string>
     <string name="rotated_log_limit">Rotated log limit (MiB)</string>
     <string name="rotated_log_limit_description">Total size across both log segments; 1–100 MiB.</string>
     <string name="no_diagnostic_events">No diagnostic events yet.</string>

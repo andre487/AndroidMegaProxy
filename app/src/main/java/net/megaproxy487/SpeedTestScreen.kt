@@ -164,12 +164,12 @@ private fun SpeedResultsTable(results: List<RouteSpeedResult>) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("", Modifier.weight(0.8f))
-                Text(stringResource(R.string.external_underlying_network), Modifier.weight(1f), fontWeight = FontWeight.Bold)
-                Text(stringResource(R.string.external_tunnel_network), Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.external_underlying_network), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.external_tunnel_network), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
             }
             SpeedRow(R.string.cloudflare_speed_ip, results) { it.exitIp }
             SpeedRow(R.string.cloudflare_speed_country, results) { it.countryCode?.let(::formatCountryCode) }
-            SpeedRow(R.string.cloudflare_speed_protocol, results) { it.protocol }
+            SpeedRow(R.string.cloudflare_speed_protocol, results) { it.protocol?.replace(" · ", "\n") }
             SpeedRow(R.string.cloudflare_speed_latency, results) { it.latencyMs?.let { ms -> stringResource(R.string.latency_milliseconds, ms) } }
             SpeedRow(R.string.cloudflare_speed_download, results) { it.downloadMbps?.let { speed -> stringResource(R.string.cloudflare_speed_value, speed) } }
             SpeedRow(R.string.cloudflare_speed_upload, results) { it.uploadMbps?.let { speed -> stringResource(R.string.cloudflare_speed_value, speed) } }
@@ -181,14 +181,16 @@ private fun SpeedResultsTable(results: List<RouteSpeedResult>) {
 private fun SpeedRow(label: Int, results: List<RouteSpeedResult>, value: @Composable (CloudflareRouteResult) -> String?) {
     val title = stringResource(label)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, Modifier.weight(0.8f))
+        Text(title, Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium)
         results.forEachIndexed { index, result ->
             val route = stringResource(if (index == 0) R.string.external_underlying_network else R.string.external_tunnel_network)
             val progressDescription = "$title, $route: ${stringResource(R.string.cloudflare_speed_running)}"
             Box(Modifier.weight(1f)) {
                 val text = value(result.values)
                 when {
-                    text != null -> Text(text)
+                    text != null -> if (label == R.string.cloudflare_speed_ip) {
+                        SelectionContainer { Text(text) }
+                    } else Text(text)
                     result.pending -> CircularProgressIndicator(
                         modifier = Modifier.size(20.dp).semantics { contentDescription = progressDescription }, strokeWidth = 2.dp,
                     )

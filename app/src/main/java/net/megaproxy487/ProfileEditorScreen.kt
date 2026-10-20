@@ -29,7 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Switch
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -339,7 +339,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                     error = fieldError(R.string.validation_basic_password, R.string.validation_socks5_auth), modifier = Modifier.fillMaxWidth())
           }
           if (config.type == ProxyType.SOCKS5) item { Text(stringResource(R.string.socks5_description), style = MaterialTheme.typography.bodySmall) }
-          if (config.type.isHttps) item { SettingCheckboxRow(
+          if (config.type.isHttps) item { SettingSwitchRow(
               checked = config.preferHttp3,
               title = stringResource(R.string.prefer_http3),
               description = stringResource(R.string.prefer_http3_description),
@@ -358,7 +358,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 )
             }
           }
-          if (config.type.isHttpProxy) item { SettingCheckboxRow(
+          if (config.type.isHttpProxy) item { SettingSwitchRow(
                 checked = config.allowInvalidProxyCertificate,
                 title = stringResource(R.string.allow_proxy_certificate),
                 description = stringResource(R.string.allow_proxy_certificate_description),
@@ -389,7 +389,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                   }
                 }
               item {
-                SettingCheckboxRow(config.acceptAnyHostKey, activity.uiText(R.string.ssh_accept_destination), activity.uiText(R.string.ssh_accept_destination_help)) { checked ->
+                SettingSwitchRow(config.acceptAnyHostKey, activity.uiText(R.string.ssh_accept_destination), activity.uiText(R.string.ssh_accept_destination_help)) { checked ->
                     if (checked) unsafeHostKeyHop = "destination" else updateConfig(config.copy(acceptAnyHostKey = false))
                 }
               }
@@ -408,7 +408,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                     onValidValue = { updateConfig(config.copy(jumpPort = it)) }, modifier = Modifier.fillMaxWidth())
               }
               item {
-                SettingCheckboxRow(config.sameJumpAuthentication, stringResource(R.string.https_jump_same_auth), stringResource(R.string.https_jump_same_auth_description)) {
+                SettingSwitchRow(config.sameJumpAuthentication, stringResource(R.string.https_jump_same_auth), stringResource(R.string.https_jump_same_auth_description)) {
                     updateConfig(config.copy(sameJumpAuthentication = it))
                 }
               }
@@ -422,7 +422,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 }
               }
               item {
-                SettingCheckboxRow(config.jumpAllowInvalidProxyCertificate, stringResource(R.string.allow_jump_proxy_certificate), stringResource(R.string.allow_jump_proxy_certificate_description)) { checked ->
+                SettingSwitchRow(config.jumpAllowInvalidProxyCertificate, stringResource(R.string.allow_jump_proxy_certificate), stringResource(R.string.allow_jump_proxy_certificate_description)) { checked ->
                     if (checked) { invalidCertificateIsJump = true; showInvalidCertificateWarning = true }
                     else updateConfig(config.copy(jumpAllowInvalidProxyCertificate = false))
                 }
@@ -444,7 +444,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                     onValidValue = { updateConfig(config.copy(jumpPort = it)) }, modifier = Modifier.fillMaxWidth())
               }
               item {
-                SettingCheckboxRow(config.sameJumpAuthentication, activity.uiText(R.string.ssh_same_auth), activity.uiText(R.string.ssh_same_auth_help)) {
+                SettingSwitchRow(config.sameJumpAuthentication, activity.uiText(R.string.ssh_same_auth), activity.uiText(R.string.ssh_same_auth_help)) {
                     updateConfig(config.copy(sameJumpAuthentication = it))
                 }
               }
@@ -476,7 +476,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                     }
                 }
               item {
-                SettingCheckboxRow(config.jumpAcceptAnyHostKey, activity.uiText(R.string.ssh_accept_jump), activity.uiText(R.string.ssh_accept_jump_help)) { checked ->
+                SettingSwitchRow(config.jumpAcceptAnyHostKey, activity.uiText(R.string.ssh_accept_jump), activity.uiText(R.string.ssh_accept_jump_help)) { checked ->
                     if (checked) unsafeHostKeyHop = "jump" else updateConfig(config.copy(jumpAcceptAnyHostKey = false))
                 }
               }
@@ -484,7 +484,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             }
 
           item {
-            SettingCheckboxRow(config.allowIpv6, activity.uiText(R.string.ipv6_destinations), activity.uiText(R.string.ipv6_destinations_help)) {
+            SettingSwitchRow(config.allowIpv6, activity.uiText(R.string.ipv6_destinations), activity.uiText(R.string.ipv6_destinations_help)) {
                 updateConfig(config.copy(allowIpv6 = it))
             }
           }
@@ -532,7 +532,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
 }
 
 @Composable
-private fun SettingCheckboxRow(
+private fun SettingSwitchRow(
     checked: Boolean,
     title: String,
     description: String,
@@ -542,7 +542,7 @@ private fun SettingCheckboxRow(
         Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
             value = checked,
             onValueChange = onCheckedChange,
-            role = Role.Checkbox,
+            role = Role.Switch,
         ),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -550,6 +550,6 @@ private fun SettingCheckboxRow(
             Text(title)
             Text(description, style = MaterialTheme.typography.bodySmall)
         }
-        Checkbox(checked, null)
+        Switch(checked, null)
     }
 }

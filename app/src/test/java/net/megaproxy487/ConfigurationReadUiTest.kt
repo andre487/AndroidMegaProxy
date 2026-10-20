@@ -21,7 +21,7 @@ class ConfigurationReadUiTest : MainUiTestBase() {
                     release.await() // The test owns completion; finally always releases the worker.
                     "Loaded configuration"
                 }
-                if (configuration != null) Text(configuration)
+                Text(configuration ?: "Loading configuration")
             }
             compose.waitForIdle()
             compose.waitUntil(5_000) { entered.count == 0L }

@@ -8,6 +8,7 @@ import androidx.compose.ui.unit.dp
 import android.content.Intent
 import android.provider.Settings
 import androidx.compose.ui.test.*
+import androidx.compose.ui.semantics.SemanticsActions
 import net.megaproxy487.vpn.*
 import org.junit.Assert.*
 import org.junit.Test
@@ -52,9 +53,12 @@ class MainScreenUiTest : MainUiTestBase() {
 
     @Test fun githubLinkNextToVersionOpensApplicationRepository() {
         screen()
-        compose.onNodeWithText(activity.getString(R.string.version_and_commit,
-            BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH)).performScrollTo().assertIsDisplayed()
-        node(R.string.update_github).performScrollTo().assertIsDisplayed().performClick()
+        val version = activity.getString(R.string.version_and_commit,
+            BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH)
+        compose.onNodeWithText("$version · ${text(R.string.update_github)}")
+            .performScrollTo().assertIsDisplayed()
+        compose.onNode(hasParent(hasText("$version · ${text(R.string.update_github)}")) and hasClickAction(),
+            useUnmergedTree = true).performSemanticsAction(SemanticsActions.OnClick) { it() }
         val intent = shadowOf(activity).nextStartedActivity
         assertEquals(Intent.ACTION_VIEW, intent?.action)
         assertEquals("https://github.com/andre487/AndroidMegaProxy", intent?.dataString)

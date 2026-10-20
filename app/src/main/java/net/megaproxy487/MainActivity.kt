@@ -26,7 +26,6 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -80,6 +79,11 @@ import androidx.compose.ui.graphics.CompositingStrategy
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withLink
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.graphics.Color
 import net.megaproxy487.uiStringResource as stringResource
@@ -695,27 +699,30 @@ internal fun MainScreen(
             connectionStats?.let { stats ->
                 ConnectionStatsCard(stats, quic = transportProtocol == VpnTransportProtocol.HTTP_3)
             }
-            FlowRow(
-                horizontalArrangement = Arrangement.Center,
-                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
-            ) {
-                Text(
-                    stringResource(R.string.version_and_commit, BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.align(Alignment.CenterVertically),
-                )
-                TextButton(onClick = {
-                    try {
-                        activity.startActivity(Intent(Intent.ACTION_VIEW,
-                            Uri.parse("https://github.com/andre487/AndroidMegaProxy")))
-                    } catch (_: ActivityNotFoundException) {
-                        error = activity.uiText(R.string.no_browser)
+            Text(
+                text = buildAnnotatedString {
+                    append(stringResource(R.string.version_and_commit, BuildConfig.VERSION_NAME, BuildConfig.GIT_COMMIT_HASH))
+                    append(" · ")
+                    val url = "https://github.com/andre487/AndroidMegaProxy"
+                    withLink(LinkAnnotation.Url(url,
+                        styles = TextLinkStyles(style = SpanStyle(color = MaterialTheme.colorScheme.primary)),
+                        linkInteractionListener = {
+                            try {
+                                activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                            } catch (_: ActivityNotFoundException) {
+                                error = activity.uiText(R.string.no_browser)
+                            } catch (_: SecurityException) {
+                                error = activity.uiText(R.string.no_browser)
+                            }
+                        })) {
+                        append(stringResource(R.string.update_github))
                     }
-                }) {
-                    Text(stringResource(R.string.update_github), style = MaterialTheme.typography.bodySmall)
-                }
-            }
+                },
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             }
         }
     }
