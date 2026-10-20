@@ -423,12 +423,12 @@ internal fun MainScreen(
                                 onClick = { actionsMenuExpanded = false; onOpenConnectionTest() },
                             )
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.visibility)) },
-                                onClick = { actionsMenuExpanded = false; onOpenVisibility() },
-                            )
-                            DropdownMenuItem(
                                 text = { Text(stringResource(R.string.speed)) },
                                 onClick = { actionsMenuExpanded = false; onOpenSpeed() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.visibility)) },
+                                onClick = { actionsMenuExpanded = false; onOpenVisibility() },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.settings)) },

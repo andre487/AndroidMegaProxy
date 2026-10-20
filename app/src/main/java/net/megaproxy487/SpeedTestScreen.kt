@@ -13,6 +13,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -42,14 +43,15 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.megaproxy487.uiStringResource as stringResource
 
-private data class RouteSpeedResult(val title: Int, val result: Result<CloudflareRouteResult>?)
+private data class RouteSpeedResult(val result: Result<CloudflareRouteResult>?)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
     var results by remember { mutableStateOf<List<RouteSpeedResult>>(emptyList()) }
     var running by remember { mutableStateOf(false) }
-    var mebibytes by remember { mutableStateOf(SPEED_TEST_MEBIBYTES.first()) }
+    var megabytes by remember { mutableStateOf(SPEED_TEST_MEGABYTES.first()) }
+    var log by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
     Scaffold(
         topBar = {
@@ -69,21 +71,21 @@ internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             Text(
-                stringResource(R.string.cloudflare_speed_explanation, mebibytes, mebibytes * 4),
+                stringResource(R.string.cloudflare_speed_explanation, megabytes, megabytes * 4),
                 style = MaterialTheme.typography.bodyMedium,
             )
             Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                SPEED_TEST_MEBIBYTES.forEach { size ->
+                SPEED_TEST_MEGABYTES.forEach { size ->
                     Row(
                         Modifier.selectable(
-                            selected = mebibytes == size,
+                            selected = megabytes == size,
                             enabled = !running,
                             role = Role.RadioButton,
-                            onClick = { mebibytes = size },
+                            onClick = { megabytes = size },
                         ),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        RadioButton(selected = mebibytes == size, onClick = null, enabled = !running)
+                        RadioButton(selected = megabytes == size, onClick = null, enabled = !running)
                         Text(stringResource(R.string.cloudflare_speed_size, size))
                     }
                 }
@@ -94,8 +96,13 @@ internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
                 onClick = {
                     running = true
                     results = emptyList()
+                    log = emptyList()
                     scope.launch {
-                        results = withContext(Dispatchers.IO) { runSpeedChecks(activity, mebibytes) }
+                        results = withContext(Dispatchers.IO) {
+                            runSpeedChecks(activity, megabytes) { entry ->
+                                withContext(Dispatchers.Main) { log = log + "${speedLogTime()}  $entry" }
+                            }
+                        }
                         running = false
                     }
                 },
@@ -103,34 +110,45 @@ internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
             ) {
                 Text(stringResource(if (running) R.string.cloudflare_speed_running else R.string.cloudflare_speed_run))
             }
-            if (results.isNotEmpty()) SpeedResultsTable(results)
+            SpeedResultsTable(results)
+            SelectionContainer {
+                Text(
+                    log.joinToString("\n").ifEmpty {
+                        stringResource(if (running) R.string.test_waiting else R.string.test_empty)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun SpeedResultsTable(results: List<RouteSpeedResult>) {
-    val underlying = results.first().result
-    val tunnel = results.last().result
+    val empty = results.isEmpty()
+    val underlying = results.firstOrNull()?.result
+    val tunnel = results.lastOrNull()?.result
     Card(Modifier.fillMaxWidth()) {
         Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            SpeedRow("", stringResource(results.first().title), stringResource(results.last().title), header = true)
-            SpeedRow(stringResource(R.string.cloudflare_speed_ip), speedValue(underlying) { it.exitIp }, speedValue(tunnel) { it.exitIp })
+            SpeedRow("", stringResource(R.string.external_underlying_network), stringResource(R.string.external_tunnel_network), header = true)
+            SpeedRow(stringResource(R.string.cloudflare_speed_ip), speedValue(underlying, empty) { it.exitIp }, speedValue(tunnel, empty) { it.exitIp })
             SpeedRow(
                 stringResource(R.string.cloudflare_speed_country),
-                speedValue(underlying) { it.countryCode.takeIf(String::isNotBlank)?.let { code -> formatCountry(code, systemFormattingLocale()) } ?: "—" },
-                speedValue(tunnel) { it.countryCode.takeIf(String::isNotBlank)?.let { code -> formatCountry(code, systemFormattingLocale()) } ?: "—" },
+                speedValue(underlying, empty) { it.countryCode.takeIf(String::isNotBlank)?.let { code -> formatCountry(code, systemFormattingLocale()) } ?: "—" },
+                speedValue(tunnel, empty) { it.countryCode.takeIf(String::isNotBlank)?.let { code -> formatCountry(code, systemFormattingLocale()) } ?: "—" },
             )
-            SpeedRow(stringResource(R.string.cloudflare_speed_protocol), speedValue(underlying) { it.protocol }, speedValue(tunnel) { it.protocol })
-            SpeedRow(stringResource(R.string.cloudflare_speed_latency), speedValue(underlying) { stringResource(R.string.latency_milliseconds, it.latencyMs) }, speedValue(tunnel) { stringResource(R.string.latency_milliseconds, it.latencyMs) })
-            SpeedRow(stringResource(R.string.cloudflare_speed_download), speedValue(underlying) { stringResource(R.string.cloudflare_speed_value, it.downloadMbps) }, speedValue(tunnel) { stringResource(R.string.cloudflare_speed_value, it.downloadMbps) })
-            SpeedRow(stringResource(R.string.cloudflare_speed_upload), speedValue(underlying) { stringResource(R.string.cloudflare_speed_value, it.uploadMbps) }, speedValue(tunnel) { stringResource(R.string.cloudflare_speed_value, it.uploadMbps) })
+            SpeedRow(stringResource(R.string.cloudflare_speed_protocol), speedValue(underlying, empty) { it.protocol }, speedValue(tunnel, empty) { it.protocol })
+            SpeedRow(stringResource(R.string.cloudflare_speed_latency), speedValue(underlying, empty) { stringResource(R.string.latency_milliseconds, it.latencyMs) }, speedValue(tunnel, empty) { stringResource(R.string.latency_milliseconds, it.latencyMs) })
+            SpeedRow(stringResource(R.string.cloudflare_speed_download), speedValue(underlying, empty) { stringResource(R.string.cloudflare_speed_value, it.downloadMbps) }, speedValue(tunnel, empty) { stringResource(R.string.cloudflare_speed_value, it.downloadMbps) })
+            SpeedRow(stringResource(R.string.cloudflare_speed_upload), speedValue(underlying, empty) { stringResource(R.string.cloudflare_speed_value, it.uploadMbps) }, speedValue(tunnel, empty) { stringResource(R.string.cloudflare_speed_value, it.uploadMbps) })
         }
     }
 }
 
 @Composable
-private fun speedValue(result: Result<CloudflareRouteResult>?, value: @Composable (CloudflareRouteResult) -> String): String = when {
+private fun speedValue(result: Result<CloudflareRouteResult>?, empty: Boolean, value: @Composable (CloudflareRouteResult) -> String): String = when {
+    empty -> "—"
     result == null -> stringResource(R.string.unavailable)
     result.isFailure -> stringResource(R.string.cloudflare_speed_failed_short)
     else -> value(result.getOrThrow())
@@ -145,7 +163,25 @@ private fun SpeedRow(label: String, underlying: String, tunnel: String, header: 
     }
 }
 
-private fun runSpeedChecks(activity: Activity, mebibytes: Int) = listOf(
-    RouteSpeedResult(R.string.external_underlying_network, findRouteNetwork(activity, false)?.let { runCatching { runCloudflareSpeedCheck(it, mebibytes) } }),
-    RouteSpeedResult(R.string.external_tunnel_network, findRouteNetwork(activity, true)?.let { runCatching { runCloudflareSpeedCheck(it, mebibytes) } }),
+private suspend fun runSpeedChecks(activity: Activity, megabytes: Int, log: suspend (String) -> Unit): List<RouteSpeedResult> {
+    suspend fun check(route: String, vpn: Boolean): RouteSpeedResult {
+        log("event=speed_test route=$route result=started bytes=${megabytes * 1_000_000}")
+        val network = findRouteNetwork(activity, vpn)
+        if (network == null) {
+            log("event=speed_test route=$route result=unavailable")
+            return RouteSpeedResult(null)
+        }
+        val result = runCatching { runCloudflareSpeedCheck(network, megabytes) }
+        log("event=speed_test route=$route result=${if (result.isSuccess) "success" else "failed"}" +
+            (result.exceptionOrNull()?.let { " error=${it.javaClass.simpleName}" } ?: ""))
+        return RouteSpeedResult(result)
+    }
+    return listOf(
+        check("underlying", false),
+        check("tunnel", true),
+    )
+}
+
+private fun speedLogTime(): String = java.time.LocalTime.now().format(
+    java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSS", systemFormattingLocale()),
 )

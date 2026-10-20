@@ -124,7 +124,7 @@ per source IP per day; MegaProxy reports an exhausted daily allowance separately
 failures and caches successful verdicts for each public IP for 24 hours.
 An explicitly started speed test requests route metadata from
 `https://speed.cloudflare.com/cdn-cgi/trace`, measures median time to first byte with three empty
-downloads, and transfers a user-selected 20, 60 or 100 MiB per direction and available route through
+downloads, and transfers a user-selected 10, 25 or 50 MB per direction and available route through
 `https://speed.cloudflare.com/__down` and `https://speed.cloudflare.com/__up`.
 It displays the exit IP, country, HTTP/TLS protocol reported by Cloudflare, latency and download
 and upload speed for the underlying network and VPN tunnel separately.

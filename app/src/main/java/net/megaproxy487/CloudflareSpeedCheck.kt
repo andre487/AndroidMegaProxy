@@ -14,9 +14,9 @@ internal data class CloudflareRouteResult(
     val uploadMbps: Double,
 )
 
-internal fun runCloudflareSpeedCheck(network: Network, mebibytes: Int): CloudflareRouteResult {
-    require(mebibytes in SPEED_TEST_MEBIBYTES)
-    val bytes = mebibytes * 1024 * 1024
+internal fun runCloudflareSpeedCheck(network: Network, megabytes: Int): CloudflareRouteResult {
+    require(megabytes in SPEED_TEST_MEGABYTES)
+    val bytes = megabytes * 1_000_000
     val trace = requestText(network, CLOUDFLARE_TRACE_URL).let(::parseCloudflareTrace)
     val latency = List(3) { latency(network) }.sorted()[1]
     val download = download(network, bytes)
@@ -119,4 +119,4 @@ private fun upload(network: Network, bytes: Int): TimedTransfer {
 private const val CLOUDFLARE_TRACE_URL = "https://speed.cloudflare.com/cdn-cgi/trace"
 private const val CLOUDFLARE_DOWNLOAD_URL = "https://speed.cloudflare.com/__down"
 private const val CLOUDFLARE_UPLOAD_URL = "https://speed.cloudflare.com/__up"
-internal val SPEED_TEST_MEBIBYTES = listOf(20, 60, 100)
+internal val SPEED_TEST_MEGABYTES = listOf(10, 25, 50)

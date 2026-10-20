@@ -224,8 +224,8 @@
     <string name="limit_reached">Limit reached</string><string name="proxycheck_reputation">ProxyCheck IP reputation</string>
     <string name="proxycheck_detected">ProxyCheck identifies this address as a VPN, proxy, Tor exit, or other anonymous connection.</string><string name="proxycheck_not_detected">ProxyCheck does not identify this address as a VPN, proxy, Tor exit, or other anonymous connection.</string>
     <string name="proxycheck_limit_reached">ProxyCheck’s anonymous daily request limit has been reached. Try again tomorrow.</string><string name="proxycheck_failed">The ProxyCheck request failed.</string><string name="proxycheck_unknown_format">No definite result: ProxyCheck returned an unexpected response format.</string>
-    <string name="cloudflare_speed_explanation">Downloads and uploads %1$d MiB over each available route (up to %2$d MiB total). Latency is the median time to first byte from three requests.</string>
-    <string name="cloudflare_speed_size">%1$d MiB</string>
+    <string name="cloudflare_speed_explanation">Downloads and uploads %1$d MB over each available route (up to %2$d MB total). Latency is the median time to first byte from three requests.</string>
+    <string name="cloudflare_speed_size">%1$d MB</string>
     <string name="cloudflare_speed_run">Measure speed</string><string name="cloudflare_speed_running">Measuring…</string>
     <string name="cloudflare_speed_ip">Exit IP</string><string name="cloudflare_speed_country">Country</string>
     <string name="cloudflare_speed_protocol">Protocol</string><string name="cloudflare_speed_latency">Latency</string>

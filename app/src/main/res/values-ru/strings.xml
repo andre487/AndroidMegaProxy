@@ -223,8 +223,8 @@
     <string name="limit_reached">Лимит исчерпан</string><string name="proxycheck_reputation">Репутация IP в ProxyCheck</string>
     <string name="proxycheck_detected">ProxyCheck определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string><string name="proxycheck_not_detected">ProxyCheck не определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string>
     <string name="proxycheck_limit_reached">Анонимный дневной лимит запросов ProxyCheck исчерпан. Повторите проверку завтра.</string><string name="proxycheck_failed">Запрос к ProxyCheck завершился ошибкой.</string><string name="proxycheck_unknown_format">Определённого результата нет: ProxyCheck вернул ответ в неизвестном формате.</string>
-    <string name="cloudflare_speed_explanation">Скачивает и отправляет по %1$d MiB через каждый доступный маршрут (до %2$d MiB всего). Задержка — медианное время до первого байта по трём запросам.</string>
-    <string name="cloudflare_speed_size">%1$d MiB</string>
+    <string name="cloudflare_speed_explanation">Скачивает и отправляет по %1$d MB через каждый доступный маршрут (до %2$d MB всего). Задержка — медианное время до первого байта по трём запросам.</string>
+    <string name="cloudflare_speed_size">%1$d MB</string>
     <string name="cloudflare_speed_run">Измерить скорость</string><string name="cloudflare_speed_running">Измерение…</string>
     <string name="cloudflare_speed_ip">Выходной IP</string><string name="cloudflare_speed_country">Страна</string>
     <string name="cloudflare_speed_protocol">Протокол</string><string name="cloudflare_speed_latency">Задержка</string>
