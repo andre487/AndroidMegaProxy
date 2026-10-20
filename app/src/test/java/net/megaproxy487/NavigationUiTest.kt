@@ -17,7 +17,7 @@ class NavigationUiTest : MainUiTestBase() {
     }
 
     @Test fun visibilityMenuOpensCheckAndBackReturnsHome() {
-        content { MegaProxyNavHost(activity, readConnectionStats = { null }) }
+        content { MegaProxyNavHost(activity, readConnectionStats = { null }, runVisibilityNetworkChecks = false) }
         icon(R.string.main_actions).performClick()
         node(R.string.visibility).performClick()
         compose.onNodeWithTag("screen-visibility").assertIsDisplayed()

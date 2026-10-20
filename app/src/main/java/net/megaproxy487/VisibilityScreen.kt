@@ -79,12 +79,13 @@ private data class VisibilityReport(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit) {
+internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit, runNetworkChecks: Boolean = true) {
     var revision by remember { mutableStateOf(0) }
     val report = readConfiguration(revision) { buildVisibilityReport(activity) } ?: return
     var externalChecks by remember { mutableStateOf<List<VisibilityCheck>>(emptyList()) }
     var proxyCheckChecks by remember { mutableStateOf<List<VisibilityCheck>>(emptyList()) }
     LaunchedEffect(revision) {
+        if (!runNetworkChecks) return@LaunchedEffect
         val external = async(Dispatchers.IO) { runExternalChecks(activity) }
         val proxyCheck = async(Dispatchers.IO) { runProxyCheckChecks(activity) }
         externalChecks = external.await()
