@@ -22,6 +22,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -65,6 +66,7 @@ internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
     var megabytes by remember { mutableStateOf(SPEED_TEST_MEGABYTES.first()) }
     var log by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
+    val store = remember(activity) { net.megaproxy487.data.ConfigStore(activity) }
     Scaffold(
         topBar = {
             TopAppBar(
@@ -86,6 +88,15 @@ internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
                 stringResource(R.string.cloudflare_speed_explanation, megabytes, megabytes * 4),
                 style = MaterialTheme.typography.bodyMedium,
             )
+            val settings = readConfiguration(store) { store.globalConnectionSettings() }
+            if (settings != null && !settings.routeAllApps && activity.packageName !in settings.selectedPackages) {
+                Card(colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                )) {
+                    Text(stringResource(R.string.speed_split_tunnel_warning), Modifier.padding(12.dp))
+                }
+            }
             Row(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.SpaceEvenly) {
                 SPEED_TEST_MEGABYTES.forEach { size ->
                     Row(

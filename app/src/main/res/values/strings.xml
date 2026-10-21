@@ -577,4 +577,5 @@
     <string name="allow_invalid_doh_certificate_warning">Allows self-signed, expired and mismatched certificates for DoH only. DNS traffic may be intercepted. Proxy certificate verification is unchanged.</string>
     <string name="battery_settings_unavailable">Battery settings are unavailable on this device.</string>
     <string name="error_config_capacity">Configuration storage limit reached. Remove profiles or reduce their contents.</string>
+    <string name="speed_split_tunnel_warning">MegaProxy is not selected for split tunneling. To measure VPN tunnel speed, enable “Route MegaProxy through VPN” in split tunneling settings and reconnect. The underlying network can still be measured.</string>
 </resources>
