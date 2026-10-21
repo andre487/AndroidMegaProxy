@@ -47,23 +47,21 @@ type dnsReply struct {
 }
 
 type dohPacketConn struct {
-	onClose        func()
-	connectUDP     func(context.Context, string) (net.PacketConn, error)
-	config         config
-	reporter       Reporter
-	connect        func(context.Context, string) (net.Conn, error)
-	endpoints      []string
-	endpointMu     sync.Mutex
-	activeEndpoint int
-	replies        chan dnsReply
-	inFlight       chan struct{}
-	closed         chan struct{}
-	closeOnce      sync.Once
-	readDeadline   packetDeadline
-	writeDeadline  packetDeadline
-	client         *http.Client
-	context        context.Context
-	cancel         context.CancelFunc
+	onClose       func()
+	connectUDP    func(context.Context, string) (net.PacketConn, error)
+	config        config
+	reporter      Reporter
+	connect       func(context.Context, string) (net.Conn, error)
+	endpoints     []string
+	replies       chan dnsReply
+	inFlight      chan struct{}
+	closed        chan struct{}
+	closeOnce     sync.Once
+	readDeadline  packetDeadline
+	writeDeadline packetDeadline
+	client        *http.Client
+	context       context.Context
+	cancel        context.CancelFunc
 }
 
 func newDoHPacketConn(c config, reporter Reporter, connect func(context.Context, string) (net.Conn, error), endpoint string) *dohPacketConn {
@@ -143,48 +141,26 @@ func (c *dohPacketConn) WriteTo(payload []byte, addr net.Addr) (int, error) {
 	query := append([]byte(nil), payload...)
 	go func() {
 		defer func() { <-c.inFlight }()
-		var lastErr error
-		for _, candidate := range c.endpointOrder() {
-			body, err := c.queryEndpoint(candidate.url, query)
-			if err == nil {
-				c.setActiveEndpoint(candidate.index)
-				c.deliver(dnsReply{payload: body, addr: addr})
-				report(c.reporter, "event=%s result=success provider_index=%d", c.eventName(), candidate.index)
-				return
-			}
-			lastErr = err
-			report(c.reporter, "event=%s result=failed provider_index=%d reason=%s", c.eventName(), candidate.index, errorClass(err))
+		body, err := raceFirst(c.context, len(c.endpoints), func(ctx context.Context, index int) ([]byte, error) {
+			return c.queryEndpointContext(ctx, c.endpoints[index], query)
+		}, nil)
+		if err != nil {
+			c.deliver(dnsReply{addr: addr, err: fmt.Errorf("all DNS providers failed: %w", err)})
+			report(c.reporter, "event=%s result=failed reason=%s", c.eventName(), errorClass(err))
+			return
 		}
-		c.deliver(dnsReply{addr: addr, err: fmt.Errorf("all DNS providers failed: %w", lastErr)})
+		c.deliver(dnsReply{payload: body, addr: addr})
+		report(c.reporter, "event=%s result=success", c.eventName())
 	}()
 	return len(payload), nil
 }
 
-type indexedDoHEndpoint struct {
-	index int
-	url   string
-}
-
-func (c *dohPacketConn) endpointOrder() []indexedDoHEndpoint {
-	c.endpointMu.Lock()
-	start := c.activeEndpoint
-	c.endpointMu.Unlock()
-	result := make([]indexedDoHEndpoint, 0, len(c.endpoints))
-	for offset := range len(c.endpoints) {
-		index := (start + offset) % len(c.endpoints)
-		result = append(result, indexedDoHEndpoint{index: index, url: c.endpoints[index]})
-	}
-	return result
-}
-
-func (c *dohPacketConn) setActiveEndpoint(index int) {
-	c.endpointMu.Lock()
-	c.activeEndpoint = index
-	c.endpointMu.Unlock()
-}
-
 func (c *dohPacketConn) queryEndpoint(endpoint string, query []byte) ([]byte, error) {
-	requestContext, cancel := context.WithTimeout(c.context, 3*time.Second)
+	return c.queryEndpointContext(c.context, endpoint, query)
+}
+
+func (c *dohPacketConn) queryEndpointContext(ctx context.Context, endpoint string, query []byte) ([]byte, error) {
+	requestContext, cancel := context.WithTimeout(ctx, 3*time.Second)
 	defer cancel()
 	if u, parseErr := url.Parse(endpoint); parseErr == nil && (u.Scheme == "tcp" || u.Scheme == "udp") {
 		return c.queryPlainDNS(requestContext, endpoint, query)

@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestEmptyAAAAResponseSuppressesIPv6Answer(t *testing.T) {
@@ -43,24 +44,6 @@ func TestEmptyAAAAResponseLeavesAQueryUntouched(t *testing.T) {
 	response, isAAAA, err := emptyAAAAResponse(query)
 	if err != nil || isAAAA || response != nil {
 		t.Fatalf("unexpected A-query result: response=%x isAAAA=%v err=%v", response, isAAAA, err)
-	}
-}
-
-func TestDoHEndpointOrderStartsWithLastSuccessfulProvider(t *testing.T) {
-	c := newDoHPacketConnWithClient(
-		config{DoHFallbackURLs: []string{"https://two.example/dns-query", "https://three.example/dns-query"}},
-		nil,
-		func(context.Context, string) (net.Conn, error) { return nil, nil },
-		"https://one.example/dns-query",
-		nil,
-		nil,
-	)
-	defer c.Close()
-	c.setActiveEndpoint(1)
-
-	order := c.endpointOrder()
-	if len(order) != 3 || order[0].index != 1 || order[1].index != 2 || order[2].index != 0 {
-		t.Fatalf("unexpected endpoint order: %#v", order)
 	}
 }
 
@@ -199,5 +182,44 @@ func TestDoHEndpointDistinguishesNonDNSResponsesFromHTTPAndTLSErrors(t *testing.
 	}
 	if errorClass(context.DeadlineExceeded) == "not_doh" {
 		t.Fatal("timeout mislabeled as non-DoH")
+	}
+}
+
+type racingDoHTransport func(*http.Request) (*http.Response, error)
+
+func (f racingDoHTransport) RoundTrip(r *http.Request) (*http.Response, error) { return f(r) }
+
+func TestDoHFastFallbackWinsOnEveryNewFlow(t *testing.T) {
+	cancelled := make(chan struct{}, 2)
+	client := &http.Client{Transport: racingDoHTransport(func(r *http.Request) (*http.Response, error) {
+		if r.URL.Host == "slow.test" {
+			<-r.Context().Done()
+			cancelled <- struct{}{}
+			return nil, r.Context().Err()
+		}
+		body, _ := io.ReadAll(r.Body)
+		body[2] |= 0x80
+		return &http.Response{StatusCode: 200, Header: http.Header{"Content-Type": {"application/dns-message"}}, Body: io.NopCloser(bytes.NewReader(body))}, nil
+	})}
+	query, _, _ := buildAQuery("example.test")
+	for range 2 {
+		c := newDoHPacketConnWithClient(config{AllowIPv6: true, DoHFallbackURLs: []string{"https://fast.test/dns-query"}}, nil, nil, "https://slow.test/dns-query", client, nil)
+		c.SetReadDeadline(time.Now().Add(2 * time.Second))
+		if _, err := c.WriteTo(query, nil); err != nil {
+			t.Fatal(err)
+		}
+		body := make([]byte, 512)
+		n, _, err := c.ReadFrom(body)
+		c.Close()
+		if err != nil || !dnsReplyMatches(query, body[:n]) {
+			t.Fatalf("reply length=%d err=%v", n, err)
+		}
+	}
+	for range 2 {
+		select {
+		case <-cancelled:
+		case <-time.After(time.Second):
+			t.Fatal("losing DoH request was not cancelled")
+		}
 	}
 }

@@ -435,19 +435,25 @@ func (d *httpsConnectDialer) currentHTTP2Session() *http2ConnectSession {
 
 func (d *httpsConnectDialer) installHTTP2Session(candidate *http2ConnectSession) *http2ConnectSession {
 	d.cacheMu.Lock()
-	defer d.cacheMu.Unlock()
 	if d.closed {
+		d.cacheMu.Unlock()
 		_ = candidate.close()
 		return nil
 	}
 	if d.h2Session != nil && d.h2Session.canTakeRequest() {
+		session := d.h2Session
+		d.cacheMu.Unlock()
+		if candidate.raw != nil {
+			_ = candidate.raw.SetDeadline(time.Now())
+		}
 		_ = candidate.close()
-		return d.h2Session
+		return session
 	}
 	if d.h2Session != nil {
 		d.retireHTTP2Session(d.h2Session)
 	}
 	d.h2Session = candidate
+	d.cacheMu.Unlock()
 	report(d.reporter, "event=http2_session result=established multiplexed=true")
 	return candidate
 }

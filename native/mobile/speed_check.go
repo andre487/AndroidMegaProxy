@@ -315,18 +315,13 @@ func speedTransport(network SpeedNetwork, protocol string, logs Reporter) (http.
 		if err != nil {
 			return nil, err
 		}
-		var last error
-		for _, ip := range ips {
+		started := time.Now()
+		conn, err := raceFirst(ctx, len(ips), func(ctx context.Context, index int) (net.Conn, error) {
 			d := net.Dialer{Control: control, Timeout: 10 * time.Second}
-			started := time.Now()
-			conn, err := d.DialContext(ctx, kind, net.JoinHostPort(ip.String(), port))
-			report(logs, "event=speed_test stage=tcp elapsed_ms=%d reason=%s", time.Since(started).Milliseconds(), speedErrorClass(err))
-			if err == nil {
-				return conn, nil
-			}
-			last = err
-		}
-		return nil, last
+			return d.DialContext(ctx, kind, net.JoinHostPort(ips[index].String(), port))
+		}, func(conn net.Conn) { _ = conn.Close() })
+		report(logs, "event=speed_test stage=tcp candidates=%d elapsed_ms=%d reason=%s", len(ips), time.Since(started).Milliseconds(), speedErrorClass(err))
+		return conn, err
 	}
 	if protocol == "h3" {
 		transport := &http3.Transport{DisableCompression: true, QUICConfig: &quic.Config{InitialPacketSize: 1200, DisablePathMTUDiscovery: true, HandshakeIdleTimeout: 5 * time.Second, MaxIdleTimeout: 30 * time.Second}}
@@ -340,8 +335,9 @@ func speedTransport(network SpeedNetwork, protocol string, logs Reporter) (http.
 				return nil, err
 			}
 			portNumber, _ := strconv.Atoi(port)
-			var last error
-			for _, ip := range ips {
+			started := time.Now()
+			conn, err := raceFirst(ctx, len(ips), func(ctx context.Context, index int) (*quic.Conn, error) {
+				ip := ips[index]
 				kind, local := "udp4", "0.0.0.0:0"
 				if ip.To4() == nil {
 					kind, local = "udp6", "[::]:0"
@@ -352,21 +348,17 @@ func speedTransport(network SpeedNetwork, protocol string, logs Reporter) (http.
 					return nil, err
 				}
 				qt := &quic.Transport{Conn: packet}
-				started := time.Now()
 				conn, err := qt.Dial(ctx, &net.UDPAddr{IP: ip, Port: portNumber}, config, options)
-				report(logs, "event=speed_test stage=quic elapsed_ms=%d reason=%s %s", time.Since(started).Milliseconds(), speedErrorClass(err), quicErrorDetails(err))
-				if err == nil {
-					go func() { <-conn.Context().Done(); qt.Close(); packet.Close() }()
-					return conn, nil
-				}
-				qt.Close()
-				packet.Close()
-				last = err
-				if !speedCanFallback(err) {
+				if err != nil {
+					qt.Close()
+					packet.Close()
 					return nil, err
 				}
-			}
-			return nil, last
+				go func() { <-conn.Context().Done(); qt.Close(); packet.Close() }()
+				return conn, nil
+			}, func(conn *quic.Conn) { _ = conn.CloseWithError(0, "") })
+			report(logs, "event=speed_test stage=quic candidates=%d elapsed_ms=%d reason=%s %s", len(ips), time.Since(started).Milliseconds(), speedErrorClass(err), quicErrorDetails(err))
+			return conn, err
 		}
 		return transport, func() { transport.Close() }
 	}

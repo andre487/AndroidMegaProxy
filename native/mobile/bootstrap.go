@@ -45,19 +45,23 @@ func ResolveProxy(host string, protector Protector, reporter Reporter) (string, 
 	if err != nil {
 		return "", err
 	}
-	var failures []error
-	for _, resolver := range bootstrapResolvers {
-		ip, resolveErr := resolveProxyWithResolver(query, id, resolver, protector, reporter)
-		if resolveErr == nil {
-			return ip, nil
+	type answer struct{ ip, provider string }
+	result, err := raceFirst(context.Background(), len(bootstrapResolvers), func(ctx context.Context, index int) (answer, error) {
+		resolver := bootstrapResolvers[index]
+		ip, err := resolveProxyWithResolver(ctx, query, id, resolver, protector)
+		if err != nil {
+			err = fmt.Errorf("%s: %w", resolver.name, err)
 		}
-		failures = append(failures, fmt.Errorf("%s: %w", resolver.name, resolveErr))
-		report(reporter, "event=bootstrap_dns provider=%s result=failed reason=%s", resolver.name, errorClass(resolveErr))
+		return answer{ip, resolver.name}, err
+	}, nil)
+	if err != nil {
+		return "", fmt.Errorf("all bootstrap DoH resolvers failed: %w", err)
 	}
-	return "", fmt.Errorf("all bootstrap DoH resolvers failed: %w", errors.Join(failures...))
+	report(reporter, "event=bootstrap_dns stage=response result=success family=ipv4 provider=%s", result.provider)
+	return result.ip, nil
 }
 
-func resolveProxyWithResolver(query []byte, id uint16, resolver bootstrapResolver, protector Protector, reporter Reporter) (string, error) {
+func resolveProxyWithResolver(ctx context.Context, query []byte, id uint16, resolver bootstrapResolver, protector Protector) (string, error) {
 	dialer := net.Dialer{
 		Timeout: 6 * time.Second,
 		Control: func(_, _ string, raw syscall.RawConn) error {
@@ -82,13 +86,12 @@ func resolveProxyWithResolver(query []byte, id uint16, resolver bootstrapResolve
 	}
 	defer transport.CloseIdleConnections()
 	client := &http.Client{Transport: transport, Timeout: 8 * time.Second}
-	request, err := http.NewRequest(http.MethodPost, resolver.url, bytes.NewReader(query))
+	request, err := http.NewRequestWithContext(ctx, http.MethodPost, resolver.url, bytes.NewReader(query))
 	if err != nil {
 		return "", err
 	}
 	request.Header.Set("Accept", "application/dns-message")
 	request.Header.Set("Content-Type", "application/dns-message")
-	report(reporter, "event=bootstrap_dns stage=request result=started transport=protected_doh provider=%s", resolver.name)
 	response, err := client.Do(request)
 	if err != nil {
 		return "", fmt.Errorf("bootstrap DoH request: %w", err)
@@ -105,7 +108,6 @@ func resolveProxyWithResolver(query []byte, id uint16, resolver bootstrapResolve
 	if err != nil {
 		return "", err
 	}
-	report(reporter, "event=bootstrap_dns stage=response result=success family=ipv4 provider=%s", resolver.name)
 	return ip, nil
 }
 

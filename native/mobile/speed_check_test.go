@@ -23,10 +23,18 @@ import (
 	"golang.org/x/net/http2"
 )
 
-type speedLocalNetwork struct{ binds atomic.Int32 }
+type speedLocalNetwork struct {
+	binds     atomic.Int32
+	addresses string
+}
 
-func (n *speedLocalNetwork) Bind(int) bool                { n.binds.Add(1); return true }
-func (*speedLocalNetwork) Resolve(string) (string, error) { return "127.0.0.1", nil }
+func (n *speedLocalNetwork) Bind(int) bool { n.binds.Add(1); return true }
+func (n *speedLocalNetwork) Resolve(string) (string, error) {
+	if n.addresses != "" {
+		return n.addresses, nil
+	}
+	return "127.0.0.1", nil
+}
 
 func TestSpeedProtocolsAndFallbackSafety(t *testing.T) {
 	for _, p := range []string{"h3", "h2", "h1"} {
@@ -84,6 +92,17 @@ func TestSpeedMeasurementsUseBoundSocketsAndStreamResults(t *testing.T) {
 				defer h3server.Close()
 			}
 			network := &speedLocalNetwork{}
+			if protocol == "h3" {
+				network.addresses = "::1 127.0.0.1"
+				// Keep the first address bound but silent: no ICMP rejection can
+				// turn this into an immediate-failure fallback test.
+				_, port, _ := net.SplitHostPort(server.Listener.Addr().String())
+				blackhole, err := net.ListenPacket("udp6", net.JoinHostPort("::1", port))
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer blackhole.Close()
+			}
 			var updates []speedResult
 			var logs []string
 			reportUpdates := diagnosticFunc(func(raw string) {

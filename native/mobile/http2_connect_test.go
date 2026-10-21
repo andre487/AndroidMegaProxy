@@ -254,3 +254,32 @@ func TestHTTP2GoAwayPreservesActiveTunnelDuringReplacement(t *testing.T) {
 	defer next.Close()
 	check(next, "new")
 }
+
+// A slow TLS close must not hold cacheMu or delay unrelated CONNECTs.
+type blockingCloseHTTP2Client struct {
+	rejectedHTTP2Client
+	started chan struct{}
+	release chan struct{}
+}
+
+func (c *blockingCloseHTTP2Client) Close() error { close(c.started); <-c.release; return nil }
+
+func TestHTTP2LosingSessionClosesOutsideCacheLock(t *testing.T) {
+	winner := &http2ConnectSession{client: &rejectedHTTP2Client{}}
+	d := &httpsConnectDialer{h2Session: winner}
+	loser := &blockingCloseHTTP2Client{started: make(chan struct{}), release: make(chan struct{})}
+	defer close(loser.release)
+	installed := make(chan *http2ConnectSession, 1)
+	go func() { installed <- d.installHTTP2Session(&http2ConnectSession{client: loser}) }()
+	<-loser.started
+	current := make(chan *http2ConnectSession, 1)
+	go func() { current <- d.currentHTTP2Session() }()
+	select {
+	case got := <-current:
+		if got != winner {
+			t.Fatal("lost winning session")
+		}
+	case <-time.After(time.Second):
+		t.Fatal("slow close blocked the session cache")
+	}
+}
