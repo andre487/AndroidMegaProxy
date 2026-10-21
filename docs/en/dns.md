@@ -27,8 +27,11 @@ apply to every mode. App UDP/TCP port 53 is intercepted; app-specific encrypted 
 Portable profiles retain the endpoint in the legacy `dns.customDohUrl` string with an explicit
 `https://`, `tcp://` or `udp://` scheme. Existing schemas remain unchanged. Old clients reject plain
 endpoints. Security consent stays on this device: exports/imports and subscriptions cannot grant
-permission for insecure DNS or invalid DoH certificates. Confirm locally before connecting.
+permission for insecure DNS or invalid DoH certificates. On a new device, confirm locally before connecting. Refreshing/importing an unchanged resolver preserves its local
+approvals; a changed resolver requires new approval.
 Proxy bootstrap DNS is unchanged and precedes the VPN; see the README endpoint inventory.
 
-DNS admission is limited to 64 active flows per proxy, shared by intercepted TCP and UDP.
+DNS admission is limited to 64 flows per proxy, shared by intercepted TCP and UDP. When full,
+the oldest completed UDP flow is evicted together with its TUN mapping. Pending responses
+and TCP DNS streams are retained.
 Excess flows fail immediately; stopping the VPN closes admitted flows and cancels their queries.

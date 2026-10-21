@@ -274,7 +274,7 @@ func (d *socks5Dialer) DialUDP(m *M.Metadata) (net.PacketConn, error) {
 		}
 		client, limiter := d.dohClient, d.dohInFlight
 		d.mu.Unlock()
-		return d.dnsFlows.open(func() *dohPacketConn {
+		return d.dnsFlows.open(m.Network == M.UDP, func() *dohPacketConn {
 			packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
 			packet.connectUDP = d.connectDNSUDP
 			return packet

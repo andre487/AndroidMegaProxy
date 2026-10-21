@@ -404,7 +404,7 @@ func (d *sshDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, error) {
 		return nil, errUDPBlocked
 	}
 	client, limiter := d.sharedDoHResources()
-	return d.direct.dnsFlows.open(func() *dohPacketConn {
+	return d.direct.dnsFlows.open(metadata.Network == M.UDP, func() *dohPacketConn {
 		packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
 		packet.connectUDP = d.connectDNSUDP
 		return packet

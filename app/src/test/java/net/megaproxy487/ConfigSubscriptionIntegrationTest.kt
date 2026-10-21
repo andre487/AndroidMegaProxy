@@ -51,6 +51,33 @@ class ConfigSubscriptionIntegrationTest {
     private fun apply(value: PortableConfiguration, running: Boolean = false) = store.applySubscriptionSnapshot(
         store.subscriptionState()!!.generation, value, 0, 1000, running)
 
+    @Test fun jsonRefreshPreservesLocalDnsConsentOnlyForUnchangedResolver() {
+        val original = profile("one").let { it.copy(config = it.config.copy(
+            dnsProvider = DnsProvider.CUSTOM, customDohUrl = "https://dns.example/dns-query")) }
+        bootstrap(original)
+        store.saveProfile(original.copy(config = original.config.copy(
+            allowInsecureDns = true, allowInvalidDohCertificate = true)))
+        val rotated = original.copy(config = original.config.copy(password = "rotated"))
+        assertTrue(apply(parseSubscriptionSnapshot(document(rotated).toString(), store.profiles())))
+        val retained = ConfigStore(context).profile("one")!!.config
+        assertTrue(retained.allowInsecureDns)
+        assertTrue(retained.allowInvalidDohCertificate)
+        assertEquals("rotated", retained.password)
+        val changed = rotated.copy(config = rotated.config.copy(customDohUrl = "https://other.example/dns-query"))
+        assertTrue(apply(parseSubscriptionSnapshot(document(changed).toString(), store.profiles())))
+        val reset = ConfigStore(context).profile("one")!!.config
+        assertFalse(reset.allowInsecureDns)
+        assertFalse(reset.allowInvalidDohCertificate)
+    }
+
+    @Test fun plainDnsConsentSurvivesJsonImportForUnchangedResolver() {
+        val original = profile("one").let { it.copy(config = it.config.copy(
+            dnsProvider = DnsProvider.CUSTOM, customDohUrl = "tcp://1.1.1.1", allowInsecureDns = true)) }
+        store.saveProfile(original, createIfMissing = true)
+        store.importConfiguration(ConfigTransfer.importJson(document(original).toString()))
+        assertTrue(ConfigStore(context).profile("one")!!.config.allowInsecureDns)
+    }
+
     @Test fun omittedAndPartialGlobalsPreserveLocalSettingsOnImportAndRefresh() {
         bootstrap(profile("one"))
         store.setConnectionProfile("one")

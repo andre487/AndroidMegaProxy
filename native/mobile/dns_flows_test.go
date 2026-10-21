@@ -136,23 +136,16 @@ func (p *dnsLifecycleOrigin) WriteTo(b []byte, _ net.Addr) (int, error) {
 }
 
 func TestRealTunnelReleasesIdleDNSFlowsOnProxyClose(t *testing.T) {
-	const count = 64
+	const count = maxDNSFlows * 2
 	proxy := &dnsLifecycleProxy{httpsConnectDialer: &httpsConnectDialer{config: config{DoHURL: "https://dns.example"}}, packets: make(chan net.PacketConn, count)}
-	transport := tunnel.New(proxy, statistic.DefaultManager)
+	transport := dnsTransport{tunnel.New(proxy, statistic.DefaultManager)}
 	transport.ProcessAsync()
 	defer transport.Close()
 	ready := make(chan struct{}, count)
 	query, _, _ := buildAQuery("example.test")
 	binary.BigEndian.PutUint16(query[len(query)-4:], 28)
 	baseline := len(statistic.DefaultManager.Snapshot().Connections)
-	var origins []net.Conn
-	for i := 0; i < count; i++ {
-		a, b := net.Pipe()
-		defer b.Close()
-		origins = append(origins, a)
-		origin := &dnsLifecycleOrigin{Conn: a, query: query, ready: ready, id: stack.TransportEndpointID{LocalAddress: tcpip.AddrFrom4([4]byte{10, 77, 0, 2}), LocalPort: 53, RemoteAddress: tcpip.AddrFrom4([4]byte{10, 77, 0, 1}), RemotePort: uint16(10000 + i)}}
-		transport.HandleUDP(origin)
-	}
+	var peers []net.Conn
 	var packets []net.PacketConn
 	defer func() {
 		for _, pc := range packets {
@@ -160,16 +153,27 @@ func TestRealTunnelReleasesIdleDNSFlowsOnProxyClose(t *testing.T) {
 		}
 	}()
 	for i := 0; i < count; i++ {
+		a, b := net.Pipe()
+		defer b.Close()
+		peers = append(peers, b)
+		origin := &dnsLifecycleOrigin{Conn: a, query: query, ready: ready, id: stack.TransportEndpointID{LocalAddress: tcpip.AddrFrom4([4]byte{10, 77, 0, 2}), LocalPort: 53, RemoteAddress: tcpip.AddrFrom4([4]byte{10, 77, 0, 1}), RemotePort: uint16(10000 + i)}}
+		transport.HandleUDP(origin)
 		select {
 		case <-ready:
 		case <-time.After(time.Second):
-			t.Fatal("DNS fixture did not answer")
+			t.Fatal("DNS fixture did not answer", i)
 		}
 		packets = append(packets, <-proxy.packets)
+		if len(proxy.dnsFlows.packets) > maxDNSFlows {
+			t.Fatal("DNS admission became unbounded")
+		}
 	}
 	proxy.Close()
-	for _, origin := range origins {
-		origin.Close()
+	for _, peer := range peers {
+		_ = peer.SetReadDeadline(time.Now().Add(time.Second))
+		if _, err := peer.Read(make([]byte, 1)); !errors.Is(err, io.EOF) {
+			t.Fatal("idle TUN origin survived close", err)
+		}
 	}
 	deadline := time.Now().Add(time.Second)
 	for len(statistic.DefaultManager.Snapshot().Connections) > baseline && time.Now().Before(deadline) {
@@ -190,7 +194,7 @@ func TestDNSAdmissionRacesWithClose(t *testing.T) {
 			defer workers.Done()
 			<-start
 			for j := 0; j < 100; j++ {
-				packet, err := flows.open(func() *dohPacketConn {
+				packet, err := flows.open(true, func() *dohPacketConn {
 					return newDoHPacketConnWithClient(config{}, nil, nil, "https://dns.example", nil, nil)
 				})
 				if err == nil {
@@ -204,5 +208,41 @@ func TestDNSAdmissionRacesWithClose(t *testing.T) {
 	workers.Wait()
 	if len(flows.packets) != 0 {
 		t.Fatal("DNS admission leaked after close")
+	}
+}
+
+func TestDNSCompletedFlowsAreEvictedWithoutDiscardingQueuedReplies(t *testing.T) {
+	d := &httpsConnectDialer{config: config{DoHURL: "https://unused.example"}}
+	defer d.Close()
+	query, _, _ := buildAQuery("example.test")
+	binary.BigEndian.PutUint16(query[len(query)-4:], 28)
+	var packets []net.PacketConn
+	for i := 0; i < maxDNSFlows; i++ {
+		packet, err := d.DialUDP(&M.Metadata{Network: M.UDP, DstPort: 53})
+		if err != nil {
+			t.Fatal(err)
+		}
+		packets = append(packets, packet)
+		if _, err = packet.WriteTo(query, nil); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if packet, err := d.DialUDP(&M.Metadata{Network: M.UDP, DstPort: 53}); err == nil {
+		packet.Close()
+		t.Fatal("queued responses were evicted")
+	}
+	if _, _, err := packets[0].ReadFrom(make([]byte, 512)); err != nil {
+		t.Fatal(err)
+	}
+	replacement, err := d.DialUDP(&M.Metadata{Network: M.UDP, DstPort: 53})
+	if err != nil {
+		t.Fatal("completed flow still consumes admission", err)
+	}
+	defer replacement.Close()
+	if _, _, err := packets[0].ReadFrom(make([]byte, 512)); !errors.Is(err, net.ErrClosed) {
+		t.Fatal("completed flow was not evicted", err)
+	}
+	if _, _, err := packets[1].ReadFrom(make([]byte, 512)); err != nil {
+		t.Fatal("pending response was discarded", err)
 	}
 }

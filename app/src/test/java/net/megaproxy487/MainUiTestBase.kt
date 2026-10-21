@@ -23,7 +23,7 @@ import org.robolectric.annotation.LooperMode
 import org.robolectric.shadows.ShadowVpnService
 import java.security.Security
 import java.util.concurrent.atomic.AtomicBoolean
-import kotlin.coroutines.EmptyCoroutineContext
+import kotlinx.coroutines.launch
 import org.junit.Assert.assertFalse
 
 @RunWith(RobolectricTestRunner::class)
@@ -39,15 +39,11 @@ abstract class MainUiTestBase {
     protected fun content(block: @Composable () -> Unit) {
         compose.setContent { MaterialTheme { block() } }
         drainConfigIo()
-        // Finishing IO does not guarantee that Compose has displayed its result.
-        compose.waitUntil(10_000) {
-            compose.onAllNodesWithText(text(R.string.loading_configuration)).fetchSemanticsNodes().isEmpty()
-        }
     }
     protected fun drainConfigIo() {
         compose.waitForIdle()
         val completed = AtomicBoolean()
-        ConfigIoDispatcher.dispatch(EmptyCoroutineContext, Runnable { completed.set(true) })
+        kotlinx.coroutines.CoroutineScope(ConfigIoDispatcher).launch { completed.set(true) }
         compose.waitUntil(10_000) { completed.get() }
         compose.waitForIdle()
     }
@@ -64,6 +60,8 @@ abstract class MainUiTestBase {
     }.also { store.saveProfile(it) }
 
     @Before fun preparePlatform() {
+        // Execute configuration work deterministically; async dispatch has a dedicated contract test.
+        ConfigIoDispatcher.delegate = kotlinx.coroutines.Dispatchers.Unconfined
         Security.removeProvider("AndroidKeyStore")
         UiTestKeyStore.keys.clear()
         Security.addProvider(UiTestKeyStoreProvider())
@@ -84,6 +82,7 @@ abstract class MainUiTestBase {
         } finally {
             Security.removeProvider("AndroidKeyStore")
             UiTestKeyStore.keys.clear()
+            ConfigIoDispatcher.reset()
         }
     }
 }
