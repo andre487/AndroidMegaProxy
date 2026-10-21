@@ -223,3 +223,33 @@ func TestDoHFastFallbackWinsOnEveryNewFlow(t *testing.T) {
 		}
 	}
 }
+
+func TestDoHCertificateRejectionReportsFailure(t *testing.T) {
+	server := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Error("DNS request reached an untrusted server")
+	}))
+	defer server.Close()
+	logs := make(chan string, 4)
+	dialer := &net.Dialer{}
+	c := newDoHPacketConn(config{AllowIPv6: true}, diagnosticFunc(func(line string) { logs <- line }),
+		func(ctx context.Context, address string) (net.Conn, error) {
+			return dialer.DialContext(ctx, "tcp", address)
+		}, server.URL)
+	defer c.Close()
+	c.SetReadDeadline(time.Now().Add(3 * time.Second))
+	query, _, _ := buildAQuery("example.test")
+	if _, err := c.WriteTo(query, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := c.ReadFrom(make([]byte, 512)); err == nil {
+		t.Fatal("untrusted DoH certificate accepted")
+	}
+	select {
+	case line := <-logs:
+		if !strings.Contains(line, "event=doh result=failed reason=certificate") {
+			t.Fatalf("missing certificate diagnostic: %s", line)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("missing DoH failure diagnostic")
+	}
+}
