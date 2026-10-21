@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -59,5 +60,29 @@ func TestDoHURLValidation(t *testing.T) {
 				t.Fatal("invalid DoH URL accepted")
 			}
 		})
+	}
+}
+
+func TestBasicAuthRejectsColonInUsernamesButOtherProtocolsAllowIt(t *testing.T) {
+	for _, transport := range []string{"HTTPS", "MASQUE", "HTTPS_JUMP", "SOCKS5", "SSH", "SSH_JUMP"} {
+		for _, jump := range []bool{false, true} {
+			c := config{Type: transport, Host: "proxy.example", DialHost: "192.0.2.1", Port: 443,
+				Username: "user", Password: "synthetic:password", Profile: "CHROME_ANDROID", DoHURL: "https://dns.example/dns-query",
+				JumpHost: "jump.example", JumpDialHost: "192.0.2.2", JumpPort: 443, JumpUsername: "jump-user", JumpPassword: "synthetic"}
+			if jump {
+				c.JumpUsername = "jump:user"
+			} else {
+				c.Username = "user:name"
+			}
+			raw, err := json.Marshal(c)
+			if err != nil {
+				t.Fatal(err)
+			}
+			_, err = parseConfig(string(raw))
+			invalid := (!jump && c.isHTTPProxy()) || (jump && transport == "HTTPS_JUMP")
+			if (err != nil) != invalid {
+				t.Fatalf("type=%s jump=%t error=%v", transport, jump, err)
+			}
+		}
 	}
 }

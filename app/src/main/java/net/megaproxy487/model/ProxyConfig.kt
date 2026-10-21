@@ -67,6 +67,7 @@ data class ProxyConfig(
         host.contains(Regex("[/:\\s]")) -> R.string.validation_host_format
         port !in 1..65535 -> R.string.validation_port
         type.isHttpProxy && username.isBlank() -> R.string.validation_basic_username
+        type.isHttpProxy && ':' in username -> R.string.validation_basic_username_colon
         type.isHttpProxy && password.isBlank() -> R.string.validation_basic_password
         type.isSsh && username.isBlank() -> R.string.validation_ssh_username
         type == ProxyType.SOCKS5 && ((username.isEmpty() != password.isEmpty()) ||
@@ -76,6 +77,7 @@ data class ProxyConfig(
         type.hasJump && jumpPort !in 1..65535 -> R.string.validation_jump_port
         type == ProxyType.SSH_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> R.string.validation_jump_ssh_username
         type == ProxyType.HTTPS_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> R.string.validation_jump_basic_username
+        type == ProxyType.HTTPS_JUMP && !sameJumpAuthentication && ':' in jumpUsername -> R.string.validation_basic_username_colon
         type == ProxyType.HTTPS_JUMP && !sameJumpAuthentication && jumpPassword.isBlank() -> R.string.validation_jump_basic_password
         type.isHttpProxy && profile == TlsProfile.CUSTOM && Ja3Spec.parse(customJa3) == null ->
             R.string.validation_ja3

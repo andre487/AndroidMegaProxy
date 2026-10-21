@@ -19,8 +19,7 @@ private object SubscriptionSchema {
 
 /** Strict canonical snapshots; manual/legacy imports keep their existing compatibility policy. */
 internal fun validateSubscriptionConfiguration(root: JSONObject) {
-    val snapshot = JSONObject(root.toString()).apply { remove("subscription") }
-    val errors = SubscriptionSchema.schema.validate(SubscriptionSchema.mapper.readTree(snapshot.toString()))
+    val errors = SubscriptionSchema.schema.validate(SubscriptionSchema.mapper.readTree(root.toString()))
     // Validation messages may contain remote field values; never display or log them.
     requireUi(errors.isEmpty()) { UiException(R.string.error_config_invalid) }
 }

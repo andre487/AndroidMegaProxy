@@ -82,6 +82,9 @@ func parseConfig(raw string) (config, error) {
 	if c.isHTTPProxy() && (c.Username == "" || c.Password == "") {
 		return c, errors.New("basic auth credentials are required")
 	}
+	if c.isHTTPProxy() && strings.Contains(c.Username, ":") {
+		return c, errors.New("basic auth username must not contain a colon")
+	}
 	if (c.Type == "SSH" || c.Type == "SSH_JUMP") && c.Username == "" {
 		return c, errors.New("SSH username is required")
 	}
@@ -103,6 +106,9 @@ func parseConfig(raw string) (config, error) {
 		}
 		if c.Type == "HTTPS_JUMP" && (c.JumpUsername == "" || c.JumpPassword == "") {
 			return c, errors.New("jump basic auth credentials are required")
+		}
+		if c.Type == "HTTPS_JUMP" && strings.Contains(c.JumpUsername, ":") {
+			return c, errors.New("jump basic auth username must not contain a colon")
 		}
 		if c.JumpUsername == "" {
 			return c, errors.New("jump SSH username is required")

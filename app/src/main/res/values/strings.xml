@@ -76,7 +76,7 @@
     <string name="export_json_description">JSON · profiles and portable settings</string>
     <string name="export_proxy_list_description">ProxyList.txt · compatible proxy fields only</string>
     <string name="include_passwords">Include passwords</string>
-    <string name="passwords_omitted_message">Passwords are omitted. Import preserves existing passwords; enter them for new profiles. URL tokens remain in JSON.</string>
+    <string name="passwords_omitted_message">Passwords are omitted. Saved passwords are reused only for unchanged servers and accounts. URL tokens remain in JSON.</string>
     <string name="include_private_keys">Include SSH private keys</string>
     <string name="private_keys_plaintext_warning">Private keys will be exported in plain text.</string>
     <string name="export_secrets_title">Export secrets in plain text?</string>
@@ -534,10 +534,11 @@
     <string name="socks5_username_optional">SOCKS5 username (optional)</string>
     <string name="socks5_password_optional">SOCKS5 password (optional)</string>
     <string name="validation_socks5_auth">Leave both credentials empty, or enter a username and password of 1–255 UTF-8 bytes each.</string>
+    <string name="validation_basic_username_colon">Basic Auth username must not contain a colon (:).</string>
     <string name="socks5_description">TCP and UDP ASSOCIATE, with DNS over HTTPS through the proxy. SOCKS5 does not encrypt the connection to the proxy, including credentials, and has no TLS fingerprint.</string>
     <string name="subscription">Configuration subscription</string>
     <string name="subscription_description">Keep profiles updated from trusted HTTPS sources</string>
-    <string name="subscription_trust">Only subscribe to trusted sources: they can replace subscribed profiles and connection settings. All listed sources receive the same subscription credentials. Downloads follow Android VPN routing for this app.</string>
+    <string name="subscription_trust">Only subscribe to trusted sources: they can replace subscribed profiles, connection settings and source URLs. Saved subscription credentials will also be sent to replacement URLs. Downloads follow Android VPN routing for this app.</string>
     <string name="subscription_storage_error">Could not read or save the subscription. No unauthenticated fallback is used.</string>
     <string name="subscription_enabled">Automatic updates</string>
     <string name="subscription_last_success">Last successful update: %1$s</string>

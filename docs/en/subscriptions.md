@@ -3,8 +3,8 @@
 In **Settings → Configuration subscription**, enter the final HTTPS URL and any
 backup URLs (one per line, up to seven). Enable separate Basic Auth only if the
 source requires it. Save the interval in minutes (1–10080, default 60). Trust every
-listed source: all receive the same credentials and may change subscribed profiles
-and supported app preferences. Redirects are rejected, including HTTPS redirects.
+listed source: all receive the same credentials and may change subscribed profiles,
+supported app preferences and source URLs. Retained local credentials are sent to replacement URLs too. Redirects are rejected, including HTTPS redirects.
 
 Saving a new source schedules its first check immediately. Android battery,
 network and background restrictions may delay checks. Pause disables automatic
@@ -44,8 +44,9 @@ Supported bodies match manual import: MegaProxy JSON, FoxyProxy JSON, ProxyList
 and SuperProxy text. JSON uses stable IDs; other formats reuse uniquely matching
 owned names, then unique type/host/port. Ambiguous matches get new IDs. Canonical
 snapshots change only explicitly supplied global settings; omitted fields retain
-their local values. Other formats preserve settings they do not represent. Omitted profile secrets retain local
-credentials and explicit empty fields clear them. An invalid, empty or oversized
+their local values. Other formats preserve settings they do not represent. Omitted profile secrets retain local credentials only when the protocol, normalized host, port
+and username are unchanged; explicit empty fields clear them. For shared Jump authentication,
+both endpoints must remain unchanged; separate Jump credentials follow their own endpoint/account. An invalid, empty or oversized
 snapshot keeps the last working configuration. See the
 [delivery protocol](https://github.com/andre487/MegaProxyConfig/blob/main/docs/subscription-protocol.md).
 
@@ -68,8 +69,11 @@ Turning off Basic Auth in the subscription screen clears both credentials.
 URL query tokens and separate subscription credentials are encrypted at rest.
 Removing the subscription keeps profiles. Import without `subscription` retains
 its settings; explicit null removes it. An omitted password retains the saved one
-only for the same normalized URL and username; empty clears it. Downloaded
-subscription settings never replace your configured source list or credentials.
+only for the same normalized URL and username; empty clears it. A valid downloaded `subscription` object replaces the primary URL and complete backup list;
+omitting `fallbackUrls` clears backups. Missing or null `subscription` in a refresh keeps the
+current sources. Local Basic Auth, interval and pause state stay unchanged, even when the
+downloaded object supplies different values. Invalid definitions reject the entire snapshot.
+Profiles and source URLs commit atomically; the next refresh uses the new sources.
 JSON exports include the definition; its password follows **Include passwords**,
 but query tokens in URLs remain present, even with both secret-export options off.
 Ownership and status are never exported. Export includes all profiles; reimporting

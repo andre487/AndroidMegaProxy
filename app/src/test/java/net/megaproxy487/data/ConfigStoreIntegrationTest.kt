@@ -44,7 +44,8 @@ class ConfigStoreIntegrationTest {
         it.copy(config = it.config.copy(
             type = ProxyType.SSH_JUMP, port = 22, jumpPort = 22,
             jumpHost = "jump.example", sameJumpAuthentication = false,
-            host = "exit.example", password = "destination-secret",
+            host = "exit.example", username = "exit-user", password = "destination-secret",
+            jumpUsername = "jump-user",
             privateKey = "destination-private-key", jumpPassword = "jump-secret",
             jumpPrivateKey = "jump-private-key",
         ))

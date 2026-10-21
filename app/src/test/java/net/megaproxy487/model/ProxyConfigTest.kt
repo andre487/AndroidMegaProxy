@@ -8,6 +8,19 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ProxyConfigTest {
+    @Test fun basicAuthRejectsColonInUsernameWhileSocksAndSshAllowIt() {
+        for (type in ProxyType.entries) {
+            val config = ProxyConfig(type = type, host = "proxy.example", port = type.defaultPort,
+                username = "user:name", password = "synthetic:password", jumpHost = "jump.example")
+            assertEquals(if (type.isHttpProxy) R.string.validation_basic_username_colon else null, config.validationError())
+        }
+        val jump = ProxyConfig(type = ProxyType.HTTPS_JUMP, host = "proxy.example", username = "user",
+            password = "synthetic:password", jumpHost = "jump.example", sameJumpAuthentication = false,
+            jumpUsername = "jump:user", jumpPassword = "synthetic")
+        assertEquals(R.string.validation_basic_username_colon, jump.validationError())
+        assertNull(jump.copy(jumpUsername = "jump-user").validationError())
+    }
+
     @Test fun `SOCKS5 credentials are optional and checked by UTF-8 byte length`() {
         val base = ProxyConfig(type = ProxyType.SOCKS5, host = "proxy.example", port = 1080,
             profile = TlsProfile.CUSTOM, customJa3 = "ignored", sshAuthMode = SshAuthMode.KEY_ONLY)

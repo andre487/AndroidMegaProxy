@@ -154,7 +154,8 @@ branch names, credentials, signing material, or other secrets.
   manual refresh share validation, source failover and an atomic snapshot commit.
   Background changes affecting a running VPN offer a privacy-safe reconnect notification; stale
   actions must never restart a stopped VPN. Credential screens use `FLAG_SECURE`. Remote
-  subscription definitions cannot alter local recipients; generation checks discard obsolete
+  subscription definitions may replace HTTPS source URLs, retaining local credentials, interval
+  and pause state; generation checks discard obsolete
   downloads. Keep local profiles/selections and current tunnels; effective live changes mark
   pending reconnect rather than starting/stopping VPN automatically.
 
