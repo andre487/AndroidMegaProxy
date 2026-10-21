@@ -64,7 +64,10 @@ class VpnDeviceTest : DeviceTestBase() {
             val vpn = manager.allNetworks.single { network ->
                 manager.getNetworkCapabilities(network)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
             }
-            assertEquals("Configured VPN MTU", mtu, manager.getLinkProperties(vpn)!!.mtu)
+            val interfaceName = requireNotNull(manager.getLinkProperties(vpn)?.interfaceName)
+            // API 26 leaves LinkProperties.mtu unset (0); inspect the kernel interface on every API.
+            val vpnInterface = requireNotNull(java.net.NetworkInterface.getByName(interfaceName))
+            assertEquals("Configured VPN MTU", mtu, vpnInterface.mtu)
             roundTrip()
             click(R.string.disconnect)
             stopped()
