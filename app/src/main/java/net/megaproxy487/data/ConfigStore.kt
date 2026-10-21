@@ -178,8 +178,10 @@ class ConfigStore(context: Context) {
         if (stored != null) {
             val decoded = decodeGlobalConnectionSettings(stored)
             migrateGlobalIpv6ToProfiles(stored)
-            if (!operationResult { JSONObject(stored).has("sshProfile") }.getOrDefault(false)) {
-                val upgraded = decoded.copy(sshProfile = activeProfile().config.sshProfile)
+            val fields = JSONObject(stored)
+            if (!fields.has("sshProfile") || !fields.optBoolean("megaProxyRoutingDefaultApplied", false)) {
+                val upgraded = if (fields.has("sshProfile")) decoded
+                    else decoded.copy(sshProfile = activeProfile().config.sshProfile)
                 saveGlobalConnectionSettings(upgraded)
                 return@synchronized upgraded
             }
@@ -190,7 +192,7 @@ class ConfigStore(context: Context) {
             tlsProfile = source.profile.takeIf { it.available } ?: TlsProfile.DEFAULT,
             sshProfile = source.sshProfile,
             customJa3 = source.customJa3,
-            selectedPackages = source.selectedPackages,
+            selectedPackages = source.selectedPackages + context.packageName,
             routeAllApps = source.routeAllApps,
             bypassLocalNetworks = source.bypassLocalNetworks,
         )
@@ -760,13 +762,14 @@ class ConfigStore(context: Context) {
         put("failoverProfileIds", JSONArray(settings.failoverProfileIds))
         put("customJa3", settings.customJa3.trim())
         put("packages", JSONArray(settings.selectedPackages.sorted()))
+        put("megaProxyRoutingDefaultApplied", true)
         put("routeAllApps", settings.routeAllApps)
         put("bypassLocalNetworks", settings.bypassLocalNetworks)
     }.toString()
 
     private fun decodeGlobalConnectionSettings(value: String): GlobalConnectionSettings = operationResult {
         val item = JSONObject(value)
-        for (key in listOf("routeAllApps", "bypassLocalNetworks", "allowIpv6")) {
+        for (key in listOf("routeAllApps", "bypassLocalNetworks", "allowIpv6", "megaProxyRoutingDefaultApplied")) {
             require(!item.has(key) || item.get(key) is Boolean)
         }
         for (key in listOf("packages", "failoverProfileIds")) {
@@ -791,7 +794,10 @@ class ConfigStore(context: Context) {
             customJa3 = item.optString("customJa3"),
             selectedPackages = item.optJSONArray("packages")?.let { array ->
                 (0 until array.length()).mapNotNull { array.optString(it).takeIf(String::isNotBlank) }.toSet()
-            }.orEmpty(),
+            }.orEmpty().let { packages ->
+                // Old lists did not record whether excluding MegaProxy was deliberate.
+                if (item.optBoolean("megaProxyRoutingDefaultApplied", false)) packages else packages + context.packageName
+            },
             routeAllApps = item.optBoolean("routeAllApps", true),
             bypassLocalNetworks = item.optBoolean("bypassLocalNetworks", true),
         )

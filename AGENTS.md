@@ -101,6 +101,9 @@ branch names, credentials, signing material, or other secrets.
 
 ## Product and UI conventions
 
+- MegaProxy is selected for split tunneling by default. Existing lists gain it once on upgrade;
+  subsequent explicit exclusion must survive reloads, unrelated edits and profile changes.
+
 - All user-visible UI text must use Android string resources and be supplied in both the default
   English resources and Russian resources. The app language selects UI words; number, date and
   other data formatting follows the system locale. Do not localize standardized data-unit symbols.

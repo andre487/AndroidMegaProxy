@@ -96,6 +96,9 @@ These are separate entries in the main menu; they measure different things:
 | Speed | Active Cloudflare transfer over the underlying network and VPN separately; progressively filled table with IP, flag/code, HTTP and TLS on separate lines, latency, download and upload. |
 | VPN visibility | Local Android/interface signals plus ProxyCheck public-IP reputation per available route. Local heuristics and remote reputation are not proof that all apps can detect the VPN. |
 
+With split tunneling, select MegaProxy to measure the VPN route. It is selected by default;
+existing application lists gain it once on upgrade. Explicitly removing it afterwards is preserved.
+
 Speed uses 10/25/50 decimal MB per direction per route (10,000,000/25,000,000/50,000,000 bytes).
 Two routes and both directions can consume up to four times the selected payload, plus overhead.
 Default h3 falls back to h2 then h1; h2 permits h1 fallback, h1 stays h1. Fallback applies only to
