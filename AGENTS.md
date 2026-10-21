@@ -166,6 +166,8 @@ branch names, credentials, signing material, or other secrets.
 - `ProxyVpnService` extends Android's standard `android.net.VpnService`. It owns VPN lifecycle,
   creates the TUN interface, coordinates profiles/reconnects/status, and hands the TUN file
   descriptor to the native networking layer. Native code performs the actual proxy forwarding.
+  MTU is a device-wide local setting (1280–65535 bytes, default 1400), shared by Android TUN
+  and the Go stack; changes apply on reconnection and do not alter portable subscriptions.
 - JNI calls use the generated gomobile types as a compile-time dependency. Native `Start` borrows
   the JVM TUN descriptor only for the call, duplicates it internally, and receives the Android MTU
   explicitly. Keep callback exceptions inside the JVM boundary and reject stale-session callbacks.

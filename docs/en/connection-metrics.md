@@ -49,6 +49,16 @@ background polling and VPN-session reset follow the same rules as TCP metrics.
 Kernel TCP RTT/retransmits remain unavailable for QUIC.
 Traffic totals and rates still include forwarded TCP and UDP payloads.
 
+## VPN interface MTU
+
+Settings → MTU offers 1280, 1400 (recommended default), 1500, or a custom integer
+from 1280 to 65535 bytes. 1280 is the [IPv6 minimum link MTU](https://www.rfc-editor.org/rfc/rfc8200#section-5),
+not a universal VPN default. 1400 leaves room for tunnel overhead; larger values are not necessarily faster.
+The setting applies to all profiles on this device after reconnection, with the same MTU passed to Android
+and the native stack. It is local and is not included in the portable configuration/subscription contract.
+This sets the inner IP packet limit, not QUIC's negotiated datagram/path MTU.
+
+
 ## Negotiation diagnostics
 
 Successful HTTPS proxy handshakes log the negotiated TLS version and cipher name,

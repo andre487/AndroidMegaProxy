@@ -399,9 +399,7 @@ class ProxyVpnService : VpnService() {
         }
         val builder = Builder()
             .setSession("MegaProxy")
-            // Leave headroom for cellular, hotspot and nested-tunnel encapsulation.
-            // 1400 avoids common PMTU black holes while remaining efficient for TCP.
-            .setMtu(VPN_MTU)
+            .setMtu(storedConfig.mtu)
             .addAddress("10.77.0.1", 30)
             .addAddress("fd77::1", 126)
             .addRoute("0.0.0.0", 0)
@@ -474,7 +472,7 @@ class ProxyVpnService : VpnService() {
             }
             val config = storedConfig.copy(resolvedProxyIp = proxyIp, resolvedJumpIp = jumpIp)
             val startupBlockingDetail = java.util.concurrent.atomic.AtomicReference<String?>(null)
-            val started = proxyCore.start(establishedTunnel.fd, VPN_MTU, config) { message ->
+            val started = proxyCore.start(establishedTunnel.fd, storedConfig.mtu, config) { message ->
                     failureDetail = message
                     if (BlockingDetection.classify(message) != null || isBootstrapConnectionFailure(message)) startupBlockingDetail.set(message)
                     runForGeneration(generation) {
@@ -957,7 +955,6 @@ class ProxyVpnService : VpnService() {
         private const val MONITOR_INTERVAL_MS = 10_000L
         private const val NETWORK_CHANGE_DEBOUNCE_MS = 1_500L
         private const val MAX_MANUAL_START_FAILURES = 5
-        private const val VPN_MTU = 1_400
         private val RETRY_DELAYS_MS = longArrayOf(5_000L, 10_000L, 20_000L, 40_000L, 80_000L, 180_000L, 300_000L)
         private val testRunning = AtomicBoolean(false)
         private val startRunning = AtomicBoolean(false)

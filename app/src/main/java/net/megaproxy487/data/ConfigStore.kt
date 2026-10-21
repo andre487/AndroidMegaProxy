@@ -211,6 +211,7 @@ class ConfigStore(context: Context) {
     }
 
     fun saveGlobalConnectionSettings(settings: GlobalConnectionSettings) = synchronized(storageLock) {
+        require(settings.mtu in net.megaproxy487.model.VPN_MTU_RANGE)
         val normalized = settings.copy(
             tlsProfile = settings.tlsProfile.takeIf { it.available } ?: TlsProfile.DEFAULT,
             sshKeepaliveSeconds = settings.sshKeepaliveSeconds.coerceIn(0, 3600),
@@ -765,6 +766,7 @@ class ConfigStore(context: Context) {
         put("megaProxyRoutingDefaultApplied", true)
         put("routeAllApps", settings.routeAllApps)
         put("bypassLocalNetworks", settings.bypassLocalNetworks)
+        put("mtu", settings.mtu)
     }.toString()
 
     private fun decodeGlobalConnectionSettings(value: String): GlobalConnectionSettings = operationResult {
@@ -778,8 +780,14 @@ class ConfigStore(context: Context) {
                 require((0 until values.length()).all { values.get(it) is String })
             }
         }
+        val mtu = if (item.has("mtu")) {
+            val value = item.get("mtu")
+            require(value is Int && value in net.megaproxy487.model.VPN_MTU_RANGE)
+            value
+        } else net.megaproxy487.model.DEFAULT_VPN_MTU
         val parsedTls = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT)
         GlobalConnectionSettings(
+            mtu = mtu,
             tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
             sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),
             sshAuthMode = enumValue(item.optString("sshAuthMode"), SshAuthMode.AUTO),

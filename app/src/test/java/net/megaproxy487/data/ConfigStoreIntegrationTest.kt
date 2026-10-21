@@ -57,6 +57,36 @@ class ConfigStoreIntegrationTest {
             .put("profiles", JSONArray().put(profile)).toString()),
     )
 
+    @Test fun mtuDefaultsPersistsAndSurvivesProfileImports() {
+        assertEquals(1400, store.globalConnectionSettings().mtu)
+        for (mtu in listOf(1280, 1400, 1500, 1420, 65535)) {
+            store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(mtu = mtu))
+            val reopened = ConfigStore(context)
+            assertEquals(mtu, reopened.globalConnectionSettings().mtu)
+            assertEquals(mtu, reopened.effectiveConnectionProfile().config.mtu)
+        }
+        val profile = store.activeProfile()
+        store.saveProfile(profile.copy(config = profile.config.copy(host = "proxy.example", username = "user", password = "test")))
+        val exported = ConfigTransfer.exportJson(store, includePasswords = false)
+        store.importConfiguration(ConfigTransfer.importJson(exported))
+        assertEquals(65535, ConfigStore(context).globalConnectionSettings().mtu)
+        for (invalid in listOf(1279, 65536)) {
+            assertTrue(runCatching {
+                store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(mtu = invalid))
+            }.isFailure)
+            assertEquals(65535, store.globalConnectionSettings().mtu)
+        }
+        // Older installations have no key; malformed values must not be silently substituted.
+        val global = JSONObject(prefs.getString("global_connection_settings_v1", null)!!)
+        for (invalid in listOf<Any>(1279, 65536, "1400", 1400.5)) {
+            prefs.edit().putString("global_connection_settings_v1", global.put("mtu", invalid).toString()).commit()
+            assertTrue(runCatching { ConfigStore(context).globalConnectionSettings() }.isFailure)
+        }
+        global.remove("mtu")
+        prefs.edit().putString("global_connection_settings_v1", global.toString()).commit()
+        assertEquals(1400, ConfigStore(context).globalConnectionSettings().mtu)
+    }
+
     @Test fun dnsConsentSurvivesStorageAndGlobalSettings() {
         val profile = store.activeProfile()
         assertFalse(profile.config.allowInsecureDns)

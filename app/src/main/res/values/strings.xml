@@ -578,4 +578,14 @@
     <string name="battery_settings_unavailable">Battery settings are unavailable on this device.</string>
     <string name="error_config_capacity">Configuration storage limit reached. Remove profiles or reduce their contents.</string>
     <string name="speed_split_tunnel_warning">MegaProxy is not selected for split tunneling. To measure VPN tunnel speed, enable “Route MegaProxy through VPN” in split tunneling settings and reconnect. The underlying network can still be measured.</string>
+    <string name="mtu_title">MTU</string>
+    <string name="mtu_description">VPN interface packet size</string>
+    <string name="mtu_explanation">The maximum IP packet size of the VPN interface, in bytes. 1400 leaves headroom for tunnel overhead; the best value depends on your network.</string>
+    <string name="mtu_1280">1280 · IPv6 minimum</string>
+    <string name="mtu_1400">1400 · Recommended (default)</string>
+    <string name="mtu_1500">1500</string>
+    <string name="mtu_custom">Custom</string>
+    <string name="mtu_custom_value">MTU (bytes)</string>
+    <string name="mtu_invalid">Enter a whole number from 1280 to 65535.</string>
+    <string name="mtu_reconnect">Applies to all profiles on this device. Reconnect an active VPN to apply changes.</string>
 </resources>

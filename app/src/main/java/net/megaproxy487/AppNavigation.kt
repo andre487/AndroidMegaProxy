@@ -27,6 +27,7 @@ internal object AppRoute {
     const val ALWAYS_ON = "always-on"
     const val FINGERPRINTS = "fingerprints"
     const val SPLIT_TUNNEL = "split-tunnel"
+    const val MTU = "mtu"
     const val FAILOVER = "failover"
     const val VISIBILITY = "visibility"
     const val SPEED = "speed"
@@ -43,6 +44,7 @@ internal object AppRoute {
         ALWAYS_ON,
         FINGERPRINTS,
         SPLIT_TUNNEL,
+        MTU,
         FAILOVER,
         VISIBILITY,
         SPEED,
@@ -66,6 +68,7 @@ internal val connectionSettingsDestinations = listOf(
     SettingsDestination(R.string.always_on_vpn, R.string.always_on_description, AppRoute.ALWAYS_ON),
     SettingsDestination(R.string.fingerprints, R.string.fingerprints_description, AppRoute.FINGERPRINTS),
     SettingsDestination(R.string.split_tunneling, R.string.split_tunneling_description, AppRoute.SPLIT_TUNNEL),
+    SettingsDestination(R.string.mtu_title, R.string.mtu_description, AppRoute.MTU),
     SettingsDestination(R.string.failover, R.string.failover_description, AppRoute.FAILOVER),
 )
 
@@ -132,6 +135,7 @@ internal fun MegaProxyNavHost(
         composable(AppRoute.ALWAYS_ON) { ScreenDestination(AppRoute.ALWAYS_ON) { AlwaysOnSettingsScreen(activity, back) } }
         composable(AppRoute.FINGERPRINTS) { ScreenDestination(AppRoute.FINGERPRINTS) { TlsFingerprintScreen(activity, back) } }
         composable(AppRoute.SPLIT_TUNNEL) { ScreenDestination(AppRoute.SPLIT_TUNNEL) { SplitTunnelScreen(activity, back) } }
+        composable(AppRoute.MTU) { ScreenDestination(AppRoute.MTU) { MtuSettingsScreen(activity, back) } }
         composable(AppRoute.FAILOVER) { ScreenDestination(AppRoute.FAILOVER) { FailoverSettingsScreen(activity, back) } }
         composable(AppRoute.VISIBILITY) {
             ScreenDestination(AppRoute.VISIBILITY) { VisibilityScreen(activity, back, runVisibilityNetworkChecks) }

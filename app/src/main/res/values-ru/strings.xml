@@ -577,4 +577,14 @@
     <string name="battery_settings_unavailable">Настройки батареи недоступны на этом устройстве.</string>
     <string name="error_config_capacity">Достигнут лимит хранилища конфигурации. Удалите профили или уменьшите их содержимое.</string>
     <string name="speed_split_tunnel_warning">MegaProxy не выбран для раздельного туннелирования. Для измерения скорости VPN-туннеля включите «Направлять MegaProxy через VPN» в настройках раздельного туннелирования и переподключитесь. Основную сеть можно измерить.</string>
+    <string name="mtu_title">MTU</string>
+    <string name="mtu_description">Размер пакетов VPN-интерфейса</string>
+    <string name="mtu_explanation">Максимальный размер IP-пакета VPN-интерфейса в байтах. 1400 оставляет запас для накладных расходов туннеля; оптимальное значение зависит от сети.</string>
+    <string name="mtu_1280">1280 · Минимум для IPv6</string>
+    <string name="mtu_1400">1400 · Рекомендуется (по умолчанию)</string>
+    <string name="mtu_1500">1500</string>
+    <string name="mtu_custom">Своё значение</string>
+    <string name="mtu_custom_value">MTU (байты)</string>
+    <string name="mtu_invalid">Введите целое число от 1280 до 65535.</string>
+    <string name="mtu_reconnect">Действует для всех профилей на этом устройстве. Переподключите активный VPN, чтобы применить изменения.</string>
 </resources>

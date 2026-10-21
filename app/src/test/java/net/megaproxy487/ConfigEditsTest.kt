@@ -44,11 +44,14 @@ class ConfigEditsTest {
     @Test fun globalFieldEditsPreserveNewRoutingFailoverAndFingerprintValues() {
         val initial = GlobalConnectionSettings()
         val remote = initial.copy(tlsProfile = TlsProfile.FIREFOX_ANDROID, bypassLocalNetworks = false,
-            failoverMode = FailoverMode.ALL, customJa3 = "remote", selectedPackages = setOf("new.package"))
+            failoverMode = FailoverMode.ALL, customJa3 = "remote", selectedPackages = setOf("new.package"), mtu = 1420)
         var saved = remote
         ConfigEdits<GlobalConnectionSettings>().settings(initial, initial.copy(sshKeepaliveSeconds = 60))
             .write { saved = it(saved) }
         assertEquals(remote.copy(sshKeepaliveSeconds = 60), saved)
+        ConfigEdits<GlobalConnectionSettings>().settings(initial, initial.copy(mtu = 1280))
+            .write { saved = it(saved) }
+        assertEquals(remote.copy(sshKeepaliveSeconds = 60, mtu = 1280), saved)
     }
 
     @Test fun notificationReconnectRequiresTheCurrentTokenAndAnActiveDesiredVpn() {

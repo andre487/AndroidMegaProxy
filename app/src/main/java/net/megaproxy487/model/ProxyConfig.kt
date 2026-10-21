@@ -4,6 +4,9 @@ import java.net.URI
 import androidx.annotation.StringRes
 import net.megaproxy487.R
 
+const val DEFAULT_VPN_MTU = 1400
+val VPN_MTU_RANGE = 1280..65535
+
 data class ProxyConfig(
     val type: ProxyType = ProxyType.HTTPS,
     val host: String = "",
@@ -23,6 +26,7 @@ data class ProxyConfig(
     val allowIpv6: Boolean = false,
     val routeAllApps: Boolean = true,
     val bypassLocalNetworks: Boolean = true,
+    val mtu: Int = DEFAULT_VPN_MTU,
     val resolvedProxyIp: String = "",
     val privateKey: String = "",
     val sshProfile: SshProfile = SshProfile.DEFAULT,
@@ -57,6 +61,7 @@ data class ProxyConfig(
     @StringRes
     fun connectionValidationError(): Int? = when {
         storageUnavailable -> R.string.error_config_storage
+        mtu !in VPN_MTU_RANGE -> R.string.mtu_invalid
         unavailableAuthentication() -> R.string.error_credentials_unavailable
         host.isBlank() -> if (!type.isSsh) R.string.validation_proxy_host else R.string.validation_ssh_host
         host.contains(Regex("[/:\\s]")) -> R.string.validation_host_format
@@ -219,6 +224,7 @@ data class GlobalConnectionSettings(
     val selectedPackages: Set<String> = emptySet(),
     val routeAllApps: Boolean = true,
     val bypassLocalNetworks: Boolean = true,
+    val mtu: Int = DEFAULT_VPN_MTU,
 ) {
     fun applyTo(config: ProxyConfig): ProxyConfig = config.copy(
         profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.CHROME_ANDROID else tlsProfile,
@@ -232,6 +238,7 @@ data class GlobalConnectionSettings(
         selectedPackages = selectedPackages,
         routeAllApps = routeAllApps,
         bypassLocalNetworks = bypassLocalNetworks,
+        mtu = mtu,
     )
 }
 
