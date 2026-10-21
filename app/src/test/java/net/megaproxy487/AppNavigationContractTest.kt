@@ -7,7 +7,7 @@ import org.junit.Test
 class AppNavigationContractTest {
     @Test
     fun everySettingsDestinationHasARegisteredRoute() {
-        assertEquals(8, settingsDestinations.size)
+        assertEquals(9, settingsDestinations.size)
         assertEquals(settingsDestinations.size, settingsDestinations.map { it.route }.distinct().size)
         assertTrue(settingsDestinations.all { it.route in AppRoute.registeredStaticRoutes })
     }

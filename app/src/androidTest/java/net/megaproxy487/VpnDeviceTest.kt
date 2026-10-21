@@ -57,13 +57,19 @@ class VpnDeviceTest : DeviceTestBase() {
 
     @Test fun trafficStopAndRestart() {
         directOriginUnavailable()
-        connect()
-        roundTrip()
-        click(R.string.disconnect)
-        stopped()
-        directOriginUnavailable()
-        connect()
-        roundTrip()
+        for (mtu in listOf(1280, 1500, 1420)) {
+            io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(mtu = mtu)) }
+            connect()
+            val manager = context.getSystemService(android.net.ConnectivityManager::class.java)
+            val vpn = manager.allNetworks.single { network ->
+                manager.getNetworkCapabilities(network)?.hasTransport(android.net.NetworkCapabilities.TRANSPORT_VPN) == true
+            }
+            assertEquals("Configured VPN MTU", mtu, manager.getLinkProperties(vpn)!!.mtu)
+            roundTrip()
+            click(R.string.disconnect)
+            stopped()
+            directOriginUnavailable()
+        }
     }
 
     @Test fun masqueTrafficStopAndRestart() {
