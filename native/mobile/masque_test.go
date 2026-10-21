@@ -249,7 +249,7 @@ func TestMASQUERoutingPolicy(t *testing.T) {
 		t.Fatal(err)
 	}
 	defer dns.Close()
-	doh, ok := dns.(*dohPacketConn)
+	doh, ok := dns.(*dnsFlow)
 	if !ok || len(doh.endpoints) != 2 || doh.endpoints[0] != c.DoHURL || doh.endpoints[1] != c.DoHFallbackURLs[0] {
 		t.Fatal("DNS did not retain selected DoH and fallback policy")
 	}

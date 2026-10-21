@@ -26,6 +26,33 @@ class ConfigurationRecoveryRegressionTest {
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
     }
 
+    @Test fun megaProxyRoutingDefaultsOnAndExplicitExclusionSurvivesReload() {
+        val initial = store.globalConnectionSettings()
+        assertEquals(setOf(context.packageName), initial.selectedPackages)
+        assertTrue(initial.routeAllApps)
+        store.editGlobalSettings { it.copy(routeAllApps = false, selectedPackages = setOf("other.package")) }
+        assertEquals(setOf("other.package"), ConfigStore(context).globalConnectionSettings().selectedPackages)
+        store.editGlobalSettings { it.copy(bypassLocalNetworks = false) }
+        val another = store.addProfile()
+        store.setActiveProfile(another.id)
+        store.setConnectionProfile(another.id)
+        assertEquals(setOf("other.package"), ConfigStore(context).connectionConfig().selectedPackages)
+    }
+
+    @Test fun existingSplitListGainsMegaProxyOnlyOnce() {
+        store.activeProfile()
+        val prefs = context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE)
+        prefs.edit().putString("global_connection_settings_v1",
+            """{"sshProfile":"DEFAULT","routeAllApps":false,"packages":["other.package"]}""").commit()
+        val migrated = store.globalConnectionSettings()
+        assertEquals(setOf("other.package", context.packageName), migrated.selectedPackages)
+        assertFalse(migrated.routeAllApps)
+        assertTrue(org.json.JSONObject(prefs.getString("global_connection_settings_v1", null)!!)
+            .getBoolean("megaProxyRoutingDefaultApplied"))
+        store.editGlobalSettings { it.copy(selectedPackages = it.selectedPackages - context.packageName) }
+        assertEquals(setOf("other.package"), ConfigStore(context).globalConnectionSettings().selectedPackages)
+    }
+
     @Test fun failoverSkipsInvalidProfile() {
         val first = store.activeProfile().let { it.copy(config = ProxyConfig(type=ProxyType.SOCKS5,host="one.example",port=1080)) }
         store.saveProfile(first)

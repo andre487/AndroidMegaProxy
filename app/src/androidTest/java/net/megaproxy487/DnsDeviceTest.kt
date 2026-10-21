@@ -52,6 +52,14 @@ class DnsDeviceTest : DeviceTestBase() {
                 connect()
                 dnsQuery(true)
                 dnsQuery(false)
+                if (type == ProxyType.HTTPS && mode == "https") {
+                    DatagramSocket().use { first ->
+                        dnsQuery(false, first)
+                        repeat(80) { dnsQuery(false) }
+                        // Reuse an application socket after its idle TUN mapping was evicted.
+                        dnsQuery(false, first)
+                    }
+                }
                 click(R.string.disconnect)
                 stopped()
             }
@@ -80,7 +88,7 @@ class DnsDeviceTest : DeviceTestBase() {
         stopped()
     }
 
-    private fun dnsQuery(tcp: Boolean) {
+    private fun dnsQuery(tcp: Boolean, udpSocket: DatagramSocket? = null) {
         val query = byteArrayOf(0x48, 0x73, 1, 0, 0, 1, 0, 0, 0, 0, 0, 0, 7) +
             "private".toByteArray(Charsets.US_ASCII) + byteArrayOf(4) +
             "test".toByteArray(Charsets.US_ASCII) + byteArrayOf(0, 0, 1, 0, 1)
@@ -89,12 +97,15 @@ class DnsDeviceTest : DeviceTestBase() {
             socket.connect(InetSocketAddress("10.77.0.2", 53), 10_000)
             DataOutputStream(socket.getOutputStream()).apply { writeShort(query.size); write(query); flush() }
             DataInputStream(socket.getInputStream()).let { input -> ByteArray(input.readUnsignedShort()).also { input.readFully(it) } }
-        } else DatagramSocket().use { socket ->
-            socket.soTimeout = 5_000
-            socket.send(DatagramPacket(query, query.size, InetAddress.getByName("10.77.0.2"), 53))
-            val packet = DatagramPacket(ByteArray(512), 512)
-            socket.receive(packet)
-            packet.data.copyOf(packet.length)
+        } else {
+            fun exchange(socket: DatagramSocket): ByteArray {
+                socket.soTimeout = 5_000
+                socket.send(DatagramPacket(query, query.size, InetAddress.getByName("10.77.0.2"), 53))
+                val packet = DatagramPacket(ByteArray(512), 512)
+                socket.receive(packet)
+                return packet.data.copyOf(packet.length)
+            }
+            if (udpSocket != null) exchange(udpSocket) else DatagramSocket().use(::exchange)
         }
         assertEquals(0x48, response[0].toInt())
         assertEquals(0x73, response[1].toInt())

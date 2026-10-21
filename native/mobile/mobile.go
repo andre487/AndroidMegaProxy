@@ -124,7 +124,7 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		t.SetProxy(sshProxy)
 		proxyCloser = sshProxy
 	}
-	netstack, err := core.CreateStack(&core.Config{LinkEndpoint: dev, TransportHandler: t})
+	netstack, err := core.CreateStack(&core.Config{LinkEndpoint: dev, TransportHandler: dnsTransport{t}})
 	if err != nil {
 		dev.Close()
 		if proxyCloser != nil {

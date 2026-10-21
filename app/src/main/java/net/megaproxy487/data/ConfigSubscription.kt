@@ -113,7 +113,12 @@ internal fun retainProfileSecrets(
     presence: ProfileSecretPresence,
 ): net.megaproxy487.model.ProxyProfile {
     if (current == null) return source
+    val sameDns = source.config.dnsProvider == current.config.dnsProvider &&
+        (source.config.dnsProvider != net.megaproxy487.model.DnsProvider.CUSTOM ||
+            source.config.customDohUrl.trim() == current.config.customDohUrl.trim())
     return source.copy(config = source.config.copy(
+        allowInsecureDns = sameDns && current.config.allowInsecureDns,
+        allowInvalidDohCertificate = sameDns && current.config.allowInvalidDohCertificate,
         password = source.config.password.takeIf { presence.password } ?: current.config.password,
         privateKey = source.config.privateKey.takeIf { presence.privateKey } ?: current.config.privateKey,
         jumpPassword = source.config.jumpPassword.takeIf { presence.jumpPassword } ?: current.config.jumpPassword,

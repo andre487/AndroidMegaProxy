@@ -368,13 +368,17 @@ class VpnDeviceTest : DeviceTestBase() {
     @Test fun notificationActionStopsRealService() {
         connect()
         roundTrip()
-        device.openNotification()
-        val action = device.wait(androidx.test.uiautomator.Until.findObject(
-            androidx.test.uiautomator.By.desc(text(R.string.disconnect))), 10_000)
-        assertNotNull("VPN notification must expose Disconnect", action)
-        action.click()
+        val manager = context.getSystemService(android.app.NotificationManager::class.java)
+        var action: android.app.Notification.Action? = null
+        await("VPN notification must expose Disconnect") {
+            action = manager.activeNotifications.asSequence().flatMap {
+                it.notification.actions.orEmpty().asSequence()
+            }.firstOrNull { it.title.toString() == text(R.string.disconnect) }
+            action != null
+        }
+        // Send the published PendingIntent through Android; shade expansion varies by API/device.
+        requireNotNull(action).actionIntent.send()
         stopped()
-        device.pressBack()
         directOriginUnavailable()
     }
 

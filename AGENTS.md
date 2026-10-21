@@ -50,7 +50,9 @@ branch names, credentials, signing material, or other secrets.
 - Compose interaction tests may run in `app/src/test` using Robolectric with a pinned SDK and
   plain test Application. Inject platform operations; do not load Go JNI or real Keystore in
   those tests. Gradle resolves pinned API 26/35 Robolectric SDK jars before tests; the test
-  runtime uses offline resolution. They run through Fastlane Android checks without an emulator.
+  runtime uses offline resolution. UI tests dispatch configuration work deterministically;
+  a controlled worker test verifies the background-read boundary. They run through Fastlane
+  Android checks without an emulator.
 - Exercise real screens and ConfigStore with a test-only Keystore provider. Before asserting
   service commands or their absence, drain ordered configuration writes and check both completion
   and failure state; `pending == 0` alone does not prove success. Recorded service intents do not
@@ -100,6 +102,9 @@ branch names, credentials, signing material, or other secrets.
   Obsolete artwork does not need an archive copy in the working tree because Git preserves history.
 
 ## Product and UI conventions
+
+- MegaProxy is selected for split tunneling by default. Existing lists gain it once on upgrade;
+  subsequent explicit exclusion must survive reloads, unrelated edits and profile changes.
 
 - All user-visible UI text must use Android string resources and be supplied in both the default
   English resources and Russian resources. The app language selects UI words; number, date and

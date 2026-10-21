@@ -586,7 +586,7 @@ func (d *httpsConnectDialer) DialUDP(metadata *M.Metadata) (net.PacketConn, erro
 	client := d.dohClient
 	limiter := d.dohInFlight
 	d.cacheMu.Unlock()
-	return d.dnsFlows.open(func() *dohPacketConn {
+	return d.dnsFlows.open(metadata.Network == M.UDP, func() *dohPacketConn {
 		packet := newDoHPacketConnWithClient(d.config, d.reporter, d.connectTarget, d.config.DoHURL, client, limiter)
 		packet.connectUDP = d.connectDNSUDP
 		return packet
