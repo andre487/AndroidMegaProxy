@@ -78,19 +78,21 @@ jobs:
           script: |
             mkdir -p test-results/android-api${{ inputs.api }}
             touch test-results/android-api${{ inputs.api }}/runner-started
-            result=0
-            bundle exec fastlane android device_tests api:${{ inputs.api }} || result=$?
-            if [ "$result" -ne 0 ]; then
-              {
-                date -u
-                "$ANDROID_HOME/platform-tools/adb" devices -l
-                ps -eo pid,ppid,stat,rss,comm
-                free -m
-                df -h
-                sudo dmesg --ctime | tail -200
-              } > test-results/android-api${{ inputs.api }}/host-diagnostics.txt 2>&1
-            fi
-            exit "$result"
+            bundle exec fastlane android device_tests api:${{ inputs.api }}
+      - name: Collect runner diagnostics
+        if: ${{ !cancelled() && steps.device_tests.outcome == 'failure' }}
+        env:
+          DEVICE_API: ${{ inputs.api }}
+        run: |
+          mkdir -p "test-results/android-api$DEVICE_API"
+          {
+            date -u
+            "$ANDROID_HOME/platform-tools/adb" devices -l
+            ps -eo pid,ppid,stat,rss,comm
+            free -m
+            df -h
+            sudo dmesg --ctime | tail -200
+          } > "test-results/android-api$DEVICE_API/host-diagnostics.txt" 2>&1
       - name: Retry emulator startup before tests only
         id: device_retry
         if: ${{ !cancelled() && steps.device_tests.outcome == 'failure' && hashFiles(format('test-results/android-api{0}/runner-started', inputs.api)) == '' }}
