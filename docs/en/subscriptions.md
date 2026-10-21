@@ -43,8 +43,8 @@ Surviving selections remain; removed selections use the downloaded
 Supported bodies match manual import: MegaProxy JSON, FoxyProxy JSON, ProxyList
 and SuperProxy text. JSON uses stable IDs; other formats reuse uniquely matching
 owned names, then unique type/host/port. Ambiguous matches get new IDs. Canonical
-snapshots reset omitted supported app preferences to defaults; other formats
-preserve settings they do not represent. Omitted profile secrets retain local
+snapshots change only explicitly supplied global settings; omitted fields retain
+their local values. Other formats preserve settings they do not represent. Omitted profile secrets retain local
 credentials and explicit empty fields clear them. An invalid, empty or oversized
 snapshot keeps the last working configuration. See the
 [delivery protocol](https://github.com/andre487/MegaProxyConfig/blob/main/docs/subscription-protocol.md).
@@ -71,7 +71,12 @@ its settings; explicit null removes it. An omitted password retains the saved on
 only for the same normalized URL and username; empty clears it. Downloaded
 subscription settings never replace your configured source list or credentials.
 JSON exports include the definition; its password follows **Include passwords**,
-but query tokens in URLs remain present. Ownership and status are never exported.
+but query tokens in URLs remain present, even with both secret-export options off.
+Ownership and status are never exported. Export includes all profiles; reimporting
+that file with its subscription makes every imported profile subscription-owned.
+A later refresh can remove formerly local profiles absent from the feed. To transfer
+profiles without adopting them into the subscription, omit the root `subscription`
+property from the file; this preserves any subscription already configured on the receiver.
 
 The complete local profile store is limited to 1,000 profiles, 4,194,304 characters before encoding,
 and 8 MiB of encoded JSON. Imports, edits and subscription refreshes exceeding these limits
