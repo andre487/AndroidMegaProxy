@@ -72,12 +72,25 @@ jobs:
           avd-name: megaproxy-device
           profile: pixel_5
           force-avd-creation: false
-          emulator-options: -accel on -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none
+          # Stream guest failures independently of ADB, including when its transport goes offline.
+          emulator-options: -accel on -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -show-kernel -logcat '*:W'
           disable-animations: true
           script: |
             mkdir -p test-results/android-api${{ inputs.api }}
             touch test-results/android-api${{ inputs.api }}/runner-started
-            bundle exec fastlane android device_tests api:${{ inputs.api }}
+            result=0
+            bundle exec fastlane android device_tests api:${{ inputs.api }} || result=$?
+            if [ "$result" -ne 0 ]; then
+              {
+                date -u
+                "$ANDROID_HOME/platform-tools/adb" devices -l
+                ps -eo pid,ppid,stat,rss,comm
+                free -m
+                df -h
+                sudo dmesg --ctime | tail -200
+              } > test-results/android-api${{ inputs.api }}/host-diagnostics.txt 2>&1
+            fi
+            exit "$result"
       - name: Retry emulator startup before tests only
         id: device_retry
         if: ${{ !cancelled() && steps.device_tests.outcome == 'failure' && hashFiles(format('test-results/android-api{0}/runner-started', inputs.api)) == '' }}
