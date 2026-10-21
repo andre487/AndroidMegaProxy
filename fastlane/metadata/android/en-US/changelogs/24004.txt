@@ -1,0 +1,4 @@
+- Added VPN MTU settings from 1280 to 65535 bytes, applied after reconnecting.
+- MegaProxy is now selected for split tunneling by default and added once to existing lists on upgrade.
+- Fixed DNS failures when completed UDP flows filled the flow limit.
+- Imports and subscription updates now reuse omitted passwords and SSH keys only for unchanged protocols, servers and accounts.
