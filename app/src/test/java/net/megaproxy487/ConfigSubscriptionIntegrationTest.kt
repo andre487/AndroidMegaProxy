@@ -277,13 +277,13 @@ class ConfigSubscriptionIntegrationTest {
         val before = store.profiles()
         assertFalse(ConfigSubscriptions.refreshNow(context, true, { _, _ ->
             store.saveSubscription(settings.copy(enabled = false))
-            document(profile("two")).toString()
+            document(profile("two"), subscription = settings.copy(url = "https://obsolete.example/config")).toString()
         }, { false }))
         assertEquals(before, store.profiles())
         assertEquals(0, store.subscriptionState()!!.lastSuccess)
         assertFalse(ConfigSubscriptions.refreshNow(context, true, { _, _ ->
             store.saveSubscription(null)
-            document(profile("two")).toString()
+            document(profile("two"), subscription = settings.copy(url = "https://obsolete.example/config")).toString()
         }, { false }))
         assertEquals(before, store.profiles())
         assertNull(store.subscriptionState())
@@ -352,7 +352,8 @@ class ConfigSubscriptionIntegrationTest {
         assertTrue(runCatching {
             failingStore.applySubscriptionSnapshot(state.generation,
                 PortableConfiguration(listOf(profile("two")), null, null,
-                    globalConnectionSettings = GlobalConnectionSettings(routeAllApps = false)), 0, 1000, true)
+                    globalConnectionSettings = GlobalConnectionSettings(routeAllApps = false),
+                    subscription = settings.copy(url = "https://replacement.example/config")), 0, 1000, true)
         }.isFailure)
         assertFalse(failNext)
         assertEquals(before, preferences.all)
@@ -452,5 +453,109 @@ class ConfigSubscriptionIntegrationTest {
         kotlinx.coroutines.withContext(ConfigIoDispatcher) { /* Drain the application command queue. */ }
         assertNull(shadowOf(context).nextStartedService)
         assertFalse(store.isConnectionDesired())
+    }
+
+    @Test fun refreshReplacesSourcesButRetainsLocalAuthIntervalAndPause() {
+        bootstrap(profile("one"))
+        val local = settings.copy(intervalMinutes = 123, enabled = false)
+        store.saveSubscription(local)
+        val remote = ConfigSubscription("https://next.example/config", listOf("https://next-backup.example/config"),
+            "remote-user", "remote-secret", 1, true)
+        assertTrue(apply(parseSubscriptionSnapshot(document(profile("one"), subscription = remote).toString(), store.profiles())))
+        val next = ConfigStore(context).subscriptionState()!!
+        assertEquals(local.copy(url = remote.url, fallbackUrls = remote.fallbackUrls), next.settings)
+        assertEquals(setOf("one"), next.ownedIds)
+        assertFalse(store.hasPendingReconnect())
+        assertNull(context.getSystemService(JobScheduler::class.java).getPendingJob(SUBSCRIPTION_JOB_ID))
+    }
+
+    @Test fun missingOrNullRemoteDefinitionPreservesSourcesAndOmittedBackupsClearThem() {
+        bootstrap(profile("one"))
+        for (nullDefinition in listOf(false, true)) {
+            val json = document(profile("one"))
+            if (nullDefinition) json.put("subscription", JSONObject.NULL)
+            assertTrue(apply(parseSubscriptionSnapshot(json.toString(), store.profiles())))
+            assertEquals(settings, store.subscriptionState()!!.settings)
+        }
+        val json = document(profile("one")).put("subscription", JSONObject().put("url", "https://next.example/config"))
+        assertTrue(apply(parseSubscriptionSnapshot(json.toString(), store.profiles())))
+        assertEquals(settings.copy(url = "https://next.example/config", fallbackUrls = emptyList()), store.subscriptionState()!!.settings)
+    }
+
+    @Test fun invalidSourceDefinitionTriesBackupAndNextRefreshUsesNewSources() = runBlocking {
+        bootstrap(profile("one"))
+        val before = store.profiles()
+        val replacement = ConfigSubscription("https://next.example/config", listOf("https://next-backup.example/config"))
+        val calls = mutableListOf<String>()
+        assertTrue(ConfigSubscriptions.refreshNow(context, true, { actual, url ->
+            assertEquals(settings, actual)
+            assertEquals(before, store.profiles())
+            calls += url
+            if (url == settings.url) document(profile("invalid")).put("subscription",
+                JSONObject().put("url", "http://invalid.example/config")).toString()
+            else document(profile("two"), subscription = replacement).toString()
+        }, { false }))
+        assertNull(store.profile("one"))
+        assertNull(store.profile("invalid"))
+        assertNotNull(store.profile("two"))
+        val expected = settings.copy(url = replacement.url, fallbackUrls = replacement.fallbackUrls)
+        assertEquals(expected, store.subscriptionState()!!.settings)
+        assertTrue(ConfigSubscriptions.refreshNow(context, true, { actual, url ->
+            assertEquals(expected, actual)
+            calls += url
+            document(profile("two")).toString()
+        }, { false }))
+        assertEquals(listOf(settings.url, settings.fallbackUrls.single(), replacement.url), calls)
+    }
+
+    @Test fun malformedSourceDefinitionsNeverCommitProfilesOrSources() = runBlocking {
+        bootstrap(profile("one"))
+        val before = store.profiles()
+        for (definition in listOf<Any>(true, JSONObject(),
+            JSONObject().put("url", "http://invalid.example"),
+            JSONObject().put("url", "https://next.example").put("fallbackUrls", JSONArray().put("https://next.example/")),
+            JSONObject().put("url", "https://next.example").put("username", 7),
+            JSONObject().put("url", "https://next.example").put("enabled", "yes"))) {
+            assertFalse(ConfigSubscriptions.refreshNow(context, true, { _, _ ->
+                document(profile("invalid")).put("subscription", definition).toString()
+            }, { false }))
+            assertEquals(before, store.profiles())
+            assertEquals(settings, store.subscriptionState()!!.settings)
+            assertEquals(setOf("one"), store.subscriptionState()!!.ownedIds)
+        }
+    }
+
+    @Test fun initialUrlRefreshUsesDownloadedSourcesAndLocallyEnteredPreferences() = runBlocking {
+        val localProfile = store.activeProfile()
+        val local = settings.copy(intervalMinutes = 37, enabled = false)
+        store.saveSubscription(local)
+        val remote = settings.copy(url = "https://new.example/config", fallbackUrls = emptyList(),
+            username = "remote", password = "remote-secret", intervalMinutes = 1, enabled = true)
+        assertTrue(ConfigSubscriptions.refreshNow(context, true, { actual, url ->
+            assertEquals(local, actual)
+            assertEquals(local.url, url)
+            document(profile("one"), subscription = remote).toString()
+        }, { false }))
+        assertEquals(local.copy(url = remote.url, fallbackUrls = emptyList()), store.subscriptionState()!!.settings)
+        assertEquals(setOf("one"), store.subscriptionState()!!.ownedIds)
+        assertNotNull(store.profile(localProfile.id))
+        assertFalse(store.isConnectionDesired())
+    }
+
+    @Test fun manualImportAndRefreshDoNotReuseAnOmittedPasswordForAChangedEndpoint() {
+        val original = profile("one").let { it.copy(config = it.config.copy(username = "user", password = "saved-secret")) }
+        val changed = document(original).apply {
+            getJSONArray("profiles").getJSONObject(0).getJSONObject("proxy").apply {
+                put("host", "changed.example")
+                remove("password")
+            }
+        }
+        bootstrap(original)
+        store.importConfiguration(ConfigTransfer.importJson(changed.toString()))
+        assertEquals("", store.profile("one")!!.config.password)
+        store.saveProfile(original)
+        assertTrue(apply(parseSubscriptionSnapshot(changed.toString(), store.profiles())))
+        assertEquals("", store.profile("one")!!.config.password)
+        assertEquals("changed.example", store.profile("one")!!.config.host)
     }
 }

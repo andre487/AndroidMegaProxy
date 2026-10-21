@@ -102,7 +102,8 @@ not complete browser behaviour. ProxyCheck verdicts and local VPN heuristics are
 ## Configuration
 
 Import MegaProxy JSON, ProxyList, FoxyProxy JSON or supported SuperProxy text. Portable JSON version 8
-uses stable profile IDs; omitted secrets preserve saved values, explicit empty values clear them.
+uses stable profile IDs; omitted secrets preserve saved values only for unchanged endpoints and accounts;
+explicit empty values clear them.
 Unsupported explicit transports are rejected. [Schema and examples](config-schema/) ·
 [MegaProxyConfig contract](https://github.com/andre487/MegaProxyConfig).
 Trusted [configuration subscriptions](docs/en/subscriptions.md) refresh owned profiles without

@@ -381,6 +381,9 @@ class ConfigStore(context: Context) {
         connectionRunning: Boolean,
     ): Boolean = synchronized(storageLock) {
         val state = subscriptionState()?.takeIf { it.generation == generation } ?: return@synchronized false
+        val nextSettings = configuration.subscription?.let {
+            state.settings.copy(url = it.url, fallbackUrls = it.fallbackUrls).validate()
+        } ?: state.settings
         val existing = profiles()
         requireUi(existing.none { it.config.storageUnavailable }) { UiException(R.string.error_config_storage) }
         requireUi(configuration.profiles.isNotEmpty()) { UiException(R.string.error_config_no_usable) }
@@ -417,7 +420,7 @@ class ConfigStore(context: Context) {
         if (connectionRunning && (oldConnection != newConnection || connectionProfileId() != nextConnection)) {
             editor.putString(PENDING_RECONNECT, UUID.randomUUID().toString())
         }
-        putSubscription(editor, state.copy(ownedIds = incoming.map(ProxyProfile::id).toSet(),
+        putSubscription(editor, state.copy(settings = nextSettings, ownedIds = incoming.map(ProxyProfile::id).toSet(),
             lastAttempt = now, lastSuccess = now, sourceIndex = sourceIndex, failed = false,
             warnings = configuration.skippedProfiles > 0 || configuration.notice.browserFields || configuration.notice.unknownFields))
         commitTransaction(editor)

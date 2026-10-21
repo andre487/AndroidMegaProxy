@@ -1,6 +1,8 @@
 package net.megaproxy487.data
 
 import java.net.URI
+import java.net.IDN
+import net.megaproxy487.model.ProxyConfig
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -107,6 +109,19 @@ data class ConfigSubscriptionState(
 internal fun sameSubscriptionSource(a: ConfigSubscription, b: ConfigSubscription): Boolean =
     normalizeSubscriptionUrl(a.url) == normalizeSubscriptionUrl(b.url) && a.username.orEmpty() == b.username.orEmpty()
 
+private fun sameProxyAccount(incoming: ProxyConfig, current: ProxyConfig, jump: Boolean): Boolean {
+    fun host(value: String) = runCatching { IDN.toASCII(value.trim().removeSuffix(".")).lowercase() }
+        .getOrDefault(value.trim().removeSuffix(".").lowercase())
+    if (incoming.type != current.type) return false
+    if (jump) return incoming.type.hasJump && !incoming.sameJumpAuthentication && !current.sameJumpAuthentication &&
+        incoming.jumpUsername.isNotEmpty() && incoming.jumpUsername == current.jumpUsername &&
+        host(incoming.jumpHost) == host(current.jumpHost) && incoming.jumpPort == current.jumpPort
+    return incoming.username.isNotEmpty() && incoming.username == current.username &&
+        host(incoming.host) == host(current.host) && incoming.port == current.port &&
+        (!incoming.type.hasJump || !incoming.sameJumpAuthentication ||
+            current.sameJumpAuthentication && host(incoming.jumpHost) == host(current.jumpHost) && incoming.jumpPort == current.jumpPort)
+}
+
 internal fun retainProfileSecrets(
     source: net.megaproxy487.model.ProxyProfile,
     current: net.megaproxy487.model.ProxyProfile?,
@@ -116,13 +131,15 @@ internal fun retainProfileSecrets(
     val sameDns = source.config.dnsProvider == current.config.dnsProvider &&
         (source.config.dnsProvider != net.megaproxy487.model.DnsProvider.CUSTOM ||
             source.config.customDohUrl.trim() == current.config.customDohUrl.trim())
+    val sameAccount = sameProxyAccount(source.config, current.config, jump = false)
+    val sameJumpAccount = sameProxyAccount(source.config, current.config, jump = true)
     return source.copy(config = source.config.copy(
         allowInsecureDns = sameDns && current.config.allowInsecureDns,
         allowInvalidDohCertificate = sameDns && current.config.allowInvalidDohCertificate,
-        password = source.config.password.takeIf { presence.password } ?: current.config.password,
-        privateKey = source.config.privateKey.takeIf { presence.privateKey } ?: current.config.privateKey,
-        jumpPassword = source.config.jumpPassword.takeIf { presence.jumpPassword } ?: current.config.jumpPassword,
-        jumpPrivateKey = source.config.jumpPrivateKey.takeIf { presence.jumpPrivateKey } ?: current.config.jumpPrivateKey,
+        password = if (presence.password) source.config.password else current.config.password.takeIf { sameAccount }.orEmpty(),
+        privateKey = if (presence.privateKey) source.config.privateKey else current.config.privateKey.takeIf { sameAccount }.orEmpty(),
+        jumpPassword = if (presence.jumpPassword) source.config.jumpPassword else current.config.jumpPassword.takeIf { sameJumpAccount }.orEmpty(),
+        jumpPrivateKey = if (presence.jumpPrivateKey) source.config.jumpPrivateKey else current.config.jumpPrivateKey.takeIf { sameJumpAccount }.orEmpty(),
         unreadableSecrets = current.config.unreadableSecrets.filterKeys { name -> when (name) {
             "password" -> !presence.password
             "privateKey" -> !presence.privateKey

@@ -75,7 +75,7 @@
     <string name="export_json_description">JSON · профили и переносимые настройки</string>
     <string name="export_proxy_list_description">ProxyList.txt · только совместимые поля прокси</string>
     <string name="include_passwords">Включить пароли</string>
-    <string name="passwords_omitted_message">Пароли не включены. При импорте сохранённые пароли останутся; для новых профилей введите их вручную. Токены URL остаются в JSON.</string>
+    <string name="passwords_omitted_message">Пароли не включены. Сохранённые пароли используются только для прежних серверов и пользователей. Токены URL остаются в JSON.</string>
     <string name="include_private_keys">Включить закрытые ключи SSH</string>
     <string name="private_keys_plaintext_warning">Закрытые ключи будут экспортированы в открытом виде.</string>
     <string name="export_secrets_title">Экспортировать секреты в открытом виде?</string>
@@ -533,10 +533,11 @@
     <string name="socks5_username_optional">Логин SOCKS5 (необязательно)</string>
     <string name="socks5_password_optional">Пароль SOCKS5 (необязательно)</string>
     <string name="validation_socks5_auth">Оставьте оба поля пустыми или укажите логин и пароль по 1–255 байт UTF-8 каждый.</string>
+    <string name="validation_basic_username_colon">Имя пользователя Basic Auth не должно содержать двоеточие (:).</string>
     <string name="socks5_description">TCP и UDP ASSOCIATE, DNS через HTTPS через прокси. SOCKS5 не шифрует соединение с прокси, включая пароль, и не использует отпечаток TLS.</string>
     <string name="subscription">Подписка на конфигурацию</string>
     <string name="subscription_description">Обновление профилей из доверенных HTTPS-источников</string>
-    <string name="subscription_trust">Подписывайтесь только на доверенные источники: они могут заменять профили подписки и настройки соединения. Все указанные источники получают одинаковые учётные данные подписки. Загрузки подчиняются маршрутизации Android VPN для этого приложения.</string>
+    <string name="subscription_trust">Подписывайтесь только на доверенные источники: они могут заменять профили подписки, настройки соединения и URL источников. Сохранённые учётные данные подписки будут отправляться и на новые URL. Загрузки подчиняются маршрутизации Android VPN для этого приложения.</string>
     <string name="subscription_storage_error">Не удалось прочитать или сохранить подписку. Загрузка без сохранённой авторизации не выполняется.</string>
     <string name="subscription_enabled">Автоматическое обновление</string>
     <string name="subscription_last_success">Последнее успешное обновление: %1$s</string>

@@ -69,8 +69,8 @@ internal fun downloadConfiguration(
 }
 
 internal fun parseSubscriptionSnapshot(text: String, previous: List<ProxyProfile>): PortableConfiguration {
-    // Remote definitions cannot redirect this subscription or acquire additional credential recipients.
-    val parsed = parseProfileImport(text, null, "", acceptSubscription = false)
+    // Trusted snapshots may replace source URLs. Local auth and scheduling survive at commit time.
+    val parsed = parseProfileImport(text, null, "")
     if (parsed is ParsedProfileImport.Configuration) {
         val value = parsed.value
         val root = boundedJsonObject(text)

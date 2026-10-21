@@ -58,13 +58,15 @@ in-memory log of timing, protocol selection, HTTP status and transfer measuremen
 no exit IP or response payloads and is discarded when the screen is closed.
 
 If you configure a configuration subscription, MegaProxy downloads snapshots from the HTTPS
-sources you list, automatically at the interval you choose when Android permits background work,
+sources you configure or their trusted replacements, automatically at the interval you choose when Android permits background work,
 or when you request an update. Each source receives its configured URL path/query, optional
 subscription Basic Auth, app version, the common Android client identifier and the source IP.
 These requests follow Android VPN routing for MegaProxy; they do not include your current profiles
 or browsing history. All listed backup sources receive the same subscription credentials.
 Only use trusted sources: downloaded snapshots can change subscribed profiles and supported
-settings. You can pause or remove the subscription in Settings; removing it keeps existing profiles.
+settings and replace the source URLs. Saved subscription credentials are also sent to those
+replacement URLs; downloaded credentials, interval and pause state do not override your local choices.
+You can pause or remove the subscription in Settings; removing it keeps existing profiles.
 Exported JSON can disclose subscription URLs (including query tokens) and, if included, its password.
 
 Automatic update checks are enabled by default and contact the selected source (F-Droid or GitHub)

@@ -97,11 +97,13 @@ class ConfigSubscriptionTest {
         assertFalse(ambiguous.profiles.any { it.id == "stable" })
     }
 
-    @Test fun downloadedSubscriptionCannotChangeSettingsAndInvalidReferencesFail() {
-        val valid = """{"schema":"net.megaproxy487.config","version":8,"profiles":[{"id":"one","proxy":{"type":"SOCKS5","host":"proxy.example","port":1080}}],"subscription":{"url":"http://evil.example","username":123}}"""
+    @Test fun downloadedSubscriptionIsValidatedAndInvalidReferencesFail() {
+        val valid = """{"schema":"net.megaproxy487.config","version":8,"profiles":[{"id":"one","proxy":{"type":"SOCKS5","host":"proxy.example","port":1080}}],"subscription":{"url":"https://new.example/config","username":"remote","password":"ignored","intervalMinutes":1,"enabled":false}}"""
         val parsed = parseSubscriptionSnapshot(valid, emptyList())
-        assertFalse(parsed.subscriptionPresent)
-        assertNull(parsed.subscription)
+        assertTrue(parsed.subscriptionPresent)
+        assertEquals("https://new.example/config", parsed.subscription!!.url)
+        val unsafe = JSONObject(valid).apply { getJSONObject("subscription").put("url", "http://unsafe.example") }
+        assertTrue(runCatching { parseSubscriptionSnapshot(unsafe.toString(), emptyList()) }.isFailure)
         val malformed = JSONObject(valid).apply {
             getJSONArray("profiles").getJSONObject(0).getJSONObject("proxy").put("port", "1080")
         }
