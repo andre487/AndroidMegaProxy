@@ -72,8 +72,9 @@ jobs:
           avd-name: megaproxy-device
           profile: pixel_5
           force-avd-creation: false
-          # Stream guest failures independently of ADB, including when its transport goes offline.
-          emulator-options: -accel on -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -show-kernel -logcat '*:W'
+          # Stream kernel failures independently of ADB. Combining this with -logcat
+          # makes API 35 assign two serial devices to stdio and abort before boot.
+          emulator-options: -accel on -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none -camera-front none -show-kernel
           disable-animations: true
           script: |
             mkdir -p test-results/android-api${{ inputs.api }}
