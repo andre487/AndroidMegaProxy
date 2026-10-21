@@ -72,10 +72,10 @@
     <string name="continue_action">Продолжить</string>
     <string name="export_configuration_title">Экспорт конфигурации</string>
     <string name="format">Формат</string>
-    <string name="export_json_description">JSON · все настройки MegaProxy</string>
+    <string name="export_json_description">JSON · профили и переносимые настройки</string>
     <string name="export_proxy_list_description">ProxyList.txt · только совместимые поля прокси</string>
     <string name="include_passwords">Включить пароли</string>
-    <string name="passwords_omitted_message">Пароли останутся пустыми — их потребуется ввести после импорта.</string>
+    <string name="passwords_omitted_message">Пароли не включены. При импорте сохранённые пароли останутся; для новых профилей введите их вручную. Токены URL остаются в JSON.</string>
     <string name="include_private_keys">Включить закрытые ключи SSH</string>
     <string name="private_keys_plaintext_warning">Закрытые ключи будут экспортированы в открытом виде.</string>
     <string name="export_secrets_title">Экспортировать секреты в открытом виде?</string>

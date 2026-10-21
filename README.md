@@ -108,6 +108,9 @@ Unsupported explicit transports are rejected. [Schema and examples](config-schem
 Trusted [configuration subscriptions](docs/en/subscriptions.md) refresh owned profiles without
 replacing local profiles or interrupting current tunnels; changed live settings offer reconnect.
 Exported credentials and URL tokens are sensitive.
+JSON transfers profiles and portable settings, not a full app backup. MTU, DNS security approvals,
+language, traffic units and update preferences stay local. ProxyList exports only standalone
+HTTPS/MASQUE/SOCKS5 endpoints; use JSON for SSH, Jump and other settings.
 
 ## Limitations
 

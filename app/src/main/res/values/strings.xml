@@ -73,10 +73,10 @@
     <string name="continue_action">Continue</string>
     <string name="export_configuration_title">Export configuration</string>
     <string name="format">Format</string>
-    <string name="export_json_description">JSON · all MegaProxy settings</string>
+    <string name="export_json_description">JSON · profiles and portable settings</string>
     <string name="export_proxy_list_description">ProxyList.txt · compatible proxy fields only</string>
     <string name="include_passwords">Include passwords</string>
-    <string name="passwords_omitted_message">Passwords will be left empty and must be entered after import.</string>
+    <string name="passwords_omitted_message">Passwords are omitted. Import preserves existing passwords; enter them for new profiles. URL tokens remain in JSON.</string>
     <string name="include_private_keys">Include SSH private keys</string>
     <string name="private_keys_plaintext_warning">Private keys will be exported in plain text.</string>
     <string name="export_secrets_title">Export secrets in plain text?</string>
