@@ -81,7 +81,7 @@ class DnsDeviceTest : DeviceTestBase() {
             fail("Untrusted DoH certificate unexpectedly accepted")
         } catch (_: IOException) {
             await("Expected certificate failure in DNS diagnostics") {
-                net.megaproxy487.vpn.PersistentDiagnosticLog.readTail(128 * 1024).contains("event=doh result=failed provider_index=0 reason=certificate")
+                net.megaproxy487.vpn.PersistentDiagnosticLog.readTail(128 * 1024).contains("event=doh result=failed reason=certificate")
             }
         }
         click(R.string.disconnect)

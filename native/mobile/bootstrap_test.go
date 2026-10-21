@@ -1,9 +1,14 @@
 package mobile
 
 import (
+	"encoding/binary"
+	"io"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"testing"
+	"time"
 )
 
 func TestBootstrapResolversUseDirectHTTPSAddresses(t *testing.T) {
@@ -40,5 +45,38 @@ func TestResolveProxyLiteralDoesNotRequireDNS(t *testing.T) {
 		if err != nil || ip != "203.0.113.7" {
 			t.Fatalf("literal: %q %v", ip, err)
 		}
+	}
+}
+
+func TestBootstrapFastResolverWinsAndCancelsSlowRequest(t *testing.T) {
+	cancelled := make(chan struct{})
+	slow := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		io.Copy(io.Discard, r.Body)
+		<-r.Context().Done()
+		close(cancelled)
+	}))
+	defer slow.Close()
+	fast := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		query, _ := io.ReadAll(r.Body)
+		query[2] |= 0x80
+		binary.BigEndian.PutUint16(query[6:8], 1)
+		query = append(query, 0xc0, 0x0c, 0, 1, 0, 1, 0, 0, 0, 60, 0, 4, 203, 0, 113, 7)
+		w.Write(query)
+	}))
+	defer fast.Close()
+	saved := bootstrapResolvers
+	bootstrapResolvers = []bootstrapResolver{
+		{name: "slow", address: slow.Listener.Addr().String(), url: slow.URL},
+		{name: "fast", address: fast.Listener.Addr().String(), url: fast.URL},
+	}
+	defer func() { bootstrapResolvers = saved }()
+	ip, err := ResolveProxy("proxy.test", &jumpTestProtector{}, nil)
+	if err != nil || ip != "203.0.113.7" {
+		t.Fatalf("ip=%q err=%v", ip, err)
+	}
+	select {
+	case <-cancelled:
+	case <-time.After(time.Second):
+		t.Fatal("slow bootstrap was not cancelled")
 	}
 }

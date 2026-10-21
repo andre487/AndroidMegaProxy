@@ -160,6 +160,9 @@ branch names, credentials, signing material, or other secrets.
 
 ## Architecture landmarks
 
+- Validate networking optimizations against latency measurements. Prefer bounded racing of alternatives
+  over waiting for one slow attempt; cancel losers and avoid third-party source changes where possible.
+
 - SOCKS5 uses plain TCP CONNECT and UDP ASSOCIATE, with optional RFC 1929 credentials
   limited to 255 UTF-8 bytes each. DNS defaults to DoH through the proxy; TLS fingerprints do not apply.
 

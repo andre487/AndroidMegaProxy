@@ -29,9 +29,11 @@ Portable profiles retain the endpoint in the legacy `dns.customDohUrl` string wi
 endpoints. Security consent stays on this device: exports/imports and subscriptions cannot grant
 permission for insecure DNS or invalid DoH certificates. On a new device, confirm locally before connecting. Refreshing/importing an unchanged resolver preserves its local
 approvals; a changed resolver requires new approval.
-Proxy bootstrap DNS is unchanged and precedes the VPN; see the README endpoint inventory.
+Proxy bootstrap DNS precedes the VPN; see the README endpoint inventory.
 
 DNS admission is limited to 64 flows per proxy, shared by intercepted TCP and UDP. When full,
 the oldest completed UDP flow is evicted together with its TUN mapping. Pending responses
 and TCP DNS streams are retained.
 Excess flows fail immediately; stopping the VPN closes admitted flows and cancels their queries.
+
+DoH alternatives start 200 ms apart; the first valid response wins and outstanding requests are cancelled. Slow requests may therefore reach multiple configured providers. Proxy bootstrap uses the same strategy with the existing provider list. Plain DNS has only the selected resolver.
