@@ -98,6 +98,26 @@ class InstrumentationResultTest(unittest.TestCase):
                 (results / "test-force-stop.txt").read_text(), "device offline"
             )
 
+    def test_failed_case_collects_anr_stacks_before_stopping_app(self):
+        suite = ET.Element("testsuite")
+        case = ET.SubElement(suite, "testcase", time="1.0")
+        ET.SubElement(case, "failure", message="Instrumentation timed out")
+        shell = Mock(side_effect=["logcat", "ANR thread stacks", ""])
+        with tempfile.TemporaryDirectory() as directory:
+            results = Path(directory)
+            m.finish_case(shell, results, "test", case, suite, "10-22 08:18:00.000")
+            self.assertEqual(
+                (results / "test-anr.txt").read_text(), "ANR thread stacks"
+            )
+        self.assertEqual(
+            shell.call_args_list[-2:],
+            [
+                call("dumpsys", "dropbox", "--print", "data_app_anr"),
+                call("am", "force-stop", m.PACKAGE),
+            ],
+        )
+        self.assertEqual(suite.get("failures"), "1")
+
     def test_adb_success_is_not_enough(self):
         for output in (
             "INSTRUMENTATION_CODE: 0",
