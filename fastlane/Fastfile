@@ -12,6 +12,11 @@ platform :android do
     sh(ENV.fetch("PYTHON", "python3"), File.join(project_root, "scripts/renew_config_schema.py"), "--ref", options.fetch(:ref, "main").to_s)
   end
 
+  desc "Regenerate committed artwork from MegaProxyIdentity SVGs"
+  lane :update_graphics do |options|
+    sh(ENV.fetch("PYTHON", "python3"), File.join(project_root, "scripts/update_graphics.py"), "--ref", options.fetch(:ref, "main").to_s)
+  end
+
   desc "Run the native Go tests with the race detector"
   lane :native_tests do
     report = File.join(project_root, "test-results/native/unit.xml")
