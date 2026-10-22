@@ -58,7 +58,7 @@ import net.megaproxy487.data.ConfigWrites
 import net.megaproxy487.data.ConfigIoDispatcher
 import net.megaproxy487.model.GlobalConnectionSettings
 import net.megaproxy487.vpn.ProxyVpnService
-import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.vpn.rememberAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -79,7 +79,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
     var showAlwaysOnDeferredNotice by remember { mutableStateOf(false) }
     var deferChangesUntilNextConnection by remember { mutableStateOf(false) }
     val coroutineScope = rememberCoroutineScope()
-    val alwaysOnActive = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
+    val alwaysOnActive = (rememberAlwaysOnVpnStatus(activity) ?: return).enabled
 
     fun updateSettings(updated: GlobalConnectionSettings) {
         val selectedPackagesOnly = settings.selectedPackages != updated.selectedPackages &&

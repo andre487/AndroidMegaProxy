@@ -52,7 +52,9 @@ abstract class DeviceTestBase {
         return result
     }
     protected fun click(id: Int) {
-        if (!device.hasObject(By.text(text(id)))) {
+        // Runtime state can arrive before Compose commits the matching accessibility tree.
+        device.waitForIdle()
+        if (!device.wait(Until.hasObject(By.text(text(id))), 10_000)) {
             device.findObject(UiSelector().scrollable(true)).let {
                 if (it.exists()) UiScrollable(UiSelector().scrollable(true)).scrollIntoView(UiSelector().text(text(id)))
             }

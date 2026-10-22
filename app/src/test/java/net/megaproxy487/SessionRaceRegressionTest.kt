@@ -101,7 +101,9 @@ class SessionRaceRegressionTest {
         assertFalse(store.profile(before.id)!!.config.allowInvalidProxyCertificate)
     }
     @Test fun staleStopCannotOverrideNewerManualStart() {
-        val controller = Robolectric.buildService(ProxyVpnService::class.java).create()
+        val controller = Robolectric.buildService(ProxyVpnService::class.java)
+        org.robolectric.Shadows.shadowOf(controller.get().monitorHandler.looper).pause()
+        controller.create()
         val service = controller.get()
         val busy = ProxyVpnService::class.java.getDeclaredField("startRunning").apply { isAccessible = true }.get(null) as AtomicBoolean
         busy.set(true) // Keep JNI out of this command-order test.
@@ -118,8 +120,10 @@ class SessionRaceRegressionTest {
                 .get(service) as java.util.concurrent.atomic.AtomicLong
             val before = generation.get()
             service.onStartCommand(stop, 0, 1)
+            org.robolectric.Shadows.shadowOf(service.monitorHandler.looper).idle()
             assertEquals("Stale Stop must not tear down the current session", before, generation.get())
             service.onStartCommand(start, 0, 2)
+            org.robolectric.Shadows.shadowOf(service.monitorHandler.looper).idle()
             assertTrue(store.isConnectionDesired())
         } finally { busy.set(false); controller.destroy() }
     }
@@ -128,7 +132,9 @@ class SessionRaceRegressionTest {
     }
 
     @Test fun queuedStartCannotOverrideLaterStop() {
-        val controller = Robolectric.buildService(ProxyVpnService::class.java).create()
+        val controller = Robolectric.buildService(ProxyVpnService::class.java)
+        org.robolectric.Shadows.shadowOf(controller.get().monitorHandler.looper).pause()
+        controller.create()
         try {
             ProxyVpnService.start(context)
             ProxyVpnService.stop(context)
@@ -138,6 +144,7 @@ class SessionRaceRegressionTest {
             val stop = application.nextStartedService!!
             controller.get().onStartCommand(start, 0, 1)
             controller.get().onStartCommand(stop, 0, 2)
+            org.robolectric.Shadows.shadowOf(controller.get().monitorHandler.looper).idle()
             assertFalse(store.isConnectionDesired())
             assertFalse(ProxyVpnService.isRunning)
         } finally { controller.destroy() }
@@ -182,7 +189,9 @@ class SessionRaceRegressionTest {
     }
 
     @Test fun destroyedServiceCannotPublishNetworkWarning() {
-        val controller = Robolectric.buildService(ProxyVpnService::class.java).create()
+        val controller = Robolectric.buildService(ProxyVpnService::class.java)
+        org.robolectric.Shadows.shadowOf(controller.get().monitorHandler.looper).pause()
+        controller.create()
         val service = controller.get()
         val callback = ProxyVpnService::class.java.getDeclaredField("networkCallback").apply { isAccessible = true }
             .get(service) as android.net.ConnectivityManager.NetworkCallback
@@ -195,6 +204,7 @@ class SessionRaceRegressionTest {
         net.megaproxy487.vpn.VpnRuntimeState.updateNetworkWarning(null)
         // The framework callback had already been dispatched when unregister ran.
         callback.onCapabilitiesChanged(network, capabilities)
+        org.robolectric.Shadows.shadowOf(service.monitorHandler.looper).idle()
         org.robolectric.Shadows.shadowOf(android.os.Looper.getMainLooper()).idle()
         assertNull(net.megaproxy487.vpn.VpnRuntimeState.networkWarning.value)
         net.megaproxy487.vpn.VpnRuntimeState.updateNetworkWarning(null)

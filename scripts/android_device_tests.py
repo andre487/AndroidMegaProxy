@@ -464,7 +464,8 @@ def main():
             banner = shell(
                 "sh",
                 "-c",
-                f"toybox nc -w 3 -q 1 10.0.2.2 {int(parameters['sshPort'])} </dev/null",
+                # Older toybox can exit on stdin EOF before a delayed SSH banner.
+                f"sleep 3 | toybox nc -w 3 -q 1 10.0.2.2 {int(parameters['sshPort'])}",
             )
             if not banner.startswith("SSH-"):
                 raise RuntimeError("Local SSH fixture did not send its banner")

@@ -22,7 +22,7 @@ import android.net.NetworkRequest
 import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.os.Handler
-import android.os.Looper
+import android.os.HandlerThread
 import android.os.SystemClock
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -49,6 +49,7 @@ class ProxyVpnService : VpnService() {
     @Volatile private var connectionBlockedForAction = false
     @Volatile private var reconnectAfterStart = false
     @Volatile private var serviceDestroyed = false
+    private var commandStartId = 0
     @Volatile private var consecutiveStartFailures = 0
     @Volatile private var nextStartAttemptAt = 0L
     @Volatile private var retryStatus: String? = null
@@ -62,7 +63,7 @@ class ProxyVpnService : VpnService() {
     private val underlyingCapabilities = ConcurrentHashMap<Network, NetworkCapabilities>()
     @Volatile private var underlyingNetwork: Network? = null
     @Volatile private var networkCallbackRegistered = false
-    private val monitorHandler = Handler(Looper.getMainLooper())
+    internal val monitorHandler = Handler(serviceThread.looper)
     private val reconnectForNetworkChange = Runnable {
         if (!serviceDestroyed && ConfigStore(this).isConnectionDesired() && tunnel != null && !testRunning.get()) {
             DiagnosticLog.add("event=network_handover action=reconnect")
@@ -87,6 +88,7 @@ class ProxyVpnService : VpnService() {
     }
     private val monitor = object : Runnable {
         override fun run() {
+            if (serviceDestroyed) return
             val desired = ConfigStore(this@ProxyVpnService).isConnectionDesired()
             if (desired) {
                 getSystemService(NotificationManager::class.java).notify(
@@ -109,22 +111,38 @@ class ProxyVpnService : VpnService() {
                     }
                 }
             }
-            monitorHandler.postDelayed(this, MONITOR_INTERVAL_MS)
+            if (!serviceDestroyed) monitorHandler.postDelayed(this, MONITOR_INTERVAL_MS)
         }
     }
 
     override fun onCreate() {
         super.onCreate()
-        val store = ConfigStore(this)
-        failoverNotice = store.failoverNotice()
-        if (!store.isFailoverActive()) blockingWarning = failoverNotice
-        failoverNotice?.let { VpnRuntimeState.updateNetworkWarning(it) }
         createChannel()
-        registerUnderlyingNetworkCallback()
-        monitorHandler.post(monitor)
+        monitorHandler.post {
+            if (serviceDestroyed) return@post
+            val store = ConfigStore(this)
+            failoverNotice = store.failoverNotice()
+            if (!store.isFailoverActive()) blockingWarning = failoverNotice
+            failoverNotice?.let { VpnRuntimeState.updateNetworkWarning(it) }
+            registerUnderlyingNetworkCallback()
+            monitorHandler.post(monitor)
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Meet Android's foreground deadline before queued storage/native work can wait.
+        if (intent?.action !in setOf(ACTION_STOP, ACTION_REFRESH_STATUS, ACTION_DISMISS_HOST_KEY)) {
+            startForeground(NOTIFICATION_ID, notification(uiText(R.string.status_connecting_progress)))
+        }
+        val command = intent?.let(::Intent)
+        monitorHandler.post { if (!serviceDestroyed) handleCommand(command, startId) }
+        return if (intent?.action == ACTION_REFRESH_STATUS && !isRunning && !startRunning.get() ||
+            intent?.action in setOf(ACTION_STOP, ACTION_TEST, ACTION_DISMISS_HOST_KEY))
+            START_NOT_STICKY else START_STICKY
+    }
+
+    private fun handleCommand(intent: Intent?, startId: Int): Int {
+        commandStartId = startId
         fun ignoreCommand(): Int {
             if (tunnel == null && !startRunning.get()) {
                 startForeground(NOTIFICATION_ID, notification(this.uiText(R.string.status_disconnected)))
@@ -156,6 +174,7 @@ class ProxyVpnService : VpnService() {
         isAlwaysOnMode = platformAlwaysOn || systemAlwaysOnStart
         isLockdownMode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) isLockdownEnabled else false
         val store = ConfigStore(this)
+        if (intent == null && !isAlwaysOnMode && !store.isConnectionDesired()) return ignoreCommand()
         // Android may call the sticky service again with a null intent. Do not replace a
         // failover profile on every callback; only a fresh system Always-on start selects
         // the configured base profile.
@@ -182,14 +201,14 @@ class ProxyVpnService : VpnService() {
         }
         if (intent?.action == ACTION_DISMISS_HOST_KEY) {
             hostKeyPrompt = null
-            if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
+            if (tunnel == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(commandStartId) }
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_STOP) {
             reconnectAfterStart = false
             if (commandToken == null) store.setConnectionDesired(false)
             stopTunnel()
-            stopSelf()
+            stopSelf(commandStartId)
             return START_NOT_STICKY
         }
         if (intent?.action == ACTION_RECONNECT) {
@@ -244,11 +263,11 @@ class ProxyVpnService : VpnService() {
                 } catch (error: Exception) {
                     runForGeneration(generation) {
                         TestDiagnosticLog.fail("Connection test stopped unexpectedly: ${error.message ?: error.javaClass.simpleName}")
-                        if (tunnelTestOnly) { stopTunnel(); stopSelf() }
+                        if (tunnelTestOnly) { stopTunnel(); stopSelf(commandStartId) }
                     }
                 } finally {
                     monitorHandler.post {
-                        if (!isStartCurrent(generation) && TestDiagnosticLog.state.value == TestState.RUNNING) TestDiagnosticLog.fail("VPN session changed during connection test")
+                        if (!isStartCurrent(generation)) TestDiagnosticLog.failIfRunning("VPN session changed during connection test")
                         testRunning.set(false)
                     }
                 }
@@ -312,14 +331,14 @@ class ProxyVpnService : VpnService() {
             target.config.connectionValidationError()?.let { validation ->
                 runForGeneration(generation) {
                     TestDiagnosticLog.fail("Connection test cannot start: ${uiText(validation)}")
-                    if (temporaryVpn) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
+                    if (temporaryVpn) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(commandStartId) }
                 }
                 return
             }
             if (temporaryVpn && !startTunnel(testOnly = true, suppliedTarget = target, generation = generation)) {
                 runForGeneration(generation) {
                     TestDiagnosticLog.fail("Connection test failed: temporary VPN could not be started")
-                    if (hostKeyPrompt == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf() }
+                    if (hostKeyPrompt == null) { stopForeground(STOP_FOREGROUND_REMOVE); stopSelf(commandStartId) }
                 }
                 return
             }
@@ -342,7 +361,7 @@ class ProxyVpnService : VpnService() {
     internal fun finishConnectionTest(generation: Long, temporaryVpn: Boolean, result: ConnectionTestResult?) {
         runForGeneration(generation) {
             if (result != null) TestDiagnosticLog.succeed(result.exitIp, result.countryCode, result.http3, result.http3Fallback) else TestDiagnosticLog.fail()
-            if (temporaryVpn) { stopTunnel(); stopSelf() }
+            if (temporaryVpn) { stopTunnel(); stopSelf(commandStartId) }
         }
     }
 
@@ -361,7 +380,7 @@ class ProxyVpnService : VpnService() {
                 if (testOnly) TestDiagnosticLog.fail(notice) else {
                     connectionBlockedForAction = true
                     VpnRuntimeState.updateNetworkWarning(notice)
-                    if (!isAlwaysOnMode) { configStore.setConnectionDesired(false); stopTunnel(); stopSelf() }
+                    if (!isAlwaysOnMode) { configStore.setConnectionDesired(false); stopTunnel(); stopSelf(commandStartId) }
                 }
             }
             return false
@@ -391,7 +410,7 @@ class ProxyVpnService : VpnService() {
                         ConfigStore(this).setConnectionDesired(false)
                         VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
                         stopForeground(STOP_FOREGROUND_REMOVE)
-                        stopSelf()
+                        stopSelf(commandStartId)
                     }
                 }
             }
@@ -559,7 +578,7 @@ class ProxyVpnService : VpnService() {
                 )
             } else {
                 stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                stopSelf(commandStartId)
             }
         } else {
             if (isBootstrapConnectionFailure(detail) && failedConfig != null) {
@@ -586,7 +605,7 @@ class ProxyVpnService : VpnService() {
                     ConfigStore(this).setConnectionDesired(false)
                     VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
                     stopForeground(STOP_FOREGROUND_REMOVE)
-                    stopSelf()
+                    stopSelf(commandStartId)
                 }
                 return
             }
@@ -601,7 +620,7 @@ class ProxyVpnService : VpnService() {
                 VpnRuntimeState.update(VpnConnectionState.DISCONNECTED)
                 getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification(notice))
                 stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                stopSelf(commandStartId)
                 return
             }
             val delay = retryDelayMs(consecutiveStartFailures)
@@ -866,21 +885,28 @@ class ProxyVpnService : VpnService() {
     }
 
     override fun onRevoke() {
-        ConfigStore(this).setConnectionDesired(false)
-        isAlwaysOnMode = false
-        isLockdownMode = false
-        stopTunnel()
-        stopSelf()
+        startGeneration.incrementAndGet()
+        monitorHandler.post {
+            ConfigStore(this).setConnectionDesired(false)
+            isAlwaysOnMode = false
+            isLockdownMode = false
+            stopTunnel()
+            stopSelf(commandStartId)
+        }
     }
     override fun onDestroy() {
         serviceDestroyed = true
         reconnectAfterStart = false
+        startGeneration.incrementAndGet()
         monitorHandler.removeCallbacks(monitor)
         monitorHandler.removeCallbacks(reconnectForNetworkChange)
-        if (networkCallbackRegistered) {
-            runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(networkCallback) }
+        // The process-owned looper keeps teardown ordered before a replacement service.
+        monitorHandler.post {
+            if (networkCallbackRegistered) {
+                runCatching { getSystemService(ConnectivityManager::class.java).unregisterNetworkCallback(networkCallback) }
+            }
+            stopTunnel()
         }
-        stopTunnel()
         super.onDestroy()
     }
 
@@ -941,6 +967,7 @@ class ProxyVpnService : VpnService() {
         .build()
 
     companion object {
+        private val serviceThread = HandlerThread("megaproxy-vpn-control").apply { start() }
         private const val CHANNEL_ID = "vpn"
         private const val NOTIFICATION_ID = 101
         private const val ACTION_STOP = "net.megaproxy487.STOP"

@@ -143,6 +143,11 @@ internal object ConfigSubscriptions {
     }
 
     fun schedule(context: Context) {
+        val application = context.applicationContext
+        scope.launch(ConfigIoDispatcher) { scheduleNow(application) }
+    }
+
+    private fun scheduleNow(context: Context) {
         val scheduler = context.getSystemService(JobScheduler::class.java)
         val state = operationResult { ConfigStore(context).subscriptionState() }.getOrNull()
         if (state == null || !state.settings.enabled) {
