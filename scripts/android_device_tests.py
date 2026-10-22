@@ -71,8 +71,14 @@ def require_success(output):
 
 def finish_case(shell, results, label, case, suite, log_start):
     error_message = None
+    evidence = (
+        (("anr", ("dumpsys", "dropbox", "--print", "data_app_anr")),)
+        if case.find("failure") is not None
+        else ()
+    )
     for name, words in (
         ("logcat", ("logcat", "-d", "-v", "threadtime", "-T", log_start)),
+        *evidence,
         ("force-stop", ("am", "force-stop", PACKAGE)),
     ):
         try:
@@ -84,7 +90,7 @@ def finish_case(shell, results, label, case, suite, log_start):
             message = f"{name} failed ({type(error).__name__}, exit {getattr(error, 'returncode', 'unknown')})"
             ET.SubElement(case, "failure", message=message)
             error_message = error_message or message
-        if name == "logcat" or error_message:
+        if name != "force-stop" or error_message:
             (results / (label + f"-{name}.txt")).write_text(output)
     suite.set("tests", str(len(suite)))
     suite.set("failures", str(sum(c.find("failure") is not None for c in suite)))

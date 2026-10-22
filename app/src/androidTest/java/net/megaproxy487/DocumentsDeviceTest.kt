@@ -5,7 +5,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.uiautomator.By
 import androidx.test.uiautomator.Until
-import androidx.test.uiautomator.UiSelector
+import android.view.accessibility.AccessibilityNodeInfo
 import net.megaproxy487.data.ConfigTransfer
 import net.megaproxy487.data.ConfigSubscription
 import kotlinx.coroutines.runBlocking
@@ -36,9 +36,14 @@ class DocumentsDeviceTest : DeviceTestBase() {
     }
     private fun downloads() {
         systemNode(By.desc("Show roots")).click()
-        val downloads = device.findObject(UiSelector().resourceId("android:id/title").text("Downloads"))
-        assertTrue("Downloads root missing", downloads.waitForExists(10_000))
-        downloads.click()
+        systemNode(By.res("android:id/title").text("Downloads"))
+        // Drawer animation changes coordinates after discovery. Invoke the row's action instead.
+        var node = requireNotNull(instrumentation.uiAutomation.rootInActiveWindow
+            ?.findAccessibilityNodeInfosByViewId("android:id/title")
+            ?.firstOrNull { it.text?.toString() == "Downloads" }) { "Downloads root missing" }
+        while (!node.isClickable) node = requireNotNull(node.parent) { "Downloads root is not actionable" }
+        assertTrue("Downloads root rejected click", node.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        assertTrue("Document roots drawer did not close", device.wait(Until.gone(By.text("Open from")), 10_000))
     }
     private fun importFile() {
         appNode(By.desc(text(R.string.import_action)).enabled(true)).click()
