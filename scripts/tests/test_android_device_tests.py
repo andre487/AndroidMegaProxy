@@ -5,7 +5,7 @@ import tempfile
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from unittest.mock import Mock, call
+from unittest.mock import Mock, call, patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
 import android_device_tests as m
@@ -60,17 +60,35 @@ class InstrumentationResultTest(unittest.TestCase):
             (35, "com.google.android.apps.nexuslauncher"),
         ]:
             with self.subTest(api=api):
-                shell = Mock()
+                shell = Mock(
+                    return_value="Active default network: 100\nNetworkAgentInfo{ network{100} nc{[ Transports: WIFI Capabilities: INTERNET&NOT_VPN&VALIDATED]}}"
+                )
                 m.prepare_emulator(shell, api)
                 self.assertEqual(
                     [
+                        call("svc", "wifi", "disable"),
+                        call("settings", "put", "global", "captive_portal_mode", "0"),
+                        call("svc", "wifi", "enable"),
                         call("svc", "data", "disable"),
                         call("am", "force-stop", package),
                         call("pm", "disable-user", "--user", "0", package),
+                        call("dumpsys", "connectivity"),
                     ],
                     shell.call_args_list,
                 )
                 self.assertNotIn(m.PACKAGE, str(shell.call_args_list))
+
+    def test_emulator_rejects_an_unvalidated_default_network(self):
+        for state in (
+            "Active default network: 100\nNetworkAgentInfo{ network{101} nc{[ Transports: WIFI Capabilities: INTERNET&VALIDATED]}}",
+            "Active default network: 100\nNetworkAgentInfo{ network{100} Score(IS_VALIDATED) nc{[ Transports: WIFI Capabilities: INTERNET&NOT_VPN]}}",
+        ):
+            with (
+                self.subTest(state=state),
+                patch.object(m.time, "monotonic", side_effect=[0, 31]),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "no validated default Wi-Fi"):
+                    m.prepare_emulator(Mock(return_value=state), 35)
 
     def test_logcat_failure_preserves_evidence_and_failed_report(self):
         suite = ET.Element("testsuite")

@@ -50,6 +50,8 @@ restart, subscription persistence and system DocumentsUI. The runner invokes cas
 instrumentation processes; Keystore seed/verify must remain separate. These tests do not establish
 physical network handover, OEM power policy, every Always-on/lockdown mode or real IPv6 uplink support.
 
+The disposable emulator disables public captive-portal probes, reconnects Wi-Fi and waits for it to become the validated default network. Before starting VPN scenarios it must receive the local SSH fixture banner through `10.0.2.2`; failure saves network diagnostics and stops the suite without retrying tests.
+
 ## Release acceptance: smoke first, expand by risk
 
 Identify the exact candidate commit, version/ABI, APK SHA-256 and signer. Use full successful CI for
