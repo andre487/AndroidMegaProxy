@@ -3,6 +3,7 @@ package net.megaproxy487
 import android.app.Activity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -39,6 +40,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.Role
@@ -171,43 +173,63 @@ internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
 
 @Composable
 private fun SpeedResultsTable(results: List<RouteSpeedResult>) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("", Modifier.weight(0.8f))
-                Text(stringResource(R.string.external_underlying_network), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                Text(stringResource(R.string.external_tunnel_network), Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        // Three columns need more room when the system font is enlarged.
+        if (maxWidth < 400.dp * LocalDensity.current.fontScale) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                results.forEachIndexed { index, result ->
+                    SpeedResultsBlock(listOf(result), firstRoute = index)
+                }
             }
-            SpeedRow(R.string.cloudflare_speed_ip, results) { it.exitIp }
-            SpeedRow(R.string.cloudflare_speed_country, results) { it.countryCode?.let(::formatCountryCode) }
-            SpeedRow(R.string.cloudflare_speed_protocol, results) { it.protocol?.replace(" · ", "\n") }
-            SpeedRow(R.string.cloudflare_speed_latency, results) { it.latencyMs?.let { ms -> stringResource(R.string.latency_milliseconds, ms) } }
-            SpeedRow(R.string.cloudflare_speed_download, results) { it.downloadMbps?.let { speed -> stringResource(R.string.cloudflare_speed_value, speed) } }
-            SpeedRow(R.string.cloudflare_speed_upload, results) { it.uploadMbps?.let { speed -> stringResource(R.string.cloudflare_speed_value, speed) } }
+        } else {
+            SpeedResultsBlock(results)
         }
     }
 }
 
 @Composable
-private fun SpeedRow(label: Int, results: List<RouteSpeedResult>, value: @Composable (CloudflareRouteResult) -> String?) {
+private fun SpeedResultsBlock(results: List<RouteSpeedResult>, firstRoute: Int = 0) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                if (results.size > 1) Text("", Modifier.weight(0.8f))
+                results.indices.forEach { index ->
+                    Text(
+                        stringResource(if (firstRoute + index == 0) R.string.external_underlying_network else R.string.external_tunnel_network),
+                        Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold,
+                    )
+                }
+            }
+            SpeedRow(R.string.cloudflare_speed_ip, results, firstRoute) { it.exitIp }
+            SpeedRow(R.string.cloudflare_speed_country, results, firstRoute) { it.countryCode?.let(::formatCountryCode) }
+            SpeedRow(R.string.cloudflare_speed_protocol, results, firstRoute) { it.protocol?.replace(" · ", "\n") }
+            SpeedRow(R.string.cloudflare_speed_latency, results, firstRoute) { it.latencyMs?.let { ms -> stringResource(R.string.latency_milliseconds, ms) } }
+            SpeedRow(R.string.cloudflare_speed_download, results, firstRoute) { it.downloadMbps?.let { speed -> stringResource(R.string.cloudflare_speed_value, speed) } }
+            SpeedRow(R.string.cloudflare_speed_upload, results, firstRoute) { it.uploadMbps?.let { speed -> stringResource(R.string.cloudflare_speed_value, speed) } }
+        }
+    }
+}
+
+@Composable
+private fun SpeedRow(label: Int, results: List<RouteSpeedResult>, firstRoute: Int, value: @Composable (CloudflareRouteResult) -> String?) {
     val title = stringResource(label)
     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(title, Modifier.weight(0.8f), style = MaterialTheme.typography.bodyMedium)
+        Text(title, Modifier.weight(0.8f), style = MaterialTheme.typography.bodySmall)
         results.forEachIndexed { index, result ->
-            val route = stringResource(if (index == 0) R.string.external_underlying_network else R.string.external_tunnel_network)
+            val route = stringResource(if (firstRoute + index == 0) R.string.external_underlying_network else R.string.external_tunnel_network)
             val progressDescription = "$title, $route: ${stringResource(R.string.cloudflare_speed_running)}"
             Box(Modifier.weight(1f)) {
                 val text = value(result.values)
                 when {
                     text != null -> if (label == R.string.cloudflare_speed_ip) {
-                        SelectionContainer { Text(text) }
-                    } else Text(text)
+                        SelectionContainer { Text(text, style = MaterialTheme.typography.bodyMedium) }
+                    } else Text(text, style = MaterialTheme.typography.bodyMedium)
                     result.pending -> CircularProgressIndicator(
                         modifier = Modifier.size(20.dp).semantics { contentDescription = progressDescription }, strokeWidth = 2.dp,
                     )
-                    result.failed -> Text(stringResource(R.string.cloudflare_speed_failed_short))
-                    result.unavailable -> Text(stringResource(R.string.unavailable))
-                    else -> Text("—")
+                    result.failed -> Text(stringResource(R.string.cloudflare_speed_failed_short), style = MaterialTheme.typography.bodyMedium)
+                    result.unavailable -> Text(stringResource(R.string.unavailable), style = MaterialTheme.typography.bodyMedium)
+                    else -> Text("—", style = MaterialTheme.typography.bodyMedium)
                 }
             }
         }
