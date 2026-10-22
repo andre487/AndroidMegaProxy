@@ -99,6 +99,7 @@ internal fun ConfigSubscriptionScreen(activity: Activity, onBack: () -> Unit, dr
                 OutlinedTextField(draft.url, { draft.url = it }, label = { FieldLabel(stringResource(R.string.subscription_url)) },
                     modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = !busy)
                 OutlinedTextField(draft.backups, { draft.backups = it }, label = { FieldLabel(stringResource(R.string.subscription_backups)) },
+                    supportingText = { Text(stringResource(R.string.subscription_backups_hint)) },
                     modifier = Modifier.fillMaxWidth(), enabled = !busy)
                 Row(
                     Modifier.fillMaxWidth().toggleable(

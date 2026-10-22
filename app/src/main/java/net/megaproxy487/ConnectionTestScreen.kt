@@ -145,80 +145,82 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
         },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
-        BoxWithConstraints(Modifier.fillMaxSize().padding(padding)) {
-            val logHeight = maxOf(160.dp, maxHeight * 0.55f)
-            Column(
-                Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                val statusLabel = when (state) {
-                    TestState.IDLE -> activity.uiText(R.string.test_ready)
-                    TestState.RUNNING -> activity.uiText(R.string.test_testing)
-                    TestState.SUCCEEDED -> activity.uiText(R.string.test_passed)
-                    TestState.FAILED -> activity.uiText(R.string.test_failed)
-                }
-                Card(Modifier.fillMaxWidth().semantics {
-                    liveRegion = LiveRegionMode.Polite
-                    stateDescription = statusLabel
-                }) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        val statusColor = when (state) {
-                            TestState.SUCCEEDED -> MaterialTheme.colorScheme.primary
-                            TestState.FAILED -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.onSurface
-                        }
-                        Text(
-                            if (state == TestState.RUNNING) activity.uiText(R.string.test_testing_progress) else statusLabel,
-                            style = MaterialTheme.typography.titleLarge,
-                            color = statusColor,
-                        )
-                        if (state == TestState.RUNNING) {
-                            CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
-                        }
-                        exitIp?.let {
-                            SelectionContainer { Text(stringResource(R.string.proxy_exit_ip, it)) }
-                        }
-                        countryCode?.let { Text(stringResource(R.string.proxy_exit_country, formatCountry(it, systemFormattingLocale()))) }
-                        if (http3Fallback) Text(stringResource(R.string.http3_fallback_warning),
-                            color = MaterialTheme.colorScheme.tertiary)
-                        http3.forEach { probe ->
-                            val status = stringResource(if (probe.confirmed) R.string.test_http3_confirmed else R.string.test_http3_unavailable)
+        ScreenContent(Modifier.padding(padding)) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val logHeight = maxOf(160.dp, maxHeight * 0.55f)
+                Column(
+                    Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) {
+                    val statusLabel = when (state) {
+                        TestState.IDLE -> activity.uiText(R.string.test_ready)
+                        TestState.RUNNING -> activity.uiText(R.string.test_testing)
+                        TestState.SUCCEEDED -> activity.uiText(R.string.test_passed)
+                        TestState.FAILED -> activity.uiText(R.string.test_failed)
+                    }
+                    Card(Modifier.fillMaxWidth().semantics {
+                        liveRegion = LiveRegionMode.Polite
+                        stateDescription = statusLabel
+                    }) {
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            val statusColor = when (state) {
+                                TestState.SUCCEEDED -> MaterialTheme.colorScheme.primary
+                                TestState.FAILED -> MaterialTheme.colorScheme.error
+                                else -> MaterialTheme.colorScheme.onSurface
+                            }
                             Text(
-                                stringResource(
-                                    R.string.test_http3_provider,
-                                    probe.provider,
-                                    stringResource(if (probe.confirmed) R.string.test_status_success_icon else R.string.test_status_failed_icon),
-                                ),
-                                Modifier.clearAndSetSemantics {
-                                    contentDescription = activity.uiText(R.string.test_http3_provider_a11y, probe.provider, status)
-                                },
+                                if (state == TestState.RUNNING) activity.uiText(R.string.test_testing_progress) else statusLabel,
+                                style = MaterialTheme.typography.titleLarge,
+                                color = statusColor,
                             )
-                        }
-                        if (http3.isNotEmpty()) {
-                            Text(stringResource(R.string.test_http3_help), style = MaterialTheme.typography.bodySmall)
+                            if (state == TestState.RUNNING) {
+                                CircularProgressIndicator(modifier = Modifier.padding(top = 8.dp))
+                            }
+                            exitIp?.let {
+                                SelectionContainer { Text(stringResource(R.string.proxy_exit_ip, it)) }
+                            }
+                            countryCode?.let { Text(stringResource(R.string.proxy_exit_country, formatCountry(it, systemFormattingLocale()))) }
+                            if (http3Fallback) Text(stringResource(R.string.http3_fallback_warning),
+                                color = MaterialTheme.colorScheme.tertiary)
+                            http3.forEach { probe ->
+                                val status = stringResource(if (probe.confirmed) R.string.test_http3_confirmed else R.string.test_http3_unavailable)
+                                Text(
+                                    stringResource(
+                                        R.string.test_http3_provider,
+                                        probe.provider,
+                                        stringResource(if (probe.confirmed) R.string.test_status_success_icon else R.string.test_status_failed_icon),
+                                    ),
+                                    Modifier.clearAndSetSemantics {
+                                        contentDescription = activity.uiText(R.string.test_http3_provider_a11y, probe.provider, status)
+                                    },
+                                )
+                            }
+                            if (http3.isNotEmpty()) {
+                                Text(stringResource(R.string.test_http3_help), style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
-                }
-                WrappingActions(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(shape = RoundedCornerShape(12.dp), onClick = runTest, enabled = state != TestState.RUNNING) { Text(stringResource(R.string.run_again)) }
-                    Button(shape = RoundedCornerShape(12.dp), onClick = {
-                        val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                        clipboard.setPrimaryClip(ClipData.newPlainText(activity.uiText(R.string.connection_test_clipboard_label), TestDiagnosticLog.entries.joinToString("\n")))
-                    }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.copy_log)) }
-                }
-                Text(
-                    activity.uiText(R.string.test_privacy_help),
-                    style = MaterialTheme.typography.bodySmall,
-                )
-                Box(Modifier.fillMaxWidth().heightIn(min = 160.dp, max = logHeight)) {
-                    SelectionContainer {
-                        Text(
-                            TestDiagnosticLog.entries.joinToString("\n").ifEmpty {
-                                if (state == TestState.RUNNING) activity.uiText(R.string.test_waiting) else activity.uiText(R.string.test_empty)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
-                        )
+                    WrappingActions(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Button(shape = RoundedCornerShape(12.dp), onClick = runTest, enabled = state != TestState.RUNNING) { Text(stringResource(R.string.run_again)) }
+                        Button(shape = RoundedCornerShape(12.dp), onClick = {
+                            val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                            clipboard.setPrimaryClip(ClipData.newPlainText(activity.uiText(R.string.connection_test_clipboard_label), TestDiagnosticLog.entries.joinToString("\n")))
+                        }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.copy_log)) }
+                    }
+                    Text(
+                        activity.uiText(R.string.test_privacy_help),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    Box(Modifier.fillMaxWidth().heightIn(min = 160.dp, max = logHeight)) {
+                        SelectionContainer {
+                            Text(
+                                TestDiagnosticLog.entries.joinToString("\n").ifEmpty {
+                                    if (state == TestState.RUNNING) activity.uiText(R.string.test_waiting) else activity.uiText(R.string.test_empty)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.fillMaxWidth().verticalScroll(rememberScrollState()),
+                            )
+                        }
                     }
                 }
             }

@@ -56,7 +56,7 @@
     <string name="config_import_unknown_fields">Конфигурация содержит поля, неизвестные спецификации MegaProxy. Они игнорируются.</string>
     <string name="config_import_removed">Удалено профилей: %1$d.</string>
     <string name="remove_missing_profiles_title">Удалить профили, отсутствующие в конфигурации?</string>
-    <string name="remove_missing_profiles_message">Эти локальные профили отсутствуют в импортированном файле. Изначально ни один профиль не выбран — отметьте только те, которые действительно нужно удалить.</string>
+    <string name="remove_missing_profiles_message">Этих профилей нет в файле. Отметьте только те, которые хотите удалить.</string>
     <string name="remove_selected">Удалить выбранные</string>
     <string name="keep_all">Оставить все</string>
     <string name="add_profile">Добавить профиль</string>
@@ -72,18 +72,18 @@
     <string name="continue_action">Продолжить</string>
     <string name="export_configuration_title">Экспорт конфигурации</string>
     <string name="format">Формат</string>
-    <string name="export_json_description">JSON · профили и переносимые настройки</string>
-    <string name="export_proxy_list_description">ProxyList.txt · только совместимые поля прокси</string>
+    <string name="export_json_description">JSON · профили и настройки</string>
+    <string name="export_proxy_list_description">ProxyList.txt · список прокси</string>
     <string name="include_passwords">Включить пароли</string>
-    <string name="passwords_omitted_message">Пароли не включены. Сохранённые пароли используются только для прежних серверов и пользователей. Токены URL остаются в JSON.</string>
+    <string name="passwords_omitted_message">Пароли не включены; сохранённые сохранятся только для прежнего сервера и логина. В JSON останутся токены из URL.</string>
     <string name="include_private_keys">Включить закрытые ключи SSH</string>
     <string name="private_keys_plaintext_warning">Закрытые ключи будут экспортированы в открытом виде.</string>
     <string name="export_secrets_title">Экспортировать секреты в открытом виде?</string>
-    <string name="export_secrets_message">Любой, у кого будет доступ к файлу, сможет прочитать выбранные пароли и закрытые ключи SSH. Храните и передавайте файл безопасно.</string>
+    <string name="export_secrets_message">Файл будет содержать открытые пароли или ключи SSH. Храните и передавайте его безопасно.</string>
     <string name="export_anyway">Всё равно экспортировать</string>
     <string name="configuration_transfer">Перенос конфигурации</string>
     <string name="unsafe_import_title">Импортировать небезопасные настройки проверки?</string>
-    <string name="unsafe_import_message">В одном или нескольких профилях отключена проверка HTTPS-сертификата или ключа SSH-сервера. Это позволяет подменить сервер; используйте такие настройки только для контролируемых вами серверов.</string>
+    <string name="unsafe_import_message">В профилях отключена проверка сертификатов или ключей SSH. Возможна подмена серверов. Импортируйте только доверенные настройки.</string>
     <string name="import_anyway">Всё равно импортировать</string>
     <string name="configuration_exported">Конфигурация успешно экспортирована.</string>
     <string name="imported_foxyproxy">Импортировано профилей из FoxyProxy: %1$d.</string>
@@ -94,7 +94,7 @@
     <string name="configuration_import_failed">Не удалось импортировать конфигурацию: %1$s</string>
     <string name="unknown_error">Неизвестная ошибка</string>
     <string name="import_options_title">Проверка импортируемых параметров</string>
-    <string name="import_options_message">Название, оформление, хост, логин и переданные учётные данные обновятся автоматически. Выберите дополнительные настройки, которые нужно заменить.</string>
+    <string name="import_options_message">Названия, серверы, логины и переданные учётные данные обновятся автоматически. Выберите остальные настройки для замены.</string>
     <string name="import_global_options">Применить импортированные глобальные настройки</string>
     <string name="import_option_connection">параметры подключения</string>
     <string name="import_option_security">проверка TLS и SSH</string>
@@ -115,40 +115,40 @@
     <string name="transport_ssh_multiplexed">SSH, мультиплексирование</string>
     <string name="import_destination_key">Импортировать ключ назначения из файла</string>
     <string name="import_jump_key">Импортировать ключ jump host из файла</string>
-    <string name="profile_name_optional">Название профиля (необязательно)</string>
-    <string name="defaults_to_proxy_host">По умолчанию используется адрес прокси</string>
+    <string name="profile_name_optional">Название (необязательно)</string>
+    <string name="defaults_to_proxy_host">Если пусто — адрес сервера.</string>
     <string name="country_flag">Флаг страны</string>
     <string name="no_flag">Без флага</string>
     <string name="profile_type">Тип профиля</string>
-    <string name="https_proxy_hostname">Адрес HTTPS-прокси</string>
-    <string name="destination_ssh_hostname">Адрес конечного SSH-сервера</string>
+    <string name="https_proxy_hostname">HTTPS-прокси</string>
+    <string name="destination_ssh_hostname">SSH-сервер</string>
     <string name="port">Порт</string>
-    <string name="basic_auth_username">Логин Basic Auth</string>
-    <string name="ssh_username">Логин SSH</string>
+    <string name="basic_auth_username">Имя пользователя</string>
+    <string name="ssh_username">Имя пользователя</string>
     <string name="password">Пароль</string>
-    <string name="ssh_password_optional">Пароль SSH (необязательно)</string>
-    <string name="private_key_optional">Закрытый ключ (необязательно)</string>
+    <string name="ssh_password_optional">Пароль (необязательно)</string>
+    <string name="private_key_optional">Приватный ключ (необязательно)</string>
     <string name="private_key_format_hint">Формат PEM или OpenSSH. Ключи с парольной фразой не поддерживаются.</string>
     <string name="trusted_destination_key">Доверенный ключ назначения: %1$s</string>
     <string name="jump_host">Промежуточный сервер</string>
-    <string name="jump_ssh_hostname">Адрес промежуточного SSH-сервера</string>
+    <string name="jump_ssh_hostname">Промежуточный сервер</string>
     <string name="jump_port">Порт промежуточного сервера</string>
-    <string name="jump_ssh_username">Логин промежуточного SSH-сервера</string>
-    <string name="jump_ssh_password_optional">Пароль промежуточного SSH-сервера (необязательно)</string>
-    <string name="jump_private_key_optional">Закрытый ключ промежуточного сервера (необязательно)</string>
+    <string name="jump_ssh_username">Имя пользователя</string>
+    <string name="jump_ssh_password_optional">Пароль (необязательно)</string>
+    <string name="jump_private_key_optional">Приватный ключ (необязательно)</string>
     <string name="trusted_jump_key">Доверенный ключ промежуточного сервера: %1$s</string>
     <string name="dns_over_https">DNS через HTTPS</string>
-    <string name="custom_doh_url">Собственный URL DoH</string>
+    <string name="custom_doh_url">URL сервера DoH</string>
     <string name="reconnect_apply_changes">Переподключитесь, чтобы применить изменения к активному VPN.</string>
     <string name="always_on_changes_next_connection">Постоянный VPN активен. Изменения применятся при следующем подключении.</string>
     <string name="allow_untrusted_certificate_title">Разрешить недоверенный сертификат прокси?</string>
-    <string name="allow_untrusted_certificate_message">Проверка цепочки сертификатов и имени TLS-прокси будет отключена. Злоумышленник сможет выдать себя за прокси и получить данные Basic Auth. Сертификаты конечных HTTPS-сайтов по-прежнему проверяются.</string>
+    <string name="allow_untrusted_certificate_message">Злоумышленник сможет выдать себя за прокси и украсть логин и пароль. HTTPS-сертификаты сайтов по-прежнему проверяются.</string>
     <string name="accept_any_ssh_key_title">Принимать любой ключ SSH-сервера?</string>
-    <string name="accept_any_ssh_key_message">Проверка подлинности SSH-сервера %1$s будет отключена, что допускает атаку посредника. Учётные данные и туннелируемый трафик могут быть перехвачены.</string>
+    <string name="accept_any_ssh_key_message">SSH-сервер %1$s не будет проверяться. Злоумышленник может украсть учётные данные и перехватить трафик.</string>
     <string name="accept_any_key">Принять любой ключ</string>
     <string name="ssh_host_key_changed">Ключ SSH-сервера изменился</string>
     <string name="trust_ssh_host_key">Доверять ключу SSH-сервера?</string>
-    <string name="ssh_changed_key_warning">Ранее доверенный ключ сервера %1$s изменился. Это может означать переустановку сервера или атаку посредника. Перед заменой сверьте отпечаток по доверенному каналу.\n\n</string>
+    <string name="ssh_changed_key_warning">Ключ сервера %1$s изменился. Возможна атака. Перед заменой проверьте отпечаток по доверенному каналу.\n\n</string>
     <string name="ssh_first_connection_warning">Это первое подключение к SSH-серверу %1$s. Сверьте отпечаток по доверенному каналу.\n\n</string>
     <string name="ssh_key_details">Алгоритм: %1$s\nОтпечаток: %2$s</string>
     <string name="replace_trusted_key">Заменить доверенный ключ</string>
@@ -162,39 +162,39 @@
     <string name="global_vpn">Глобальный VPN</string>
     <string name="selected_apps_routing_description">Только выбранные приложения используют прокси.</string>
     <string name="global_vpn_description">Все приложения используют прокси. Это режим по умолчанию.</string>
-    <string name="udp_quic_blocked_description">MASQUE передаёт UDP и QUIC. HTTPS тоже передаёт их при успешном «Предпочитать HTTP/3»; после отката на HTTPS и через SSH обычный UDP блокируется. DNS всегда использует настроенный в профиле DoH-сервер.</string>
+    <string name="udp_quic_blocked_description">UDP поддерживают MASQUE, SOCKS5 и HTTPS с HTTP/3. DNS работает по настройкам профиля.</string>
     <string name="bypass_local_networks">Обходить локальные сети</string>
-    <string name="bypass_local_networks_description">Прямой доступ по TCP к частным и link-local IP-адресам; MASQUE также пропускает локальный UDP.</string>
+    <string name="bypass_local_networks_description">Прямой доступ к локальным устройствам. Обход для UDP поддерживают MASQUE и SOCKS5.</string>
     <string name="search_applications">Поиск приложений</string>
     <string name="route_megaproxy">Направлять MegaProxy через VPN</string>
-    <string name="route_megaproxy_description">Повторяет выбор MegaProxy в списке приложений ниже.</string>
-    <string name="rotated_log_limit">Размер журнала с ротацией (MiB)</string>
-    <string name="rotated_log_limit_description">Общий размер двух сегментов журнала: 1–100 MiB.</string>
+    <string name="route_megaproxy_description">Нужно для проверки VPN из приложения.</string>
+    <string name="rotated_log_limit">Размер журнала (MiB)</string>
+    <string name="rotated_log_limit_description">1–100 MiB. Старые события удаляются автоматически.</string>
     <string name="no_diagnostic_events">Диагностических событий пока нет.</string>
     <string name="clear_diagnostic_log_title">Очистить диагностический журнал?</string>
-    <string name="clear_diagnostic_log_message">Оба сегмента журнала будут удалены.</string>
+    <string name="clear_diagnostic_log_message">Все сохранённые события журнала будут удалены.</string>
     <string name="diagnostic_log_exported">Диагностический журнал экспортирован.</string>
     <string name="failover_mode">Режим переключения</string>
-    <string name="failover_trigger_description">Переключение срабатывает только после повторных тайм-аутов, сбросов или отсутствия ответа. Ошибки аутентификации, ключей, сертификатов и конфигурации его не запускают.</string>
+    <string name="failover_trigger_description">Смена профиля при повторных сбоях связи. Ошибки настроек и авторизации не вызывают переключение.</string>
     <string name="fallback_profiles">Резервные профили</string>
     <string name="fallback_profiles_order">Профили перебираются в том же порядке, что и на экране профилей.</string>
     <string name="failover_profiles_warning">Выберите хотя бы два профиля, иначе переключаться может быть некуда.</string>
     <string name="failover_location_warning">Внимание: переключение профиля может изменить видимую страну и публичный IP.</string>
     <string name="enable_global_failover_title">Включить глобальное переключение?</string>
-    <string name="enable_global_failover_message">При вероятной блокировке MegaProxy автоматически попробует любой настроенный профиль. Это может изменить местоположение и публичный IP. Отдельные переключения подтверждать не потребуется.</string>
+    <string name="enable_global_failover_message">Пробовать другие профили при признаках блокировки. Переключение без подтверждения может изменить страну и внешний IP.</string>
     <string name="enable">Включить</string>
-    <string name="always_on_profile">Профиль постоянного VPN</string>
+    <string name="always_on_profile">Профиль при запуске</string>
     <string name="always_on_profile_description">Этот профиль используется, когда Android запускает MegaProxy как постоянный VPN.</string>
     <string name="always_on_profile_reconnect">Постоянный VPN активен. Выбор другого профиля сразу переподключит VPN.</string>
-    <string name="open_always_on_settings">Открыть системные настройки постоянного VPN</string>
+    <string name="open_always_on_settings">Настройки VPN в Android</string>
     <string name="https_fingerprint">Отпечаток HTTPS</string>
-    <string name="https_tls_ja3_profile">Профиль HTTPS TLS / JA3</string>
-    <string name="default_fingerprint_description">Сейчас по умолчанию используется отпечаток Chrome для Android; он может измениться в будущей версии MegaProxy.</string>
+    <string name="https_tls_ja3_profile">Отпечаток TLS</string>
+    <string name="default_fingerprint_description">По умолчанию — отпечаток браузера, выбранный MegaProxy.</string>
     <string name="ja3_format">JA3: версия,шифры,расширения,группы,точки</string>
     <string name="ssh_fingerprint">Отпечаток SSH</string>
-    <string name="ssh_client_profile">Профиль SSH-клиента</string>
+    <string name="ssh_client_profile">Отпечаток SSH</string>
     <string name="ssh_authentication">Аутентификация SSH</string>
-    <string name="ssh_profile_description">Профиль SSH задаёт приветствие клиента и предпочтительный порядок KEX, шифров и MAC.</string>
+    <string name="ssh_profile_description">Как прокси распознаёт ваш SSH-клиент.</string>
     <string name="global_changes_saved">Изменения сохраняются автоматически и применяются ко всем профилям.</string>
     <string name="allowed_range">Допустимый диапазон: %1$d–%2$d</string>
     <string name="connected_through">Подключено через: %1$s</string>
@@ -204,16 +204,16 @@
     <string name="close">Закрыть</string>
     <string name="connection_test_clipboard_label">Проверка подключения MegaProxy</string>
     <string name="detected">Обнаружено</string><string name="selected_apps_only">Только выбранные приложения</string><string name="not_detected">Не обнаружено</string>
-    <string name="visibility_intro">Локальные проверки показывают признаки, доступные другому Android-приложению. Внешние проверки репутации ниже отправляют запрос через основную сеть и VPN-туннель, чтобы сравнить репутацию их публичных IP.</string>
+    <string name="visibility_intro">Проверка признаков VPN, видимых приложениям. Репутация IP проверяется внешним сервисом через каждую сеть.</string>
     <string name="globally_observable_signals">Глобально видимые признаки</string><string name="visible_to_selected_apps">Видно выбранным приложениям</string><string name="vpn_network_signals">Признаки VPN-сети</string>
-    <string name="split_visibility_explanation">Признаки ниже относятся к VPN-сети. При раздельном туннелировании Android показывает её выбранным приложениям, а исключённые используют основную сеть.</string>
-    <string name="visibility_disclaimer">Обнаруженный признак сам по себе ничего не доказывает. Android намеренно раскрывает часть состояния VPN; такие же признаки создают обычные приложения безопасности и фильтрации.</string>
+    <string name="split_visibility_explanation">Эту VPN-сеть используют только выбранные приложения.</string>
+    <string name="visibility_disclaimer">Эти признаки не доказывают, что приложение распознаёт ваш VPN.</string>
     <string name="excluded_apps_underlying_network">%1$s Исключённые приложения используют основную сеть.</string>
     <string name="system_proxy_properties">Системные параметры прокси</string><string name="system_proxy_yes">Видно глобальное свойство прокси процесса.</string><string name="system_proxy_no">Глобальное свойство прокси процесса не видно.</string>
     <string name="vpn_interface_name">Имя VPN-интерфейса</string><string name="vpn_interface_yes">Имя активного интерфейса похоже на tun, tap, wg, ppp или ipsec.</string><string name="vpn_interface_no">Активных интерфейсов с типичным VPN-именем нет.</string>
     <string name="unusual_vpn_mtu">Необычный MTU VPN</string><string name="unusual_vpn_mtu_yes">VPN-интерфейс использует MTU, отличный от 1280 и 1500.</string><string name="unusual_vpn_mtu_no">Необычный MTU у VPN-интерфейсов не найден.</string>
-    <string name="local_mitm_certificate">Локальный MITM-сертификат</string><string name="local_mitm_certificate_detail">MegaProxy не устанавливает CA-сертификаты и не перехватывает TLS.</string>
-    <string name="vpn_transport">Транспорт VPN</string><string name="vpn_transport_yes">Android показывает сеть с TRANSPORT_VPN.</string><string name="vpn_transport_no">Транспорт VPN сейчас не виден.</string>
+    <string name="local_mitm_certificate">Локальный MITM-сертификат</string><string name="local_mitm_certificate_detail">MegaProxy не расшифровывает HTTPS-трафик.</string>
+    <string name="vpn_transport">Транспорт VPN</string><string name="vpn_transport_yes">Android сообщает об активной VPN-сети.</string><string name="vpn_transport_no">Транспорт VPN сейчас не виден.</string>
     <string name="vpn_transport_information">Информация о транспорте VPN</string><string name="vpn_info_yes">Android показывает VpnTransportInfo для VPN-сети.</string><string name="vpn_info_no">VpnTransportInfo не виден в доступных сетях.</string>
     <string name="not_vpn_capability">Возможность NOT_VPN</string><string name="not_vpn_yes">У VPN-сети нет NET_CAPABILITY_NOT_VPN.</string><string name="not_vpn_no">По этой проверке ни одна видимая сеть не определена как VPN.</string>
     <string name="vpn_link_proxy">Прокси VPN-сети</string><string name="vpn_link_proxy_yes">К VPN-сети привязана настройка прокси.</string><string name="vpn_link_proxy_no">К VPN-сети не привязана настройка прокси.</string>
@@ -225,7 +225,7 @@
     <string name="limit_reached">Лимит исчерпан</string><string name="proxycheck_reputation">Репутация IP в ProxyCheck</string>
     <string name="proxycheck_detected">ProxyCheck определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string><string name="proxycheck_not_detected">ProxyCheck не определяет этот адрес как VPN, прокси, выход Tor или другое анонимное соединение.</string>
     <string name="proxycheck_limit_reached">Анонимный дневной лимит запросов ProxyCheck исчерпан. Повторите проверку завтра.</string><string name="proxycheck_failed">Запрос к ProxyCheck завершился ошибкой.</string><string name="proxycheck_unknown_format">Определённого результата нет: ProxyCheck вернул ответ в неизвестном формате.</string>
-    <string name="cloudflare_speed_explanation">Скачивает и отправляет по %1$d MB через каждый доступный маршрут (до %2$d MB всего). Задержка — медианное время до первого байта по трём запросам.</string>
+    <string name="cloudflare_speed_explanation">По %1$d MB на скачивание и отправку через каждую сеть, до %2$d MB всего.</string>
     <string name="cloudflare_speed_size">%1$d MB</string>
     <string name="cloudflare_speed_run">Измерить скорость</string><string name="cloudflare_speed_running">Измерение…</string>
     <string name="cloudflare_speed_ip">Выходной IP</string><string name="cloudflare_speed_country">Страна</string>
@@ -234,8 +234,8 @@
     <string name="cloudflare_speed_value">%1$.1f Мбит/с</string><string name="cloudflare_speed_failed_short">Ошибка</string>
     <string name="select_profile">Выбрать профиль</string><string name="ssh_key_save_failed">Не удалось сохранить ключ SSH-сервера в этом профиле</string>
     <string name="megaproxy_active">MegaProxy активен</string><string name="review_ssh_key">Проверить ключ SSH</string>
-    <string name="always_on_all_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. Каждое переключение отображается в постоянном уведомлении и на главном экране.</string>
-    <string name="always_on_selected_failover_status">Постоянный VPN остаётся активным при автоматическом переключении. В уведомлении и на главном экране отображается фактически используемый профиль.</string>
+    <string name="always_on_all_failover_status">Постоянный VPN остаётся включённым. Текущий профиль показан в уведомлении.</string>
+    <string name="always_on_selected_failover_status">Постоянный VPN остаётся включённым. Текущий профиль показан в уведомлении.</string>
     <string name="ssh_keepalive">Интервал keepalive SSH, секунд (0 — отключено)</string><string name="ssh_max_channels">Максимум параллельных каналов SSH</string><string name="ssh_rotation_minutes">Сменить SSH-сессию через минут (0 — отключено)</string><string name="ssh_rotation_mb">Сменить SSH-сессию после MiB (0 — отключено)</string>
     <string name="could_not_open_email">Не удалось открыть почтовое приложение</string><string name="invalid_ja3">JA3 должен содержать пять полей: версия,шифры,расширения,группы,точки</string>
     <string name="traffic_download">Получено</string>
@@ -249,17 +249,17 @@
     <string name="https_with_jump">HTTPS через Jump</string>
     <string name="https_jump_route">Телефон → промежуточный HTTPS-прокси → конечный HTTPS-прокси → сайт.</string>
     <string name="https_jump_proxy">Промежуточный HTTPS-прокси (первое звено)</string>
-    <string name="https_jump_hostname">Имя промежуточного HTTPS-прокси</string>
-    <string name="https_jump_username">Имя пользователя Basic Auth промежуточного прокси</string>
-    <string name="https_jump_password">Пароль Basic Auth промежуточного прокси</string>
+    <string name="https_jump_hostname">Промежуточный прокси</string>
+    <string name="https_jump_username">Имя пользователя</string>
+    <string name="https_jump_password">Пароль</string>
     <string name="https_jump_same_auth">Использовать те же данные входа</string>
     <string name="https_jump_same_auth_description">Использовать имя пользователя и пароль конечного прокси.</string>
     <string name="allow_proxy_certificate">Разрешить самоподписанный сертификат прокси</string>
     <string name="allow_proxy_certificate_description">Отключает проверку сертификата только конечного TLS-прокси.</string>
     <string name="allow_jump_proxy_certificate">Разрешить самоподписанный сертификат промежуточного прокси</string>
     <string name="allow_jump_proxy_certificate_description">Отключает проверку сертификата только промежуточного HTTPS-прокси.</string>
-    <string name="allow_untrusted_jump_certificate_message">Это отключает проверку цепочки сертификатов и имени промежуточного HTTPS-прокси. Злоумышленник сможет выдать себя за него и получить его данные Basic Auth. Проверка сертификата конечного прокси определяется отдельной настройкой.</string>
-    <string name="destination_https_proxy_hostname">Имя конечного HTTPS-прокси</string>
+    <string name="allow_untrusted_jump_certificate_message">Злоумышленник сможет выдать себя за промежуточный прокси и украсть логин и пароль. Проверка конечного прокси не меняется.</string>
+    <string name="destination_https_proxy_hostname">Конечный прокси</string>
     <string name="validation_proxy_host">Введите имя прокси</string>
     <string name="validation_ssh_host">Введите имя SSH-сервера</string>
     <string name="validation_host_format">Введите имя хоста без схемы и пути</string>
@@ -272,7 +272,7 @@
     <string name="validation_jump_port">Порт промежуточного сервера должен быть от 1 до 65535</string>
     <string name="validation_jump_ssh_username">Введите имя пользователя промежуточного SSH-сервера</string>
     <string name="validation_ja3">JA3 должен содержать пять полей: version,ciphers,extensions,groups,points</string>
-    <string name="validation_doh_https_required">Здесь нужен DNS over HTTPS (DoH), а не обычный DNS или DNS over TLS. Введите HTTPS URL, например https://dns.example/dns-query.</string>
+    <string name="validation_doh_https_required">Укажите HTTPS URL, например https://dns.example/dns-query.</string>
     <string name="validation_doh_url">Укажите HTTPS URL с корректным хостом и портом, без логина, пароля и #фрагмента. IPv6-адрес заключите в квадратные скобки.</string>
     <string name="validation_jump_basic_username">Введите имя пользователя Basic Auth промежуточного прокси</string>
     <string name="validation_jump_basic_password">Введите пароль Basic Auth промежуточного прокси</string>
@@ -292,13 +292,13 @@
     <string name="always_on_lockdown">Постоянный VPN · Блокировка без VPN</string>
     <string name="always_on_badge">Постоянный VPN</string>
     <string name="vpn_permission_denied">Разрешение на VPN не предоставлено в диалоге Android</string>
-    <string name="always_on_profile_help">Используется постоянный VPN. Выбор профиля меняет профиль постоянного VPN и сразу переподключает его; отключением управляет Android.</string>
-    <string name="ssh_no_credentials">Пароль SSH и закрытый ключ не заданы. Подключение возможно, только если сервер разрешает вход без учётных данных.</string>
+    <string name="always_on_profile_help">Выбор профиля сразу переподключает постоянный VPN. Отключение — в настройках Android.</string>
+    <string name="ssh_no_credentials">Нет пароля и ключа. SSH-сервер должен разрешать вход без них.</string>
     <string name="ssh_accept_destination">Принимать любой ключ конечного сервера</string>
     <string name="ssh_accept_destination_help">Небезопасно: отключает проверку подлинности SSH-сервера.</string>
     <string name="ssh_same_auth">Использовать те же данные для входа</string>
     <string name="ssh_same_auth_help">Использовать имя пользователя, пароль и закрытый ключ конечного сервера.</string>
-    <string name="ssh_jump_no_credentials">Пароль и закрытый ключ промежуточного сервера не заданы. Подключение возможно, только если он разрешает вход без учётных данных.</string>
+    <string name="ssh_jump_no_credentials">Нет пароля и ключа промежуточного сервера. Он должен разрешать вход без них.</string>
     <string name="ssh_accept_jump">Принимать любой ключ промежуточного сервера</string>
     <string name="ssh_accept_jump_help">Небезопасно: отключает проверку подлинности промежуточного сервера.</string>
     <string name="ipv6_destinations">Разрешить подключения к IPv6-адресам</string>
@@ -390,7 +390,7 @@
     <string name="error_foxy_no_usable">В конфигурации FoxyProxy нет пригодных для использования прокси</string>
     <string name="error_foxy_host">В записи FoxyProxy %1$d указан некорректный адрес сервера</string>
     <string name="error_invalid_input">Некорректные данные конфигурации</string>
-    <string name="error_credentials_unavailable">Не удалось расшифровать некоторые сохранённые учётные данные. Их зашифрованные значения сохранены. Введите затронутые учётные данные заново перед подключением или их экспортом.</string>
+    <string name="error_credentials_unavailable">Часть учётных данных не расшифрована. Данные сохранены. Введите их заново перед подключением или экспортом.</string>
     <string name="profile_storage_unavailable">Сохранённые профили недоступны</string>
     <string name="error_config_storage">Не удалось прочитать сохранённые профили. Их данные сохранены. Импортируйте резервную копию конфигурации для восстановления.</string>
     <string name="error_open_export">Не удалось открыть файл для экспорта</string>
@@ -470,7 +470,7 @@
     <string name="updates">Обновления приложения</string>
     <string name="updates_description">Проверка новой версии в F-Droid или GitHub</string>
     <string name="update_installed">Установленная версия: %1$s</string>
-    <string name="update_manual_description">Проверка выполняется примерно раз в сутки при наличии сети. О проигнорированном обновлении напомним через неделю. APK скачивается только с вашего согласия.</string>
+    <string name="update_manual_description">Проверка раз в день, напоминание через неделю. Скачивание — с вашего согласия.</string>
     <string name="update_source">Источник обновлений</string>
     <string name="update_choose_source">Android не сообщил источник установки. Выберите источник обновлений.</string>
     <string name="update_fdroid">F-Droid</string>
@@ -479,16 +479,16 @@
     <string name="update_check">Проверить обновления</string>
     <string name="update_current">В этом источнике нет более новой версии.</string>
     <string name="update_not_published">Приложение или релиз ещё не опубликованы в этом источнике. Источник не изменён.</string>
-    <string name="update_failed">Не удалось проверить или безопасно скачать обновление. Проверьте соединение и повторите попытку. Установленное приложение не изменено.</string>
-    <string name="update_open_error">Не удалось открыть магазин, браузер или установщик Android. Если скачанный файл был удалён, проверьте и скачайте обновление заново.</string>
+    <string name="update_failed">Не удалось проверить или скачать обновление. Проверьте сеть и повторите.</string>
+    <string name="update_open_error">Не удалось открыть магазин, браузер или установщик. Если APK удалён, скачайте его снова.</string>
     <string name="update_working">Проверка или скачивание…</string>
     <string name="update_available">Новая версия: %1$s</string>
     <string name="update_in_fdroid">Обновить через F-Droid</string>
     <string name="update_download">Скачать с GitHub</string>
     <string name="update_ready">APK скачан и проверен. Android проверит его при установке.</string>
-    <string name="update_install_permission">Нажмите «Установить обновление». Если Android запросит разрешение, разрешите установку из MegaProxy, вернитесь сюда и нажмите кнопку ещё раз. Подтвердите обновление в системном установщике.</string>
+    <string name="update_install_permission">Если Android попросит, разрешите установку из MegaProxy. Вернитесь и снова нажмите «Установить».</string>
     <string name="update_install">Установить обновление</string>
-    <string name="update_github_consent">APK будет скачан с GitHub в обход проверок F-Droid. Эта версия могла ещё не пройти проверку исходного кода и воспроизводимости в F-Droid. Продолжайте, только если доверяете этому источнику. Можно отменить скачивание и продолжить пользоваться установленной версией. Установка запускается отдельным действием.</string>
+    <string name="update_github_consent">Скачать из GitHub без проверки F-Droid? Продолжайте, только если доверяете источнику. Установка потребует отдельного подтверждения.</string>
     <string name="update_automatic">Проверять обновления автоматически</string>
     <string name="update_notifications_disabled">Уведомления отключены. Разрешите их, чтобы получать напоминания об обновлениях.</string>
     <string name="update_allow_notifications">Разрешить уведомления</string>
@@ -497,23 +497,23 @@
     <string name="update_skip">Пропустить версию</string>
     <string name="update_disable">Отключить автопроверку</string>
     <string name="quic_rtt">QUIC RTT</string>
-    <string name="quic_packets_lost">QUIC-пакеты, объявленные потерянными: %1$d · за 5 мин</string>
-    <string name="quic_packets_lost_unavailable">Потери QUIC-пакетов: нет данных</string>
-    <string name="quic_metrics_scope">Только до прокси. Число исходящих QUIC-пакетов, объявленных потерянными, а не TCP-ретрансляций или потерь на всём пути.</string>
+    <string name="quic_packets_lost">Потеряно пакетов QUIC: %1$d · за 5 мин</string>
+    <string name="quic_packets_lost_unavailable">Потери QUIC: нет данных</string>
+    <string name="quic_metrics_scope">Только до прокси; не потери на всём пути.</string>
     <string name="tcp_rtt">TCP RTT</string>
     <string name="tcp_retransmits">TCP-ретрансляции: %1$d · за 5 мин</string>
     <string name="tcp_retransmits_unavailable">TCP-ретрансляции: нет данных</string>
-    <string name="tcp_metrics_scope">Только до первого прокси. Ретрансляции — повторно отправленные TCP-сегменты, а не потеря пакетов.</string>
+    <string name="tcp_metrics_scope">Только до первого прокси; ретрансляции — не потери пакетов.</string>
     <string name="update_remind_later">Напомнить через неделю</string>
-    <string name="update_background_never">Фоновая проверка ещё не запускалась. Время запуска выбирает Android.</string>
+    <string name="update_background_never">Фоновых проверок ещё не было.</string>
     <string name="update_background_time">Последняя фоновая попытка: %1$s</string>
-    <string name="update_background_running">Последняя попытка началась, но её результат ещё не записан.</string>
-    <string name="update_background_available">Найдена новая версия. Показ уведомления зависит от системных разрешений и настроек напоминания.</string>
-    <string name="update_background_retry">Ошибка сети или временная ошибка сервера. Повтор запрошен через 30 минут с увеличением интервала; Android может отложить запуск.</string>
+    <string name="update_background_running">Результата последней проверки пока нет.</string>
+    <string name="update_background_available">Найдена новая версия.</string>
+    <string name="update_background_retry">Ошибка сети или сервера. Запланирована повторная проверка.</string>
     <string name="update_background_interrupted">Android прервал проверку. Запрошена повторная попытка.</string>
-    <string name="update_background_error">Проверка не удалась. Повторите вручную; выбранный источник не изменён.</string>
+    <string name="update_background_error">Проверка не удалась. Повторите вручную.</string>
     <string name="option_proxytype_masque">MASQUE α (HTTP/3)</string>
-    <string name="masque_proxy_hostname">Адрес MASQUE-прокси</string>
+    <string name="masque_proxy_hostname">MASQUE-прокси</string>
     <string name="transport_http_3">HTTP/3, мультиплексирование</string>
     <string name="test_http3_provider">HTTP/3 · %1$s %2$s</string>
     <string name="test_http3_provider_a11y">HTTP/3 по UDP, %1$s: %2$s</string>
@@ -523,33 +523,33 @@
     <string name="test_http3_unavailable">не подтверждён</string>
     <string name="test_http3_help">HTTP/3 проверяет UDP через прокси. Недоступность тестового сервиса не отменяет результат проверки HTTPS.</string>
     <string name="validation_quic_ja3">Для MASQUE JA3 должен содержать шифры TLS 1.3 и расширения 16, 43, 51, 57.</string>
-    <string name="masque_fingerprint_description">Для QUIC используются отпечатки Chrome 146 или Firefox 116. В режиме ручного JA3 задайте QUIC JA3 в этом профиле; HTTPS использует JA3 из настроек.</string>
+    <string name="masque_fingerprint_description">Выберите отпечаток QUIC. Для ручного режима укажите JA3 в этом профиле.</string>
     <string name="masque_custom_ja3">QUIC JA3 для MASQUE</string>
     <string name="prefer_http3">Предпочитать HTTP/3 α</string>
-    <string name="prefer_http3_description">Пробовать MASQUE на том же хосте и UDP-порту. С Jump нужны оба узла; иначе вся цепочка использует HTTPS. При откате обычный UDP блокируется; DNS работает через DoH. Неподдерживаемые QUIC-отпечатки или MTU туннеля используют HTTPS.</string>
+    <string name="prefer_http3_description">Пробовать HTTP/3, затем HTTPS. В цепочке HTTP/3 нужен на обоих серверах. При переходе на HTTPS обычный UDP блокируется.</string>
     <string name="http3_fallback_warning">HTTP/3 недоступен: используется HTTPS. Обычный UDP блокируется; DNS работает через DoH.</string>
     <string name="option_proxytype_socks5">SOCKS5</string>
-    <string name="socks5_proxy_hostname">Имя сервера SOCKS5</string>
-    <string name="socks5_username_optional">Логин SOCKS5 (необязательно)</string>
-    <string name="socks5_password_optional">Пароль SOCKS5 (необязательно)</string>
+    <string name="socks5_proxy_hostname">SOCKS5-прокси</string>
+    <string name="socks5_username_optional">Имя пользователя (необязательно)</string>
+    <string name="socks5_password_optional">Пароль (необязательно)</string>
     <string name="validation_socks5_auth">Оставьте оба поля пустыми или укажите логин и пароль по 1–255 байт UTF-8 каждый.</string>
     <string name="validation_basic_username_colon">Имя пользователя Basic Auth не должно содержать двоеточие (:).</string>
-    <string name="socks5_description">TCP и UDP ASSOCIATE, DNS через HTTPS через прокси. SOCKS5 не шифрует соединение с прокси, включая пароль, и не использует отпечаток TLS.</string>
+    <string name="socks5_description">Поддерживает TCP и UDP. Связь с прокси и его логин и пароль не шифруются. DNS по умолчанию — DoH.</string>
     <string name="subscription">Подписка на конфигурацию</string>
     <string name="subscription_description">Обновление профилей из доверенных HTTPS-источников</string>
-    <string name="subscription_trust">Подписывайтесь только на доверенные источники: они могут заменять профили подписки, настройки соединения и URL источников. Сохранённые учётные данные подписки будут отправляться и на новые URL. Загрузки подчиняются маршрутизации Android VPN для этого приложения.</string>
-    <string name="subscription_storage_error">Не удалось прочитать или сохранить подписку. Загрузка без сохранённой авторизации не выполняется.</string>
+    <string name="subscription_trust">Доверяйте источнику: он может менять профили и URL подписки. На новые URL тоже отправляются её логин и пароль.</string>
+    <string name="subscription_storage_error">Не удалось прочитать или сохранить подписку. Повторите попытку.</string>
     <string name="subscription_enabled">Автоматическое обновление</string>
     <string name="subscription_last_success">Последнее успешное обновление: %1$s</string>
-    <string name="subscription_source">Успешный источник: %1$d (1 — основной)</string>
+    <string name="subscription_source">Источник: %1$d (1 = основной)</string>
     <string name="subscription_failed">Все источники недоступны или содержат неподходящий конфиг. Последняя рабочая конфигурация сохранена.</string>
     <string name="subscription_warnings">Импорт выполнен с предупреждениями: некоторые профили или настройки пропущены.</string>
-    <string name="subscription_reconnect">Настройки соединения изменились. Переподключите VPN, чтобы применить их; текущий туннель продолжает работать с прежними настройками.</string>
+    <string name="subscription_reconnect">Настройки обновлены. Переподключитесь для их применения.</string>
     <string name="subscription_refresh">Обновить сейчас</string>
     <string name="subscription_url">Основной HTTPS URL</string>
-    <string name="subscription_backups">Резервные HTTPS URL, по одному на строку (до 7)</string>
-    <string name="subscription_auth">Использовать отдельные учётные данные Basic Auth</string>
-    <string name="subscription_interval">Интервал обновления (минуты, 1–10080)</string>
+    <string name="subscription_backups">Резервные HTTPS URL</string>
+    <string name="subscription_auth">Использовать логин и пароль</string>
+    <string name="subscription_interval">Интервал (1–10080 мин)</string>
     <string name="subscription_invalid">Проверьте HTTPS URL, повторяющиеся источники, учётные данные и интервал. Перенаправления не поддерживаются.</string>
     <string name="subscription_remove">Удалить подписку и сохранить профили</string>
     <string name="subscription_save">Сохранить подписку</string>
@@ -558,7 +558,7 @@
     <string name="subscription_notification_title">Настройки VPN обновлены</string>
     <string name="subscription_notification_text">Фоновое обновление подписки изменило настройки активного соединения. Переподключитесь, чтобы применить их.</string>
     <string name="loading_configuration">Загрузка конфигурации…</string>
-    <string name="speed_protocol_preference">Предпочтительный HTTP-протокол (с переходом на младшие версии)</string>
+    <string name="speed_protocol_preference">Предпочитаемая версия HTTP</string>
     <string name="dns_settings">DNS</string>
     <string name="dns_transport">Транспорт DNS</string>
     <string name="dns_transport_doh">DNS over HTTPS (DoH)</string>
@@ -570,22 +570,23 @@
     <string name="insecure_dns_warning">TCP DNS не шифруется после прокси. UDP DNS не шифруется и может идти в обход VPN.</string>
     <string name="insecure_dns_tcp_warning">DNS-трафик после прокси не шифруется.</string>
     <string name="insecure_dns_udp_warning">UDP DNS не шифруется и может идти в обход VPN.</string>
-    <string name="dns_server_ip">IP DNS-сервера и необязательный порт</string>
+    <string name="dns_server_ip">DNS-сервер: IP[:порт]</string>
     <string name="validation_dns_server">Введите IPv4 или IPv6 в квадратных скобках; необязательный порт — 1–65535.</string>
     <string name="validation_insecure_dns_disabled">Профиль использует небезопасный DNS. Разрешите его локально или выберите DoH.</string>
     <string name="allow_invalid_doh_certificate">Разрешить недоверенные сертификаты DoH</string>
-    <string name="allow_invalid_doh_certificate_warning">Допускает самоподписанные, просроченные сертификаты и несовпадение имени только для DoH. DNS-трафик может быть перехвачен. Проверка сертификата прокси не меняется.</string>
+    <string name="allow_invalid_doh_certificate_warning">Ответы DNS могут быть перехвачены или подменены. Отключается только проверка сертификатов DoH; проверка прокси не меняется.</string>
     <string name="battery_settings_unavailable">Настройки батареи недоступны на этом устройстве.</string>
     <string name="error_config_capacity">Достигнут лимит хранилища конфигурации. Удалите профили или уменьшите их содержимое.</string>
-    <string name="speed_split_tunnel_warning">MegaProxy не выбран для раздельного туннелирования. Для измерения скорости VPN-туннеля включите «Направлять MegaProxy через VPN» в настройках раздельного туннелирования и переподключитесь. Основную сеть можно измерить.</string>
+    <string name="speed_split_tunnel_warning">Для замера VPN выберите MegaProxy в раздельном туннелировании и переподключитесь. Основную сеть можно проверить сейчас.</string>
     <string name="mtu_title">MTU</string>
     <string name="mtu_description">Размер пакетов VPN-интерфейса</string>
-    <string name="mtu_explanation">Максимальный размер IP-пакета VPN-интерфейса в байтах. 1400 оставляет запас для накладных расходов туннеля; оптимальное значение зависит от сети.</string>
+    <string name="mtu_explanation">Максимальный размер пакета VPN в байтах. Начните с 1400; меняйте при необходимости для вашей сети.</string>
     <string name="mtu_1280">1280 · Минимум для IPv6</string>
     <string name="mtu_1400">1400 · Рекомендуется (по умолчанию)</string>
     <string name="mtu_1500">1500</string>
     <string name="mtu_custom">Своё значение</string>
     <string name="mtu_custom_value">MTU (байты)</string>
     <string name="mtu_invalid">Введите целое число от 1280 до 65535.</string>
-    <string name="mtu_reconnect">Действует для всех профилей на этом устройстве. Переподключите активный VPN, чтобы применить изменения.</string>
+    <string name="mtu_reconnect">Для всех профилей на этом устройстве, после переподключения.</string>
+    <string name="subscription_backups_hint">До 7 HTTPS URL, по одному на строку.</string>
 </resources>
