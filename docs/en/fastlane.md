@@ -10,6 +10,7 @@ explicit `JAVA_HOME` fails early. `bundle exec fastlane lanes` lists the checked
 | Command | Result |
 | --- | --- |
 | `bundle exec fastlane android renew_config_schema` | Downloads and pins the current MegaProxyConfig schemas and examples; use `ref:FULL_SHA` for a reviewed revision. |
+| `bundle exec fastlane android update_graphics` | Generates Android/store/docs artwork from MegaProxyIdentity SVGs; use `ref:FULL_SHA` to reproduce a pinned revision. |
 | `bundle exec fastlane android python_format` | Formats Python scripts with pinned Black and isort. |
 | `bundle exec fastlane android python_tests` | Runs Python unit tests. |
 | `bundle exec fastlane android python_checks` | Checks Python formatting/import order and runs unit tests. |

@@ -7,7 +7,7 @@
 [![Android 8+](https://img.shields.io/badge/Android-8.0%2B-3DDC84?logo=android&logoColor=white)](https://developer.android.com/about/versions/oreo)
 
 <p align="center">
-  <img src="assets/branding/megaproxy-launcher-master.png" width="160" alt="MegaProxy app icon">
+  <img src="fastlane/metadata/android/en-US/images/icon.png" width="160" alt="MegaProxy app icon">
 </p>
 
 MegaProxy is an open-source Android VPN client for HTTPS, SOCKS5, MASQUE α (HTTP/3)

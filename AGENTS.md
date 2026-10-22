@@ -98,6 +98,10 @@ branch names, credentials, signing material, or other secrets.
 - After creating and verifying a release, update the corresponding F-Droid submission/build recipe
   when required. The repository's F-Droid-related files are for reproducible verification, not an
   excuse to maintain a duplicate unused build path.
+- MegaProxyIdentity SVGs are the sole source for owned artwork; screenshots and the local GitHub
+  download badge are exceptions. Regenerate committed PNG/XML with
+  `bundle exec fastlane android update_graphics [ref:FULL_SHA]`; keep source/output hashes in
+  `assets/branding/identity-lock.json`. Normal builds must remain offline with respect to artwork.
 - Store F-Droid listing metadata and current store artwork under `fastlane/metadata/android`.
   Obsolete artwork does not need an archive copy in the working tree because Git preserves history.
 

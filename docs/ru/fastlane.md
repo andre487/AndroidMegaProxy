@@ -10,6 +10,7 @@ Ruby 3.4.10 (`.ruby-version`), затем выполните `bundle install`. �
 | Команда | Результат |
 | --- | --- |
 | `bundle exec fastlane android renew_config_schema` | Загружает и фиксирует схемы и примеры MegaProxyConfig; `ref:FULL_SHA` выбирает проверенную ревизию. |
+| `bundle exec fastlane android update_graphics` | Генерирует графику Android/магазина/документации из SVG MegaProxyIdentity; `ref:FULL_SHA` воспроизводит закреплённую версию. |
 | `bundle exec fastlane android python_format` | Форматирует Python зафиксированными Black и isort. |
 | `bundle exec fastlane android python_tests` | Запускает Python unit-тесты. |
 | `bundle exec fastlane android python_checks` | Проверяет форматирование, порядок импортов и Python-тесты. |
