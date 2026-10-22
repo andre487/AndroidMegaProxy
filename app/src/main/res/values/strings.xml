@@ -56,7 +56,7 @@
     <string name="config_import_unknown_fields">The configuration contains fields unknown to the MegaProxy specification. They are ignored.</string>
     <string name="config_import_removed">Removed %1$d profile(s).</string>
     <string name="remove_missing_profiles_title">Remove profiles missing from the configuration?</string>
-    <string name="remove_missing_profiles_message">These local profiles were not present in the imported file. None are selected by default; select only profiles you really want to remove.</string>
+    <string name="remove_missing_profiles_message">These profiles are missing from the file. Select only those you want to delete.</string>
     <string name="remove_selected">Remove selected</string>
     <string name="keep_all">Keep all</string>
     <string name="back">Back</string>
@@ -73,18 +73,18 @@
     <string name="continue_action">Continue</string>
     <string name="export_configuration_title">Export configuration</string>
     <string name="format">Format</string>
-    <string name="export_json_description">JSON · profiles and portable settings</string>
-    <string name="export_proxy_list_description">ProxyList.txt · compatible proxy fields only</string>
+    <string name="export_json_description">JSON · profiles and settings</string>
+    <string name="export_proxy_list_description">ProxyList.txt · proxy list</string>
     <string name="include_passwords">Include passwords</string>
-    <string name="passwords_omitted_message">Passwords are omitted. Saved passwords are reused only for unchanged servers and accounts. URL tokens remain in JSON.</string>
+    <string name="passwords_omitted_message">Passwords are omitted; existing ones are kept only for the same server and account. JSON still contains URL tokens.</string>
     <string name="include_private_keys">Include SSH private keys</string>
     <string name="private_keys_plaintext_warning">Private keys will be exported in plain text.</string>
     <string name="export_secrets_title">Export secrets in plain text?</string>
-    <string name="export_secrets_message">Anyone with access to the exported file will be able to read the selected passwords or SSH private keys. Store and transfer it securely.</string>
+    <string name="export_secrets_message">The file will contain readable passwords or SSH keys. Store and share it securely.</string>
     <string name="export_anyway">Export anyway</string>
     <string name="configuration_transfer">Configuration transfer</string>
     <string name="unsafe_import_title">Import insecure verification settings?</string>
-    <string name="unsafe_import_message">One or more profiles disable HTTPS certificate or SSH host-key verification. This permits server impersonation and should only be used for servers you control.</string>
+    <string name="unsafe_import_message">Some profiles disable certificate or SSH key checks. An attacker could impersonate those servers. Import only trusted settings.</string>
     <string name="import_anyway">Import anyway</string>
     <string name="configuration_exported">Configuration exported successfully.</string>
     <string name="imported_foxyproxy">Imported %1$d proxy profile(s) from FoxyProxy.</string>
@@ -95,7 +95,7 @@
     <string name="configuration_import_failed">Could not import the configuration: %1$s</string>
     <string name="unknown_error">Unknown error</string>
     <string name="import_options_title">Review imported options</string>
-    <string name="import_options_message">Name, appearance, host, username and provided credentials will update automatically. Select the additional settings you want to replace.</string>
+    <string name="import_options_message">Names, servers, accounts and supplied credentials update automatically. Choose which other settings to replace.</string>
     <string name="import_global_options">Apply imported global settings</string>
     <string name="import_option_connection">connection options</string>
     <string name="import_option_security">TLS and SSH verification</string>
@@ -116,40 +116,40 @@
     <string name="transport_ssh_multiplexed">SSH multiplexed</string>
     <string name="import_destination_key">Import destination key from file</string>
     <string name="import_jump_key">Import jump key from file</string>
-    <string name="profile_name_optional">Profile name (optional)</string>
-    <string name="defaults_to_proxy_host">Defaults to the proxy host</string>
+    <string name="profile_name_optional">Name (optional)</string>
+    <string name="defaults_to_proxy_host">Uses the server address if empty.</string>
     <string name="country_flag">Country flag</string>
     <string name="no_flag">No flag</string>
     <string name="profile_type">Profile type</string>
-    <string name="https_proxy_hostname">HTTPS proxy hostname</string>
-    <string name="destination_ssh_hostname">Destination SSH hostname</string>
+    <string name="https_proxy_hostname">HTTPS proxy</string>
+    <string name="destination_ssh_hostname">SSH server</string>
     <string name="port">Port</string>
-    <string name="basic_auth_username">Basic Auth username</string>
-    <string name="ssh_username">SSH username</string>
+    <string name="basic_auth_username">Username</string>
+    <string name="ssh_username">Username</string>
     <string name="password">Password</string>
-    <string name="ssh_password_optional">SSH password (optional)</string>
+    <string name="ssh_password_optional">Password (optional)</string>
     <string name="private_key_optional">Private key (optional)</string>
     <string name="private_key_format_hint">PEM or OpenSSH format. Passphrase-protected keys are not supported.</string>
     <string name="trusted_destination_key">Trusted destination key: %1$s</string>
     <string name="jump_host">Jump host</string>
-    <string name="jump_ssh_hostname">Jump SSH hostname</string>
+    <string name="jump_ssh_hostname">Jump server</string>
     <string name="jump_port">Jump port</string>
-    <string name="jump_ssh_username">Jump SSH username</string>
-    <string name="jump_ssh_password_optional">Jump SSH password (optional)</string>
-    <string name="jump_private_key_optional">Jump private key (optional)</string>
+    <string name="jump_ssh_username">Username</string>
+    <string name="jump_ssh_password_optional">Password (optional)</string>
+    <string name="jump_private_key_optional">Private key (optional)</string>
     <string name="trusted_jump_key">Trusted jump key: %1$s</string>
     <string name="dns_over_https">DNS over HTTPS</string>
-    <string name="custom_doh_url">Custom DoH URL</string>
+    <string name="custom_doh_url">DoH URL</string>
     <string name="reconnect_apply_changes">Reconnect to apply these changes to the active VPN.</string>
     <string name="always_on_changes_next_connection">Always-on is active. Changes apply on the next connection.</string>
     <string name="allow_untrusted_certificate_title">Allow an untrusted proxy certificate?</string>
-    <string name="allow_untrusted_certificate_message">This disables certificate-chain and hostname verification between your phone and the TLS proxy. An attacker could impersonate the proxy and obtain its Basic Auth credentials. Destination HTTPS certificates remain verified.</string>
+    <string name="allow_untrusted_certificate_message">An attacker could impersonate this proxy and steal its login and password. Website HTTPS certificates remain verified.</string>
     <string name="accept_any_ssh_key_title">Accept any SSH host key?</string>
-    <string name="accept_any_ssh_key_message">This disables identity verification for the %1$s SSH host and permits man-in-the-middle attacks. Credentials and tunneled traffic could be intercepted.</string>
+    <string name="accept_any_ssh_key_message">The %1$s SSH server will not be verified. An attacker could steal credentials and intercept traffic.</string>
     <string name="accept_any_key">Accept any key</string>
     <string name="ssh_host_key_changed">SSH host key changed</string>
     <string name="trust_ssh_host_key">Trust SSH host key?</string>
-    <string name="ssh_changed_key_warning">Warning: the previously trusted key for the %1$s host has changed. This can indicate a server reinstall or a man-in-the-middle attack. Verify the fingerprint through a trusted channel before replacing it.\n\n</string>
+    <string name="ssh_changed_key_warning">The %1$s host key changed. This may indicate an attack. Verify the fingerprint through a trusted channel before replacing it.\n\n</string>
     <string name="ssh_first_connection_warning">This is the first connection to the %1$s SSH host. Verify its fingerprint through a trusted channel.\n\n</string>
     <string name="ssh_key_details">Algorithm: %1$s\nFingerprint: %2$s</string>
     <string name="replace_trusted_key">Replace trusted key</string>
@@ -163,39 +163,39 @@
     <string name="global_vpn">Global VPN</string>
     <string name="selected_apps_routing_description">Only selected applications use the proxy.</string>
     <string name="global_vpn_description">All applications use the proxy. This is the default mode.</string>
-    <string name="udp_quic_blocked_description">MASQUE forwards UDP and QUIC. HTTPS does too when Prefer HTTP/3 succeeds; fallback HTTPS and SSH block ordinary UDP. DNS always uses the profile\'s configured DoH endpoint.</string>
+    <string name="udp_quic_blocked_description">UDP is supported by MASQUE, SOCKS5 and HTTPS with HTTP/3. DNS uses the profile settings.</string>
     <string name="bypass_local_networks">Bypass local networks</string>
-    <string name="bypass_local_networks_description">Direct TCP access to private and link-local IP addresses; MASQUE also bypasses local UDP.</string>
+    <string name="bypass_local_networks_description">Access local devices directly. Local UDP bypass is supported by MASQUE and SOCKS5.</string>
     <string name="search_applications">Search applications</string>
     <string name="route_megaproxy">Route MegaProxy through VPN</string>
-    <string name="route_megaproxy_description">Mirrors the MegaProxy checkbox in the application list below.</string>
-    <string name="rotated_log_limit">Rotated log limit (MiB)</string>
-    <string name="rotated_log_limit_description">Total size across both log segments; 1–100 MiB.</string>
+    <string name="route_megaproxy_description">Needed to test the VPN from this app.</string>
+    <string name="rotated_log_limit">Log size (MiB)</string>
+    <string name="rotated_log_limit_description">1–100 MiB. Older events are removed automatically.</string>
     <string name="no_diagnostic_events">No diagnostic events yet.</string>
     <string name="clear_diagnostic_log_title">Clear diagnostic log?</string>
-    <string name="clear_diagnostic_log_message">Both rotated log segments will be deleted.</string>
+    <string name="clear_diagnostic_log_message">All saved log events will be deleted.</string>
     <string name="diagnostic_log_exported">Diagnostic log exported.</string>
     <string name="failover_mode">Failover mode</string>
-    <string name="failover_trigger_description">Failover is only triggered after repeated timeout, reset or silent-drop signals. Authentication, host-key, certificate and configuration errors never trigger it.</string>
+    <string name="failover_trigger_description">Switch profiles after repeated connection failures. Settings and authentication errors do not trigger a switch.</string>
     <string name="fallback_profiles">Fallback profiles</string>
     <string name="fallback_profiles_order">Profiles are tried in the same order as the Profiles screen.</string>
     <string name="failover_profiles_warning">Select at least two profiles. With fewer profiles, failover may have nowhere to switch.</string>
     <string name="failover_location_warning">Warning: switching profiles may change the apparent country and public exit IP.</string>
     <string name="enable_global_failover_title">Enable global failover?</string>
-    <string name="enable_global_failover_message">MegaProxy will automatically try any configured profile when blocking is suspected. This can change your location and public exit IP. Individual switches will not require confirmation.</string>
+    <string name="enable_global_failover_message">Automatically try other profiles if the proxy seems blocked. Switches need no confirmation and may change your location and exit IP.</string>
     <string name="enable">Enable</string>
-    <string name="always_on_profile">Profile for Always-on VPN</string>
+    <string name="always_on_profile">Startup profile</string>
     <string name="always_on_profile_description">This profile is used when Android starts MegaProxy as an Always-on VPN.</string>
     <string name="always_on_profile_reconnect">Always-on is active. Selecting another profile reconnects immediately.</string>
-    <string name="open_always_on_settings">Open Android Always-on VPN settings</string>
+    <string name="open_always_on_settings">Open Android VPN settings</string>
     <string name="https_fingerprint">HTTPS fingerprint</string>
-    <string name="https_tls_ja3_profile">HTTPS TLS / JA3 profile</string>
-    <string name="default_fingerprint_description">Default currently uses the Chrome Android fingerprint and may change in a future MegaProxy update.</string>
+    <string name="https_tls_ja3_profile">TLS fingerprint</string>
+    <string name="default_fingerprint_description">Default uses a browser fingerprint chosen by MegaProxy.</string>
     <string name="ja3_format">JA3: version,ciphers,extensions,groups,points</string>
     <string name="ssh_fingerprint">SSH fingerprint</string>
-    <string name="ssh_client_profile">SSH client profile</string>
+    <string name="ssh_client_profile">SSH fingerprint</string>
     <string name="ssh_authentication">SSH authentication</string>
-    <string name="ssh_profile_description">The SSH profile controls the client banner and preferred KEX, cipher and MAC ordering.</string>
+    <string name="ssh_profile_description">How the proxy identifies your SSH client.</string>
     <string name="global_changes_saved">Changes are saved automatically and apply to every profile.</string>
     <string name="allowed_range">Allowed range: %1$d–%2$d</string>
     <string name="connected_through">Connected through: %1$s</string>
@@ -205,16 +205,16 @@
     <string name="close">Close</string>
     <string name="connection_test_clipboard_label">MegaProxy connection test</string>
     <string name="detected">Detected</string><string name="selected_apps_only">Selected apps only</string><string name="not_detected">Not detected</string>
-    <string name="visibility_intro">Local checks show signals that another Android app may observe. The external reputation checks below send a request over the underlying network and VPN tunnel to compare their public IP reputation.</string>
+    <string name="visibility_intro">Check VPN signals visible to apps. IP reputation checks contact an external service over each network.</string>
     <string name="globally_observable_signals">Globally observable signals</string><string name="visible_to_selected_apps">Visible to selected apps</string><string name="vpn_network_signals">VPN network signals</string>
-    <string name="split_visibility_explanation">The signals below belong to the VPN network. With split tunneling, Android exposes that network to selected apps; excluded apps use the underlying network instead.</string>
-    <string name="visibility_disclaimer">A detected signal is not proof by itself. Android VPN APIs intentionally expose some VPN state, and legitimate security or filtering apps can produce the same signals.</string>
+    <string name="split_visibility_explanation">Only selected apps use this VPN network.</string>
+    <string name="visibility_disclaimer">These signals do not prove that an app can detect your VPN.</string>
     <string name="excluded_apps_underlying_network">%1$s Excluded apps use their underlying network.</string>
     <string name="system_proxy_properties">System proxy properties</string><string name="system_proxy_yes">A process-wide proxy property is visible.</string><string name="system_proxy_no">No process-wide proxy property is visible.</string>
     <string name="vpn_interface_name">VPN-like interface name</string><string name="vpn_interface_yes">An active interface has a tun, tap, wg, ppp, or ipsec-style name.</string><string name="vpn_interface_no">No active interface has a common VPN-style name.</string>
     <string name="unusual_vpn_mtu">Unusual VPN MTU</string><string name="unusual_vpn_mtu_yes">A VPN-style interface uses an MTU other than 1280 or 1500.</string><string name="unusual_vpn_mtu_no">No unusual MTU was found on VPN-style interfaces.</string>
-    <string name="local_mitm_certificate">Local MITM certificate</string><string name="local_mitm_certificate_detail">MegaProxy installs no CA certificate and performs no TLS interception.</string>
-    <string name="vpn_transport">VPN transport</string><string name="vpn_transport_yes">Android exposes a network with TRANSPORT_VPN.</string><string name="vpn_transport_no">No VPN transport is currently exposed.</string>
+    <string name="local_mitm_certificate">Local MITM certificate</string><string name="local_mitm_certificate_detail">MegaProxy does not intercept HTTPS traffic.</string>
+    <string name="vpn_transport">VPN transport</string><string name="vpn_transport_yes">Android reports an active VPN network.</string><string name="vpn_transport_no">No VPN transport is currently exposed.</string>
     <string name="vpn_transport_information">VPN transport information</string><string name="vpn_info_yes">Android exposes VpnTransportInfo for the VPN network.</string><string name="vpn_info_no">VpnTransportInfo is not exposed on the currently visible networks.</string>
     <string name="not_vpn_capability">NOT_VPN capability</string><string name="not_vpn_yes">The VPN network does not have NET_CAPABILITY_NOT_VPN.</string><string name="not_vpn_no">No visible network is identified by this capability check as a VPN.</string>
     <string name="vpn_link_proxy">VPN link proxy</string><string name="vpn_link_proxy_yes">A proxy setting is attached to the VPN network.</string><string name="vpn_link_proxy_no">No proxy setting is attached to the VPN network.</string>
@@ -226,7 +226,7 @@
     <string name="limit_reached">Limit reached</string><string name="proxycheck_reputation">ProxyCheck IP reputation</string>
     <string name="proxycheck_detected">ProxyCheck identifies this address as a VPN, proxy, Tor exit, or other anonymous connection.</string><string name="proxycheck_not_detected">ProxyCheck does not identify this address as a VPN, proxy, Tor exit, or other anonymous connection.</string>
     <string name="proxycheck_limit_reached">ProxyCheck’s anonymous daily request limit has been reached. Try again tomorrow.</string><string name="proxycheck_failed">The ProxyCheck request failed.</string><string name="proxycheck_unknown_format">No definite result: ProxyCheck returned an unexpected response format.</string>
-    <string name="cloudflare_speed_explanation">Downloads and uploads %1$d MB over each available route (up to %2$d MB total). Latency is the median time to first byte from three requests.</string>
+    <string name="cloudflare_speed_explanation">%1$d MB per direction and route, up to %2$d MB total.</string>
     <string name="cloudflare_speed_size">%1$d MB</string>
     <string name="cloudflare_speed_run">Measure speed</string><string name="cloudflare_speed_running">Measuring…</string>
     <string name="cloudflare_speed_ip">Exit IP</string><string name="cloudflare_speed_country">Country</string>
@@ -235,8 +235,8 @@
     <string name="cloudflare_speed_value">%1$.1f Mbit/s</string><string name="cloudflare_speed_failed_short">Failed</string>
     <string name="select_profile">Select profile</string><string name="ssh_key_save_failed">The SSH host key could not be saved to this profile</string>
     <string name="megaproxy_active">MegaProxy is active</string><string name="review_ssh_key">Review SSH key</string>
-    <string name="always_on_all_failover_status">Always-on VPN remains active during automatic switching. Every switch is reported in the persistent notification and on the main screen.</string>
-    <string name="always_on_selected_failover_status">Always-on VPN remains active during automatic switching. The persistent notification and the main screen show the profile actually in use.</string>
+    <string name="always_on_all_failover_status">Always-on stays active during switches. The notification shows the current profile.</string>
+    <string name="always_on_selected_failover_status">Always-on stays active during switches. The notification shows the current profile.</string>
     <string name="ssh_keepalive">SSH keepalive, seconds (0 = disabled)</string><string name="ssh_max_channels">Maximum parallel SSH channels</string><string name="ssh_rotation_minutes">Rotate SSH session after minutes (0 = disabled)</string><string name="ssh_rotation_mb">Rotate SSH session after MiB (0 = disabled)</string>
     <string name="could_not_open_email">Could not open an email client</string><string name="invalid_ja3">JA3 must contain five fields: version,ciphers,extensions,groups,points</string>
     <string name="traffic_download">Download</string>
@@ -250,17 +250,17 @@
     <string name="https_with_jump">HTTPS with Jump</string>
     <string name="https_jump_route">Phone → jump HTTPS proxy → destination HTTPS proxy → website.</string>
     <string name="https_jump_proxy">Jump HTTPS proxy (first hop)</string>
-    <string name="https_jump_hostname">Jump HTTPS proxy hostname</string>
-    <string name="https_jump_username">Jump Basic Auth username</string>
-    <string name="https_jump_password">Jump Basic Auth password</string>
+    <string name="https_jump_hostname">Jump proxy</string>
+    <string name="https_jump_username">Username</string>
+    <string name="https_jump_password">Password</string>
     <string name="https_jump_same_auth">Use the same authentication</string>
     <string name="https_jump_same_auth_description">Reuse the destination proxy username and password.</string>
     <string name="allow_proxy_certificate">Allow self-signed proxy certificate</string>
     <string name="allow_proxy_certificate_description">Disables certificate verification only for the destination TLS proxy.</string>
     <string name="allow_jump_proxy_certificate">Allow self-signed jump proxy certificate</string>
     <string name="allow_jump_proxy_certificate_description">Disables certificate verification only for the jump HTTPS proxy.</string>
-    <string name="allow_untrusted_jump_certificate_message">This disables certificate-chain and hostname verification for the jump HTTPS proxy. An attacker could impersonate it and obtain its Basic Auth credentials. The destination proxy certificate remains subject to its own setting.</string>
-    <string name="destination_https_proxy_hostname">Destination HTTPS proxy hostname</string>
+    <string name="allow_untrusted_jump_certificate_message">An attacker could impersonate the jump proxy and steal its login and password. Destination proxy verification is unchanged.</string>
+    <string name="destination_https_proxy_hostname">Destination proxy</string>
     <string name="validation_proxy_host">Enter the proxy hostname</string>
     <string name="validation_ssh_host">Enter the SSH hostname</string>
     <string name="validation_host_format">Enter a hostname without a scheme or path</string>
@@ -273,7 +273,7 @@
     <string name="validation_jump_port">Jump port must be between 1 and 65535</string>
     <string name="validation_jump_ssh_username">Enter the jump SSH username</string>
     <string name="validation_ja3">JA3 must contain five fields: version,ciphers,extensions,groups,points</string>
-    <string name="validation_doh_https_required">This field requires DNS over HTTPS (DoH), not plain DNS or DNS over TLS. Use an HTTPS URL, for example https://dns.example/dns-query.</string>
+    <string name="validation_doh_https_required">Enter an HTTPS URL, such as https://dns.example/dns-query.</string>
     <string name="validation_doh_url">Use an HTTPS URL with a valid host and port, no credentials or #fragment. Enclose IPv6 addresses in brackets.</string>
     <string name="validation_jump_basic_username">Enter the jump Basic Auth username</string>
     <string name="validation_jump_basic_password">Enter the jump Basic Auth password</string>
@@ -293,13 +293,13 @@
     <string name="always_on_lockdown">Always-on · Block without VPN</string>
     <string name="always_on_badge">Always-on VPN</string>
     <string name="vpn_permission_denied">VPN access was not granted in the Android confirmation dialog</string>
-    <string name="always_on_profile_help">Always-on VPN is used. Selecting a profile updates the Always-on profile and reconnects immediately; disconnect remains managed by Android.</string>
-    <string name="ssh_no_credentials">No SSH password or private key is configured. Connection will only work if the server permits authentication without credentials.</string>
+    <string name="always_on_profile_help">Selecting a profile reconnects Always-on VPN immediately. Android manages disconnection.</string>
+    <string name="ssh_no_credentials">No password or key. The SSH server must allow login without credentials.</string>
     <string name="ssh_accept_destination">Accept any destination host key</string>
     <string name="ssh_accept_destination_help">Unsafe: disables SSH server identity verification.</string>
     <string name="ssh_same_auth">Use the same authentication</string>
     <string name="ssh_same_auth_help">Reuse destination username, password and private key.</string>
-    <string name="ssh_jump_no_credentials">No jump password or private key is configured. Connection will only work if the jump server permits authentication without credentials.</string>
+    <string name="ssh_jump_no_credentials">No jump password or key. The jump server must allow login without credentials.</string>
     <string name="ssh_accept_jump">Accept any jump host key</string>
     <string name="ssh_accept_jump_help">Unsafe: disables jump host identity verification.</string>
     <string name="ipv6_destinations">Enable IPv6 destinations</string>
@@ -391,7 +391,7 @@
     <string name="error_foxy_no_usable">The FoxyProxy configuration contains no usable proxies</string>
     <string name="error_foxy_host">FoxyProxy entry %1$d has an invalid hostname</string>
     <string name="error_invalid_input">Invalid configuration data</string>
-    <string name="error_credentials_unavailable">Some saved credentials could not be decrypted. Their encrypted data was kept. Re-enter the affected credentials before connecting or exporting them.</string>
+    <string name="error_credentials_unavailable">Could not decrypt some credentials. Stored data was kept. Re-enter the affected credentials before connecting or exporting.</string>
     <string name="profile_storage_unavailable">Saved profiles unavailable</string>
     <string name="error_config_storage">Saved profiles could not be read. Their stored data was kept. Import a configuration backup to restore them.</string>
     <string name="error_open_export">Could not open the export file</string>
@@ -471,7 +471,7 @@
     <string name="updates">App updates</string>
     <string name="updates_description">Check F-Droid or GitHub for a new version</string>
     <string name="update_installed">Installed version: %1$s</string>
-    <string name="update_manual_description">Checks run about once a day when online. An ignored update is announced again after a week. APKs are downloaded only with your consent.</string>
+    <string name="update_manual_description">Checks daily. Reminders repeat after a week. Downloads require your consent.</string>
     <string name="update_source">Update source</string>
     <string name="update_choose_source">Android did not identify the installer. Choose an update source.</string>
     <string name="update_fdroid">F-Droid</string>
@@ -480,16 +480,16 @@
     <string name="update_check">Check for updates</string>
     <string name="update_current">No newer version is available from this source.</string>
     <string name="update_not_published">The app or release is not published in this source yet. The source has not been changed.</string>
-    <string name="update_failed">Could not check or download the update safely. Check your connection and retry. The installed app has not been changed.</string>
-    <string name="update_open_error">Could not open the store, browser, or Android installer. If the download was cleared, check and download again.</string>
+    <string name="update_failed">Could not check or download the update. Check your connection and retry.</string>
+    <string name="update_open_error">Could not open the store, browser or installer. Try downloading again if the APK is missing.</string>
     <string name="update_working">Checking or downloading…</string>
     <string name="update_available">New version: %1$s</string>
     <string name="update_in_fdroid">Update through F-Droid</string>
     <string name="update_download">Download from GitHub</string>
     <string name="update_ready">The APK has been downloaded and checked. Android will verify it during installation.</string>
-    <string name="update_install_permission">Tap Install update. If Android asks, allow installs from MegaProxy, return here and tap the button again. Confirm the update in the system installer.</string>
+    <string name="update_install_permission">If prompted, allow installs from MegaProxy, then return and tap Install update again.</string>
     <string name="update_install">Install update</string>
-    <string name="update_github_consent">The APK will be downloaded from GitHub, outside F-Droid’s checks. It may not have been reviewed or reproduced by F-Droid. Continue only if you trust this source. You can cancel and keep using the installed version. Installation requires a separate action.</string>
+    <string name="update_github_consent">Download from GitHub without F-Droid review? Continue only if you trust this source. Installation requires a separate confirmation.</string>
     <string name="update_automatic">Check for updates automatically</string>
     <string name="update_notifications_disabled">Notifications are disabled. Allow them to receive update reminders.</string>
     <string name="update_allow_notifications">Allow notifications</string>
@@ -498,23 +498,23 @@
     <string name="update_skip">Skip this version</string>
     <string name="update_disable">Disable auto-checks</string>
     <string name="quic_rtt">QUIC RTT</string>
-    <string name="quic_packets_lost">QUIC packets declared lost: %1$d · last 5 min</string>
-    <string name="quic_packets_lost_unavailable">QUIC packet loss: no data</string>
-    <string name="quic_metrics_scope">To the proxy only. Counts outgoing QUIC packets declared lost, not TCP retransmits or end-to-end packet loss.</string>
+    <string name="quic_packets_lost">QUIC packets lost: %1$d · last 5 min</string>
+    <string name="quic_packets_lost_unavailable">QUIC losses: no data</string>
+    <string name="quic_metrics_scope">To the proxy only; not end-to-end packet loss.</string>
     <string name="tcp_rtt">TCP RTT</string>
     <string name="tcp_retransmits">TCP retransmits: %1$d · last 5 min</string>
     <string name="tcp_retransmits_unavailable">TCP retransmits: no data</string>
-    <string name="tcp_metrics_scope">To the first proxy only. Retransmits count resent outgoing TCP segments, not packet loss.</string>
+    <string name="tcp_metrics_scope">To the first proxy only; retransmits are not packet loss.</string>
     <string name="update_remind_later">Remind me in a week</string>
-    <string name="update_background_never">No background check has run yet. Android chooses when to run checks.</string>
+    <string name="update_background_never">No background checks yet.</string>
     <string name="update_background_time">Last background attempt: %1$s</string>
-    <string name="update_background_running">The last attempt started but has not recorded a result yet.</string>
-    <string name="update_background_available">A newer version was found. Notification delivery depends on system permissions and reminder settings.</string>
-    <string name="update_background_retry">A network or temporary server error occurred. A retry is requested after 30 minutes, with increasing delays; Android may defer it.</string>
+    <string name="update_background_running">The last check has no result yet.</string>
+    <string name="update_background_available">A newer version was found.</string>
+    <string name="update_background_retry">Network or server error. A background retry is scheduled.</string>
     <string name="update_background_interrupted">Android interrupted the check. A retry was requested.</string>
-    <string name="update_background_error">The check failed. Retry manually; the selected source has not changed.</string>
+    <string name="update_background_error">Check failed. Try again manually.</string>
     <string name="option_proxytype_masque">MASQUE α (HTTP/3)</string>
-    <string name="masque_proxy_hostname">MASQUE proxy hostname</string>
+    <string name="masque_proxy_hostname">MASQUE proxy</string>
     <string name="transport_http_3">HTTP/3 multiplexed</string>
     <string name="test_http3_provider">HTTP/3 · %1$s %2$s</string>
     <string name="test_http3_provider_a11y">HTTP/3 over UDP, %1$s: %2$s</string>
@@ -524,33 +524,33 @@
     <string name="test_http3_unavailable">not confirmed</string>
     <string name="test_http3_help">HTTP/3 checks UDP through the proxy. An unavailable test service does not invalidate the HTTPS result.</string>
     <string name="validation_quic_ja3">MASQUE JA3 requires TLS 1.3 cipher suites and extensions 16, 43, 51, 57.</string>
-    <string name="masque_fingerprint_description">QUIC uses Chrome 146 or Firefox 116 fingerprints. In Manual JA3 mode, set QUIC JA3 in this profile; HTTPS uses the JA3 from Settings.</string>
+    <string name="masque_fingerprint_description">Choose a QUIC fingerprint. Manual mode needs a JA3 value in this profile.</string>
     <string name="masque_custom_ja3">MASQUE QUIC JA3</string>
     <string name="prefer_http3">Prefer HTTP/3 α</string>
-    <string name="prefer_http3_description">Try MASQUE on the same host and UDP port. With Jump, both nodes must support it; otherwise the whole chain uses HTTPS. HTTPS fallback blocks ordinary UDP; DNS still uses DoH. Unsupported QUIC fingerprints or tunnel MTU use HTTPS.</string>
+    <string name="prefer_http3_description">Try HTTP/3, then HTTPS. Both jump servers must support HTTP/3. HTTPS fallback blocks ordinary UDP.</string>
     <string name="http3_fallback_warning">HTTP/3 unavailable: using HTTPS. Ordinary UDP is blocked; DNS uses DoH.</string>
     <string name="option_proxytype_socks5">SOCKS5</string>
-    <string name="socks5_proxy_hostname">SOCKS5 proxy hostname</string>
-    <string name="socks5_username_optional">SOCKS5 username (optional)</string>
-    <string name="socks5_password_optional">SOCKS5 password (optional)</string>
+    <string name="socks5_proxy_hostname">SOCKS5 proxy</string>
+    <string name="socks5_username_optional">Username (optional)</string>
+    <string name="socks5_password_optional">Password (optional)</string>
     <string name="validation_socks5_auth">Leave both credentials empty, or enter a username and password of 1–255 UTF-8 bytes each.</string>
     <string name="validation_basic_username_colon">Basic Auth username must not contain a colon (:).</string>
-    <string name="socks5_description">TCP and UDP ASSOCIATE, with DNS over HTTPS through the proxy. SOCKS5 does not encrypt the connection to the proxy, including credentials, and has no TLS fingerprint.</string>
+    <string name="socks5_description">Supports TCP and UDP. The proxy connection and its credentials are not encrypted. DNS uses DoH by default.</string>
     <string name="subscription">Configuration subscription</string>
     <string name="subscription_description">Keep profiles updated from trusted HTTPS sources</string>
-    <string name="subscription_trust">Only subscribe to trusted sources: they can replace subscribed profiles, connection settings and source URLs. Saved subscription credentials will also be sent to replacement URLs. Downloads follow Android VPN routing for this app.</string>
-    <string name="subscription_storage_error">Could not read or save the subscription. No unauthenticated fallback is used.</string>
+    <string name="subscription_trust">Trust the source: it can change profiles and source URLs. Your subscription credentials are sent to replacement URLs too.</string>
+    <string name="subscription_storage_error">Could not read or save the subscription. Please retry.</string>
     <string name="subscription_enabled">Automatic updates</string>
     <string name="subscription_last_success">Last successful update: %1$s</string>
-    <string name="subscription_source">Successful source: %1$d (1 is primary)</string>
+    <string name="subscription_source">Source: %1$d (1 = primary)</string>
     <string name="subscription_failed">All sources failed. The last working configuration was kept.</string>
     <string name="subscription_warnings">Imported with warnings: some profiles or settings were ignored.</string>
-    <string name="subscription_reconnect">Connection settings changed. Reconnect the VPN to apply them; the current tunnel continues using its previous settings.</string>
+    <string name="subscription_reconnect">Settings updated. Reconnect to apply them.</string>
     <string name="subscription_refresh">Update now</string>
     <string name="subscription_url">Primary HTTPS URL</string>
-    <string name="subscription_backups">Backup HTTPS URLs, one per line (up to 7)</string>
-    <string name="subscription_auth">Use separate Basic Auth credentials</string>
-    <string name="subscription_interval">Update interval (minutes, 1–10080)</string>
+    <string name="subscription_backups">Backup HTTPS URLs</string>
+    <string name="subscription_auth">Use a username and password</string>
+    <string name="subscription_interval">Interval (1–10080 min)</string>
     <string name="subscription_invalid">Check HTTPS URLs, duplicate sources, credentials and interval. Redirects are not supported.</string>
     <string name="subscription_remove">Remove subscription and keep profiles</string>
     <string name="subscription_save">Save subscription</string>
@@ -559,7 +559,7 @@
     <string name="subscription_notification_title">VPN settings updated</string>
     <string name="subscription_notification_text">A background subscription update changed the active connection settings. Reconnect to apply them.</string>
     <string name="loading_configuration">Loading configuration…</string>
-    <string name="speed_protocol_preference">Preferred HTTP protocol (falls back to lower versions)</string>
+    <string name="speed_protocol_preference">Preferred HTTP version</string>
     <string name="dns_settings">DNS</string>
     <string name="dns_transport">DNS transport</string>
     <string name="dns_transport_doh">DNS over HTTPS (DoH)</string>
@@ -571,22 +571,23 @@
     <string name="insecure_dns_warning">TCP DNS is unencrypted after the proxy. UDP DNS is unencrypted and may bypass the VPN.</string>
     <string name="insecure_dns_tcp_warning">DNS traffic after the proxy is not encrypted.</string>
     <string name="insecure_dns_udp_warning">UDP DNS is unencrypted and may bypass the VPN.</string>
-    <string name="dns_server_ip">DNS server IP and optional port</string>
+    <string name="dns_server_ip">DNS server: IP[:port]</string>
     <string name="validation_dns_server">Enter an IPv4 address or bracketed IPv6 address, optionally with port 1–65535.</string>
     <string name="validation_insecure_dns_disabled">This profile uses insecure DNS. Enable it locally or choose DoH.</string>
     <string name="allow_invalid_doh_certificate">Allow invalid DoH certificates</string>
-    <string name="allow_invalid_doh_certificate_warning">Allows self-signed, expired and mismatched certificates for DoH only. DNS traffic may be intercepted. Proxy certificate verification is unchanged.</string>
+    <string name="allow_invalid_doh_certificate_warning">DNS replies may be intercepted or changed. Only DoH certificate checks are disabled; proxy checks are unchanged.</string>
     <string name="battery_settings_unavailable">Battery settings are unavailable on this device.</string>
     <string name="error_config_capacity">Configuration storage limit reached. Remove profiles or reduce their contents.</string>
-    <string name="speed_split_tunnel_warning">MegaProxy is not selected for split tunneling. To measure VPN tunnel speed, enable “Route MegaProxy through VPN” in split tunneling settings and reconnect. The underlying network can still be measured.</string>
+    <string name="speed_split_tunnel_warning">To measure VPN speed, select MegaProxy in split tunneling and reconnect. The underlying network can still be tested.</string>
     <string name="mtu_title">MTU</string>
     <string name="mtu_description">VPN interface packet size</string>
-    <string name="mtu_explanation">The maximum IP packet size of the VPN interface, in bytes. 1400 leaves headroom for tunnel overhead; the best value depends on your network.</string>
+    <string name="mtu_explanation">Maximum VPN packet size in bytes. Start with 1400; change it if your network needs a different value.</string>
     <string name="mtu_1280">1280 · IPv6 minimum</string>
     <string name="mtu_1400">1400 · Recommended (default)</string>
     <string name="mtu_1500">1500</string>
     <string name="mtu_custom">Custom</string>
     <string name="mtu_custom_value">MTU (bytes)</string>
     <string name="mtu_invalid">Enter a whole number from 1280 to 65535.</string>
-    <string name="mtu_reconnect">Applies to all profiles on this device. Reconnect an active VPN to apply changes.</string>
+    <string name="mtu_reconnect">Applies to all profiles on this device after reconnection.</string>
+    <string name="subscription_backups_hint">Up to 7 HTTPS URLs, one per line.</string>
 </resources>

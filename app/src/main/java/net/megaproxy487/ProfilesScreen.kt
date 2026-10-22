@@ -469,16 +469,16 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                     Text(stringResource(R.string.transfer_working), modifier = Modifier.padding(horizontal = 16.dp))
                 }
                 SaveStatusBanner()
-            Surface(tonalElevation = 3.dp) {
-                Button(
-                    shape = RoundedCornerShape(12.dp),
-                    modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
-                    enabled = !busy,
-                    onClick = {
-                        onEditProfile("new")
-                    },
-                ) { Text(stringResource(R.string.add_profile)) }
-            }
+                Surface(tonalElevation = 3.dp) {
+                    Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                        Button(
+                            shape = RoundedCornerShape(12.dp),
+                            modifier = Modifier.widthIn(max = 840.dp).fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp),
+                            enabled = !busy,
+                            onClick = { onEditProfile("new") },
+                        ) { Text(stringResource(R.string.add_profile)) }
+                    }
+                }
             }
         },
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -488,7 +488,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
             contentAlignment = Alignment.TopCenter,
         ) {
             LazyColumn(
-                Modifier.fillMaxHeight().fillMaxWidth().widthIn(max = 840.dp).padding(horizontal = 16.dp),
+                Modifier.widthIn(max = 840.dp).fillMaxWidth().fillMaxHeight().padding(horizontal = 16.dp),
                 state = listState,
                 contentPadding = PaddingValues(bottom = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),

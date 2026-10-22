@@ -69,3 +69,15 @@ MASQUE and a usable datagram MTU; otherwise the entire chain retains HTTPS.
 [Русская версия](../ru/index.md)
 
 [DNS: modes, routing and certificates](dns.md).
+
+## Fingerprints and diagnostic logs
+
+The default HTTPS fingerprint currently follows Chrome Android; a future update may
+choose a different browser preset. SSH presets control the client banner and the
+preferred key-exchange, cipher and MAC ordering. These settings describe the connection
+to the proxy, not the browser or other apps inside the tunnel. QUIC presets and manual
+JA3 requirements are documented in [MASQUE](masque.md).
+
+The log size setting limits the combined size of two rotating segments to 1–100 MiB.
+Older events are removed as the segments rotate; clearing the log deletes both.
+See [connection metrics](connection-metrics.md) for what is measured and logged.

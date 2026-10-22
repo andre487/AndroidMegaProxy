@@ -101,34 +101,36 @@ internal fun VisibilityScreen(activity: Activity, onBack: () -> Unit, runNetwork
         },
         contentWindowInsets = WindowInsets.safeDrawing,
     ) { padding ->
-        Column(
-            Modifier.fillMaxSize().padding(padding).padding(16.dp).verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(
-                stringResource(R.string.visibility_intro),
-                style = MaterialTheme.typography.bodyMedium,
-            )
-            Button(shape = RoundedCornerShape(12.dp), onClick = { revision++ }, modifier = Modifier.fillMaxWidth()) {
-                Text(stringResource(R.string.run_checks_again))
-            }
-            VisibilitySection(stringResource(R.string.globally_observable_signals), report.global)
-            if (report.splitTunneling) {
+        ScreenContent(Modifier.padding(padding)) {
+            Column(
+                Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
                 Text(
-                    stringResource(R.string.split_visibility_explanation),
+                    stringResource(R.string.visibility_intro),
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                Button(shape = RoundedCornerShape(12.dp), onClick = { revision++ }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.run_checks_again))
+                }
+                VisibilitySection(stringResource(R.string.globally_observable_signals), report.global)
+                if (report.splitTunneling) {
+                    Text(
+                        stringResource(R.string.split_visibility_explanation),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+                VisibilitySection(
+                    stringResource(if (report.splitTunneling) R.string.visible_to_selected_apps else R.string.vpn_network_signals),
+                    report.selectedApps,
+                )
+                VisibilitySection(stringResource(R.string.proxycheck_reputation), proxyCheckChecks)
+                Text(
+                    stringResource(R.string.visibility_disclaimer),
                     style = MaterialTheme.typography.bodySmall,
+                    modifier = Modifier.padding(bottom = 16.dp),
                 )
             }
-            VisibilitySection(
-                stringResource(if (report.splitTunneling) R.string.visible_to_selected_apps else R.string.vpn_network_signals),
-                report.selectedApps,
-            )
-            VisibilitySection(stringResource(R.string.proxycheck_reputation), proxyCheckChecks)
-            Text(
-                stringResource(R.string.visibility_disclaimer),
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.padding(bottom = 16.dp),
-            )
         }
     }
 }

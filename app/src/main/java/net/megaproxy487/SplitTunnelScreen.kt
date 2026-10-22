@@ -176,129 +176,129 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
         // its child can double-apply or misreport the IME area on some OEM builds.
         contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
     ) { padding ->
-        LazyColumn(
-            Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-            item { Text(stringResource(R.string.routing_mode), style = MaterialTheme.typography.titleMedium) }
-            item {
-                Column(Modifier.selectableGroup()) {
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(
-                            selected = !settings.routeAllApps,
-                            onClick = { updateSettings(settings.copy(routeAllApps = false)) },
-                            role = Role.RadioButton,
-                        ),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        RadioButton(!settings.routeAllApps, null)
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.split_tunneling))
-                            Text(stringResource(R.string.selected_apps_routing_description), style = MaterialTheme.typography.bodySmall)
+        ScreenContent(Modifier.padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                item { Text(stringResource(R.string.routing_mode), style = MaterialTheme.typography.titleMedium) }
+                item {
+                    Column(Modifier.selectableGroup()) {
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(
+                                selected = !settings.routeAllApps,
+                                onClick = { updateSettings(settings.copy(routeAllApps = false)) },
+                                role = Role.RadioButton,
+                            ),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            RadioButton(!settings.routeAllApps, null)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.split_tunneling))
+                                Text(stringResource(R.string.selected_apps_routing_description), style = MaterialTheme.typography.bodySmall)
+                            }
                         }
-                    }
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(
-                            selected = settings.routeAllApps,
-                            onClick = { updateSettings(settings.copy(routeAllApps = true)) },
-                            role = Role.RadioButton,
-                        ),
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        RadioButton(settings.routeAllApps, null)
-                        Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.global_vpn))
-                            Text(stringResource(R.string.global_vpn_description), style = MaterialTheme.typography.bodySmall)
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(
+                                selected = settings.routeAllApps,
+                                onClick = { updateSettings(settings.copy(routeAllApps = true)) },
+                                role = Role.RadioButton,
+                            ),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            RadioButton(settings.routeAllApps, null)
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.global_vpn))
+                                Text(stringResource(R.string.global_vpn_description), style = MaterialTheme.typography.bodySmall)
+                            }
                         }
                     }
                 }
-            }
-            if (!settings.routeAllApps) {
+                if (!settings.routeAllApps) {
+                    item {
+                        val checked = activity.packageName in settings.selectedPackages
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                                value = checked,
+                                onValueChange = { enabled ->
+                                    updateSettings(settings.copy(selectedPackages = if (enabled) {
+                                        settings.selectedPackages + activity.packageName
+                                    } else {
+                                        settings.selectedPackages - activity.packageName
+                                    }))
+                                },
+                                role = Role.Switch,
+                            ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            Column(Modifier.weight(1f)) {
+                                Text(stringResource(R.string.route_megaproxy))
+                                Text(stringResource(R.string.route_megaproxy_description), style = MaterialTheme.typography.bodySmall)
+                            }
+                            Switch(checked, null)
+                        }
+                    }
+                }
+                item { Text(stringResource(R.string.udp_quic_blocked_description), style = MaterialTheme.typography.bodySmall) }
                 item {
-                    val checked = activity.packageName in settings.selectedPackages
                     Row(
                         Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
-                            value = checked,
-                            onValueChange = { enabled ->
-                                updateSettings(settings.copy(selectedPackages = if (enabled) {
-                                    settings.selectedPackages + activity.packageName
-                                } else {
-                                    settings.selectedPackages - activity.packageName
-                                }))
-                            },
+                            value = settings.bypassLocalNetworks,
+                            onValueChange = { updateSettings(settings.copy(bypassLocalNetworks = it)) },
                             role = Role.Switch,
                         ),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
                     ) {
                         Column(Modifier.weight(1f)) {
-                            Text(stringResource(R.string.route_megaproxy))
-                            Text(stringResource(R.string.route_megaproxy_description), style = MaterialTheme.typography.bodySmall)
+                            Text(stringResource(R.string.bypass_local_networks))
+                            Text(stringResource(R.string.bypass_local_networks_description), style = MaterialTheme.typography.bodySmall)
                         }
-                        Switch(checked, null)
+                        Switch(settings.bypassLocalNetworks, null)
                     }
                 }
+                if (!settings.routeAllApps) {
+                    item { Text(stringResource(R.string.applications), style = MaterialTheme.typography.titleMedium) }
+                    if (apps == null) item {
+                        Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
+                            CircularProgressIndicator()
+                        }
+                    }
+                    item {
+                        OutlinedTextField(
+                            value = appSearch,
+                            onValueChange = { appSearch = it },
+                            label = { FieldLabel(stringResource(R.string.search_applications)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    items(visibleApps, key = { it.packageName }) { app ->
+                        val checked = app.packageName in settings.selectedPackages
+                        Row(
+                            Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                                value = checked,
+                                onValueChange = { checkedValue ->
+                                updateSettings(settings.copy(selectedPackages = if (checked) {
+                                    if (checkedValue) settings.selectedPackages else settings.selectedPackages - app.packageName
+                                } else {
+                                    if (checkedValue) settings.selectedPackages + app.packageName else settings.selectedPackages
+                                }))
+                                },
+                                role = Role.Checkbox,
+                            ),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                        ) {
+                            Text(app.label, Modifier.weight(1f))
+                            Checkbox(checked, null)
+                        }
+                    }
+                }
+                item { Text(stringResource(R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall) }
             }
-            item { Text(stringResource(R.string.udp_quic_blocked_description), style = MaterialTheme.typography.bodySmall) }
-            item {
-                Row(
-                    Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
-                        value = settings.bypassLocalNetworks,
-                        onValueChange = { updateSettings(settings.copy(bypassLocalNetworks = it)) },
-                        role = Role.Switch,
-                    ),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                ) {
-                    Column(Modifier.weight(1f)) {
-                        Text(stringResource(R.string.bypass_local_networks))
-                        Text(stringResource(R.string.bypass_local_networks_description), style = MaterialTheme.typography.bodySmall)
-                    }
-                    Switch(settings.bypassLocalNetworks, null)
-                }
-            }
-            if (!settings.routeAllApps) {
-                item { Text(stringResource(R.string.applications), style = MaterialTheme.typography.titleMedium) }
-                if (apps == null) item {
-                    Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.Center) {
-                        CircularProgressIndicator()
-                    }
-                }
-                item {
-                    OutlinedTextField(
-                        value = appSearch,
-                        onValueChange = { appSearch = it },
-                        label = { FieldLabel(stringResource(R.string.search_applications)) },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
-                }
-                items(visibleApps, key = { it.packageName }) { app ->
-                    val checked = app.packageName in settings.selectedPackages
-                    Row(
-                        Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
-                            value = checked,
-                            onValueChange = { checkedValue ->
-                            updateSettings(settings.copy(selectedPackages = if (checked) {
-                                if (checkedValue) settings.selectedPackages else settings.selectedPackages - app.packageName
-                            } else {
-                                if (checkedValue) settings.selectedPackages + app.packageName else settings.selectedPackages
-                            }))
-                            },
-                            role = Role.Checkbox,
-                        ),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
-                    ) {
-                        Text(app.label, Modifier.weight(1f))
-                        Checkbox(checked, null)
-                    }
-                }
-            }
-            item { Text(stringResource(R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall) }
         }
     }
 }

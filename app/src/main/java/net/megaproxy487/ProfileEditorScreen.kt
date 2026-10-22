@@ -55,6 +55,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import net.megaproxy487.uiStringResource as stringResource
@@ -237,27 +239,29 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
         },
         bottomBar = {
             Surface(tonalElevation = 3.dp) {
-                Column(Modifier.fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    SaveStatusBanner()
-                    if (importingKey) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
-                    error?.takeIf { it != validationRes?.let { id -> activity.uiText(id) } }?.let {
-                        Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                    }
-                    if (!validPorts || validationRes != null) {
-                        Text(stringResource(R.string.correct_fields_before_connecting), style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error)
-                    }
-                    if (showReconnectPrompt || showAlwaysOnNotice) {
-                        Text(stringResource(if (showAlwaysOnNotice) R.string.always_on_changes_next_connection else R.string.reconnect_apply_changes),
-                            style = MaterialTheme.typography.bodySmall)
-                        WrappingActions {
-                            TextButton(shape = RoundedCornerShape(12.dp), onClick = { showReconnectPrompt = false; showAlwaysOnNotice = false; connectionChangeDeferred = true }) {
-                                Text(stringResource(R.string.next_connection))
+                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
+                    Column(Modifier.widthIn(max = 840.dp).fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 12.dp, vertical = 4.dp)) {
+                        SaveStatusBanner()
+                        if (importingKey) androidx.compose.material3.LinearProgressIndicator(Modifier.fillMaxWidth())
+                        error?.takeIf { it != validationRes?.let { id -> activity.uiText(id) } }?.let {
+                            Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                        }
+                        if (!validPorts || validationRes != null) {
+                            Text(stringResource(R.string.correct_fields_before_connecting), style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error)
+                        }
+                        if (showReconnectPrompt || showAlwaysOnNotice) {
+                            Text(stringResource(if (showAlwaysOnNotice) R.string.always_on_changes_next_connection else R.string.reconnect_apply_changes),
+                                style = MaterialTheme.typography.bodySmall)
+                            WrappingActions {
+                                TextButton(shape = RoundedCornerShape(12.dp), onClick = { showReconnectPrompt = false; showAlwaysOnNotice = false; connectionChangeDeferred = true }) {
+                                    Text(stringResource(R.string.next_connection))
+                                }
+                                if (!showAlwaysOnNotice) TextButton(shape = RoundedCornerShape(12.dp), enabled = canReconnect, onClick = {
+                                    showReconnectPrompt = false; connectionChangeDeferred = true
+                                    ProxyVpnService.reconnect(activity)
+                                }) { Text(stringResource(R.string.reconnect_now)) }
                             }
-                            if (!showAlwaysOnNotice) TextButton(shape = RoundedCornerShape(12.dp), enabled = canReconnect, onClick = {
-                                showReconnectPrompt = false; connectionChangeDeferred = true
-                                ProxyVpnService.reconnect(activity)
-                            }) { Text(stringResource(R.string.reconnect_now)) }
                         }
                     }
                 }
@@ -265,306 +269,306 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
         },
         contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
     ) { padding ->
-        LazyColumn(
-            Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp),
-        ) {
-          item {
-            OutlinedTextField(profile.name, { name -> acceptText(name, 256) {
-                profile = profile.copy(name = name)
-                saveProfile()
-            } }, label = { FieldLabel(stringResource(R.string.profile_name_optional)) }, supportingText = { Text(stringResource(R.string.defaults_to_proxy_host)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
-          }
-          item {
-            ExposedDropdownMenuBox(countryExpanded, { countryExpanded = it }) {
-                OutlinedTextField(
-                    profile.countryCode.takeIf(String::isNotEmpty)?.let { code ->
-                        "${profile.flagEmoji} ${countries.firstOrNull { it.first == code }?.second ?: code}"
-                    } ?: activity.uiText(R.string.no_flag),
-                    {}, readOnly = true, label = { FieldLabel(stringResource(R.string.country_flag)) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(countryExpanded) },
-                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                )
-                DropdownMenu(countryExpanded, { countryExpanded = false }) {
-                    DropdownMenuItem(text = { Text(stringResource(R.string.no_flag)) }, onClick = {
-                        profile = profile.copy(countryCode = "")
-                        saveProfile()
-                        countryExpanded = false
-                    })
-                    countries.forEach { (code, name) ->
-                        val flag = net.megaproxy487.model.ProxyProfile("", colorIndex = 0, countryCode = code).flagEmoji
-                        DropdownMenuItem(text = { Text("$flag $name") }, onClick = {
-                            profile = profile.copy(
-                                countryCode = code,
-                                colorIndex = ProfileColorMatcher.colorIndexForFlag(code, profile.colorIndex),
-                            )
+        ScreenContent(Modifier.padding(padding)) {
+            LazyColumn(
+                Modifier.fillMaxSize(),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+              item {
+                OutlinedTextField(profile.name, { name -> acceptText(name, 256) {
+                    profile = profile.copy(name = name)
+                    saveProfile()
+                } }, label = { FieldLabel(stringResource(R.string.profile_name_optional)) }, supportingText = { Text(stringResource(R.string.defaults_to_proxy_host)) }, singleLine = true, modifier = Modifier.fillMaxWidth())
+              }
+              item {
+                ExposedDropdownMenuBox(countryExpanded, { countryExpanded = it }) {
+                    OutlinedTextField(
+                        profile.countryCode.takeIf(String::isNotEmpty)?.let { code ->
+                            "${profile.flagEmoji} ${countries.firstOrNull { it.first == code }?.second ?: code}"
+                        } ?: activity.uiText(R.string.no_flag),
+                        {}, readOnly = true, label = { FieldLabel(stringResource(R.string.country_flag)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(countryExpanded) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                    )
+                    DropdownMenu(countryExpanded, { countryExpanded = false }) {
+                        DropdownMenuItem(text = { Text(stringResource(R.string.no_flag)) }, onClick = {
+                            profile = profile.copy(countryCode = "")
                             saveProfile()
                             countryExpanded = false
                         })
+                        countries.forEach { (code, name) ->
+                            val flag = net.megaproxy487.model.ProxyProfile("", colorIndex = 0, countryCode = code).flagEmoji
+                            DropdownMenuItem(text = { Text("$flag $name") }, onClick = {
+                                profile = profile.copy(
+                                    countryCode = code,
+                                    colorIndex = ProfileColorMatcher.colorIndexForFlag(code, profile.colorIndex),
+                                )
+                                saveProfile()
+                                countryExpanded = false
+                            })
+                        }
                     }
                 }
-            }
-          }
+              }
 
-          item {
-            Text(stringResource(R.string.connection), style = MaterialTheme.typography.titleMedium)
-          }
-          if (config.unreadableSecrets.isNotEmpty()) item {
-            Text(stringResource(R.string.error_credentials_unavailable), color = MaterialTheme.colorScheme.error)
-          }
-          if (config.storageUnavailable) item {
-            Text(stringResource(R.string.error_config_storage), color = MaterialTheme.colorScheme.error)
-          }
-          item {
-            ExposedDropdownMenuBox(typeExpanded, { typeExpanded = it }) {
-                OutlinedTextField(activity.uiText(config.type.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.profile_type)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
-                DropdownMenu(typeExpanded, { typeExpanded = false }) {
-                    ProxyType.entries.forEach { type -> DropdownMenuItem(text = { Text(activity.uiText(type.titleRes)) }, onClick = {
-                        updateConfig(config.withType(type))
-                        portText = config.port.toString()
-                        if (type.hasJump) jumpPortText = config.jumpPort.toString()
-                        typeExpanded = false
-                    }) }
+              item {
+                Text(stringResource(R.string.connection), style = MaterialTheme.typography.titleMedium)
+              }
+              if (config.unreadableSecrets.isNotEmpty()) item {
+                Text(stringResource(R.string.error_credentials_unavailable), color = MaterialTheme.colorScheme.error)
+              }
+              if (config.storageUnavailable) item {
+                Text(stringResource(R.string.error_config_storage), color = MaterialTheme.colorScheme.error)
+              }
+              item {
+                ExposedDropdownMenuBox(typeExpanded, { typeExpanded = it }) {
+                    OutlinedTextField(activity.uiText(config.type.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.profile_type)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(typeExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                    DropdownMenu(typeExpanded, { typeExpanded = false }) {
+                        ProxyType.entries.forEach { type -> DropdownMenuItem(text = { Text(activity.uiText(type.titleRes)) }, onClick = {
+                            updateConfig(config.withType(type))
+                            portText = config.port.toString()
+                            if (type.hasJump) jumpPortText = config.jumpPort.toString()
+                            typeExpanded = false
+                        }) }
+                    }
                 }
-            }
-          }
-          item {
-            OutlinedTextField(config.host, { value -> acceptText(value, 253) { updateConfig(config.copy(host = it)) } }, label = { FieldLabel(stringResource(if (config.type == ProxyType.HTTPS_JUMP) R.string.destination_https_proxy_hostname else if (config.type == ProxyType.SOCKS5) R.string.socks5_proxy_hostname else if (config.type == ProxyType.MASQUE) R.string.masque_proxy_hostname else if (config.type.isHttpProxy) R.string.https_proxy_hostname else R.string.destination_ssh_hostname)) }, isError = fieldError(R.string.validation_proxy_host, R.string.validation_ssh_host, R.string.validation_host_format) != null, supportingText = fieldError(R.string.validation_proxy_host, R.string.validation_ssh_host, R.string.validation_host_format)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
-          }
-          item {
-            IntegerInputField(portText, { portText = it }, 1..65535, stringResource(R.string.port),
-                    onValidValue = { updateConfig(config.copy(port = it)) }, modifier = Modifier.fillMaxWidth())
-          }
-          item {
-            OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { FieldLabel(stringResource(if (config.type == ProxyType.SOCKS5) R.string.socks5_username_optional else if (config.type.isHttpProxy) R.string.basic_auth_username else R.string.ssh_username)) }, isError = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username, R.string.validation_socks5_auth) != null, supportingText = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username, R.string.validation_socks5_auth)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
-          }
-          item {
-            PasswordField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it, unreadableSecrets = config.unreadableSecrets - "password")) } }, label = stringResource(if (config.type == ProxyType.SOCKS5) R.string.socks5_password_optional else if (config.type.isHttpProxy) R.string.password else R.string.ssh_password_optional),
-                    error = fieldError(R.string.validation_basic_password, R.string.validation_socks5_auth), modifier = Modifier.fillMaxWidth())
-          }
-          if (config.type == ProxyType.SOCKS5) item { Text(stringResource(R.string.socks5_description), style = MaterialTheme.typography.bodySmall) }
-          if (config.type.isHttps) item { SettingSwitchRow(
-              checked = config.preferHttp3,
-              title = stringResource(R.string.prefer_http3),
-              description = stringResource(R.string.prefer_http3_description),
-              onCheckedChange = { updateConfig(config.copy(preferHttp3 = it)) },
-          ) }
-          if (config.type == ProxyType.MASQUE) {
-            item { Text(stringResource(R.string.masque_fingerprint_description), style = MaterialTheme.typography.bodySmall) }
-            if (globalSettings.tlsProfile == TlsProfile.CUSTOM) item {
-                OutlinedTextField(
-                    config.customJa3,
-                    { value -> acceptText(value, 8 * 1024) { updateConfig(config.copy(customJa3 = it)) } },
-                    label = { FieldLabel(stringResource(R.string.masque_custom_ja3)) },
-                    isError = fieldError(R.string.validation_ja3, R.string.validation_quic_ja3) != null,
-                    supportingText = fieldError(R.string.validation_ja3, R.string.validation_quic_ja3)?.let { { Text(it) } },
-                    minLines = 2, modifier = Modifier.fillMaxWidth(),
-                )
-            }
-          }
-          if (config.type.isHttpProxy) item { SettingSwitchRow(
-                checked = config.allowInvalidProxyCertificate,
-                title = stringResource(R.string.allow_proxy_certificate),
-                description = stringResource(R.string.allow_proxy_certificate_description),
-                onCheckedChange = { checked ->
-                    if (checked) { invalidCertificateIsJump = false; showInvalidCertificateWarning = true }
-                    else updateConfig(config.copy(allowInvalidProxyCertificate = false))
-                },
-            )
-          }
-
-            if (config.type.isSsh) {
-              item {
-                OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it, unreadableSecrets = config.unreadableSecrets - "privateKey")) } }, label = { FieldLabel(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
               }
               item {
-                OutlinedButton(shape = RoundedCornerShape(12.dp),
-                    enabled = !importingKey, onClick = { destinationKeyPicker.launch(arrayOf("*/*")) },
-                    modifier = Modifier.fillMaxWidth(),
-                ) { Text(stringResource(R.string.import_destination_key)) }
+                OutlinedTextField(config.host, { value -> acceptText(value, 253) { updateConfig(config.copy(host = it)) } }, label = { FieldLabel(stringResource(if (config.type == ProxyType.HTTPS_JUMP) R.string.destination_https_proxy_hostname else if (config.type == ProxyType.SOCKS5) R.string.socks5_proxy_hostname else if (config.type == ProxyType.MASQUE) R.string.masque_proxy_hostname else if (config.type.isHttpProxy) R.string.https_proxy_hostname else R.string.destination_ssh_hostname)) }, isError = fieldError(R.string.validation_proxy_host, R.string.validation_ssh_host, R.string.validation_host_format) != null, supportingText = fieldError(R.string.validation_proxy_host, R.string.validation_ssh_host, R.string.validation_host_format)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
               }
-                if (config.password.isBlank() && config.privateKey.isBlank()) {
-                  item {
-                    Text(
-                        activity.uiText(R.string.ssh_no_credentials),
-                        color = MaterialTheme.colorScheme.tertiary,
-                        style = MaterialTheme.typography.bodySmall,
+              item {
+                IntegerInputField(portText, { portText = it }, 1..65535, stringResource(R.string.port),
+                        onValidValue = { updateConfig(config.copy(port = it)) }, modifier = Modifier.fillMaxWidth())
+              }
+              item {
+                OutlinedTextField(config.username, { value -> acceptText(value, 4_096) { updateConfig(config.copy(username = it)) } }, label = { FieldLabel(stringResource(if (config.type == ProxyType.SOCKS5) R.string.socks5_username_optional else if (config.type.isHttpProxy) R.string.basic_auth_username else R.string.ssh_username)) }, isError = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username, R.string.validation_socks5_auth) != null, supportingText = fieldError(R.string.validation_basic_username, R.string.validation_ssh_username, R.string.validation_socks5_auth)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+              }
+              item {
+                PasswordField(config.password, { value -> acceptText(value, 16_384) { updateConfig(config.copy(password = it, unreadableSecrets = config.unreadableSecrets - "password")) } }, label = stringResource(if (config.type == ProxyType.SOCKS5) R.string.socks5_password_optional else if (config.type.isHttpProxy) R.string.password else R.string.ssh_password_optional),
+                        error = fieldError(R.string.validation_basic_password, R.string.validation_socks5_auth), modifier = Modifier.fillMaxWidth())
+              }
+              if (config.type == ProxyType.SOCKS5) item { Text(stringResource(R.string.socks5_description), style = MaterialTheme.typography.bodySmall) }
+              if (config.type.isHttps) item { SettingSwitchRow(
+                  checked = config.preferHttp3,
+                  title = stringResource(R.string.prefer_http3),
+                  description = stringResource(R.string.prefer_http3_description),
+                  onCheckedChange = { updateConfig(config.copy(preferHttp3 = it)) },
+              ) }
+              if (config.type == ProxyType.MASQUE) {
+                item { Text(stringResource(R.string.masque_fingerprint_description), style = MaterialTheme.typography.bodySmall) }
+                if (globalSettings.tlsProfile == TlsProfile.CUSTOM) item {
+                    OutlinedTextField(
+                        config.customJa3,
+                        { value -> acceptText(value, 8 * 1024) { updateConfig(config.copy(customJa3 = it)) } },
+                        label = { FieldLabel(stringResource(R.string.masque_custom_ja3)) },
+                        isError = fieldError(R.string.validation_ja3, R.string.validation_quic_ja3) != null,
+                        supportingText = fieldError(R.string.validation_ja3, R.string.validation_quic_ja3)?.let { { Text(it) } },
+                        minLines = 2, modifier = Modifier.fillMaxWidth(),
                     )
-                  }
-                }
-              item {
-                SettingSwitchRow(config.acceptAnyHostKey, activity.uiText(R.string.ssh_accept_destination), activity.uiText(R.string.ssh_accept_destination_help)) { checked ->
-                    if (checked) unsafeHostKeyHop = "destination" else updateConfig(config.copy(acceptAnyHostKey = false))
                 }
               }
-                if (config.trustedHostKey.isNotBlank()) item { Text(stringResource(R.string.trusted_destination_key, config.trustedHostKey), style = MaterialTheme.typography.bodySmall) }
-            }
+              if (config.type.isHttpProxy) item { SettingSwitchRow(
+                    checked = config.allowInvalidProxyCertificate,
+                    title = stringResource(R.string.allow_proxy_certificate),
+                    description = stringResource(R.string.allow_proxy_certificate_description),
+                    onCheckedChange = { checked ->
+                        if (checked) { invalidCertificateIsJump = false; showInvalidCertificateWarning = true }
+                        else updateConfig(config.copy(allowInvalidProxyCertificate = false))
+                    },
+                )
+              }
 
-            if (config.type == ProxyType.HTTPS_JUMP) {
-              item { Text(stringResource(R.string.https_jump_route), style = MaterialTheme.typography.bodySmall) }
-              item { HorizontalDivider() }
-              item { Text(stringResource(R.string.https_jump_proxy), style = MaterialTheme.typography.titleMedium) }
-              item {
-                OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { FieldLabel(stringResource(R.string.https_jump_hostname)) }, isError = fieldError(R.string.validation_jump_host, R.string.validation_jump_host_format) != null, supportingText = fieldError(R.string.validation_jump_host, R.string.validation_jump_host_format)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
-              }
-              item {
-                IntegerInputField(jumpPortText, { jumpPortText = it }, 1..65535, stringResource(R.string.jump_port),
-                    onValidValue = { updateConfig(config.copy(jumpPort = it)) }, modifier = Modifier.fillMaxWidth())
-              }
-              item {
-                SettingSwitchRow(config.sameJumpAuthentication, stringResource(R.string.https_jump_same_auth), stringResource(R.string.https_jump_same_auth_description)) {
-                    updateConfig(config.copy(sameJumpAuthentication = it))
-                }
-              }
-              if (!config.sameJumpAuthentication) {
-                item {
-                    OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { FieldLabel(stringResource(R.string.https_jump_username)) }, isError = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username) != null, supportingText = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                }
-                item {
-                    PasswordField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it, unreadableSecrets = config.unreadableSecrets - "jumpPassword")) } }, label = stringResource(R.string.https_jump_password),
-                    error = fieldError(R.string.validation_jump_basic_password), modifier = Modifier.fillMaxWidth())
-                }
-              }
-              item {
-                SettingSwitchRow(config.jumpAllowInvalidProxyCertificate, stringResource(R.string.allow_jump_proxy_certificate), stringResource(R.string.allow_jump_proxy_certificate_description)) { checked ->
-                    if (checked) { invalidCertificateIsJump = true; showInvalidCertificateWarning = true }
-                    else updateConfig(config.copy(jumpAllowInvalidProxyCertificate = false))
-                }
-              }
-            }
-
-            if (config.type == ProxyType.SSH_JUMP) {
-              item {
-                HorizontalDivider()
-              }
-              item {
-                Text(stringResource(R.string.jump_host), style = MaterialTheme.typography.titleMedium)
-              }
-              item {
-                OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { FieldLabel(stringResource(R.string.jump_ssh_hostname)) }, isError = fieldError(R.string.validation_jump_host, R.string.validation_jump_host_format) != null, supportingText = fieldError(R.string.validation_jump_host, R.string.validation_jump_host_format)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
-              }
-              item {
-                IntegerInputField(jumpPortText, { jumpPortText = it }, 1..65535, stringResource(R.string.jump_port),
-                    onValidValue = { updateConfig(config.copy(jumpPort = it)) }, modifier = Modifier.fillMaxWidth())
-              }
-              item {
-                SettingSwitchRow(config.sameJumpAuthentication, activity.uiText(R.string.ssh_same_auth), activity.uiText(R.string.ssh_same_auth_help)) {
-                    updateConfig(config.copy(sameJumpAuthentication = it))
-                }
-              }
-                if (!config.sameJumpAuthentication) {
+                if (config.type.isSsh) {
                   item {
-                    OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { FieldLabel(stringResource(R.string.jump_ssh_username)) }, isError = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username) != null, supportingText = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
-                  }
-                  item {
-                    PasswordField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it, unreadableSecrets = config.unreadableSecrets - "jumpPassword")) } }, label = stringResource(R.string.jump_ssh_password_optional),
-                    error = fieldError(R.string.validation_jump_basic_password), modifier = Modifier.fillMaxWidth())
-                  }
-                  item {
-                    OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(jumpPrivateKey = it, unreadableSecrets = config.unreadableSecrets - "jumpPrivateKey")) } }, label = { FieldLabel(stringResource(R.string.jump_private_key_optional)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it, unreadableSecrets = config.unreadableSecrets - "privateKey")) } }, label = { FieldLabel(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
                   }
                   item {
                     OutlinedButton(shape = RoundedCornerShape(12.dp),
-                        enabled = !importingKey, onClick = { jumpKeyPicker.launch(arrayOf("*/*")) },
+                        enabled = !importingKey, onClick = { destinationKeyPicker.launch(arrayOf("*/*")) },
                         modifier = Modifier.fillMaxWidth(),
-                    ) { Text(stringResource(R.string.import_jump_key)) }
+                    ) { Text(stringResource(R.string.import_destination_key)) }
                   }
-                    if (config.jumpPassword.isBlank() && config.jumpPrivateKey.isBlank()) {
+                    if (config.password.isBlank() && config.privateKey.isBlank()) {
                       item {
                         Text(
-                            activity.uiText(R.string.ssh_jump_no_credentials),
+                            activity.uiText(R.string.ssh_no_credentials),
                             color = MaterialTheme.colorScheme.tertiary,
                             style = MaterialTheme.typography.bodySmall,
                         )
                       }
                     }
+                  item {
+                    SettingSwitchRow(config.acceptAnyHostKey, activity.uiText(R.string.ssh_accept_destination), activity.uiText(R.string.ssh_accept_destination_help)) { checked ->
+                        if (checked) unsafeHostKeyHop = "destination" else updateConfig(config.copy(acceptAnyHostKey = false))
+                    }
+                  }
+                    if (config.trustedHostKey.isNotBlank()) item { Text(stringResource(R.string.trusted_destination_key, config.trustedHostKey), style = MaterialTheme.typography.bodySmall) }
                 }
+
+                if (config.type == ProxyType.HTTPS_JUMP) {
+                  item { Text(stringResource(R.string.https_jump_route), style = MaterialTheme.typography.bodySmall) }
+                  item { HorizontalDivider() }
+                  item { Text(stringResource(R.string.https_jump_proxy), style = MaterialTheme.typography.titleMedium) }
+                  item {
+                    OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { FieldLabel(stringResource(R.string.https_jump_hostname)) }, isError = fieldError(R.string.validation_jump_host, R.string.validation_jump_host_format) != null, supportingText = fieldError(R.string.validation_jump_host, R.string.validation_jump_host_format)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                  }
+                  item {
+                    IntegerInputField(jumpPortText, { jumpPortText = it }, 1..65535, stringResource(R.string.jump_port),
+                        onValidValue = { updateConfig(config.copy(jumpPort = it)) }, modifier = Modifier.fillMaxWidth())
+                  }
+                  item {
+                    SettingSwitchRow(config.sameJumpAuthentication, stringResource(R.string.https_jump_same_auth), stringResource(R.string.https_jump_same_auth_description)) {
+                        updateConfig(config.copy(sameJumpAuthentication = it))
+                    }
+                  }
+                  if (!config.sameJumpAuthentication) {
+                    item {
+                        OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { FieldLabel(stringResource(R.string.https_jump_username)) }, isError = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username) != null, supportingText = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                    }
+                    item {
+                        PasswordField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it, unreadableSecrets = config.unreadableSecrets - "jumpPassword")) } }, label = stringResource(R.string.https_jump_password),
+                        error = fieldError(R.string.validation_jump_basic_password), modifier = Modifier.fillMaxWidth())
+                    }
+                  }
+                  item {
+                    SettingSwitchRow(config.jumpAllowInvalidProxyCertificate, stringResource(R.string.allow_jump_proxy_certificate), stringResource(R.string.allow_jump_proxy_certificate_description)) { checked ->
+                        if (checked) { invalidCertificateIsJump = true; showInvalidCertificateWarning = true }
+                        else updateConfig(config.copy(jumpAllowInvalidProxyCertificate = false))
+                    }
+                  }
+                }
+
+                if (config.type == ProxyType.SSH_JUMP) {
+                  item {
+                    HorizontalDivider()
+                  }
+                  item {
+                    Text(stringResource(R.string.jump_host), style = MaterialTheme.typography.titleMedium)
+                  }
+                  item {
+                    OutlinedTextField(config.jumpHost, { value -> acceptText(value, 253) { updateConfig(config.copy(jumpHost = it)) } }, label = { FieldLabel(stringResource(R.string.jump_ssh_hostname)) }, isError = fieldError(R.string.validation_jump_host, R.string.validation_jump_host_format) != null, supportingText = fieldError(R.string.validation_jump_host, R.string.validation_jump_host_format)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                  }
+                  item {
+                    IntegerInputField(jumpPortText, { jumpPortText = it }, 1..65535, stringResource(R.string.jump_port),
+                        onValidValue = { updateConfig(config.copy(jumpPort = it)) }, modifier = Modifier.fillMaxWidth())
+                  }
+                  item {
+                    SettingSwitchRow(config.sameJumpAuthentication, activity.uiText(R.string.ssh_same_auth), activity.uiText(R.string.ssh_same_auth_help)) {
+                        updateConfig(config.copy(sameJumpAuthentication = it))
+                    }
+                  }
+                    if (!config.sameJumpAuthentication) {
+                      item {
+                        OutlinedTextField(config.jumpUsername, { value -> acceptText(value, 4_096) { updateConfig(config.copy(jumpUsername = it)) } }, label = { FieldLabel(stringResource(R.string.jump_ssh_username)) }, isError = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username) != null, supportingText = fieldError(R.string.validation_jump_ssh_username, R.string.validation_jump_basic_username)?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                      }
+                      item {
+                        PasswordField(config.jumpPassword, { value -> acceptText(value, 16_384) { updateConfig(config.copy(jumpPassword = it, unreadableSecrets = config.unreadableSecrets - "jumpPassword")) } }, label = stringResource(R.string.jump_ssh_password_optional),
+                        error = fieldError(R.string.validation_jump_basic_password), modifier = Modifier.fillMaxWidth())
+                      }
+                      item {
+                        OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(jumpPrivateKey = it, unreadableSecrets = config.unreadableSecrets - "jumpPrivateKey")) } }, label = { FieldLabel(stringResource(R.string.jump_private_key_optional)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
+                      }
+                      item {
+                        OutlinedButton(shape = RoundedCornerShape(12.dp),
+                            enabled = !importingKey, onClick = { jumpKeyPicker.launch(arrayOf("*/*")) },
+                            modifier = Modifier.fillMaxWidth(),
+                        ) { Text(stringResource(R.string.import_jump_key)) }
+                      }
+                        if (config.jumpPassword.isBlank() && config.jumpPrivateKey.isBlank()) {
+                          item {
+                            Text(
+                                activity.uiText(R.string.ssh_jump_no_credentials),
+                                color = MaterialTheme.colorScheme.tertiary,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                          }
+                        }
+                    }
+                  item {
+                    SettingSwitchRow(config.jumpAcceptAnyHostKey, activity.uiText(R.string.ssh_accept_jump), activity.uiText(R.string.ssh_accept_jump_help)) { checked ->
+                        if (checked) unsafeHostKeyHop = "jump" else updateConfig(config.copy(jumpAcceptAnyHostKey = false))
+                    }
+                  }
+                    if (config.jumpTrustedHostKey.isNotBlank()) item { Text(stringResource(R.string.trusted_jump_key, config.jumpTrustedHostKey), style = MaterialTheme.typography.bodySmall) }
+                }
+
               item {
-                SettingSwitchRow(config.jumpAcceptAnyHostKey, activity.uiText(R.string.ssh_accept_jump), activity.uiText(R.string.ssh_accept_jump_help)) { checked ->
-                    if (checked) unsafeHostKeyHop = "jump" else updateConfig(config.copy(jumpAcceptAnyHostKey = false))
+                SettingSwitchRow(config.allowIpv6, activity.uiText(R.string.ipv6_destinations), activity.uiText(R.string.ipv6_destinations_help)) {
+                    updateConfig(config.copy(allowIpv6 = it))
                 }
               }
-                if (config.jumpTrustedHostKey.isNotBlank()) item { Text(stringResource(R.string.trusted_jump_key, config.jumpTrustedHostKey), style = MaterialTheme.typography.bodySmall) }
-            }
 
-          item {
-            SettingSwitchRow(config.allowIpv6, activity.uiText(R.string.ipv6_destinations), activity.uiText(R.string.ipv6_destinations_help)) {
-                updateConfig(config.copy(allowIpv6 = it))
-            }
-          }
-
-          item { Text(stringResource(R.string.dns_settings), style = MaterialTheme.typography.titleMedium) }
-          item {
-            SettingSwitchRow(config.allowInsecureDns, stringResource(R.string.allow_insecure_dns),
-                stringResource(R.string.allow_insecure_dns_description)) { enabled ->
-                if (enabled) insecureDnsWarning = DnsTransport.DOH else updateConfig(config.copy(
-                    allowInsecureDns = false,
-                    dnsProvider = if (config.dnsTransport != DnsTransport.DOH) DnsProvider.CLOUDFLARE else config.dnsProvider,
-                    customDohUrl = if (config.dnsTransport != DnsTransport.DOH) "" else config.customDohUrl,
-                ))
-            }
-          }
-          if (!config.allowInsecureDns && config.dnsTransport != DnsTransport.DOH) item {
-            TextButton(onClick = { updateConfig(config.copy(dnsProvider = DnsProvider.CLOUDFLARE, customDohUrl = "")) }) {
-                Text(stringResource(R.string.dns_transport_doh))
-            }
-          }
-          if (config.allowInsecureDns) item {
-            ExposedDropdownMenuBox(dnsTransportExpanded, { dnsTransportExpanded = it }) {
-                OutlinedTextField(stringResource(config.dnsTransport.titleRes), {}, readOnly = true,
-                    label = { FieldLabel(stringResource(R.string.dns_transport)) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsTransportExpanded) },
-                    modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
-                DropdownMenu(dnsTransportExpanded, { dnsTransportExpanded = false }) {
-                    DnsTransport.entries.forEach { transport ->
-                        DropdownMenuItem(text = { Text(stringResource(transport.titleRes)) }, onClick = {
-                            dnsTransportExpanded = false
-                            if (transport == DnsTransport.DOH) updateConfig(config.copy(dnsProvider = DnsProvider.CLOUDFLARE, customDohUrl = ""))
-                            else insecureDnsWarning = transport
-                        })
+              item { Text(stringResource(R.string.dns_settings), style = MaterialTheme.typography.titleMedium) }
+              item {
+                SettingSwitchRow(config.allowInsecureDns, stringResource(R.string.allow_insecure_dns),
+                    stringResource(R.string.allow_insecure_dns_description)) { enabled ->
+                    if (enabled) insecureDnsWarning = DnsTransport.DOH else updateConfig(config.copy(
+                        allowInsecureDns = false,
+                        dnsProvider = if (config.dnsTransport != DnsTransport.DOH) DnsProvider.CLOUDFLARE else config.dnsProvider,
+                        customDohUrl = if (config.dnsTransport != DnsTransport.DOH) "" else config.customDohUrl,
+                    ))
+                }
+              }
+              if (!config.allowInsecureDns && config.dnsTransport != DnsTransport.DOH) item {
+                TextButton(onClick = { updateConfig(config.copy(dnsProvider = DnsProvider.CLOUDFLARE, customDohUrl = "")) }) {
+                    Text(stringResource(R.string.dns_transport_doh))
+                }
+              }
+              if (config.allowInsecureDns) item {
+                ExposedDropdownMenuBox(dnsTransportExpanded, { dnsTransportExpanded = it }) {
+                    OutlinedTextField(stringResource(config.dnsTransport.titleRes), {}, readOnly = true,
+                        label = { FieldLabel(stringResource(R.string.dns_transport)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsTransportExpanded) },
+                        modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                    DropdownMenu(dnsTransportExpanded, { dnsTransportExpanded = false }) {
+                        DnsTransport.entries.forEach { transport ->
+                            DropdownMenuItem(text = { Text(stringResource(transport.titleRes)) }, onClick = {
+                                dnsTransportExpanded = false
+                                if (transport == DnsTransport.DOH) updateConfig(config.copy(dnsProvider = DnsProvider.CLOUDFLARE, customDohUrl = ""))
+                                else insecureDnsWarning = transport
+                            })
+                        }
                     }
                 }
-            }
-          }
-          if (config.dnsTransport == DnsTransport.DOH) {
-            item {
-                SettingSwitchRow(config.allowInvalidDohCertificate, stringResource(R.string.allow_invalid_doh_certificate),
-                    stringResource(R.string.allow_invalid_doh_certificate_warning)) { enabled ->
-                    if (enabled) invalidDohWarning = true else updateConfig(config.copy(allowInvalidDohCertificate = false))
-                }
-            }
-            item {
-                ExposedDropdownMenuBox(dnsExpanded, { dnsExpanded = it }) {
-                    OutlinedTextField(activity.uiText(config.dnsProvider.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.dns_over_https)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
-                    DropdownMenu(dnsExpanded, { dnsExpanded = false }) {
-                        DnsProvider.entries.forEach { provider -> DropdownMenuItem(text = { Text(activity.uiText(provider.titleRes)) }, onClick = { updateConfig(config.copy(dnsProvider = provider)); dnsExpanded = false }) }
+              }
+              if (config.dnsTransport == DnsTransport.DOH) {
+                item {
+                    SettingSwitchRow(config.allowInvalidDohCertificate, stringResource(R.string.allow_invalid_doh_certificate),
+                        stringResource(R.string.allow_invalid_doh_certificate_warning)) { enabled ->
+                        if (enabled) invalidDohWarning = true else updateConfig(config.copy(allowInvalidDohCertificate = false))
                     }
                 }
-            }
-            if (config.dnsProvider == DnsProvider.CUSTOM) item {
-                val dnsError = fieldError(R.string.validation_doh_https_required, R.string.validation_doh_url)
-                OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } },
-                    label = { FieldLabel(stringResource(R.string.custom_doh_url)) }, isError = dnsError != null,
-                    supportingText = dnsError?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            }
-          } else {
-            item {
-                Text(stringResource(if (config.dnsTransport == DnsTransport.TCP) R.string.insecure_dns_tcp_warning else R.string.insecure_dns_udp_warning),
-                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
-                val dnsError = fieldError(R.string.validation_dns_server, R.string.validation_insecure_dns_disabled)
-                OutlinedTextField(config.customDohUrl.trim().substringAfter("://", ""), { value -> acceptText(value, 256) {
-                    updateConfig(config.copy(customDohUrl = "${config.dnsTransport.scheme}://$it"))
-                } }, label = { FieldLabel(stringResource(R.string.dns_server_ip)) }, isError = dnsError != null,
-                    supportingText = dnsError?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
-            }
-          }
+                item {
+                    ExposedDropdownMenuBox(dnsExpanded, { dnsExpanded = it }) {
+                        OutlinedTextField(activity.uiText(config.dnsProvider.titleRes), {}, readOnly = true, label = { FieldLabel(stringResource(R.string.dns_over_https)) }, trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(dnsExpanded) }, modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth())
+                        DropdownMenu(dnsExpanded, { dnsExpanded = false }) {
+                            DnsProvider.entries.forEach { provider -> DropdownMenuItem(text = { Text(activity.uiText(provider.titleRes)) }, onClick = { updateConfig(config.copy(dnsProvider = provider)); dnsExpanded = false }) }
+                        }
+                    }
+                }
+                if (config.dnsProvider == DnsProvider.CUSTOM) item {
+                    val dnsError = fieldError(R.string.validation_doh_https_required, R.string.validation_doh_url)
+                    OutlinedTextField(config.customDohUrl, { value -> acceptText(value, 2_048) { updateConfig(config.copy(customDohUrl = it)) } },
+                        label = { FieldLabel(stringResource(R.string.custom_doh_url)) }, isError = dnsError != null,
+                        supportingText = dnsError?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+              } else {
+                item {
+                    Text(stringResource(if (config.dnsTransport == DnsTransport.TCP) R.string.insecure_dns_tcp_warning else R.string.insecure_dns_udp_warning),
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    val dnsError = fieldError(R.string.validation_dns_server, R.string.validation_insecure_dns_disabled)
+                    OutlinedTextField(config.customDohUrl.trim().substringAfter("://", ""), { value -> acceptText(value, 256) {
+                        updateConfig(config.copy(customDohUrl = "${config.dnsTransport.scheme}://$it"))
+                    } }, label = { FieldLabel(stringResource(R.string.dns_server_ip)) }, isError = dnsError != null,
+                        supportingText = dnsError?.let { { Text(it) } }, singleLine = true, modifier = Modifier.fillMaxWidth())
+                }
+              }
 
-          item {
-            Text(stringResource(if (isNew && !editorState.persisted) R.string.draft_profile_hint else R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall)
-          }
+              item {
+                Text(stringResource(if (isNew && !editorState.persisted) R.string.draft_profile_hint else R.string.changes_saved_automatically), style = MaterialTheme.typography.bodySmall)
+              }
+            }
         }
     }
 

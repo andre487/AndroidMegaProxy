@@ -2,6 +2,9 @@ package net.megaproxy487
 
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -17,6 +20,14 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+
+/** Keep forms and result cards readable in large windows. */
+@Composable
+internal fun ScreenContent(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    Box(modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Box(Modifier.widthIn(max = 840.dp).fillMaxSize()) { content() }
+    }
+}
 
 /** Actions keep their natural touch targets and wrap instead of squeezing their neighbours. */
 @OptIn(ExperimentalLayoutApi::class)
@@ -78,7 +89,7 @@ internal fun ScreenTitle(title: String) {
 
 @Composable
 internal fun FieldLabel(text: String) {
-    Text(text, maxLines = 1, overflow = TextOverflow.Ellipsis)
+    Text(text)
 }
 
 @Composable

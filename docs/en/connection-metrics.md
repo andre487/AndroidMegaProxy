@@ -109,6 +109,8 @@ These are separate entries in the main menu; they measure different things:
 With split tunneling, select MegaProxy to measure the VPN route. It is selected by default;
 existing application lists gain it once on upgrade. Explicitly removing it afterwards is preserved.
 
+On narrow windows, Speed shows the underlying network and VPN results in separate blocks. Wider windows show a comparison table. The HTTP preference may fall back to lower versions; see the negotiation rules below.
+
 Speed uses 10/25/50 decimal MB per direction per route (10,000,000/25,000,000/50,000,000 bytes).
 Two routes and both directions can consume up to four times the selected payload, plus overhead.
 Default h3 falls back to h2 then h1; h2 permits h1 fallback, h1 stays h1. Fallback applies only to
@@ -125,3 +127,8 @@ and unknown response format are distinct states; unavailable routes are shown se
 Tests parse fixtures rather than contacting ProxyCheck. Full endpoint inventory: [README](../../README.md#privacy-and-security).
 
 [Русская версия](../ru/connection-metrics.md)
+
+UDP forwarding is available with MASQUE, SOCKS5 and HTTPS when HTTP/3 is negotiated.
+HTTPS over TCP and SSH block ordinary UDP; DNS has its own routing rules in the
+[DNS guide](dns.md). Local-network bypass sends TCP directly and also bypasses
+UDP for MASQUE and SOCKS5. It does not provide a direct fallback after tunnel failure.
