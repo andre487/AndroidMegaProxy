@@ -50,6 +50,8 @@ restart, subscription persistence and system DocumentsUI. The runner invokes cas
 instrumentation processes; Keystore seed/verify must remain separate. These tests do not establish
 physical network handover, OEM power policy, every Always-on/lockdown mode or real IPv6 uplink support.
 
+The disposable emulator disables public captive-portal probes, reconnects Wi-Fi on API 35 (the API 26 `svc wifi` client exits with 137) and waits for it to become the validated default network. Before starting VPN scenarios it must receive the local SSH fixture banner through `10.0.2.2`; failure saves network diagnostics and stops the suite without retrying tests.
+
 ## Release acceptance: smoke first, expand by risk
 
 Identify the exact candidate commit, version/ABI, APK SHA-256 and signer. Use full successful CI for
@@ -101,3 +103,27 @@ budget, not permission to skip a failed or blocked critical check.
   failures and material limitations in the relevant PR/release; always restore the device.
 
 CI is unchanged: retain all existing suites, scope rules and independent API checks.
+
+### Local keyboard checks on emulators and phones
+
+Use `KeyboardInsetsDeviceTest` for real-IME geometry checks. It refuses to run against
+`net.megaproxy487`: build its isolated `net.megaproxy487.keyboardreview` app first.
+The isolated app uses synthetic profiles and never starts a VPN. Keep these visual
+configuration checks local; they are not part of the VPN integration CI scenarios.
+
+Unlock phones before starting. The test Activity keeps the screen on without changing the system timeout.
+
+```sh
+bundle exec fastlane run gradle tasks:"assembleDebug assembleDebugAndroidTest" flags:"--no-daemon -I scripts/keyboard-review.gradle"
+adb -s SERIAL install app/build/outputs/apk/debug/app-debug.apk
+adb -s SERIAL install app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb -s SERIAL shell am instrument -w -r -e class net.megaproxy487.KeyboardInsetsDeviceTest -e language en -e orientation landscape -e fontScale 2.0 net.megaproxy487.keyboardreview.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Check API 26 and 35 emulators and connected phones with their usual keyboards:
+portrait, landscape, and landscape with 200% font; include EN/RU. The checks cover
+app search, DoH, an invalid port with a validation notice, subscription interval,
+and a multiline private key. They require a real keyboard to open, enough visible
+field height above it, and navigation returning when the keyboard closes. Inspect typing, cursor visibility
+and scrolling as well. In short windows the app bar disappears while typing; notices
+move into the scrollable form. Orientation and font arguments affect only the test Activity. Afterward uninstall only `net.megaproxy487.keyboardreview.test` and `net.megaproxy487.keyboardreview`.

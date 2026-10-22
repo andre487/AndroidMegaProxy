@@ -363,7 +363,23 @@ def stalled_ssh(shell):
 
 
 def prepare_emulator(shell, api):
-    # Cellular/Wi-Fi validation can switch the default network mid-request.
+    # Fixtures are private: public captive-portal probes must not decide whether
+    # Android supplies their underlying network. Reconnect to apply the setting.
+    previous_default = None
+    shell("settings", "put", "global", "captive_portal_mode", "0")
+    # The API 26 svc Wi-Fi client is killed (137), including on x86_64 CI.
+    # Keep its existing connection; readiness below is required on both APIs.
+    if api >= 35:
+        previous_default = re.search(
+            r"Active default network: (\d+)", shell("dumpsys", "connectivity")
+        )
+        shell("svc", "wifi", "disable")
+        deadline = time.monotonic() + 30
+        while "Wi-Fi is disabled" not in shell("dumpsys", "wifi"):
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Disposable emulator Wi-Fi did not disconnect")
+            time.sleep(0.1)
+        shell("svc", "wifi", "enable")
     # These scenarios test proxy failover, not Android network handover.
     shell("svc", "data", "disable")
     # Unused image apps can obscure tests with crash/ANR dialogs. MegaProxy's
@@ -374,6 +390,28 @@ def prepare_emulator(shell, api):
     }[api]
     shell("am", "force-stop", package)
     shell("pm", "disable-user", "--user", "0", package)
+
+    deadline = time.monotonic() + 30
+    while True:
+        state = shell("dumpsys", "connectivity")
+        default = re.search(r"Active default network: (\d+)", state)
+        if (
+            default
+            and (not previous_default or default[1] != previous_default[1])
+            and any(
+                line.lstrip().startswith("NetworkAgentInfo{")
+                and f"network{{{default[1]}}}" in line
+                and "Transports: WIFI" in line
+                and re.search(r"Capabilities:[^\]]*\bVALIDATED\b", line)
+                for line in state.splitlines()
+            )
+        ):
+            return
+        if time.monotonic() >= deadline:
+            raise RuntimeError(
+                "Disposable emulator has no validated default Wi-Fi network"
+            )
+        time.sleep(0.1)
 
 
 def main():
@@ -397,9 +435,14 @@ def main():
         )
     if shell("getprop", "ro.kernel.qemu") != "1":
         parser.error("Device is not an emulator")
-    prepare_emulator(shell, args.api)
     results = ROOT / "test-results" / f"android-api{args.api}"
     results.mkdir(parents=True, exist_ok=True)
+    try:
+        prepare_emulator(shell, args.api)
+    except (RuntimeError, subprocess.SubprocessError):
+        for service in ("connectivity", "wifi"):
+            (results / f"preflight-{service}.txt").write_text(shell("dumpsys", service))
+        raise
     suite = ET.Element("testsuite", name=f"Android API {args.api}")
     failures = 0
     command(
@@ -416,6 +459,22 @@ def main():
         raise RuntimeError("Failed to reset disposable app data")
     with fixture() as parameters, stalled_ssh(shell) as stalled:
         parameters.update(stalled)
+        # Verify the emulator-to-host leg too, before any VPN or test starts.
+        try:
+            banner = shell(
+                "sh",
+                "-c",
+                f"toybox nc -w 3 -q 1 10.0.2.2 {int(parameters['sshPort'])} </dev/null",
+            )
+            if not banner.startswith("SSH-"):
+                raise RuntimeError("Local SSH fixture did not send its banner")
+        except (RuntimeError, subprocess.SubprocessError):
+            (results / "preflight-connectivity.txt").write_text(
+                shell("dumpsys", "connectivity")
+            )
+            raise RuntimeError(
+                "Disposable emulator cannot reach the local SSH fixture"
+            ) from None
         tests = [(name, None) for name in TESTS]
         if args.api >= 33:
             tests.append(("VpnDeviceTest#deniedNotificationsStillAllowVpn", None))

@@ -11,6 +11,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -26,8 +28,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ButtonDefaults
@@ -35,15 +35,12 @@ import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Switch
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
@@ -122,58 +119,55 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
         }
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { ScreenTitle(stringResource(R.string.split_tunneling)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-            )
-        },
-        bottomBar = {
-            Column {
-            SaveStatusBanner()
-            if (showReconnectPrompt || showAlwaysOnDeferredNotice) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                    ),
-                    modifier = Modifier.fillMaxWidth().padding(12.dp),
-                ) {
-                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
-                        Text(
-                            if (showAlwaysOnDeferredNotice) activity.uiText(R.string.routing_deferred)
-                            else activity.uiText(R.string.routing_reconnect),
+    val compactKeyboard = LocalCompactKeyboard.current
+    val routingStatus: @Composable () -> Unit = {
+        SaveStatusBanner()
+        if (showReconnectPrompt || showAlwaysOnDeferredNotice) {
+            Card(
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                ),
+                modifier = Modifier.fillMaxWidth().padding(12.dp),
+            ) {
+                Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                    Text(
+                        if (showAlwaysOnDeferredNotice) activity.uiText(R.string.routing_deferred)
+                        else activity.uiText(R.string.routing_reconnect),
+                    )
+                    WrappingActions() {
+                        val actionColors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                            disabledContentColor = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f),
                         )
-                        WrappingActions() {
-                            val actionColors = ButtonDefaults.textButtonColors(
-                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                disabledContentColor = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.6f),
-                            )
-                            TextButton(colors = actionColors, shape = RoundedCornerShape(12.dp), onClick = {
+                        TextButton(colors = actionColors, shape = RoundedCornerShape(12.dp), onClick = {
+                            showReconnectPrompt = false
+                            showAlwaysOnDeferredNotice = false
+                            deferChangesUntilNextConnection = true
+                        }) { Text(stringResource(if (showAlwaysOnDeferredNotice) R.string.dismiss else R.string.next_connection)) }
+                        if (showReconnectPrompt) {
+                            TextButton(colors = actionColors, shape = RoundedCornerShape(12.dp), enabled = writeStatus.pending == 0 && !writeStatus.failed, onClick = {
                                 showReconnectPrompt = false
-                                showAlwaysOnDeferredNotice = false
                                 deferChangesUntilNextConnection = true
-                            }) { Text(stringResource(if (showAlwaysOnDeferredNotice) R.string.dismiss else R.string.next_connection)) }
-                            if (showReconnectPrompt) {
-                                TextButton(colors = actionColors, shape = RoundedCornerShape(12.dp), enabled = writeStatus.pending == 0 && !writeStatus.failed, onClick = {
-                                    showReconnectPrompt = false
-                                    deferChangesUntilNextConnection = true
-                                    ProxyVpnService.reconnect(activity)
-                                }) { Text(stringResource(R.string.reconnect_now)) }
-                            }
+                                ProxyVpnService.reconnect(activity)
+                            }) { Text(stringResource(R.string.reconnect_now)) }
                         }
                     }
                 }
             }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            EditingTopAppBar(stringResource(R.string.split_tunneling), onBack, compactKeyboard)
+        },
+        bottomBar = {
+            Column(Modifier.navigationBarsPadding().imePadding()) {
+                if (!compactKeyboard) routingStatus()
             }
         },
-        // Use one inset source. Applying safeDrawing in Scaffold and imePadding to
-        // its child can double-apply or misreport the IME area on some OEM builds.
+        // A supplied bottom bar owns bottom insets, even when it has no visible notices.
         contentWindowInsets = WindowInsets.systemBars.union(WindowInsets.ime),
     ) { padding ->
         ScreenContent(Modifier.padding(padding)) {
@@ -182,6 +176,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                 contentPadding = androidx.compose.foundation.layout.PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(6.dp),
             ) {
+                item(key = "routing-status") { if (compactKeyboard) routingStatus() }
                 item { Text(stringResource(R.string.routing_mode), style = MaterialTheme.typography.titleMedium) }
                 item {
                     Column(Modifier.selectableGroup()) {
@@ -266,13 +261,13 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                             CircularProgressIndicator()
                         }
                     }
-                    item {
+                    item(key = "app-search") {
                         OutlinedTextField(
                             value = appSearch,
                             onValueChange = { appSearch = it },
                             label = { FieldLabel(stringResource(R.string.search_applications)) },
                             singleLine = true,
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxWidth().revealOnKeyboard(),
                         )
                     }
                     items(visibleApps, key = { it.packageName }) { app ->

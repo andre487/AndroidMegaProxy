@@ -35,7 +35,9 @@ class DocumentsDeviceTest : DeviceTestBase() {
         return result
     }
     private fun downloads() {
-        systemNode(By.desc("Show roots")).click()
+        val roots = systemNode(By.desc("Show roots"))
+        if (device.hasObject(By.res(java.util.regex.Pattern.compile(".*:id/breadcrumb_text")).text("Downloads"))) return
+        roots.click()
         systemNode(By.res("android:id/title").text("Downloads"))
         // Drawer animation changes coordinates after discovery. Invoke the row's action instead.
         var node = requireNotNull(instrumentation.uiAutomation.rootInActiveWindow
