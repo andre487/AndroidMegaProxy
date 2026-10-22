@@ -150,7 +150,7 @@ class MainActivity : LocalizedActivity() {
         super.onResume()
         ProxyVpnService.refreshStatus(this)
         lifecycleScope.launch {
-            val status = readAlwaysOnVpnStatus(this@MainActivity)
+            val status = withContext(net.megaproxy487.data.ConfigIoDispatcher) { readAlwaysOnVpnStatus(this@MainActivity) }
             val profileId = withContext(ConfigIoDispatcher) {
                 val store = ConfigStore(this@MainActivity)
                 if (status.enabled && !ProxyVpnService.isRunning && !store.isFailoverActive()) store.alwaysOnProfileId() else store.connectionProfileId()
@@ -276,7 +276,7 @@ internal fun MainScreen(
     var activeProfileId by remember { mutableStateOf("") }
     var connectionProfileId by remember { mutableStateOf("") }
     var connectionStats by remember { mutableStateOf<DisplayedConnectionStats?>(null) }
-    var systemVpnStatus by remember { mutableStateOf(readAlwaysOnVpnStatus(activity)) }
+    var systemVpnStatus by remember { mutableStateOf(net.megaproxy487.vpn.AlwaysOnVpnStatus(ProxyVpnService.isAlwaysOnMode, ProxyVpnService.isLockdownMode, null)) }
     var showCrashReport by remember { mutableStateOf(CrashHandler.hasPendingReport()) }
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
     var pendingReconnect by remember { mutableStateOf(false) }
@@ -366,29 +366,27 @@ internal fun MainScreen(
         }
     }
     val vpnPermission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
-        if (VpnService.prepare(activity) == null) {
-            if (!isAlwaysOnVpnActive(activity)) ProxyVpnService.start(activity) else error = null
-        } else {
-            val status = readAlwaysOnVpnStatus(activity)
-            if (status.hasOtherProvider) {
+        scope.launch {
+            val status = withContext(net.megaproxy487.data.ConfigIoDispatcher) { readAlwaysOnVpnStatus(activity) }
+            systemVpnStatus = status
+            if (VpnService.prepare(activity) == null) {
+                if (!status.enabled) ProxyVpnService.start(activity) else error = null
+            } else if (status.hasOtherProvider) {
                 error = null
                 showAlwaysOnConflict = true
-            } else {
-                error = activity.uiText(R.string.vpn_permission_denied)
-            }
+            } else error = activity.uiText(R.string.vpn_permission_denied)
         }
     }
     val requestVpnAccess = {
-        val status = readAlwaysOnVpnStatus(activity)
-        if (status.hasOtherProvider) {
-            error = null
-            showAlwaysOnConflict = true
-        } else {
-            val intent = VpnService.prepare(activity)
-            if (intent == null) {
-                ProxyVpnService.start(activity)
-            } else {
-                vpnPermission.launch(intent)
+        scope.launch {
+            val status = withContext(net.megaproxy487.data.ConfigIoDispatcher) { readAlwaysOnVpnStatus(activity) }
+            systemVpnStatus = status
+            if (status.hasOtherProvider) {
+                error = null
+                showAlwaysOnConflict = true
+            } else if (!status.enabled) {
+                val intent = VpnService.prepare(activity)
+                if (intent == null) ProxyVpnService.start(activity) else vpnPermission.launch(intent)
             }
         }
     }
@@ -396,22 +394,15 @@ internal fun MainScreen(
         requestVpnAccess()
     }
     val connect = {
-        if (isAlwaysOnVpnActive(activity)) {
-            systemVpnStatus = readAlwaysOnVpnStatus(activity)
-            error = null
-        } else {
-            error = globalSettings.applyTo((profiles.firstOrNull { it.id == activeProfileId } ?: profiles.first()).config).validationError()?.let { activity.uiText(it) }
-        }
-        if (error == null && !isAlwaysOnVpnActive(activity)) {
+        error = if (alwaysOn) null else globalSettings.applyTo(
+            (profiles.firstOrNull { it.id == activeProfileId } ?: profiles.first()).config
+        ).validationError()?.let { activity.uiText(it) }
+        if (error == null && !alwaysOn) {
             if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
-                    activity,
-                    Manifest.permission.POST_NOTIFICATIONS,
+                    activity, Manifest.permission.POST_NOTIFICATIONS,
                 ) != PackageManager.PERMISSION_GRANTED
-            ) {
-                notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            } else {
-                requestVpnAccess()
-            }
+            ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+            else requestVpnAccess()
         }
     }
 
@@ -543,7 +534,7 @@ internal fun MainScreen(
                 Text(error ?: stringResource(R.string.loading_configuration))
                 if (connection != VpnConnectionState.DISCONNECTED) {
                     Button(onClick = {
-                        if (!isAlwaysOnVpnActive(activity)) ProxyVpnService.stop(activity)
+                        if (!alwaysOn) ProxyVpnService.stop(activity)
                     }, enabled = !alwaysOn, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.disconnect))
                     }
@@ -611,7 +602,7 @@ internal fun MainScreen(
                                         )
                                     },
                                     onClick = {
-                                        val useAsAlwaysOn = isAlwaysOnVpnActive(activity)
+                                        val useAsAlwaysOn = alwaysOn
                                         if (useAsAlwaysOn) {
                                             connectionProfileId = profile.id
                                         } else {
@@ -646,8 +637,8 @@ internal fun MainScreen(
             }
             Button(shape = RoundedCornerShape(12.dp),
                 onClick = {
-                    if (isAlwaysOnVpnActive(activity)) {
-                        systemVpnStatus = readAlwaysOnVpnStatus(activity)
+                    if (alwaysOn) {
+                        scope.launch { systemVpnStatus = withContext(net.megaproxy487.data.ConfigIoDispatcher) { readAlwaysOnVpnStatus(activity) } }
                     } else if (connection != VpnConnectionState.DISCONNECTED) {
                         ProxyVpnService.stop(activity)
                     } else {
@@ -787,8 +778,6 @@ internal fun MainScreen(
 
 }
 
-private fun isAlwaysOnVpnActive(activity: Activity): Boolean =
-    ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled
 
 internal data class DisplayedConnectionStats(
     val native: NativeConnectionStats,

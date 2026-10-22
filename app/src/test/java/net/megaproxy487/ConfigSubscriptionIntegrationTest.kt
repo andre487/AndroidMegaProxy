@@ -34,7 +34,11 @@ class ConfigSubscriptionIntegrationTest {
         UiTestKeyStore.keys.clear()
         Security.addProvider(UiTestKeyStoreProvider())
     }
+    private fun drainScheduling() = runBlocking {
+        kotlinx.coroutines.withContext(ConfigIoDispatcher) {}
+    }
     @After fun removeKeys() {
+        drainScheduling()
         context.getSystemService(JobScheduler::class.java).cancel(SUBSCRIPTION_JOB_ID)
         Security.removeProvider("AndroidKeyStore")
         UiTestKeyStore.keys.clear()
@@ -243,6 +247,7 @@ class ConfigSubscriptionIntegrationTest {
     @Test fun failoverTriesInOrderRestartsAtPrimaryAndManualRefreshWorksWhilePaused() = runBlocking {
         bootstrap(profile("one"))
         store.saveSubscription(settings.copy(enabled = false))
+        drainScheduling()
         val calls = mutableListOf<String>()
         val result = ConfigSubscriptions.refreshNow(context, manual = true, download = { _, url ->
             calls += url
@@ -277,6 +282,7 @@ class ConfigSubscriptionIntegrationTest {
         val before = store.profiles()
         assertFalse(ConfigSubscriptions.refreshNow(context, true, { _, _ ->
             store.saveSubscription(settings.copy(enabled = false))
+        drainScheduling()
             document(profile("two"), subscription = settings.copy(url = "https://obsolete.example/config")).toString()
         }, { false }))
         assertEquals(before, store.profiles())
@@ -311,17 +317,21 @@ class ConfigSubscriptionIntegrationTest {
     }
     @Test @Config(sdk = [26]) fun oneMinuteSchedulingPersistsAcrossStartupAndPauseCancelsIt() {
         store.saveSubscription(settings.copy(intervalMinutes = 1))
+        drainScheduling()
         val scheduler = context.getSystemService(JobScheduler::class.java)
         val first = scheduler.getPendingJob(SUBSCRIPTION_JOB_ID)!!
         assertTrue(first.isPersisted)
         assertEquals(android.app.job.JobInfo.NETWORK_TYPE_ANY, first.networkType)
         assertEquals(0, first.minLatencyMillis)
         ConfigSubscriptions.schedule(context)
+        drainScheduling()
         assertEquals(first.extras.getString("stamp"), scheduler.getPendingJob(SUBSCRIPTION_JOB_ID)!!.extras.getString("stamp"))
         store.recordSubscriptionFailure(store.subscriptionState()!!.generation, System.currentTimeMillis())
         ConfigSubscriptions.schedule(context)
+        drainScheduling()
         assertTrue(scheduler.getPendingJob(SUBSCRIPTION_JOB_ID)!!.minLatencyMillis in 1..60_000)
         store.saveSubscription(settings.copy(enabled = false))
+        drainScheduling()
         assertNull(scheduler.getPendingJob(SUBSCRIPTION_JOB_ID))
     }
 

@@ -80,10 +80,11 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
     val http3 by TestDiagnosticLog.http3
     val http3Fallback by TestDiagnosticLog.http3Fallback
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (VpnService.prepare(activity) == null) ProxyVpnService.test(activity)
-        else {
-            val status = readAlwaysOnVpnStatus(activity)
+        else scope.launch {
+            val status = withContext(net.megaproxy487.data.ConfigIoDispatcher) { readAlwaysOnVpnStatus(activity) }
             if (status.hasOtherProvider) {
                 TestDiagnosticLog.fail(activity.uiText(R.string.other_always_on_vpn))
                 showAlwaysOnConflict = true
@@ -92,7 +93,6 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
             }
         }
     }
-    val scope = rememberCoroutineScope()
     val runTest = runTest@{
         if (TestDiagnosticLog.state.value == TestState.RUNNING) return@runTest
         TestDiagnosticLog.begin()
@@ -107,7 +107,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                 if (error != null) {
                     TestDiagnosticLog.fail(error)
                 } else {
-                    val status = readAlwaysOnVpnStatus(activity)
+                    val status = withContext(net.megaproxy487.data.ConfigIoDispatcher) { readAlwaysOnVpnStatus(activity) }
                     if (status.hasOtherProvider) {
                         TestDiagnosticLog.fail(activity.uiText(R.string.other_always_on_vpn))
                         showAlwaysOnConflict = true

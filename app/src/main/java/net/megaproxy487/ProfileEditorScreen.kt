@@ -68,7 +68,7 @@ import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.vpn.ProxyVpnService
-import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.vpn.rememberAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
 import java.util.Locale
 import androidx.lifecycle.ViewModel
@@ -117,7 +117,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     val isNew = profileId == "new"
     val initial = readConfiguration(profileId.orEmpty() + draftId) {
         val existing = if (isNew) store.profile(draftId) else store.profile(profileId.orEmpty()) ?: store.activeProfile()
-        Triple(existing ?: store.newProfileDraft(draftId), existing != null, store.globalConnectionSettings())
+        Triple(existing ?: store.newProfileDraft(draftId), existing != null, store.globalConnectionSettings() to store.connectionProfileId())
     } ?: return
     val editorState = viewModel {
         ProfileEditorState(initial.first).also { it.persisted = initial.second }
@@ -148,7 +148,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     }
 
     val writeStatus by ConfigWrites.status.collectAsState()
-    var globalSettings by remember(store) { mutableStateOf(initial.third) }
+    var globalSettings by remember(store) { mutableStateOf(initial.third.first) }
     androidx.compose.runtime.LaunchedEffect(writeStatus) {
         if (writeStatus.pending == 0) {
             withContext(net.megaproxy487.data.ConfigIoDispatcher) {
@@ -157,8 +157,8 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
         }
     }
     val editedConnectionProfileId = net.megaproxy487.vpn.VpnRuntimeState.connectionProfileId.value
-        .ifEmpty { store.connectionProfileId() }
-    val alwaysOnActive = ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled
+        .ifEmpty { initial.third.second }
+    val alwaysOnActive = (rememberAlwaysOnVpnStatus(activity) ?: return).enabled
     fun saveProfile(affectsConnection: Boolean = false) {
         val snapshot = profile
         val edit = editorState.edits.profile(editorState.submittedProfile, snapshot)
@@ -294,12 +294,19 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                         countries.forEach { (code, name) ->
                             val flag = net.megaproxy487.model.ProxyProfile("", colorIndex = 0, countryCode = code).flagEmoji
                             DropdownMenuItem(text = { Text("$flag $name") }, onClick = {
-                                profile = profile.copy(
-                                    countryCode = code,
-                                    colorIndex = ProfileColorMatcher.colorIndexForFlag(code, profile.colorIndex),
-                                )
+                                profile = profile.copy(countryCode = code)
                                 saveProfile()
                                 countryExpanded = false
+                                val fallback = profile.colorIndex
+                                coroutineScope.launch {
+                                    val color = withContext(net.megaproxy487.data.ConfigIoDispatcher) {
+                                        ProfileColorMatcher.colorIndexForFlag(code, fallback)
+                                    }
+                                    if (profile.countryCode == code) {
+                                        profile = profile.copy(colorIndex = color)
+                                        saveProfile()
+                                    }
+                                }
                             })
                         }
                     }

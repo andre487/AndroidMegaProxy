@@ -79,6 +79,7 @@ import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.VpnRuntimeState
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
+import net.megaproxy487.vpn.rememberAlwaysOnVpnStatus
 import net.megaproxy487.ui.theme.MegaProxyTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -154,7 +155,7 @@ internal fun SettingsHomeScreen(activity: Activity, onBack: () -> Unit, onNaviga
         SettingsButton(stringResource(R.string.feedback), stringResource(R.string.feedback_description)) {
             scope.launch {
                 runCatching {
-                    val status = readAlwaysOnVpnStatus(activity)
+                    val status = withContext(net.megaproxy487.data.ConfigIoDispatcher) { readAlwaysOnVpnStatus(activity) }
                     val intent = withContext(Dispatchers.IO) {
                         FeedbackEmail.createIntent(
                             activity,
@@ -274,7 +275,7 @@ internal fun FailoverSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val edits = remember { net.megaproxy487.data.ConfigEdits<net.megaproxy487.model.GlobalConnectionSettings>() }
     var expanded by remember { mutableStateOf(false) }
     var pendingAll by remember { mutableStateOf(false) }
-    val alwaysOn = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
+    val alwaysOn = (rememberAlwaysOnVpnStatus(activity) ?: return).enabled
     fun save(mode: FailoverMode = settings.failoverMode, ids: List<String> = settings.failoverProfileIds) {
         val updated = settings.copy(failoverMode = mode, failoverProfileIds = ids)
         val edit = edits.settings(settings, updated)
@@ -351,7 +352,7 @@ internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
     val scope = rememberCoroutineScope()
     var expanded by remember { mutableStateOf(false) }
     var selected by remember { mutableStateOf(initial.second) }
-    val alwaysOnActive = remember { ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled }
+    val alwaysOnActive = (rememberAlwaysOnVpnStatus(activity) ?: return).enabled
     SettingsScaffold(onBack, stringResource(R.string.always_on_vpn)) {
         ExposedDropdownMenuBox(expanded, { expanded = it }) {
             OutlinedTextField(
@@ -388,6 +389,7 @@ internal fun AlwaysOnSettingsScreen(activity: Activity, onBack: () -> Unit) {
 internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
     val store = remember { ConfigStore(activity) }
     val scope = rememberCoroutineScope()
+    val alwaysOnActive = (rememberAlwaysOnVpnStatus(activity) ?: return).enabled
     val initial = readConfiguration(store) { store.globalConnectionSettings() } ?: return
     var settings by remember { mutableStateOf(initial) }
     val edits = remember { net.megaproxy487.data.ConfigEdits<net.megaproxy487.model.GlobalConnectionSettings>() }
@@ -409,7 +411,7 @@ internal fun TlsFingerprintScreen(activity: Activity, onBack: () -> Unit) {
             if (ProxyVpnService.isRunning) store.markPendingReconnect()
         }
         if (ProxyVpnService.isRunning && !deferred) {
-            if (ProxyVpnService.isAlwaysOnMode || readAlwaysOnVpnStatus(activity).enabled) {
+            if (alwaysOnActive) {
                 deferred = true; showAlwaysOnNotice = true
             } else showReconnectPrompt = true
         }

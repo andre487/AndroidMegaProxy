@@ -87,5 +87,9 @@ object TestDiagnosticLog {
         mutableState.value = TestState.FAILED
     }
 
+    fun failIfRunning(message: String) = onMain {
+        if (mutableState.value == TestState.RUNNING) fail(message)
+    }
+
     private const val MAX_PENDING_UI_UPDATES = 512
 }

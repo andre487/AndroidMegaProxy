@@ -30,12 +30,14 @@ class RuntimeOrderingRegressionTest {
 
  @Test fun queuedSessionCallbacksCannotChangeReplacement() {
   val service = org.robolectric.Robolectric.buildService(ProxyVpnService::class.java).get()
+  shadowOf(service.monitorHandler.looper).pause()
   val generation = ProxyVpnService::class.java.getDeclaredField("startGeneration")
    .apply { isAccessible = true }.get(service) as java.util.concurrent.atomic.AtomicLong
   var completions = 0
   service.runForGeneration(generation.get()) { completions++ }
   generation.incrementAndGet() // Stop/Reconnect replaces the owner before delivery.
   service.runForGeneration(generation.get()) { completions += 10 }
+  shadowOf(service.monitorHandler.looper).idle()
   shadowOf(Looper.getMainLooper()).idle()
   assertEquals(10, completions)
  }
@@ -60,12 +62,14 @@ class RuntimeOrderingRegressionTest {
 
  @Test fun oldTemporaryTestCannotStopReplacementOrPublishSuccess() {
   val service = org.robolectric.Robolectric.buildService(ProxyVpnService::class.java).get()
+  shadowOf(service.monitorHandler.looper).pause()
   val generation = ProxyVpnService::class.java.getDeclaredField("startGeneration")
    .apply { isAccessible = true }.get(service) as java.util.concurrent.atomic.AtomicLong
   TestDiagnosticLog.begin()
   service.finishConnectionTest(generation.get(), true, ConnectionTestResult("192.0.2.1", null))
   generation.incrementAndGet()
   VpnRuntimeState.update(VpnConnectionState.CONNECTED)
+  shadowOf(service.monitorHandler.looper).idle()
   shadowOf(Looper.getMainLooper()).idle()
   try {
    org.junit.Assert.assertFalse(shadowOf(service).isStoppedBySelf)

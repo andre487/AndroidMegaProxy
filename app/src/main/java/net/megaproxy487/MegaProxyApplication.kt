@@ -3,6 +3,10 @@ package net.megaproxy487
 import android.app.Application
 import android.content.Context
 import net.megaproxy487.data.ConfigStore
+import net.megaproxy487.data.ConfigIoDispatcher
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 
 class MegaProxyApplication : Application() {
@@ -12,10 +16,12 @@ class MegaProxyApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
-        val store = ConfigStore(this)
-        PersistentDiagnosticLog.initialize(this, store.diagnosticLogLimitMb())
         CrashHandler.install(this)
-        UpdateNotifications.schedule(this)
-        ConfigSubscriptions.schedule(this)
+        CoroutineScope(SupervisorJob() + ConfigIoDispatcher).launch {
+            val store = ConfigStore(this@MegaProxyApplication)
+            PersistentDiagnosticLog.initialize(this@MegaProxyApplication, store.diagnosticLogLimitMb())
+            UpdateNotifications.schedule(this@MegaProxyApplication)
+            ConfigSubscriptions.schedule(this@MegaProxyApplication)
+        }
     }
 }

@@ -24,6 +24,11 @@ and test Keystore; recorded service intents do not prove real service/JNI behavi
 configuration writes and check failure state, not only `pending == 0`. Native tests use controlled
 servers, never a personal/public proxy. Do not write tests that merely mirror trivial presentation code.
 
+Threading changes need a controlled slow-worker test that keeps the main looper responsive,
+including native teardown and subscription scheduling. Service callbacks must retain command/session
+ordering after moving off Main. UI automation waits for Compose's accessibility tree before choosing
+whether to scroll; a runtime state update alone does not prove the matching control is rendered.
+
 ## Required CI
 
 - PRs select suites against each suite's last successful ancestor in the same PR/base. Failed,
