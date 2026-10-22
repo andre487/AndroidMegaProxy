@@ -97,10 +97,10 @@ internal fun ConfigSubscriptionScreen(activity: Activity, onBack: () -> Unit, dr
             }
             if (!readError && draft.loaded) {
                 OutlinedTextField(draft.url, { draft.url = it }, label = { FieldLabel(stringResource(R.string.subscription_url)) },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = !busy)
+                    modifier = Modifier.fillMaxWidth().revealOnKeyboard(), singleLine = true, enabled = !busy)
                 OutlinedTextField(draft.backups, { draft.backups = it }, label = { FieldLabel(stringResource(R.string.subscription_backups)) },
                     supportingText = { Text(stringResource(R.string.subscription_backups_hint)) },
-                    modifier = Modifier.fillMaxWidth(), enabled = !busy)
+                    modifier = Modifier.fillMaxWidth().revealOnKeyboard(), enabled = !busy)
                 Row(
                     Modifier.fillMaxWidth().toggleable(
                         value = draft.authenticated,
@@ -115,7 +115,7 @@ internal fun ConfigSubscriptionScreen(activity: Activity, onBack: () -> Unit, dr
                 }
                 if (draft.authenticated) {
                     OutlinedTextField(draft.username, { draft.username = it }, label = { FieldLabel(stringResource(R.string.basic_auth_username)) },
-                        modifier = Modifier.fillMaxWidth(), singleLine = true, enabled = !busy)
+                        modifier = Modifier.fillMaxWidth().revealOnKeyboard(), singleLine = true, enabled = !busy)
                     PasswordField(draft.password, { draft.password = it }, stringResource(R.string.password), modifier = Modifier.fillMaxWidth())
                 }
                 IntegerInputField(draft.interval, { draft.interval = it }, 1..10080,

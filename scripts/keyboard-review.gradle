@@ -1,0 +1,7 @@
+gradle.beforeProject { project ->
+    project.plugins.withId('com.android.application') {
+        project.extensions.getByName('androidComponents').finalizeDsl { dsl ->
+            dsl.defaultConfig.applicationId = 'net.megaproxy487.keyboardreview'
+        }
+    }
+}

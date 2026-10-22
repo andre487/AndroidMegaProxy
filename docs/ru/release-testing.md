@@ -102,3 +102,27 @@ instrumentation-процессом; Keystore seed/verify должны остав
   укажите проверенную область, ошибки и существенные ограничения; устройство обязательно восстановите.
 
 CI не меняется: сохраняются все наборы, scope rules и независимые API-проверки.
+
+### Локальная проверка клавиатуры на эмуляторах и телефонах
+
+`KeyboardInsetsDeviceTest` проверяет геометрию полей с настоящей клавиатурой.
+Он отказывается работать с `net.megaproxy487`: сначала соберите отдельное приложение
+`net.megaproxy487.keyboardreview`. В нём используются тестовые профили, VPN не запускается.
+Эти проверки конфигураций UI остаются локальными и не входят в интеграционные VPN-сценарии CI.
+
+```sh
+bundle exec fastlane run gradle tasks:"assembleDebug assembleDebugAndroidTest" flags:"--no-daemon -I scripts/keyboard-review.gradle"
+adb -s SERIAL install app/build/outputs/apk/debug/app-debug.apk
+adb -s SERIAL install app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb -s SERIAL shell am instrument -w -r -e class net.megaproxy487.KeyboardInsetsDeviceTest -e language ru -e orientation landscape -e fontScale 2.0 net.megaproxy487.keyboardreview.test/androidx.test.runner.AndroidJUnitRunner
+```
+
+Проверьте эмуляторы API 26/35 и подключённые телефоны с их обычными клавиатурами:
+портретную и альбомную ориентации, затем альбомную со шрифтом 200%; включите EN/RU.
+Проверки охватывают поиск приложений, DoH, ошибочный порт с сообщением проверки,
+интервал подписки и многострочный приватный ключ. Они требуют открытия настоящей
+клавиатуры, достаточной высоты поля над ней и восстановления навигации после закрытия клавиатуры.
+Также осмотрите ввод, видимость курсора и прокрутку. В коротком окне панель заголовка
+скрывается на время ввода, а сообщения переходят в прокручиваемую форму. Аргументы ориентации и шрифта
+влияют только на тестовую Activity. После проверки удалите только `net.megaproxy487.keyboardreview.test`
+и `net.megaproxy487.keyboardreview`.

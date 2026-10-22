@@ -89,7 +89,7 @@ internal fun MtuSettingsScreen(activity: Activity, onBack: () -> Unit) {
                 singleLine = true,
                 isError = value == null,
                 supportingText = { Text(stringResource(R.string.mtu_invalid)) },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().revealOnKeyboard(),
             )
             Button(onClick = { value?.let(::save) }, enabled = value != null && value != settings.mtu) {
                 Text(stringResource(R.string.apply_new_settings))

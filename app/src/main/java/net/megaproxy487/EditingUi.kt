@@ -1,5 +1,9 @@
 package net.megaproxy487
 
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.relocation.bringIntoViewRequester
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -39,7 +43,7 @@ internal fun PasswordField(value: String, onValueChange: (String) -> Unit, label
     // Never persist either the secret or its visible state in an Android saved-state bundle.
     var visible by remember { mutableStateOf(false) }
     OutlinedTextField(value, onValueChange, label = { FieldLabel(label) }, singleLine = true,
-        modifier = modifier, isError = error != null,
+        modifier = modifier.revealOnKeyboard(), isError = error != null,
         supportingText = error?.let { { Text(it) } },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         visualTransformation = if (visible) VisualTransformation.None else PasswordVisualTransformation(),
@@ -56,7 +60,23 @@ internal fun IntegerInputField(text: String, onTextChange: (String) -> Unit, ran
     OutlinedTextField(text, { value ->
         onTextChange(value)
         validIntegerInput(value, range)?.let(onValidValue)
-    }, label = { FieldLabel(label) }, singleLine = true, modifier = modifier,
+    }, label = { FieldLabel(label) }, singleLine = true, modifier = modifier.revealOnKeyboard(),
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), isError = !valid,
         supportingText = if (!valid) { { Text(uiStringResource(R.string.integer_not_saved, range.first, range.last)) } } else null)
+}
+
+/** Re-reveal the whole field after the IME changes the scroll viewport. */
+@OptIn(androidx.compose.foundation.ExperimentalFoundationApi::class)
+@Composable
+internal fun Modifier.revealOnKeyboard(): Modifier {
+    val requester = remember { androidx.compose.foundation.relocation.BringIntoViewRequester() }
+    var focused by remember { mutableStateOf(false) }
+    var height by remember { mutableStateOf(0) }
+    val imeBottom = androidx.compose.foundation.layout.WindowInsets.ime.getBottom(androidx.compose.ui.platform.LocalDensity.current)
+    LaunchedEffect(focused, imeBottom, height) {
+        if (focused) requester.bringIntoView()
+    }
+    return this.bringIntoViewRequester(requester)
+        .onFocusChanged { focused = it.hasFocus }
+        .onSizeChanged { height = it.height }
 }
