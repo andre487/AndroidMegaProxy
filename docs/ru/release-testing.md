@@ -110,6 +110,8 @@ CI не меняется: сохраняются все наборы, scope rule
 `net.megaproxy487.keyboardreview`. В нём используются тестовые профили, VPN не запускается.
 Эти проверки конфигураций UI остаются локальными и не входят в интеграционные VPN-сценарии CI.
 
+Перед запуском разблокируйте телефоны. Тестовая Activity удерживает экран включённым, не меняя системный тайм-аут.
+
 ```sh
 bundle exec fastlane run gradle tasks:"assembleDebug assembleDebugAndroidTest" flags:"--no-daemon -I scripts/keyboard-review.gradle"
 adb -s SERIAL install app/build/outputs/apk/debug/app-debug.apk

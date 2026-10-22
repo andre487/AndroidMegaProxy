@@ -64,6 +64,7 @@ class KeyboardInsetsDeviceTest {
         scenario = ActivityScenario.launch(Intent(context, MainActivity::class.java))
         val landscape = arguments.getString("orientation") == "landscape"
         scenario.onActivity {
+            it.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             it.requestedOrientation = if (landscape) ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE else ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
         val deadline = SystemClock.elapsedRealtime() + 10_000
@@ -77,6 +78,7 @@ class KeyboardInsetsDeviceTest {
         assertTrue("Activity did not rotate", oriented)
         // Configuration can be updated on the old Activity before its recreation finishes.
         scenario.recreate()
+        scenario.onActivity { it.window.addFlags(android.view.WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON) }
         instrumentation.waitForIdleSync()
         device.waitForIdle()
     }

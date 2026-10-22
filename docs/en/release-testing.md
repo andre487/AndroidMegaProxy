@@ -109,6 +109,8 @@ Use `KeyboardInsetsDeviceTest` for real-IME geometry checks. It refuses to run a
 The isolated app uses synthetic profiles and never starts a VPN. Keep these visual
 configuration checks local; they are not part of the VPN integration CI scenarios.
 
+Unlock phones before starting. The test Activity keeps the screen on without changing the system timeout.
+
 ```sh
 bundle exec fastlane run gradle tasks:"assembleDebug assembleDebugAndroidTest" flags:"--no-daemon -I scripts/keyboard-review.gradle"
 adb -s SERIAL install app/build/outputs/apk/debug/app-debug.apk
