@@ -1,0 +1,4 @@
+- Fixed interface blocking caused by slow configuration reads and VPN shutdown.
+- Editing fields stay above the keyboard, with more typing space in short windows.
+- Speed results use separate network blocks on narrow screens or with large fonts, and test options wrap.
+- Profile lists, forms and diagnostic results are centered with a limited width in large windows.
