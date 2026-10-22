@@ -60,22 +60,42 @@ class InstrumentationResultTest(unittest.TestCase):
             (35, "com.google.android.apps.nexuslauncher"),
         ]:
             with self.subTest(api=api):
-                shell = Mock(
-                    return_value="Active default network: 100\nNetworkAgentInfo{ network{100} nc{[ Transports: WIFI Capabilities: INTERNET&NOT_VPN&VALIDATED]}}"
+                ready = "Active default network: 100\nNetworkAgentInfo{ network{100} nc{[ Transports: WIFI Capabilities: INTERNET&NOT_VPN&VALIDATED]}}"
+                connections = iter(
+                    ["Active default network: 99", ready.replace("100", "99"), ready]
+                    if api >= 35
+                    else [ready]
                 )
+
+                def response(*args):
+                    if args == ("dumpsys", "connectivity"):
+                        return next(connections)
+                    if args == ("dumpsys", "wifi"):
+                        return "Wi-Fi is disabled"
+                    return ""
+
+                shell = Mock(side_effect=response)
                 m.prepare_emulator(shell, api)
-                self.assertEqual(
-                    [
-                        call("svc", "wifi", "disable"),
-                        call("settings", "put", "global", "captive_portal_mode", "0"),
-                        call("svc", "wifi", "enable"),
-                        call("svc", "data", "disable"),
-                        call("am", "force-stop", package),
-                        call("pm", "disable-user", "--user", "0", package),
-                        call("dumpsys", "connectivity"),
-                    ],
-                    shell.call_args_list,
+                self.assertIsNone(
+                    next(connections, None),
+                    "The stale pre-reconnect network must not satisfy readiness",
                 )
+                shell.assert_any_call("svc", "data", "disable")
+                shell.assert_any_call(
+                    "settings", "put", "global", "captive_portal_mode", "0"
+                )
+                shell.assert_any_call("am", "force-stop", package)
+                shell.assert_any_call("pm", "disable-user", "--user", "0", package)
+                if api == 26:
+                    self.assertNotIn(
+                        call("svc", "wifi", "disable"), shell.call_args_list
+                    )
+                    self.assertNotIn(
+                        call("svc", "wifi", "enable"), shell.call_args_list
+                    )
+                else:
+                    shell.assert_any_call("svc", "wifi", "disable")
+                    shell.assert_any_call("svc", "wifi", "enable")
                 self.assertNotIn(m.PACKAGE, str(shell.call_args_list))
 
     def test_emulator_rejects_an_unvalidated_default_network(self):
@@ -88,7 +108,7 @@ class InstrumentationResultTest(unittest.TestCase):
                 patch.object(m.time, "monotonic", side_effect=[0, 31]),
             ):
                 with self.assertRaisesRegex(RuntimeError, "no validated default Wi-Fi"):
-                    m.prepare_emulator(Mock(return_value=state), 35)
+                    m.prepare_emulator(Mock(return_value=state), 26)
 
     def test_logcat_failure_preserves_evidence_and_failed_report(self):
         suite = ET.Element("testsuite")

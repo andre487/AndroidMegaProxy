@@ -365,9 +365,21 @@ def stalled_ssh(shell):
 def prepare_emulator(shell, api):
     # Fixtures are private: public captive-portal probes must not decide whether
     # Android supplies their underlying network. Reconnect to apply the setting.
-    shell("svc", "wifi", "disable")
+    previous_default = None
     shell("settings", "put", "global", "captive_portal_mode", "0")
-    shell("svc", "wifi", "enable")
+    # The API 26 svc Wi-Fi client is killed (137), including on x86_64 CI.
+    # Keep its existing connection; readiness below is required on both APIs.
+    if api >= 35:
+        previous_default = re.search(
+            r"Active default network: (\d+)", shell("dumpsys", "connectivity")
+        )
+        shell("svc", "wifi", "disable")
+        deadline = time.monotonic() + 30
+        while "Wi-Fi is disabled" not in shell("dumpsys", "wifi"):
+            if time.monotonic() >= deadline:
+                raise RuntimeError("Disposable emulator Wi-Fi did not disconnect")
+            time.sleep(0.1)
+        shell("svc", "wifi", "enable")
     # These scenarios test proxy failover, not Android network handover.
     shell("svc", "data", "disable")
     # Unused image apps can obscure tests with crash/ANR dialogs. MegaProxy's
@@ -383,12 +395,16 @@ def prepare_emulator(shell, api):
     while True:
         state = shell("dumpsys", "connectivity")
         default = re.search(r"Active default network: (\d+)", state)
-        if default and any(
-            line.lstrip().startswith("NetworkAgentInfo{")
-            and f"network{{{default[1]}}}" in line
-            and "Transports: WIFI" in line
-            and re.search(r"Capabilities:[^\]]*\bVALIDATED\b", line)
-            for line in state.splitlines()
+        if (
+            default
+            and (not previous_default or default[1] != previous_default[1])
+            and any(
+                line.lstrip().startswith("NetworkAgentInfo{")
+                and f"network{{{default[1]}}}" in line
+                and "Transports: WIFI" in line
+                and re.search(r"Capabilities:[^\]]*\bVALIDATED\b", line)
+                for line in state.splitlines()
+            )
         ):
             return
         if time.monotonic() >= deadline:
