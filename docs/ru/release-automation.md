@@ -17,7 +17,16 @@ workflow нужно явно запустить с новой версией.
 | --- | --- | --- |
 | Secret | `OPENAI_API_KEY` | Ключ OpenAI API, только для генерации EN/RU текстов GitHub и F-Droid. |
 | Variable / Secret | `OPENAI_RELEASE_MODEL` | Доступная вашему API-проекту модель с Responses API Structured Outputs, например `gpt-6.1-sol`. Если заданы оба варианта, Variables имеют приоритет над Secrets. Неявного выбора другой модели нет. |
-| Secret | `RELEASE_BOT_TOKEN` | Fine-grained PAT только для этого репозитория: Contents read/write, Pull requests read/write, Actions read. |
+| Secret | `RELEASE_BOT_TOKEN` | Fine-grained PAT только для этого репозитория: Contents read/write, Workflows read/write, Pull requests read/write, Actions read. |
+
+Создание тега через Git references API также может требовать Workflows write,
+в том числе при тегировании предыдущего commit после продвижения `main`. Для classic PAT
+нужны scope `repo` и `workflow`. Проверьте токен в GitHub **Settings → Developer settings →
+Personal access tokens**; при замене обновите секрет репозитория `RELEASE_BOT_TOKEN`.
+Скрипт показывает метод, endpoint и HTTP-статус сбоя без вывода тела ответа.
+HTTP 403 на `POST .../git/refs` требует проверки этих прав и правил тегов репозитория;
+общая ошибка API сама по себе не доказывает причину.
+[Права GitHub reference API](https://docs.github.com/en/rest/git/refs#create-a-reference).
 
 Workflow по тегу также требует `VIRUSTOTAL_API_KEY`. После подписи все пять публичных
 релизных APK отправляются в VirusTotal; для universal используется загрузка больших

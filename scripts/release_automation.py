@@ -41,10 +41,22 @@ def command(*args, input_text=None):
     result = subprocess.run(
         args, input=input_text, capture_output=True, text=True, timeout=60, env=env
     )
-    require(
-        result.returncode == 0,
-        f"{args[0]} {args[1]} failed; inspect the remote state before retrying",
-    )
+    if result.returncode:
+        operation = f"{args[0]} {args[1]}"
+        hint = "inspect the remote state before retrying"
+        if args[:2] == ("gh", "api"):
+            method = args[args.index("--method") + 1]
+            operation = f"GitHub API {method} {args[2].split('?')[0]}"
+            status = re.search(r"\bHTTP ([1-5][0-9]{2})\b", result.stderr)
+            if status:
+                operation += f" (HTTP {status[1]})"
+            if status and status[1] == "403" and args[2].endswith("/git/refs"):
+                hint = (
+                    "check RELEASE_BOT_TOKEN Contents/Workflows write permissions "
+                    "and repository tag rules"
+                )
+        # API responses and subprocess output may contain credentials or release evidence.
+        raise RuntimeError(f"{operation} failed; {hint}")
     return result.stdout.strip()
 
 
