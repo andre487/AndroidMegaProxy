@@ -17,7 +17,16 @@ In repository **Settings → Secrets and variables → Actions**, configure:
 | --- | --- | --- |
 | Secret | `OPENAI_API_KEY` | OpenAI API key, used only for generating EN/RU GitHub and F-Droid notes. |
 | Variable / Secret | `OPENAI_RELEASE_MODEL` | A model available to your API project that supports Responses API Structured Outputs, for example `gpt-6.1-sol`. Variables take priority over Secrets if both are set. No implicit model fallback. |
-| Secret | `RELEASE_BOT_TOKEN` | Fine-grained PAT limited to this repository: Contents read/write, Pull requests read/write, Actions read. |
+| Secret | `RELEASE_BOT_TOKEN` | Fine-grained PAT limited to this repository: Contents read/write, Workflows read/write, Pull requests read/write, Actions read. |
+
+Tag creation through the Git references API can also require Workflows write permission,
+including when tagging an earlier commit after `main` advances. For a classic PAT, use
+`repo` and `workflow` scopes. Check the token in GitHub **Settings → Developer settings →
+Personal access tokens**; after replacing it, update the repository's `RELEASE_BOT_TOKEN`
+secret. The helper reports the failed API method, endpoint and HTTP status without dumping
+response bodies. HTTP 403 on `POST .../git/refs` requires checking these permissions and
+repository tag rules; a generic API error alone does not establish the cause.
+[GitHub reference API permissions](https://docs.github.com/en/rest/git/refs#create-a-reference).
 
 The tag workflow also requires `VIRUSTOTAL_API_KEY`. After signing, it submits all
 five public release APKs to VirusTotal, including the universal APK via the large-file

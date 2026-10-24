@@ -8,6 +8,7 @@ import tempfile
 import unittest
 import urllib.request
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).parents[1]))
@@ -51,6 +52,37 @@ class ReleaseTests(unittest.TestCase):
                 "-",
                 input_text=json.dumps({"ref": "refs/tags/v1.0.0", "sha": "a" * 40}),
             )
+
+    def test_api_failure_identifies_request_and_status_without_leaking_output(self):
+        for status in ("403", "422", None):
+            with (
+                self.subTest(status=status),
+                patch.dict(
+                    os.environ, {"GITHUB_REPOSITORY": "owner/repo", "GH_DEBUG": "api"}
+                ),
+                patch.object(
+                    m.subprocess,
+                    "run",
+                    return_value=SimpleNamespace(
+                        returncode=1,
+                        stdout="synthetic-secret-response",
+                        stderr="synthetic-secret-token "
+                        + (f"(HTTP {status})" if status else "network failure"),
+                    ),
+                ) as run,
+            ):
+                with self.assertRaises(RuntimeError) as error:
+                    m.api("git/refs", {"ref": "refs/tags/v1.2.3", "sha": "a" * 40})
+                message = str(error.exception)
+                self.assertIn("GitHub API POST repos/owner/repo/git/refs", message)
+                self.assertNotIn("synthetic-secret", message)
+                self.assertNotIn("GH_DEBUG", run.call_args.kwargs["env"])
+                if status:
+                    self.assertIn(f"HTTP {status}", message)
+                if status == "403":
+                    self.assertIn("Contents/Workflows write", message)
+                else:
+                    self.assertNotIn("Contents/Workflows write", message)
 
     def test_version_increment_preserves_fdroid_abi_layout(self):
         updated, code = m.bump_version(SOURCE, "0.1.2")
