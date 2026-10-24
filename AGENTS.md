@@ -81,8 +81,10 @@ branch names, credentials, signing material, or other secrets.
   with one sentence per change.
   Keep GitHub notes in `release-notes/X.Y.Z.md` separate from F-Droid's 500-character summaries;
   preview existing releases through `release_notes_preview` without rewriting published history.
-- Automated release PRs use a merge commit preserving the release branch history; verify both
-  parents and the tested tree before tagging the actual merge commit.
+- Automated release PRs request a merge commit; finalization also accepts squash merges. Verify
+  the tested base (and release head for two-parent merges) and exact tested tree before tagging
+  the actual merged commit. Same-version preparation may resume the unique merged release PR
+  only while its remote tag is absent; preserve versionCode and committed notes.
 - Tagged releases publish signed APKs and `SHA256SUMS` to GitHub Releases. Google Play integration
   is removed. Document installation from release assets; PR APKs are for testing only.
 - Tagged releases scan all signed APKs with VirusTotal before publication using the release-only

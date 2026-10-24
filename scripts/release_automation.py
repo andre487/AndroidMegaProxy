@@ -429,12 +429,33 @@ def prepare(version):
     )
     branch, tag = f"release/v{version}", f"v{version}"
     require(
-        not command("git", "ls-remote", "--heads", "origin", f"refs/heads/{branch}"),
-        "Release branch already exists; inspect PR and rerun failed finalization job",
-    )
-    require(
         not command("git", "ls-remote", "--tags", "origin", f"refs/tags/{tag}"),
         "Release tag already exists",
+    )
+    if version == read_version(GRADLE.read_text())[0]:
+        owner = os.environ["GITHUB_REPOSITORY"].split("/")[0]
+        query = urlencode(
+            {
+                "state": "closed",
+                "base": "main",
+                "head": f"{owner}:{branch}",
+                "per_page": 100,
+            }
+        )
+        prs = [pr for pr in api(f"pulls?{query}") if pr.get("merged_at")]
+        require(len(prs) == 1, "Same version requires one merged release PR to resume")
+        pr = api(f"pulls/{prs[0]['number']}")
+        head = pr["head"]["sha"]
+        check_pr(pr, version, head)
+        require(pr["merged"], "Release PR is not merged")
+        emit(pr=pr["number"], head=head)
+        print(
+            f"Resuming {tag} from release PR #{pr['number']}; no notes or version changes"
+        )
+        return
+    require(
+        not command("git", "ls-remote", "--heads", "origin", f"refs/heads/{branch}"),
+        "Release branch already exists; inspect PR and rerun failed finalization job",
     )
     updated, code = bump_version(GRADLE.read_text(), version)
     paths = notes_paths(code)
@@ -617,9 +638,9 @@ def finish(version, number, head):
     require(len(parts) == 2, "Missing Russian release notes")
     validate_notes(dict(zip(LOCALES, parts)), 3000)
     wait_ci(number, version, head, parent)
+    pr = api(f"pulls/{number}")
+    check_pr(pr, version, head)
     if not pr["merged"]:
-        pr = api(f"pulls/{number}")
-        check_pr(pr, version, head)
         require(
             api("git/ref/heads/main")["object"]["sha"] == parent,
             "main advanced while CI ran; refusing merge",
@@ -638,8 +659,9 @@ def finish(version, number, head):
     merged = pr["merge_commit_sha"]
     command("git", "fetch", "origin", "main")
     require(
-        command("git", "show", "-s", "--format=%P", merged).split() == [parent, head],
-        "Release must have a merge commit with the verified base and head; refusing tag",
+        command("git", "show", "-s", "--format=%P", merged).split()
+        in ([parent, head], [parent]),
+        "Release commit must have the verified base (and head for a merge commit); refusing tag",
     )
     require(
         command("git", "show", "-s", "--format=%T", merged)

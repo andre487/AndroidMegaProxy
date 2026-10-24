@@ -25,7 +25,7 @@ Ruby 3.4.10 (`.ruby-version`), затем выполните `bundle install`. �
 | `bundle exec fastlane android debug_artifact` | Собирает `app/build/outputs/apk/debug/app-debug.apk`. |
 | `bundle exec fastlane android release_prepare version:0.1.2` | Генерирует EN/RU changelog, повышает версию и создаёт release PR (нужна настройка API/токенов). |
 | `bundle exec fastlane android release_notes_preview version:1.1.3 ref:v1.1.3` | Выводит тезисные EN/RU тексты GitHub и F-Droid для указанного диапазона Git без публикации. |
-| `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Ждёт полного CI, выполняет слияние указанного head PR с отдельным merge-коммитом и тегирует итоговый commit. |
+| `bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_SHA` | Ждёт полного CI, сливает указанный head PR либо принимает существующий squash merge и тегирует проверенный результат. |
 | `bundle exec fastlane android virus_total` | Проверяет подписанные APK в `dist/release` (или `artifacts:PATH`); нужен `VIRUSTOTAL_API_KEY`, обнаружения/ошибки API блокируют публикацию. |
 | `bundle exec fastlane android release_artifacts` | Собирает и проверяет подписанные APK и `SHA256SUMS` в `dist/release`. |
 

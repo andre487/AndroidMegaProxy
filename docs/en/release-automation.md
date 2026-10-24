@@ -100,15 +100,20 @@ allows PR CI and the tag-triggered release build to run normally.
    links after merge; this allows a verified retry of tag creation.
 7. Recheck PR identity and unchanged `main`, then request a merge commit with the
    expected head SHA. GitHub protections still apply. Verify that the resulting
-   commit belongs to `main`, has the verified base and head as its two parents,
-   and has exactly the tested head's tree.
+   commit belongs to `main` and has exactly the tested head's tree. Its parents must
+   be the verified base and head for a merge commit, or only the verified base for
+   a manually squash-merged PR. Both forms can be finalized without moving history.
 8. Create lightweight tag `vX.Y.Z` on **the actual merged commit**, never on the
    release branch head or whatever `main` happens to point to later. The PAT causes
    the existing tag build to run. Its new GitHub Release uses the same committed
    GitHub notes from `release-notes/X.Y.Z.md`. A finalization rerun accepts an existing
    matching tag and never moves a conflicting tag.
 
-The version must exceed both the version in code and the previous stable tag.
+New releases must exceed both the version in code and the previous stable tag.
+If the requested version equals the current version and its remote tag is absent,
+preparation resumes the unique merged release PR instead of changing versionCode,
+regenerating notes, or creating another PR. Finalization rechecks its CI, base and tree.
+An existing tag still blocks preparation; older versions remain rejected.
 Prereleases and automatic version selection are deliberately unsupported. Preparation
 and finalization execute trusted workflow source, not code fetched from the release PR.
 The release commit may change only Gradle's two version fields, the ten changelog files
@@ -122,6 +127,10 @@ check leaves a reviewable PR without a tag. After fixing/re-running its CI, use
 unchanged. This reuses preparation outputs without paying for another API response.
 If the PR was already merged but tag creation failed, the same finalization rerun
 rechecks CI/tree and creates or verifies the tag without merging again.
+This also works after squash merge with the same version. If the helper itself
+was fixed, run `release_finish` from updated trusted `main`: rerunning an old
+workflow uses its original code. A new workflow dispatch with the same version
+resumes the merged release PR when its tag is absent.
 
 If `main` or the PR head changed, the old finalization cannot approve that new code.
 Update the branch deliberately so its single release commit is based on current
