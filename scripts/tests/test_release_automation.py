@@ -710,6 +710,11 @@ class ReleaseTests(unittest.TestCase):
             m.wait_ci(7, "0.1.2", head, base)
 
     def test_prepare_merge_and_retry_tag_with_real_git_and_fake_services(self):
+        for squash in (False, True):
+            with self.subTest(squash=squash):
+                self.prepare_merge_and_retry_tag(squash)
+
+    def prepare_merge_and_retry_tag(self, squash):
         with (
             tempfile.TemporaryDirectory() as tmp,
             patch.dict(
@@ -807,6 +812,8 @@ class ReleaseTests(unittest.TestCase):
                         },
                     )
                     return copy.deepcopy(pr)
+                if path.startswith("pulls?state=closed&"):
+                    return [dict(copy.deepcopy(pr), merged_at="2026-10-24T17:56:57Z")]
                 if path == "pulls/7":
                     return copy.deepcopy(pr)
                 if path == "pulls/7/merge":
@@ -815,7 +822,17 @@ class ReleaseTests(unittest.TestCase):
                     )
                     self.assertEqual("PUT", method)
                     git("switch", "-q", "main")
-                    git("merge", "--no-ff", "-qm", "Release v0.1.2", pr["head"]["sha"])
+                    if squash:
+                        git("merge", "--squash", pr["head"]["sha"])
+                        git("commit", "-qm", "Squashed release v0.1.2")
+                    else:
+                        git(
+                            "merge",
+                            "--no-ff",
+                            "-qm",
+                            "Release v0.1.2",
+                            pr["head"]["sha"],
+                        )
                     git("push", "-q", "origin", "main")
                     pr.update(
                         merged=True,
@@ -956,7 +973,17 @@ class ReleaseTests(unittest.TestCase):
                     ):
                         m.finish("0.1.2", 7, head)
                     self.assertNotIn("pulls/7/merge", calls)
-                    with patch.object(m, "wait_ci"):
+
+                    def complete_ci(*args):
+                        if squash and not pr["merged"]:
+                            # A user can squash-merge while finalization waits for CI.
+                            fake_api(
+                                "pulls/7/merge",
+                                {"sha": head, "merge_method": "merge"},
+                                "PUT",
+                            )
+
+                    with patch.object(m, "wait_ci", side_effect=complete_ci):
                         m.finish("0.1.2", 7, head)
                         self.assertEqual(
                             pr["merge_commit_sha"],
@@ -964,21 +991,61 @@ class ReleaseTests(unittest.TestCase):
                         )
                         self.assertNotEqual(head, pr["merge_commit_sha"])
                         self.assertEqual(
-                            [base, head],
+                            [base] if squash else [base, head],
                             git(
                                 "show", "-s", "--format=%P", pr["merge_commit_sha"]
                             ).split(),
                         )
                         merged_commit = pr["merge_commit_sha"]
-                        pr["merge_commit_sha"] = head
+                        pr["merge_commit_sha"] = base
+                        with self.assertRaisesRegex(RuntimeError, "verified base"):
+                            m.finish("0.1.2", 7, head)
+                        # Even a valid parent cannot authorize untested content.
+                        pr["merge_commit_sha"] = git(
+                            "commit-tree",
+                            f"{base}^{{tree}}",
+                            "-p",
+                            base,
+                            "-m",
+                            "Wrong release tree",
+                        )
                         with self.assertRaisesRegex(
-                            RuntimeError, "must have a merge commit"
+                            RuntimeError, "Merged tree differs"
                         ):
                             m.finish("0.1.2", 7, head)
                         pr["merge_commit_sha"] = merged_commit
                         m.finish("0.1.2", 7, head)
                         self.assertEqual(1, calls.count("pulls/7/merge"))
                         self.assertEqual(1, calls.count("git/refs"))
+                        # Same-version preparation resumes the original PR only without a tag.
+                        with self.assertRaisesRegex(
+                            RuntimeError, "Release tag already exists"
+                        ):
+                            m.prepare("0.1.2")
+                        git("update-ref", "-d", "refs/tags/v0.1.2", cwd=remote)
+                        before = git("rev-parse", "HEAD")
+                        with (
+                            patch.object(m, "generate_notes") as generate,
+                            patch.object(m, "emit") as emit,
+                        ):
+                            m.prepare("0.1.2")
+                        emit.assert_called_once_with(pr=7, head=head)
+                        generate.assert_not_called()
+                        self.assertEqual(before, git("rev-parse", "HEAD"))
+                        self.assertEqual("", git("status", "--porcelain"))
+                        with patch.object(
+                            m,
+                            "api",
+                            side_effect=lambda path, *args, **kwargs: (
+                                []
+                                if path.startswith("pulls?")
+                                else fake_api(path, *args, **kwargs)
+                            ),
+                        ):
+                            with self.assertRaisesRegex(
+                                RuntimeError, "one merged release PR"
+                            ):
+                                m.prepare("0.1.2")
                         # Never move an existing tag, even on a successful rerun.
                         git("update-ref", "refs/tags/v0.1.2", base, cwd=remote)
                         with self.assertRaisesRegex(RuntimeError, "elsewhere"):

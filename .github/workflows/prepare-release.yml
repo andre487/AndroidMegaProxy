@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "New version X.Y.Z; merges after full CI, then publishes via the tag workflow"
+        description: "Version X.Y.Z; prepares a new release or resumes the current version if its tag is absent"
         required: true
         type: string
 
