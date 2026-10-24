@@ -44,10 +44,11 @@
     "app/src/main/res/mipmap-xxxhdpi/ic_launcher_round.png": "ddfdbdd28730b37e127f6f20b46a505f8e63fc490298e1b5e8d2b592541c181a",
     "assets/branding/IDENTITY-LICENSE": "a2010f343487d3f7618affe54f789f5487602331c0a8d03f49e9a7c547cf0499",
     "docs/assets/get-it-on-github.png": "6f5cca8d2a224beff6ef2310c406dbda776f6f02ce6deb8791b30675df9e1da6",
+    "docs/assets/icon-radius.svg": "a7b233505adddcc3f5814dbfa33f0e875ae26a5cdb6caae792395ef9dc3e2782",
     "docs/assets/social-preview.png": "972e5faa58aded5e8033c550b9757de4c17ab3e318ce06f92cfa3b9b87ab074a",
     "fastlane/metadata/android/en-US/images/featureGraphic.png": "6651973cc2b3432d319c131742645d427874944e2b72b5aa9db9c939426fe9b6",
-    "fastlane/metadata/android/en-US/images/icon.png": "0c4b997f0ee660e9ba677df0c30d89647afce787996ba42f156674adf25534bd",
+    "fastlane/metadata/android/en-US/images/icon.png": "7ad68cc3e416ef0b09901b0a1a5eab2d23360714365ee0c89bd85ec51a650d6c",
     "fastlane/metadata/android/ru-RU/images/featureGraphic.png": "6651973cc2b3432d319c131742645d427874944e2b72b5aa9db9c939426fe9b6",
-    "fastlane/metadata/android/ru-RU/images/icon.png": "0c4b997f0ee660e9ba677df0c30d89647afce787996ba42f156674adf25534bd"
+    "fastlane/metadata/android/ru-RU/images/icon.png": "7ad68cc3e416ef0b09901b0a1a5eab2d23360714365ee0c89bd85ec51a650d6c"
   }
 }

@@ -23,6 +23,8 @@ class UpdateGraphicsTest(unittest.TestCase):
             return json.dumps({"sha": "a" * 40}).encode()
         if "contents/LICENSE?" in path:
             return b"license\n"
+        if "icon-radius.svg" in path:
+            return ICON.replace(b'fill="blue"', b'fill="red"')
         if "social-preview.svg" in path:
             return ICON.replace(b"120 120", b"1280 640")
         return ICON
@@ -66,6 +68,10 @@ class UpdateGraphicsTest(unittest.TestCase):
                         self.assertFalse((root / m.LOCK).exists())
                         continue
                     m.update("main", root)
+                self.assertEqual(
+                    ICON.replace(b'fill="blue"', b'fill="red"'),
+                    (root / "docs/assets/icon-radius.svg").read_bytes(),
+                )
                 lock = json.loads((root / m.LOCK).read_text())
                 self.assertEqual("a" * 40, lock["commit"])
                 self.assertEqual("commits/main", self.calls[0])
@@ -79,6 +85,16 @@ class UpdateGraphicsTest(unittest.TestCase):
                     + ICON.replace(b"120 120", b"1280 640"),
                     target.read_bytes(),
                 )
+                for language in ("en-US", "ru-RU"):
+                    self.assertEqual(
+                        b"PNG"
+                        + struct.pack(">II", 512, 512)
+                        + ICON.replace(b'fill="blue"', b'fill="red"'),
+                        (
+                            root
+                            / f"fastlane/metadata/android/{language}/images/icon.png"
+                        ).read_bytes(),
+                    )
                 self.assertIn("SVG/social-preview.svg", lock["sources"])
                 self.assertIn((1280, 640), sizes)
                 self.assertIn((432, 432), sizes)
@@ -120,7 +136,7 @@ class UpdateGraphicsTest(unittest.TestCase):
         }
         self.assertEqual(
             artwork,
-            {path for path in lock["outputs"] if path.endswith(".png")}
+            {path for path in lock["outputs"] if path.endswith((".png", ".svg"))}
             | set(lock["local_sources"]),
         )
         preview = (m.ROOT / "docs/assets/social-preview.png").read_bytes()

@@ -4,7 +4,9 @@
 
 [MegaProxyIdentity](https://github.com/andre487/MegaProxyIdentity) — источник истины для графики
 MegaProxy. Правьте SVG там, затем генерируйте PNG/XML, которые коммитятся в AndroidMegaProxy.
-Единственный локальный графический исходник — SVG кнопки GitHub с лицензиями. Скриншоты
+README использует точную копию `icon-radius.svg` из Identity в `docs/assets`, обновляемую
+тем же скриптом. Единственный независимо поддерживаемый локальный графический исходник —
+SVG кнопки GitHub с лицензиями. Скриншоты
 обновляются отдельно и не перезаписываются. Старые оригиналы, включая прежний social preview,
 сохранены в `Generative/AndroidMegaProxy` репозитория Identity; архивные PNG не участвуют в генерации.
 
@@ -28,8 +30,8 @@ Lane вызывает `scripts/update_graphics.py`. Скрипт определ�
 
 | Исходник | Результат |
 | --- | --- |
-| `SVG/icon.svg` | Иконки магазина 512×512 и слои фона/переднего плана adaptive icon |
-| `SVG/icon-radius.svg`, `SVG/icon-round.svg` | Обычные и круглые launcher-иконки для пяти плотностей |
+| `SVG/icon.svg` | Слои фона/переднего плана adaptive icon |
+| `SVG/icon-radius.svg`, `SVG/icon-round.svg` | Обычные и круглые launcher-иконки для пяти плотностей; `icon-radius.svg` также используется для иконок магазина 512×512 |
 | `SVG/icon-taskbar.svg` | Белые значки уведомлений с прозрачностью размером 24dp для пяти плотностей |
 | `SVG/feature-graphic.svg` | Store feature graphic EN/RU 1024×500 |
 | `SVG/social-preview.svg` | Social preview 1280×640 в `docs/assets/social-preview.png` |

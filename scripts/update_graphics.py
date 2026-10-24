@@ -129,7 +129,10 @@ def update(ref="main", root=ROOT):
             svg(content)
     svg(local_badge)
     background, foreground = adaptive_layers(sources["SVG/icon.svg"])
-    outputs = {"assets/branding/IDENTITY-LICENSE": sources["LICENSE"]}
+    outputs = {
+        "assets/branding/IDENTITY-LICENSE": sources["LICENSE"],
+        "docs/assets/icon-radius.svg": sources["SVG/icon-radius.svg"],
+    }
     with tempfile.TemporaryDirectory(prefix="megaproxy-graphics-") as temporary:
         directory = Path(temporary)
 
@@ -154,7 +157,7 @@ def update(ref="main", root=ROOT):
                 size,
                 size,
             )
-        icon = render(sources["SVG/icon.svg"], 512, 512, directory)
+        icon = render(sources["SVG/icon-radius.svg"], 512, 512, directory)
         feature = render(sources["SVG/feature-graphic.svg"], 1024, 500, directory)
         for language in ("en-US", "ru-RU"):
             outputs[f"fastlane/metadata/android/{language}/images/icon.png"] = icon
