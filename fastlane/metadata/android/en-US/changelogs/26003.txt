@@ -1,0 +1,2 @@
+- Updated the non-adaptive app launcher icon and VPN notification icon.
+- The F-Droid listing now uses an icon with rounded corners.
