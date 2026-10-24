@@ -21,6 +21,7 @@ SOURCES = (
     "SVG/icon-radius.svg",
     "SVG/icon-round.svg",
     "SVG/feature-graphic.svg",
+    "SVG/social-preview.svg",
     "SVG/icon-taskbar.svg",
     "LICENSE",
 )
@@ -65,7 +66,7 @@ def svg(content):
 def adaptive_layers(content):
     background, foreground = svg(content), svg(content)
     for root, keep_background in ((background, True), (foreground, False)):
-        artwork = root.find(f"{{{SVG}}}g[@id='icon-2']")
+        artwork = root.find(f".//{{{SVG}}}g[@id='icon-2']")
         if artwork is None or artwork.find(f"{{{SVG}}}g[@id='Background']") is None:
             raise ValueError(
                 "Identity icon layers changed; review the adaptive icon recipe"
@@ -80,16 +81,6 @@ def adaptive_layers(content):
         f"{x - width / 6:g} {y - height / 6:g} {width / .75:g} {height / .75:g}",
     )
     return ET.tostring(background), ET.tostring(foreground)
-
-
-def social_preview(content):
-    artwork = svg(content)
-    artwork.set("width", "1280")
-    artwork.set("height", "640")
-    artwork.set("preserveAspectRatio", "xMidYMid slice")
-    canvas = ET.Element(f"{{{SVG}}}svg", {"viewBox": "0 0 1280 640"})
-    canvas.append(artwork)
-    return ET.tostring(canvas)
 
 
 def render(content, width, height, directory):
@@ -172,7 +163,7 @@ def update(ref="main", root=ROOT):
             ] = feature
         png(
             "docs/assets/social-preview.png",
-            social_preview(sources["SVG/feature-graphic.svg"]),
+            sources["SVG/social-preview.svg"],
             1280,
             640,
         )
