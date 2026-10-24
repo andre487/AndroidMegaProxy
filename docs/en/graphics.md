@@ -4,7 +4,9 @@
 
 [MegaProxyIdentity](https://github.com/andre487/MegaProxyIdentity) is the source of truth for
 MegaProxy artwork. Edit its SVGs, then regenerate AndroidMegaProxy's committed PNG/XML outputs.
-The only local graphic source is the GitHub download badge SVG with its notices. Screenshots
+The README uses a verbatim copy of Identity’s `icon-radius.svg` in `docs/assets`, updated
+by the same script. The only independently maintained local graphic source is the GitHub
+download badge SVG with its notices. Screenshots
 remain separate and are not overwritten. Retired originals, including the old social preview,
 are archived in Identity's `Generative/AndroidMegaProxy`; archived PNGs are not generation inputs.
 
@@ -27,16 +29,17 @@ without downloading Identity or running a renderer.
 
 | Source | Generated outputs |
 | --- | --- |
-| `SVG/icon.svg` | 512×512 store icons and adaptive background/foreground layers |
-| `SVG/icon-radius.svg`, `SVG/icon-round.svg` | Legacy square/round launcher icons for all five densities |
+| `SVG/icon.svg` | Adaptive background/foreground layers |
+| `SVG/icon-radius.svg`, `SVG/icon-round.svg` | Legacy square/round launcher icons for all five densities; `icon-radius.svg` also generates 512×512 store icons |
 | `SVG/icon-taskbar.svg` | White alpha-only notification icons at 24dp for all five densities |
-| `SVG/feature-graphic.svg` | 1024×500 EN/RU store feature graphics and a centered 1280×640 social preview |
+| `SVG/feature-graphic.svg` | 1024×500 EN/RU store feature graphics |
+| `SVG/social-preview.svg` | 1280×640 social preview saved as `docs/assets/social-preview.png` |
 | Local `docs/assets/get-it-on-github.svg` | 1292×500 GitHub download badge PNG; local notices are retained |
 
 Adaptive layers retain the SVG's background/rings and keep the wordmark inside Android's safe
 circle by scaling it to 75% of the 108dp foreground canvas. The extraction uses the Identity
 `icon-2` and `Background` layer IDs; a changed SVG structure requires reviewing the recipe.
-The social preview fills its canvas with a small centered crop, without stretching the SVG.
+The social preview is rendered directly from its dedicated Identity SVG.
 Identity-derived artwork retains the upstream license in `assets/branding/IDENTITY-LICENSE`;
 the GitHub badge retains its separate notices.
 

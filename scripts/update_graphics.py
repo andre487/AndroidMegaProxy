@@ -21,6 +21,7 @@ SOURCES = (
     "SVG/icon-radius.svg",
     "SVG/icon-round.svg",
     "SVG/feature-graphic.svg",
+    "SVG/social-preview.svg",
     "SVG/icon-taskbar.svg",
     "LICENSE",
 )
@@ -65,7 +66,7 @@ def svg(content):
 def adaptive_layers(content):
     background, foreground = svg(content), svg(content)
     for root, keep_background in ((background, True), (foreground, False)):
-        artwork = root.find(f"{{{SVG}}}g[@id='icon-2']")
+        artwork = root.find(f".//{{{SVG}}}g[@id='icon-2']")
         if artwork is None or artwork.find(f"{{{SVG}}}g[@id='Background']") is None:
             raise ValueError(
                 "Identity icon layers changed; review the adaptive icon recipe"
@@ -80,16 +81,6 @@ def adaptive_layers(content):
         f"{x - width / 6:g} {y - height / 6:g} {width / .75:g} {height / .75:g}",
     )
     return ET.tostring(background), ET.tostring(foreground)
-
-
-def social_preview(content):
-    artwork = svg(content)
-    artwork.set("width", "1280")
-    artwork.set("height", "640")
-    artwork.set("preserveAspectRatio", "xMidYMid slice")
-    canvas = ET.Element(f"{{{SVG}}}svg", {"viewBox": "0 0 1280 640"})
-    canvas.append(artwork)
-    return ET.tostring(canvas)
 
 
 def render(content, width, height, directory):
@@ -138,7 +129,10 @@ def update(ref="main", root=ROOT):
             svg(content)
     svg(local_badge)
     background, foreground = adaptive_layers(sources["SVG/icon.svg"])
-    outputs = {"assets/branding/IDENTITY-LICENSE": sources["LICENSE"]}
+    outputs = {
+        "assets/branding/IDENTITY-LICENSE": sources["LICENSE"],
+        "docs/assets/icon-radius.svg": sources["SVG/icon-radius.svg"],
+    }
     with tempfile.TemporaryDirectory(prefix="megaproxy-graphics-") as temporary:
         directory = Path(temporary)
 
@@ -163,7 +157,7 @@ def update(ref="main", root=ROOT):
                 size,
                 size,
             )
-        icon = render(sources["SVG/icon.svg"], 512, 512, directory)
+        icon = render(sources["SVG/icon-radius.svg"], 512, 512, directory)
         feature = render(sources["SVG/feature-graphic.svg"], 1024, 500, directory)
         for language in ("en-US", "ru-RU"):
             outputs[f"fastlane/metadata/android/{language}/images/icon.png"] = icon
@@ -172,7 +166,7 @@ def update(ref="main", root=ROOT):
             ] = feature
         png(
             "docs/assets/social-preview.png",
-            social_preview(sources["SVG/feature-graphic.svg"]),
+            sources["SVG/social-preview.svg"],
             1280,
             640,
         )

@@ -12,8 +12,8 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 import update_graphics as m
 
 ICON = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-<g id="icon-2"><g id="Background"><rect width="120" height="120" fill="blue"/></g>
-<path id="logo" d="M30 50H90V70H30Z" fill="white"/></g></svg>"""
+<g clip-path="url(#clip)"><g id="icon-2"><g id="Background"><rect width="120" height="120" fill="blue"/></g>
+<path id="logo" d="M30 50H90V70H30Z" fill="white"/></g></g></svg>"""
 
 
 class UpdateGraphicsTest(unittest.TestCase):
@@ -21,7 +21,13 @@ class UpdateGraphicsTest(unittest.TestCase):
         self.calls.append(path)
         if path == "commits/main":
             return json.dumps({"sha": "a" * 40}).encode()
-        return b"license\n" if "contents/LICENSE?" in path else ICON
+        if "contents/LICENSE?" in path:
+            return b"license\n"
+        if "icon-radius.svg" in path:
+            return ICON.replace(b'fill="blue"', b'fill="red"')
+        if "social-preview.svg" in path:
+            return ICON.replace(b"120 120", b"1280 640")
+        return ICON
 
     def test_pins_all_sources_and_renders_before_replacing_files(self):
         for fail in (False, True):
@@ -62,6 +68,10 @@ class UpdateGraphicsTest(unittest.TestCase):
                         self.assertFalse((root / m.LOCK).exists())
                         continue
                     m.update("main", root)
+                self.assertEqual(
+                    ICON.replace(b'fill="blue"', b'fill="red"'),
+                    (root / "docs/assets/icon-radius.svg").read_bytes(),
+                )
                 lock = json.loads((root / m.LOCK).read_text())
                 self.assertEqual("a" * 40, lock["commit"])
                 self.assertEqual("commits/main", self.calls[0])
@@ -69,6 +79,23 @@ class UpdateGraphicsTest(unittest.TestCase):
                     all(path.endswith("?ref=" + "a" * 40) for path in self.calls[1:])
                 )
                 self.assertEqual(len(m.SOURCES) + 1, len(self.calls))
+                self.assertEqual(
+                    b"PNG"
+                    + struct.pack(">II", 1280, 640)
+                    + ICON.replace(b"120 120", b"1280 640"),
+                    target.read_bytes(),
+                )
+                for language in ("en-US", "ru-RU"):
+                    self.assertEqual(
+                        b"PNG"
+                        + struct.pack(">II", 512, 512)
+                        + ICON.replace(b'fill="blue"', b'fill="red"'),
+                        (
+                            root
+                            / f"fastlane/metadata/android/{language}/images/icon.png"
+                        ).read_bytes(),
+                    )
+                self.assertIn("SVG/social-preview.svg", lock["sources"])
                 self.assertIn((1280, 640), sizes)
                 self.assertIn((432, 432), sizes)
                 self.assertFalse(retired.exists())
@@ -109,9 +136,11 @@ class UpdateGraphicsTest(unittest.TestCase):
         }
         self.assertEqual(
             artwork,
-            {path for path in lock["outputs"] if path.endswith(".png")}
+            {path for path in lock["outputs"] if path.endswith((".png", ".svg"))}
             | set(lock["local_sources"]),
         )
+        preview = (m.ROOT / "docs/assets/social-preview.png").read_bytes()
+        self.assertEqual((1280, 640), struct.unpack(">II", preview[16:24]))
         for density, scale in m.DENSITIES.items():
             for name, size in (
                 ("ic_launcher", 48),
