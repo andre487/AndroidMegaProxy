@@ -21,6 +21,20 @@ class ProfileEditorUiTest : MainUiTestBase() {
         node(option).assertIsDisplayed().performClick()
     }
 
+    @Test fun authenticationProbeFieldSavesAndValidatesWithoutReconnect() {
+        val id = store.activeProfileId()
+        content { ProfileEditorScreen(activity, id, {}) }
+        val input = hasText(text(R.string.auth_probe_host)) and hasSetTextAction()
+        compose.onNode(hasScrollToIndexAction()).performScrollToNode(input)
+        compose.onNode(input).performTextReplacement("knock.example")
+        saved()
+        assertEquals("knock.example", store.profile(id)!!.config.authProbeHost)
+        assertFalse(store.hasPendingReconnect())
+        compose.onNode(input).performTextReplacement("https://knock.example/path")
+        saved()
+        node(R.string.validation_auth_probe_host).assertExists()
+    }
+
     @Test fun newSshProfileSavesCustomDohAndClearsValidationAfterCorrection() {
         content { ProfileEditorScreen(activity, "new", {}) }
         field(R.string.profile_name_optional).performTextReplacement("Custom DNS")

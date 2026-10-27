@@ -130,6 +130,7 @@ private fun profileOptionGroups(current: ProxyProfile, imported: ProxyProfile): 
     if (current.config.type != imported.config.type || current.config.port != imported.config.port ||
         current.config.jumpPort != imported.config.jumpPort ||
         current.config.preferHttp3 != imported.config.preferHttp3 ||
+        current.config.authProbeHost != imported.config.authProbeHost ||
         current.config.sameJumpAuthentication != imported.config.sameJumpAuthentication
     ) add(R.string.import_option_connection)
     if (current.config.allowInvalidProxyCertificate != imported.config.allowInvalidProxyCertificate ||
@@ -181,6 +182,7 @@ internal fun applySelectedProfileOptions(
         type = imported.config.type,
         port = imported.config.port,
         preferHttp3 = imported.config.preferHttp3,
+        authProbeHost = imported.config.authProbeHost,
         jumpPort = imported.config.jumpPort,
         sameJumpAuthentication = imported.config.sameJumpAuthentication,
     ))

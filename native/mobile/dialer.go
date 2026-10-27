@@ -347,7 +347,7 @@ func (d *httpsConnectDialer) connectTarget(ctx context.Context, target string) (
 	}
 	if response.StatusCode != http.StatusOK {
 		_ = response.Body.Close()
-		err = fmt.Errorf("proxy CONNECT returned status %d", response.StatusCode)
+		err = &httpConnectStatusError{status: response.StatusCode}
 		report(d.reporter, "event=connection conn=%d mode=proxy stage=connect_response result=rejected status=%d status_class=%dxx", connectionID, response.StatusCode, response.StatusCode/100)
 		return nil, err
 	}
@@ -406,14 +406,14 @@ func (d *httpsConnectDialer) trackConnection(conn net.Conn, id uint64) net.Conn 
 	return &diagnosticConn{Conn: conn, connectionID: id, reporter: d.reporter, stats: d.stats}
 }
 
-type http2ConnectStatusError struct{ status int }
+type httpConnectStatusError struct{ status int }
 
-func (e *http2ConnectStatusError) Error() string {
-	return fmt.Sprintf("HTTP/2 proxy CONNECT returned status %d", e.status)
+func (e *httpConnectStatusError) Error() string {
+	return fmt.Sprintf("proxy CONNECT returned status %d", e.status)
 }
 
 func shouldFallbackToHTTP1(err error) bool {
-	var statusError *http2ConnectStatusError
+	var statusError *httpConnectStatusError
 	return errors.As(err, &statusError) && (statusError.status == http.StatusMethodNotAllowed || statusError.status == http.StatusNotImplemented)
 }
 
@@ -511,7 +511,7 @@ func (d *httpsConnectDialer) openHTTP2Tunnel(ctx context.Context, session *http2
 	if err != nil {
 		if status != 0 {
 			report(d.reporter, "event=connection conn=%d mode=proxy protocol=http2 stage=connect_response result=rejected status=%d status_class=%dxx reused_session=%t", connectionID, status, status/100, reused)
-			return nil, &http2ConnectStatusError{status: status}
+			return nil, &httpConnectStatusError{status: status}
 		}
 		report(d.reporter, "event=connection conn=%d mode=proxy protocol=http2 stage=connect_response result=failed reason=%s reused_session=%t", connectionID, errorClass(err), reused)
 		return nil, fmt.Errorf("HTTP/2 proxy CONNECT: %w", err)

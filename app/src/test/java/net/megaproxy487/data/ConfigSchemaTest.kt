@@ -122,6 +122,6 @@ class ConfigSchemaTest {
         assertEquals(ConfigImportNotice(true, true), ConfigTransfer.importJson(root.toString()).notice)
         root.remove("browser")
         root.getJSONArray("profiles").getJSONObject(0).put("browser", JSONObject().put("knockHost", "knock.example"))
-        assertEquals(ConfigImportNotice(browserFields = true), ConfigTransfer.importJson(root.toString()).notice)
+        assertEquals(ConfigImportNotice(), ConfigTransfer.importJson(root.toString()).notice)
     }
 }

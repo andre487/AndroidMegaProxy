@@ -146,7 +146,7 @@ func TestHTTP2RejectedTargetPreservesSession(t *testing.T) {
 	session := &http2ConnectSession{client: client}
 	d := &httpsConnectDialer{h2Session: session}
 	_, err := d.connectTarget(context.Background(), "example.com:443")
-	var rejected *http2ConnectStatusError
+	var rejected *httpConnectStatusError
 	if !errors.As(err, &rejected) || rejected.status != http.StatusBadGateway {
 		t.Fatalf("error = %v", err)
 	}

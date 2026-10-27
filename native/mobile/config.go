@@ -14,6 +14,7 @@ import (
 type config struct {
 	AllowInvalidDoHCertificate       bool     `json:"allowInvalidDohCertificate"`
 	AllowInsecureDNS                 bool     `json:"allowInsecureDns"`
+	AuthProbeHost                    string   `json:"authProbeHost"`
 	PreferHTTP3                      bool     `json:"preferHttp3"`
 	Type                             string   `json:"type"`
 	Host                             string   `json:"host"`
@@ -64,6 +65,10 @@ func parseConfig(raw string) (config, error) {
 		c.SSHRotationMinutes < 0 || c.SSHRotationMinutes > 1440 ||
 		c.SSHRotationMB < 0 || c.SSHRotationMB > 10240 {
 		return c, errors.New("invalid SSH keepalive or rotation limit")
+	}
+	c.AuthProbeHost = strings.TrimSpace(c.AuthProbeHost)
+	if !validAuthProbeHost(c.AuthProbeHost) {
+		return c, errors.New("invalid diagnostic probe hostname")
 	}
 	c.Host = strings.TrimSpace(c.Host)
 	c.DialHost = strings.TrimSpace(c.DialHost)

@@ -39,7 +39,7 @@ internal fun nativeFailureReason(message: String): String {
         "certificate" in value || "x509" in value -> "certificate"
         listOf("authentication", "authenticate", "credentials", "status 407").any(value::contains) -> "authentication"
         "protect rejected" in value -> "vpn_protect"
-        "timeout" in value || "timed out" in value -> "timeout"
+        "timeout" in value || "timed out" in value || "deadline exceeded" in value -> "timeout"
         "reset" in value || "broken pipe" in value -> "reset"
         "refused" in value -> "refused"
         "unreachable" in value -> "unreachable"

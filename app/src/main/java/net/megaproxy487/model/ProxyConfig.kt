@@ -20,6 +20,7 @@ data class ProxyConfig(
     val password: String = "",
     val allowInvalidProxyCertificate: Boolean = false,
     val preferHttp3: Boolean = false,
+    val authProbeHost: String = "",
     val profile: TlsProfile = TlsProfile.DEFAULT,
     val customJa3: String = "",
     val dnsProvider: DnsProvider = DnsProvider.CLOUDFLARE,
@@ -73,6 +74,7 @@ data class ProxyConfig(
         host.isBlank() -> if (!type.isSsh) R.string.validation_proxy_host else R.string.validation_ssh_host
         host.contains(Regex("[/:\\s]")) -> R.string.validation_host_format
         port !in 1..65535 -> R.string.validation_port
+        type == ProxyType.HTTPS && !validAuthProbeHost(authProbeHost.trim()) -> R.string.validation_auth_probe_host
         type.isHttpProxy && username.isBlank() -> R.string.validation_basic_username
         type.isHttpProxy && ':' in username -> R.string.validation_basic_username_colon
         type.isHttpProxy && password.isBlank() -> R.string.validation_basic_password
@@ -305,3 +307,13 @@ internal fun validPlainDnsUrl(value: String): Boolean = runCatching {
         (uri.port == -1 || uri.port in 1..65535) && uri.rawPath.isNullOrEmpty() &&
         uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null
 }.getOrDefault(false)
+
+/** Hostname or IP literal: no URL, credentials, path or port. */
+fun validAuthProbeHost(host: String): Boolean = host.isEmpty() ||
+    (host.length <= 253 && host.contains(':') && !host.contains('%') && runCatching {
+        val literal = host.removeSurrounding("[", "]")
+        java.net.URI("https://[$literal]/").host != null
+    }.getOrDefault(false)) ||
+    (host.length <= 253 && host.split('.').all { label ->
+        label.length in 1..63 && label.matches(Regex("[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?"))
+    })

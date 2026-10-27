@@ -114,6 +114,7 @@ class NativeProxyCore(
         .put("sshRotationMb", config.sshRotationMb)
         .put("allowInvalidProxyCertificate", config.allowInvalidProxyCertificate)
         .put("preferHttp3", config.preferHttp3)
+        .put("authProbeHost", if (config.type == net.megaproxy487.model.ProxyType.HTTPS) config.authProbeHost.trim() else "")
         .put("profile", config.profile.name)
         .put("customJa3", config.customJa3.trim())
         .put("dohUrl", if (config.dnsProvider.url.isNotEmpty()) config.dnsProvider.url else config.customDohUrl.trim())

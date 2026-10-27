@@ -130,3 +130,5 @@ UDP forwarding is available with MASQUE, SOCKS5 and HTTPS when HTTP/3 is negotia
 HTTPS over TCP and SSH block ordinary UDP; DNS has its own routing rules in the
 [DNS guide](dns.md). Local-network bypass sends TCP directly and also bypasses
 UDP for MASQUE and SOCKS5. It does not provide a direct fallback after tunnel failure.
+
+Authentication checks use `event=proxy_auth_probe`. `result=rejected status=407` confirms a proxy authentication rejection; `result=connect_accepted authentication=unconfirmed` does not prove end-to-end connectivity. Timeouts and unexpected statuses remain `inconclusive`. A skipped probe states that the hostname was not configured; protocol selection may also skip it for HTTP/3. Events contain no addresses or credentials. See [profile settings](profiles-and-routing.md#masked-authentication-errors).

@@ -41,7 +41,13 @@ internal object ConfigImportNotices {
         walk(root, schema)
         val profiles = root.optJSONArray("profiles")
         val browser = root.has("browser") || profiles?.let { array ->
-            (0 until array.length()).any { array.optJSONObject(it)?.has("browser") == true }
+            (0 until array.length()).any { index ->
+                val profile = array.optJSONObject(index)
+                val browser = profile?.optJSONObject("browser")
+                val supported = profile?.optJSONObject("proxy")?.optString("type", "HTTPS") == "HTTPS"
+                if (browser != null) browser.keys().asSequence().any { it != "knockHost" || !supported }
+                else profile?.has("browser") == true
+            }
         } == true
         return ConfigImportNotice(browserFields = browser, unknownFields = unknown)
     }

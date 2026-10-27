@@ -5,6 +5,7 @@ import net.megaproxy487.UiException
 import net.megaproxy487.requireUi
 
 import net.megaproxy487.model.DnsProvider
+import net.megaproxy487.model.validAuthProbeHost
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.ProxyType
@@ -36,6 +37,7 @@ data class PortableConfiguration(
     val subscription: ConfigSubscription? = null,
     val globalSettingFields: Set<String>? = null,
     val diagnosticLogLimitPresent: Boolean = true,
+    val knockHostPresent: Set<String>? = null,
 ) {
     internal fun mergeGlobalSettings(current: GlobalConnectionSettings): GlobalConnectionSettings {
         val incoming = globalConnectionSettings ?: return current
@@ -180,6 +182,11 @@ object ConfigTransfer {
                 }
             } else null,
             skippedProfiles = decoded.count(Result<ProxyProfile>::isFailure),
+            knockHostPresent = (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                if (item.optJSONObject("proxy")?.has("knockHost") == true || item.optJSONObject("browser")?.has("knockHost") == true)
+                    item.optString("id").ifBlank { "import-$index" } else null
+            }.toSet(),
             secretPresence = (0 until array.length()).mapNotNull { index ->
                 val item = array.optJSONObject(index) ?: return@mapNotNull null
                 val id = item.optString("id").ifBlank { "import-$index" }
@@ -245,6 +252,7 @@ object ConfigTransfer {
             if (includePrivateKeys) put("privateKey", profile.config.privateKey)
             put("allowInvalidProxyCertificate", profile.config.allowInvalidProxyCertificate)
             put("preferHttp3", profile.config.preferHttp3)
+            if (profile.config.type == ProxyType.HTTPS) put("knockHost", profile.config.authProbeHost.trim())
             put("sshProfile", profile.config.sshProfile.name)
             put("trustedHostKey", profile.config.trustedHostKey)
             put("acceptAnyHostKey", profile.config.acceptAnyHostKey)
@@ -286,6 +294,14 @@ object ConfigTransfer {
         val host = proxy.limitedString("host", 253).trim()
         requireUi(host.isNotEmpty() && !host.contains(Regex("[/:\\s]")))
         val type = enumValue(proxy.optString("type"), ProxyType.HTTPS)
+        val browser = item.optJSONObject("browser")
+        val probeOptions = if (proxy.has("knockHost")) proxy else browser
+        val authProbeHost = if (type == ProxyType.HTTPS && probeOptions?.has("knockHost") == true) {
+            requireUi(probeOptions.opt("knockHost") is String) { UiException(R.string.validation_auth_probe_host) }
+            probeOptions.limitedString("knockHost", 253).trim().also {
+                requireUi(validAuthProbeHost(it)) { UiException(R.string.validation_auth_probe_host) }
+            }
+        } else ""
         val jump = proxy.optJSONObject("jump")
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
             requireUi(array.length() <= MAX_IMPORTED_PACKAGES) { UiException(R.string.error_profile_packages) }
@@ -321,6 +337,7 @@ object ConfigTransfer {
                 jumpAcceptAnyHostKey = jump?.optBoolean("acceptAnyHostKey", false) ?: false,
                 allowInvalidProxyCertificate = proxy.optBoolean("allowInvalidProxyCertificate", false),
                 preferHttp3 = proxy.optBoolean("preferHttp3", false),
+                authProbeHost = authProbeHost,
                 profile = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT),
                 customJa3 = tls.limitedString("customJa3", MAX_CUSTOM_JA3_LENGTH),
                 dnsProvider = enumValue(dns.optString("provider"), DnsProvider.CLOUDFLARE),

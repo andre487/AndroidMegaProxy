@@ -347,7 +347,7 @@ class ProxyVpnService : VpnService() {
             finishStartAttempt()
         }
         if (!isStartCurrent(generation)) return
-        val testConfig = session.withStoredTrust(ConfigStore(this).profile(session.profileId)).config
+        val testConfig = session.withStoredDiagnosticSettings(ConfigStore(this).profile(session.profileId)).config
         val result = NativeProxyCore(this, TestDiagnosticLog::add) { isStartCurrent(generation) }
             .test(testConfig) { message ->
                 runForGeneration(generation) {

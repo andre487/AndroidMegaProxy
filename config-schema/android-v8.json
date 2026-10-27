@@ -18,7 +18,8 @@
         "host": "proxy.example.com",
         "port": 443,
         "username": "demo",
-        "preferHttp3": true
+        "preferHttp3": true,
+        "knockHost": "knock.example.com"
       }
     },
     {
