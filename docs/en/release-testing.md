@@ -46,6 +46,8 @@ whether to scroll; a runtime state update alone does not prove the matching cont
   before tests start. A failed download before the runner is infrastructure failure, not a test verdict;
   inspect it before a manual retry. Do not disable checksum/certificate verification to unblock CI.
 - JUnit reports publish per suite immediately. A missing report or skipped suite is not a pass.
+  Check publication retries only a 404 on the same Check update, twice after 1 and 3 seconds;
+  it never reruns tests or creates another Check. An exhausted retry still fails publication.
   PR APKs use no release secrets. Commands, artifacts and emulator prerequisites: [Fastlane](fastlane.md).
 
 The device suites exercise real TUN/JNI TCP/UDP, HTTPS/SOCKS5/MASQUE, HTTPS preference/fallback,
