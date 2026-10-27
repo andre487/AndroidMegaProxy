@@ -6,6 +6,7 @@ Server configurations and setup instructions have moved to the dedicated
 Client documentation:
 
 - [Configuration subscriptions](subscriptions.md)
+- [Strict traffic source validation](source-validation.md)
 - [Installation](installation.md)
 - [App updates](updates.md)
 - [Connection metrics, Test, Speed and VPN visibility](connection-metrics.md)

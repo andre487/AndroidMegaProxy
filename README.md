@@ -44,7 +44,7 @@ All guides: [English](docs/en/index.md) / [Русский](docs/ru/index.md).
 - HTTPS CONNECT over HTTP/1.1 or multiplexed HTTP/2; optional HTTP/3 preference with HTTPS fallback.
 - SOCKS5 TCP/UDP, experimental MASQUE TCP/UDP over HTTP/3 and SSH.
 - Per-app routing, local-network bypass, optional IPv6 and Android Always-on VPN.
-- Optional [strict source validation](docs/en/dns.md#strict-source-validation) on Android 10+: app ownership checks and ping blocking, applied on reconnection.
+- Optional [strict source validation](docs/en/source-validation.md) on Android 10+: app ownership checks and ping blocking, applied on reconnection.
 - Multiple profiles, import/export, HTTPS configuration subscriptions and automatic failover.
 - DNS-over-HTTPS, optional plain TCP/UDP DNS, selectable TLS/QUIC/SSH fingerprints and custom JA3.
 - Traffic totals/rates, passive TCP/QUIC metrics, connection tests, download/upload speed tests
