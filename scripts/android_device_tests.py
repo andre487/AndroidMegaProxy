@@ -4,6 +4,7 @@
 import argparse
 import base64
 import contextlib
+import errno
 import os
 import re
 import secrets
@@ -69,7 +70,7 @@ def require_success(output):
         raise RuntimeError("Instrumentation did not report exactly one successful test")
 
 
-def finish_case(shell, results, label, case, suite, log_start):
+def finish_case(shell, results, label, case, suite):
     error_message = None
     evidence = (
         (("anr", ("dumpsys", "dropbox", "--print", "data_app_anr")),)
@@ -77,7 +78,7 @@ def finish_case(shell, results, label, case, suite, log_start):
         else ()
     )
     for name, words in (
-        ("logcat", ("logcat", "-d", "-v", "threadtime", "-T", log_start)),
+        ("logcat", ("logcat", "-d", "-v", "threadtime")),
         *evidence,
         ("force-stop", ("am", "force-stop", PACKAGE)),
     ):
@@ -100,6 +101,46 @@ def finish_case(shell, results, label, case, suite, log_start):
     )
     if error_message:
         raise RuntimeError(error_message + "; see collected evidence")
+
+
+def begin_case(shell, api, label):
+    shell("am", "force-stop", PACKAGE)
+    if api >= 33:
+        operation = "revoke" if "deniedNotifications" in label else "grant"
+        shell("pm", operation, PACKAGE, "android.permission.POST_NOTIFICATIONS")
+    deadline = time.monotonic() + 15
+    while True:
+        process = shell("sh", "-c", f"pidof {PACKAGE} || true")
+        activities = shell("dumpsys", "activity", "activities")
+        if not process and not re.search(
+            r"ActivityRecord\{[^\n]* net\.megaproxy487(?:\.test)?/", activities
+        ):
+            break
+        if time.monotonic() >= deadline:
+            raise RuntimeError("Previous Android process or activities did not finish")
+        time.sleep(0.1)
+    # Start a fresh buffer only after the previous instrumentation process is gone.
+    # This works on API 26 too, without relying on date's fractional-second support.
+    shell("logcat", "-c")
+    shell("log", "-t", "MegaProxyDeviceTest", "BEGIN " + label)
+
+
+def dual_protocol_port():
+    # Only allocation collisions are retried, before containers or tests start.
+    for attempt in range(8):
+        with (
+            socket.socket() as tcp,
+            socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp,
+        ):
+            tcp.bind(("127.0.0.1", 0))
+            number = tcp.getsockname()[1]
+            try:
+                udp.bind(("127.0.0.1", number))
+            except OSError as error:
+                if error.errno != errno.EADDRINUSE or attempt == 7:
+                    raise
+                continue
+            return number
 
 
 class DirectDnsFixture(socketserver.BaseRequestHandler):
@@ -138,13 +179,7 @@ def fixture():
             containers.append(container)
             options = ["docker", "run", "-d", "--name", container, "--network", name]
             if port == "8443/both":
-                with (
-                    socket.socket() as tcp,
-                    socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as udp,
-                ):
-                    tcp.bind(("127.0.0.1", 0))
-                    number = tcp.getsockname()[1]
-                    udp.bind(("127.0.0.1", number))
+                number = dual_protocol_port()
                 options += [
                     "-p",
                     f"127.0.0.1:{number}:8443/tcp",
@@ -497,29 +532,8 @@ def main():
                 name=method + ("." + phase if phase else ""),
             )
             started = time.monotonic()
-            log_start = shell("date", "+%m-%d %H:%M:%S.000")
             try:
-                shell("am", "force-stop", PACKAGE)
-                # Test setup resets ConfigStore itself; clearing app data here can
-                # asynchronously remove an old task and kill the next test process.
-                if args.api >= 33:
-                    operation = "revoke" if "deniedNotifications" in test else "grant"
-                    shell(
-                        "pm",
-                        operation,
-                        PACKAGE,
-                        "android.permission.POST_NOTIFICATIONS",
-                    )
-                # Force-stop/task removal can finish asynchronously and kill a newly
-                # started instrumentation process. Wait for actual Activity removal.
-                deadline = time.monotonic() + 15
-                while re.search(
-                    r"ActivityRecord\{[^\n]* net\.megaproxy487(?:\.test)?/",
-                    shell("dumpsys", "activity", "activities"),
-                ):
-                    if time.monotonic() >= deadline:
-                        raise RuntimeError("Previous Android activities did not finish")
-                    time.sleep(0.1)
+                begin_case(shell, args.api, label)
                 options = [
                     "am",
                     "instrument",
@@ -562,7 +576,7 @@ def main():
                         print(f"Failure {extension} evidence unavailable", flush=True)
             finally:
                 case.set("time", f"{time.monotonic() - started:.3f}")
-                finish_case(shell, results, label, case, suite, log_start)
+                finish_case(shell, results, label, case, suite)
     return bool(failures)
 
 

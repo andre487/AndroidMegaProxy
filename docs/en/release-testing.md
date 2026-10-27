@@ -59,6 +59,8 @@ physical network handover, OEM power policy, every Always-on/lockdown mode or re
 
 The disposable emulator disables public captive-portal probes, reconnects Wi-Fi on API 35 (the API 26 `svc wifi` client exits with 137) and waits for it to become the validated default network. Before starting VPN scenarios it must receive the local SSH fixture banner through `10.0.2.2`; failure saves network diagnostics and stops the suite without retrying tests.
 
+Each case waits for the previous app process and activities to finish, then clears Logcat and writes a start marker. Success and failure outputs include a sanitized diagnostic tail (up to 64 KiB), collected after VPN cleanup. Setup, body and cleanup failures retain failure evidence; evidence collection cannot hide the original error. The local TCP/UDP fixture retries only port-allocation collisions, before starting containers or tests.
+
 ## Release acceptance: smoke first, expand by risk
 
 Identify the exact candidate commit, version/ABI, APK SHA-256 and signer. Use full successful CI for

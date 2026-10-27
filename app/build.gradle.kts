@@ -55,6 +55,9 @@ android {
         include("*.schema.json")
     }
     sourceSets.getByName("test").resources.srcDir(rootProject.file("config-schema"))
+    // Device-test lifecycle logic also runs as deterministic JVM tests.
+    sourceSets.getByName("test").java.srcDir("src/sharedTest/java")
+    sourceSets.getByName("androidTest").java.srcDir("src/sharedTest/java")
 
     defaultConfig {
         applicationId = "net.megaproxy487"

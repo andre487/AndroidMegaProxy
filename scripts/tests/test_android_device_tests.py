@@ -1,3 +1,4 @@
+import errno
 import re
 import subprocess
 import sys
@@ -126,7 +127,7 @@ class InstrumentationResultTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             results = Path(directory)
             with self.assertRaisesRegex(RuntimeError, "logcat failed"):
-                m.finish_case(shell, results, "test", case, suite, "10-07 10:58:32.000")
+                m.finish_case(shell, results, "test", case, suite)
             report = ET.parse(results / "junit.xml").getroot()
             self.assertEqual(report.get("tests"), "1")
             self.assertEqual(report.get("failures"), "1")
@@ -145,7 +146,7 @@ class InstrumentationResultTest(unittest.TestCase):
         shell = Mock(side_effect=["logcat", "ANR thread stacks", ""])
         with tempfile.TemporaryDirectory() as directory:
             results = Path(directory)
-            m.finish_case(shell, results, "test", case, suite, "10-22 08:18:00.000")
+            m.finish_case(shell, results, "test", case, suite)
             self.assertEqual(
                 (results / "test-anr.txt").read_text(), "ANR thread stacks"
             )
@@ -157,6 +158,79 @@ class InstrumentationResultTest(unittest.TestCase):
             ],
         )
         self.assertEqual(suite.get("failures"), "1")
+
+    def test_case_waits_for_previous_process_and_activity_before_clearing_logcat(self):
+        responses = iter(
+            [
+                "321",
+                "",
+                "",
+                "ActivityRecord{abc net.megaproxy487/.MainActivity}",
+                "",
+                "",
+            ]
+        )
+
+        def response(*args):
+            if args[0] in ("sh", "dumpsys"):
+                return next(responses)
+            return ""
+
+        shell = Mock(side_effect=response)
+        with patch.object(m.time, "sleep"):
+            m.begin_case(shell, 26, "case")
+        self.assertEqual(
+            shell.call_args_list[-2:],
+            [
+                call("logcat", "-c"),
+                call("log", "-t", "MegaProxyDeviceTest", "BEGIN case"),
+            ],
+        )
+        self.assertEqual(
+            shell.call_args_list.count(call("dumpsys", "activity", "activities")), 3
+        )
+
+    def test_previous_process_timeout_does_not_clear_evidence(self):
+        shell = Mock(return_value="still running")
+        with patch.object(m.time, "monotonic", side_effect=[0, 16]):
+            with self.assertRaisesRegex(RuntimeError, "did not finish"):
+                m.begin_case(shell, 35, "deniedNotifications")
+        self.assertNotIn(call("logcat", "-c"), shell.call_args_list)
+        shell.assert_any_call(
+            "pm", "revoke", m.PACKAGE, "android.permission.POST_NOTIFICATIONS"
+        )
+
+    def test_dual_port_retries_only_address_collisions_and_closes_both_sockets(self):
+        for error, attempts in [(errno.EADDRINUSE, 2), (errno.EACCES, 1)]:
+            with self.subTest(error=error):
+                tcp, udp = Mock(), Mock()
+                tcp.getsockname.return_value = ("127.0.0.1", 12345)
+                udp.bind.side_effect = [OSError(error, "bind"), None]
+                sockets = [Mock(), Mock(), Mock(), Mock()]
+                for index, sock in enumerate(sockets):
+                    sock.__enter__ = Mock(return_value=tcp if index % 2 == 0 else udp)
+                    sock.__exit__ = Mock(return_value=False)
+                with patch.object(m.socket, "socket", side_effect=sockets):
+                    if error == errno.EADDRINUSE:
+                        self.assertEqual(m.dual_protocol_port(), 12345)
+                    else:
+                        with self.assertRaises(OSError):
+                            m.dual_protocol_port()
+                for sock in sockets[: attempts * 2]:
+                    sock.__exit__.assert_called_once()
+
+    def test_dual_port_collision_retries_are_bounded(self):
+        tcp, udp = Mock(), Mock()
+        tcp.getsockname.return_value = ("127.0.0.1", 12345)
+        udp.bind.side_effect = OSError(errno.EADDRINUSE, "bind")
+        sockets = [Mock(), Mock()] * 8
+        for index, sock in enumerate(sockets[:2]):
+            sock.__enter__ = Mock(return_value=tcp if index == 0 else udp)
+            sock.__exit__ = Mock(return_value=False)
+        with patch.object(m.socket, "socket", side_effect=sockets):
+            with self.assertRaises(OSError):
+                m.dual_protocol_port()
+        self.assertEqual(udp.bind.call_count, 8)
 
     def test_adb_success_is_not_enough(self):
         for output in (
