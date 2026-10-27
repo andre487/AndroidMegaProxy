@@ -46,3 +46,12 @@ the GitHub badge retains its separate notices.
 `bundle exec fastlane android python_checks` verifies committed hashes, output dimensions,
 source pinning, layer extraction and preservation of existing files when rendering fails.
 It also rejects untracked-by-manifest artwork outside screenshots and the GitHub badge source.
+
+## Store screenshots
+
+EN/RU screenshots live in `fastlane/metadata/android/<locale>/images/phoneScreenshots`.
+The current set uses Android API 35, 1080×2400, light theme and demo profiles. Main-screen traffic
+and the active source-validation status come from a local HTTPS fixture and the real VPN;
+Diagnostics uses the example IP `203.0.113.42` and demonstration identity data. Speed transfers
+and public IP-reputation checks are not run for these captures. Keep credentials and personal
+addresses out of future captures; review both languages and keep the source-protection card fully visible.
