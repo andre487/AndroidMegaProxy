@@ -590,4 +590,15 @@
     <string name="mtu_invalid">Enter a whole number from 1280 to 65535.</string>
     <string name="mtu_reconnect">Applies to all profiles on this device after reconnection.</string>
     <string name="subscription_backups_hint">Up to 7 HTTPS URLs, one per line.</string>
+    <string name="strict_source_title">Strict source validation</string>
+    <string name="strict_source_description">Verify app ownership before forwarding TCP and every UDP datagram. Blocks unknown owners and ping; may slow UDP or block apps. Applies on reconnection.</string>
+    <string name="strict_source_unsupported">Requires Android 10 or later.</string>
+    <string name="strict_source_section">Traffic source protection</string>
+    <string name="strict_source_active">Active</string>
+    <string name="strict_source_disabled">Disabled</string>
+    <string name="strict_source_stopped">VPN is not running. Connect to check the active protection.</string>
+    <string name="strict_source_active_detail">The current tunnel validates TCP and each outgoing UDP datagram and blocks ping. This is a session status, not a bypass test from another app. VPN presence can still be detected.</string>
+    <string name="strict_source_disabled_detail">The current tunnel uses Android app routing without additional source validation.</string>
+    <string name="strict_source_pending_enable">Protection is selected but is not active in the current tunnel. Reconnect to enable it.</string>
+    <string name="strict_source_pending_disable">Protection is still active in the current tunnel. Reconnect to disable it.</string>
 </resources>

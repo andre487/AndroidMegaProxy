@@ -132,3 +132,9 @@ and a multiline private key. They require a real keyboard to open, enough visibl
 field height above it, and navigation returning when the keyboard closes. Inspect typing, cursor visibility
 and scrolling as well. In short windows the app bar disappears while typing; notices
 move into the scrollable form. Orientation and font arguments affect only the test Activity. Afterward uninstall only `net.megaproxy487.keyboardreview.test` and `net.megaproxy487.keyboardreview`.
+
+For strict source validation changes, check opt-in persistence and pending reconnect status,
+API 26 unavailability, and API 35 real TCP/UDP/DNS through JNI. Check unknown/stale UID denial,
+UDP source-port reuse, both Echo families and preserved MTU errors with deterministic native/JVM
+tests. Verify disabled sessions install no filtering wrappers. A visibility status is not a
+separate-UID bypass test; use a controlled excluded helper app for manual attack reproduction.

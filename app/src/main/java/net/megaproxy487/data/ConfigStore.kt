@@ -770,11 +770,12 @@ class ConfigStore(context: Context) {
         put("routeAllApps", settings.routeAllApps)
         put("bypassLocalNetworks", settings.bypassLocalNetworks)
         put("mtu", settings.mtu)
+        put("strictSourceValidation", settings.strictSourceValidation)
     }.toString()
 
     private fun decodeGlobalConnectionSettings(value: String): GlobalConnectionSettings = operationResult {
         val item = JSONObject(value)
-        for (key in listOf("routeAllApps", "bypassLocalNetworks", "allowIpv6", "megaProxyRoutingDefaultApplied")) {
+        for (key in listOf("routeAllApps", "bypassLocalNetworks", "allowIpv6", "megaProxyRoutingDefaultApplied", "strictSourceValidation")) {
             require(!item.has(key) || item.get(key) is Boolean)
         }
         for (key in listOf("packages", "failoverProfileIds")) {
@@ -791,6 +792,7 @@ class ConfigStore(context: Context) {
         val parsedTls = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT)
         GlobalConnectionSettings(
             mtu = mtu,
+            strictSourceValidation = item.optBoolean("strictSourceValidation", false),
             tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
             sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),
             sshAuthMode = enumValue(item.optString("sshAuthMode"), SshAuthMode.AUTO),

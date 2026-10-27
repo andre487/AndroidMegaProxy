@@ -27,6 +27,7 @@ data class ProxyConfig(
     val routeAllApps: Boolean = true,
     val bypassLocalNetworks: Boolean = true,
     val mtu: Int = DEFAULT_VPN_MTU,
+    val strictSourceValidation: Boolean = false,
     val resolvedProxyIp: String = "",
     val privateKey: String = "",
     val sshProfile: SshProfile = SshProfile.DEFAULT,
@@ -227,6 +228,7 @@ data class GlobalConnectionSettings(
     val routeAllApps: Boolean = true,
     val bypassLocalNetworks: Boolean = true,
     val mtu: Int = DEFAULT_VPN_MTU,
+    val strictSourceValidation: Boolean = false,
 ) {
     fun applyTo(config: ProxyConfig): ProxyConfig = config.copy(
         profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.CHROME_ANDROID else tlsProfile,
@@ -241,6 +243,7 @@ data class GlobalConnectionSettings(
         routeAllApps = routeAllApps,
         bypassLocalNetworks = bypassLocalNetworks,
         mtu = mtu,
+        strictSourceValidation = strictSourceValidation,
     )
 }
 

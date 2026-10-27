@@ -36,6 +36,10 @@ var state struct {
 // Start borrows tunFD for this call. Android keeps its ParcelFileDescriptor open;
 // Go owns only the duplicate made here, including every failure path.
 func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter Reporter) error {
+	return start(tunFD, mtu, rawConfig, protector, reporter, nil)
+}
+
+func start(tunFD int, mtu int, rawConfig string, protector Protector, reporter Reporter, validator SourceValidator) error {
 	tunFD, err := duplicateTunFD(tunFD)
 	if err != nil {
 		return err
@@ -124,7 +128,7 @@ func Start(tunFD int, mtu int, rawConfig string, protector Protector, reporter R
 		t.SetProxy(sshProxy)
 		proxyCloser = sshProxy
 	}
-	netstack, err := core.CreateStack(&core.Config{LinkEndpoint: dev, TransportHandler: dnsTransport{t}})
+	netstack, err := core.CreateStack(sourceStackConfig(dev, dnsTransport{t}, validator))
 	if err != nil {
 		dev.Close()
 		if proxyCloser != nil {

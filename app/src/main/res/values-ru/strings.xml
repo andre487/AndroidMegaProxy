@@ -589,4 +589,15 @@
     <string name="mtu_invalid">Введите целое число от 1280 до 65535.</string>
     <string name="mtu_reconnect">Для всех профилей на этом устройстве, после переподключения.</string>
     <string name="subscription_backups_hint">До 7 HTTPS URL, по одному на строку.</string>
+    <string name="strict_source_title">Строгая проверка источника</string>
+    <string name="strict_source_description">Проверять приложение перед передачей TCP и каждой UDP-датаграммы. Блокирует неизвестных владельцев и ping; может замедлить UDP или блокировать приложения. Применяется при переподключении.</string>
+    <string name="strict_source_unsupported">Требуется Android 10 или новее.</string>
+    <string name="strict_source_section">Защита источника трафика</string>
+    <string name="strict_source_active">Работает</string>
+    <string name="strict_source_disabled">Выключена</string>
+    <string name="strict_source_stopped">VPN не запущен. Подключитесь, чтобы проверить работающую защиту.</string>
+    <string name="strict_source_active_detail">Текущий туннель проверяет TCP и каждую исходящую UDP-датаграмму и блокирует ping. Это статус сеанса, а не тест обхода из другого приложения. Наличие VPN по-прежнему можно обнаружить.</string>
+    <string name="strict_source_disabled_detail">Текущий туннель использует маршрутизацию приложений Android без дополнительной проверки источника.</string>
+    <string name="strict_source_pending_enable">Защита выбрана, но не работает в текущем туннеле. Переподключитесь для включения.</string>
+    <string name="strict_source_pending_disable">Защита ещё работает в текущем туннеле. Переподключитесь для выключения.</string>
 </resources>

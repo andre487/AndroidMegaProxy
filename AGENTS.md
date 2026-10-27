@@ -167,6 +167,12 @@ branch names, credentials, signing material, or other secrets.
   downloads. Keep local profiles/selections and current tunnels; effective live changes mark
   pending reconnect rather than starting/stopping VPN automatically.
 
+- Strict source validation is device-local, opt-in and Android 10+; apply on reconnection.
+  Disabled sessions retain the original native data path. Enabled sessions fail closed on
+  unknown/stale owners, validate TCP admission and every outgoing UDP datagram without positive
+  UID caching, and block TUN Echo while preserving ordinary ICMP error handling. Visibility
+  reports the active session, not proof of resistance to a separate-app bypass test.
+
 ## Architecture landmarks
 
 - Validate networking optimizations against latency measurements. Prefer bounded racing of alternatives

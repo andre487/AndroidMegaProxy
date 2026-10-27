@@ -144,7 +144,25 @@ class NativeProxyCore(
             // Java keeps its duplicate alive for the call; Go duplicates it on entry.
             // Even a linkage failure before Go is entered cannot leak a detached FD.
             ParcelFileDescriptor.fromFd(tunFd).use { borrowed ->
-                Mobile.start(borrowed.fd.toLong(), mtu.toLong(), json, protector(), reporter)
+                if (config.strictSourceValidation) {
+                    if (android.os.Build.VERSION.SDK_INT < 29) throw IllegalStateException(vpnService.getString(net.megaproxy487.R.string.strict_source_unsupported))
+                    val uids = if (config.routeAllApps) null else config.selectedPackages.mapNotNull { name ->
+                        runCatching { vpnService.packageManager.getApplicationInfo(name, 0).uid }.getOrNull()
+                    }.toSet().ifEmpty { setOf(vpnService.applicationInfo.uid) }
+                    val connectivity = vpnService.getSystemService(android.net.ConnectivityManager::class.java)
+                    val validator = BridgeSourceValidator(
+                        { callbacksEnabled.get() && isCurrent() },
+                        uids,
+                        { protocol, source, sourcePort, destination, destinationPort ->
+                            connectivity.getConnectionOwnerUid(protocol,
+                                java.net.InetSocketAddress(source, sourcePort),
+                                java.net.InetSocketAddress(destination, destinationPort))
+                        },
+                    )
+                    Mobile.startStrict(borrowed.fd.toLong(), mtu.toLong(), json, protector(), reporter, validator)
+                } else {
+                    Mobile.start(borrowed.fd.toLong(), mtu.toLong(), json, protector(), reporter)
+                }
                 nativeStarted = true
             }
             status("TCP is protected by ${config.type.title}")

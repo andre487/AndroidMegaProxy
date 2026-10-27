@@ -210,6 +210,24 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                         }
                     }
                 }
+                item {
+                    val supported = android.os.Build.VERSION.SDK_INT >= 29
+                    Row(
+                        Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
+                            value = settings.strictSourceValidation,
+                            enabled = supported || settings.strictSourceValidation,
+                            onValueChange = { updateSettings(settings.copy(strictSourceValidation = it)) },
+                            role = Role.Switch,
+                        ),
+                        verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.strict_source_title))
+                            Text(stringResource(if (supported) R.string.strict_source_description else R.string.strict_source_unsupported), style = MaterialTheme.typography.bodySmall)
+                        }
+                        Switch(settings.strictSourceValidation, null, enabled = supported || settings.strictSourceValidation)
+                    }
+                }
                 if (!settings.routeAllApps) {
                     item {
                         val checked = activity.packageName in settings.selectedPackages

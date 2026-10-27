@@ -89,6 +89,7 @@ internal fun ConfigEdits<ProxyProfile>.profile(before: ProxyProfile, after: Prox
 
 internal fun ConfigEdits<GlobalConnectionSettings>.settings(before: GlobalConnectionSettings, after: GlobalConnectionSettings): ConfigEdit<GlobalConnectionSettings> {
     record("mtu", before.mtu, after.mtu) { it.copy(mtu = after.mtu) }
+    record("strictSourceValidation", before.strictSourceValidation, after.strictSourceValidation) { it.copy(strictSourceValidation = after.strictSourceValidation) }
     record("tlsProfile", before.tlsProfile, after.tlsProfile) { it.copy(tlsProfile = after.tlsProfile) }
     record("sshProfile", before.sshProfile, after.sshProfile) { it.copy(sshProfile = after.sshProfile) }
     record("sshAuthMode", before.sshAuthMode, after.sshAuthMode) { it.copy(sshAuthMode = after.sshAuthMode) }

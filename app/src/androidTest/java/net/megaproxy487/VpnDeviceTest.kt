@@ -27,7 +27,12 @@ class VpnDeviceTest : DeviceTestBase() {
     @Test fun socks5AuthenticatedTcpUdpStopAndRestart() = socks5Traffic(true)
     @Test fun socks5AnonymousTcpUdpStopAndRestart() = socks5Traffic(false)
 
-    private fun socks5Traffic(authenticated: Boolean) {
+    @Test fun strictSourceValidatedTcpUdpStopAndRestart() {
+        org.junit.Assume.assumeTrue(Build.VERSION.SDK_INT >= 29)
+        socks5Traffic(true, strict = true)
+    }
+
+    private fun socks5Traffic(authenticated: Boolean, strict: Boolean = false) {
         io {
             val profile = store.activeProfile()
             store.saveProfile(profile.copy(config = profile.config.copy(
@@ -37,12 +42,13 @@ class VpnDeviceTest : DeviceTestBase() {
                 password = if (authenticated) argument("proxyPassword") else "",
             )))
             store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
-                routeAllApps = false, selectedPackages = setOf(context.packageName), bypassLocalNetworks = false))
+                routeAllApps = false, selectedPackages = setOf(context.packageName), bypassLocalNetworks = false, strictSourceValidation = strict))
         }
         saved()
         directOriginUnavailable()
         repeat(2) {
             connect()
+            assertEquals(strict, ProxyVpnService.strictSourceValidationActive)
             roundTrip()
             listOf(1200, 1350, 4096).forEach(::udpRoundTrip)
             await("SOCKS5 protocol indicator did not update") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.SOCKS5 }
@@ -51,6 +57,7 @@ class VpnDeviceTest : DeviceTestBase() {
             }
             click(R.string.disconnect)
             stopped()
+            assertFalse(ProxyVpnService.strictSourceValidationActive)
             directOriginUnavailable()
         }
     }
