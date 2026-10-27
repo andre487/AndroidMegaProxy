@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -278,5 +279,131 @@ func TestSSHRotationPreservesActiveChannelsAndReplacement(t *testing.T) {
 	workers.Wait()
 	if current.closed || d.client == nil {
 		t.Fatal("a repeated rotation closed the replacement session")
+	}
+}
+
+// Hold the jump transport's reader after accepting direct-tcpip so it cannot
+// acknowledge channel closure or complete the destination handshake.
+type stalledSSHJumpConn struct {
+	net.Conn
+	paused  atomic.Bool
+	stalled chan struct{}
+	resume  chan struct{}
+	once    sync.Once
+}
+
+func (c *stalledSSHJumpConn) Read(b []byte) (int, error) {
+	n, err := c.Conn.Read(b)
+	if c.paused.Load() {
+		c.once.Do(func() { close(c.stalled) })
+		<-c.resume
+	}
+	return n, err
+}
+
+func TestSSHJumpHandshakeCancellation(t *testing.T) {
+	for _, stop := range []bool{false, true} {
+		name := "context cancellation"
+		if stop {
+			name = "dialer close"
+		}
+		t.Run(name, func(t *testing.T) {
+			_, key, err := ed25519.GenerateKey(rand.Reader)
+			if err != nil {
+				t.Fatal(err)
+			}
+			signer, err := ssh.NewSignerFromKey(key)
+			if err != nil {
+				t.Fatal(err)
+			}
+			serverConfig := &ssh.ServerConfig{NoClientAuth: true}
+			serverConfig.AddHostKey(signer)
+			listener, err := net.Listen("tcp", "127.0.0.1:0")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer listener.Close()
+			ready := make(chan *stalledSSHJumpConn, 1)
+			serverDone := make(chan error, 1)
+			go func() {
+				raw, err := listener.Accept()
+				if err != nil {
+					serverDone <- err
+					return
+				}
+				defer raw.Close()
+				c := &stalledSSHJumpConn{Conn: raw, stalled: make(chan struct{}), resume: make(chan struct{})}
+				server, channels, requests, err := ssh.NewServerConn(c, serverConfig)
+				if err != nil {
+					serverDone <- err
+					return
+				}
+				defer server.Close()
+				go ssh.DiscardRequests(requests)
+				channel, ok := <-channels
+				if !ok {
+					serverDone <- io.EOF
+					return
+				}
+				c.paused.Store(true)
+				if _, _, err := channel.Accept(); err != nil {
+					serverDone <- err
+					return
+				}
+				ready <- c
+				err = server.Wait()
+				serverDone <- err
+			}()
+			port := listener.Addr().(*net.TCPAddr).Port
+			d := &sshDialer{config: config{Type: "SSH_JUMP", JumpHost: "localhost", JumpDialHost: "127.0.0.1", JumpPort: port, JumpUsername: "test", JumpAcceptAnyHostKey: true, Host: "destination", Port: 22, Username: "test", AcceptAnyHostKey: true}, protector: &jumpTestProtector{}}
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
+			finished := make(chan error, 1)
+			go func() { _, err := d.session(ctx); finished <- err }()
+			var peer *stalledSSHJumpConn
+			select {
+			case peer = <-ready:
+			case err := <-serverDone:
+				t.Fatalf("jump server: %v", err)
+			case <-time.After(3 * time.Second):
+				t.Fatal("jump server not ready")
+			}
+			defer func() {
+				peer.Conn.Close()
+				close(peer.resume)
+				select {
+				case <-serverDone:
+				case <-time.After(time.Second):
+					t.Error("jump server did not stop")
+				}
+			}()
+			select {
+			case <-peer.stalled:
+			case <-time.After(3 * time.Second):
+				t.Fatal("destination handshake did not start")
+			}
+			closed := make(chan struct{})
+			if stop {
+				go func() { _ = d.Close(); close(closed) }()
+			} else {
+				cancel()
+			}
+			select {
+			case err := <-finished:
+				if err == nil {
+					t.Error("canceled destination handshake succeeded")
+				}
+			case <-time.After(time.Second):
+				t.Error("destination handshake was not canceled")
+			}
+			if !stop {
+				go func() { _ = d.Close(); close(closed) }()
+			}
+			select {
+			case <-closed:
+			case <-time.After(time.Second):
+				t.Error("Close blocked behind destination handshake")
+			}
+		})
 	}
 }

@@ -154,9 +154,8 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 			return nil, fmt.Errorf("jump host could not reach destination SSH host: %w", err)
 		}
 		report(d.reporter, "event=ssh_transport hop=destination stage=direct_tcpip result=success elapsed_ms=%d", time.Since(started).Milliseconds())
-		client, err := newSSHClient(ctx, nested, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
+		client, err := newSSHClient(ctx, &sshJumpConn{Conn: nested, transport: raw}, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
 		if err != nil {
-			nested.Close()
 			jump.Close()
 			return nil, err
 		}
@@ -182,6 +181,15 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 	d.startKeepalive()
 	return d.client, nil
 }
+
+// The destination owns its dedicated jump transport. Closing only an SSH
+// channel cannot unblock a handshake when the jump peer stops responding.
+type sshJumpConn struct {
+	net.Conn
+	transport net.Conn
+}
+
+func (c *sshJumpConn) Close() error { return c.transport.Close() }
 
 func newSSHClient(ctx context.Context, conn net.Conn, hostname, username, password, privateKey, trusted string, acceptAny bool, profile, authMode, hop string, reporter Reporter) (*ssh.Client, error) {
 	auth, err := sshAuthMethods(privateKey, password, authMode)
