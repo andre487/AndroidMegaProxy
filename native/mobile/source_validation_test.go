@@ -3,6 +3,7 @@ package mobile
 import (
 	"net"
 	"testing"
+	"time"
 
 	"github.com/xjasonlyu/tun2socks/v2/core/adapter"
 	"gvisor.dev/gvisor/pkg/tcpip"
@@ -72,7 +73,7 @@ func TestSourceValidationAdmissionAndUDPPortReuse(t *testing.T) {
 	v := &sourceTestValidator{}
 	events := make(chan struct{}, 8)
 	handler := &sourceTestTransport{events: events}
-	guarded := sourceTransport{handler, v, make(chan struct{}, 64)}
+	guarded := sourceTransport{handler, v, make(chan struct{}, 64), 0}
 	tcp := &sourceTestConn{events: events}
 	guarded.HandleTCP(tcp)
 	<-events
@@ -171,11 +172,11 @@ func TestSourceEchoPolicy(t *testing.T) {
 func TestDisabledSourceValidationKeepsOriginalDataPath(t *testing.T) {
 	endpoint := &sourceLinkEndpoint{}
 	handler := &sourceTestTransport{}
-	normal := sourceStackConfig(endpoint, handler, nil)
+	normal := sourceStackConfig(endpoint, handler, nil, 0)
 	if normal.LinkEndpoint != endpoint || normal.TransportHandler != handler {
 		t.Fatal("disabled mode installed a data-path wrapper")
 	}
-	strict := sourceStackConfig(endpoint, handler, &sourceTestValidator{})
+	strict := sourceStackConfig(endpoint, handler, &sourceTestValidator{}, 0)
 	if strict.LinkEndpoint == endpoint || strict.TransportHandler == handler {
 		t.Fatal("strict mode omitted protection")
 	}
@@ -192,7 +193,7 @@ func TestSourceLookupDoesNotBlockTUNAndAdmissionIsBounded(t *testing.T) {
 	events := make(chan struct{}, 2)
 	v := sourceBlockingValidator{make(chan struct{}), make(chan struct{})}
 	handler := &sourceTestTransport{events: events}
-	transport := sourceTransport{handler, v, make(chan struct{}, 1)}
+	transport := sourceTransport{handler, v, make(chan struct{}, 1), 0}
 	transport.HandleTCP(&sourceTestConn{}) // Must return while the Android query is blocked.
 	<-v.entered
 	second := &sourceTestConn{events: events}
@@ -203,4 +204,43 @@ func TestSourceLookupDoesNotBlockTUNAndAdmissionIsBounded(t *testing.T) {
 	}
 	close(v.release)
 	<-events
+}
+
+func TestStandardUDPValidationWindowIsFixedAndFlowLocal(t *testing.T) {
+	v := &sourceTestValidator{allowed: true}
+	now := time.Unix(100, 0)
+	conn := &sourceUDP{UDPConn: &sourceTestConn{}, validator: v, recheckInterval: time.Second}
+	if !conn.allowedAt(now) || v.calls != 1 {
+		t.Fatal("new flow was not checked")
+	}
+	v.allowed = false
+	if !conn.allowedAt(now.Add(900*time.Millisecond)) || v.calls != 1 {
+		t.Fatal("standard mode did not cache admission")
+	}
+	if !conn.allowedAt(now.Add(999 * time.Millisecond)) {
+		t.Fatal("cache expired early")
+	}
+	if conn.allowedAt(now.Add(time.Second)) || v.calls != 2 {
+		t.Fatal("cache hit extended the stale-owner window")
+	}
+	another := &sourceUDP{UDPConn: &sourceTestConn{}, validator: v, recheckInterval: time.Second}
+	if another.allowedAt(now) || v.calls != 3 {
+		t.Fatal("new flow reused another flow's decision")
+	}
+	v.allowed = true
+	if conn.allowedAt(now.Add(2*time.Second)) || v.calls != 3 {
+		t.Fatal("denied flow resurrected cached permission")
+	}
+	fresh := &sourceUDP{UDPConn: &sourceTestConn{}, validator: v, recheckInterval: time.Second}
+	if !fresh.allowedAt(now.Add(2*time.Second)) || v.calls != 4 {
+		t.Fatal("fresh socket not rechecked")
+	}
+}
+
+func TestSourceValidationIntervalRejectsUnsupportedModes(t *testing.T) {
+	for _, interval := range []int{-1, 1, 1001, 1 << 30} {
+		if err := StartStrict(-1, 1400, "", nil, nil, &sourceTestValidator{}, interval); err == nil || err.Error() != "unsupported UDP source validation interval" {
+			t.Fatal("unbounded source cache interval")
+		}
+	}
 }

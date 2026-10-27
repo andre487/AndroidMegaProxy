@@ -521,7 +521,7 @@ class ProxyVpnService : VpnService() {
                     core = proxyCore
                     tunnelTestOnly = testOnly
                     activeSession = ConnectionTestTarget(promptProfileId, config)
-                    strictSourceValidationActive = config.strictSourceValidation
+                    sourceValidationLevelActive = config.sourceValidationLevel.takeIf { config.strictSourceValidation }
                     isRunning = true
                     true
                 }
@@ -864,7 +864,7 @@ class ProxyVpnService : VpnService() {
             tunnelTestOnly = false
             activeSession = null
             isRunning = false
-            strictSourceValidationActive = false
+            sourceValidationLevelActive = null
             result
         }
         SubscriptionNotifications.cancel(this)
@@ -971,8 +971,9 @@ class ProxyVpnService : VpnService() {
         .build()
 
     companion object {
-        @Volatile var strictSourceValidationActive: Boolean = false
+        @Volatile var sourceValidationLevelActive: net.megaproxy487.model.SourceValidationLevel? = null
             private set
+        val strictSourceValidationActive: Boolean get() = sourceValidationLevelActive != null
         private val serviceThread = HandlerThread("megaproxy-vpn-control").apply { start() }
         private const val CHANNEL_ID = "vpn"
         private const val NOTIFICATION_ID = 101

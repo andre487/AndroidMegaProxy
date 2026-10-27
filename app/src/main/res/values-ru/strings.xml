@@ -590,14 +590,20 @@
     <string name="mtu_reconnect">Для всех профилей на этом устройстве, после переподключения.</string>
     <string name="subscription_backups_hint">До 7 HTTPS URL, по одному на строку.</string>
     <string name="strict_source_title">Строгая проверка источника</string>
-    <string name="strict_source_description">Проверять приложение перед передачей TCP и каждой UDP-датаграммы. Блокирует неизвестных владельцев и ping; может замедлить UDP или блокировать приложения. Применяется при переподключении.</string>
+    <string name="strict_source_description">Проверяет приложение-источник TCP и UDP, блокирует неизвестных владельцев и ping. Может замедлить установление TCP-соединений и передачу UDP, нарушить работу приложений. Применяется при переподключении.</string>
     <string name="strict_source_unsupported">Требуется Android 10 или новее.</string>
     <string name="strict_source_section">Защита источника трафика</string>
     <string name="strict_source_active">Работает</string>
     <string name="strict_source_disabled">Выключена</string>
     <string name="strict_source_stopped">VPN не запущен. Подключитесь, чтобы проверить работающую защиту.</string>
-    <string name="strict_source_active_detail">Текущий туннель проверяет TCP и каждую исходящую UDP-датаграмму и блокирует ping. Это статус сеанса, а не тест обхода из другого приложения. Наличие VPN по-прежнему можно обнаружить.</string>
+    <string name="strict_source_active_detail">Расширенный уровень: текущий туннель проверяет TCP при создании потока и каждую исходящую UDP-датаграмму, блокирует ping. Это статус сеанса, а не тест обхода другим приложением; он не скрывает наличие VPN.</string>
     <string name="strict_source_disabled_detail">Текущий туннель использует маршрутизацию приложений Android без дополнительной проверки источника.</string>
     <string name="strict_source_pending_enable">Защита выбрана, но не работает в текущем туннеле. Переподключитесь для включения.</string>
     <string name="strict_source_pending_disable">Защита ещё работает в текущем туннеле. Переподключитесь для выключения.</string>
+    <string name="source_level_standard">Стандартный</string>
+    <string name="source_level_advanced">Расширенный</string>
+    <string name="source_level_standard_detail">Проверяет новые UDP-потоки и повторяет проверку при передаче не реже раза в секунду. Меньше нагрузка; повторно использованный порт может оставаться разрешённым до следующей проверки.</string>
+    <string name="source_level_advanced_detail">Проверяет каждую исходящую UDP-датаграмму. Быстрее обнаруживает смену владельца; выше задержка и нагрузка.</string>
+    <string name="source_standard_active_detail">Стандартный уровень: текущий туннель проверяет TCP при создании потока и кеширует разрешение UDP на срок до 1 секунды для каждого потока. Повторно использованный порт может временно пропускаться. Ping блокируется. Это статус сеанса, а не тест обхода другим приложением; он не скрывает наличие VPN.</string>
+    <string name="source_level_pending">Текущий туннель ещё использует прежний уровень проверки. Переподключитесь для применения выбранного уровня.</string>
 </resources>

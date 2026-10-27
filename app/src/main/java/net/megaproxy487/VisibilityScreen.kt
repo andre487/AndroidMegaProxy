@@ -318,7 +318,7 @@ private fun buildVisibilityReport(context: Context): VisibilityReport {
             vpnCheck(context.uiText(R.string.virtual_default_route), virtualDefaultRoute, context.uiText(R.string.virtual_route_yes), context.uiText(R.string.virtual_route_no)),
             vpnCheck(context.uiText(R.string.virtual_dns_address), virtualDns, context.uiText(R.string.virtual_dns_yes), context.uiText(R.string.virtual_dns_no)),
         ),
-        sourceProtection = sourceProtectionCheck(context, settings.strictSourceValidation),
+        sourceProtection = sourceProtectionCheck(context, settings.sourceValidationLevel.takeIf { settings.strictSourceValidation }),
         splitTunneling = splitTunneling,
     )
 }
@@ -327,15 +327,15 @@ private const val PROXYCHECK_LOOKUP_URL = "https://proxycheck.io/v3/"
 private const val PROXYCHECK_CACHE = "proxycheck_visibility_cache"
 private const val PROXYCHECK_CACHE_TTL_MS = 24 * 60 * 60 * 1000L
 
-private fun sourceProtectionCheck(context: Context, configured: Boolean): VisibilityCheck {
-    val active = net.megaproxy487.vpn.ProxyVpnService.strictSourceValidationActive
+private fun sourceProtectionCheck(context: Context, configured: net.megaproxy487.model.SourceValidationLevel?): VisibilityCheck {
+    val active = net.megaproxy487.vpn.ProxyVpnService.sourceValidationLevelActive
     val status = sourceProtectionStatus(Build.VERSION.SDK_INT, configured, net.megaproxy487.vpn.ProxyVpnService.isRunning, active)
     val (state, detail) = when (status) {
         SourceProtectionStatus.UNSUPPORTED -> VisibilityState.UNAVAILABLE to R.string.strict_source_unsupported
         SourceProtectionStatus.STOPPED -> VisibilityState.UNAVAILABLE to R.string.strict_source_stopped
-        SourceProtectionStatus.ACTIVE -> VisibilityState.ACTIVE to R.string.strict_source_active_detail
+        SourceProtectionStatus.ACTIVE -> VisibilityState.ACTIVE to if (active == net.megaproxy487.model.SourceValidationLevel.STANDARD) R.string.source_standard_active_detail else R.string.strict_source_active_detail
         SourceProtectionStatus.DISABLED -> VisibilityState.DISABLED to R.string.strict_source_disabled_detail
-        SourceProtectionStatus.RECONNECT -> VisibilityState.UNKNOWN to if (active) R.string.strict_source_pending_disable else R.string.strict_source_pending_enable
+        SourceProtectionStatus.RECONNECT -> VisibilityState.UNKNOWN to if (active == null) R.string.strict_source_pending_enable else if (configured == null) R.string.strict_source_pending_disable else R.string.source_level_pending
     }
     return VisibilityCheck(context.uiText(R.string.strict_source_title), state, context.uiText(detail))
 }

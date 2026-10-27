@@ -1,6 +1,7 @@
 package net.megaproxy487
 
 import net.megaproxy487.vpn.BridgeSourceValidator
+import net.megaproxy487.model.SourceValidationLevel
 import org.junit.Assert.*
 import org.junit.Test
 
@@ -36,20 +37,27 @@ class SourceProtectionTest {
     }
 
     @Test fun profileImportsCannotDisableLocalProtection() {
-        val current = net.megaproxy487.model.GlobalConnectionSettings(strictSourceValidation = true)
+        val current = net.megaproxy487.model.GlobalConnectionSettings(strictSourceValidation = true, sourceValidationLevel = SourceValidationLevel.ADVANCED)
         for (fields in listOf<Set<String>?>(null, emptySet(), setOf("routing.routeAllApps"))) {
             val imported = net.megaproxy487.data.PortableConfiguration(emptyList(), null, null,
                 globalConnectionSettings = net.megaproxy487.model.GlobalConnectionSettings(), globalSettingFields = fields)
             assertTrue(imported.mergeGlobalSettings(current).strictSourceValidation)
+            assertEquals(SourceValidationLevel.ADVANCED, imported.mergeGlobalSettings(current).sourceValidationLevel)
         }
     }
 
+    @Test fun changingActiveLevelRequiresReconnection() {
+        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, SourceValidationLevel.ADVANCED, true, SourceValidationLevel.STANDARD))
+        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, SourceValidationLevel.STANDARD, true, SourceValidationLevel.ADVANCED))
+        assertEquals(SourceProtectionStatus.ACTIVE, sourceProtectionStatus(35, SourceValidationLevel.ADVANCED, true, SourceValidationLevel.ADVANCED))
+    }
+
     @Test fun visibilityDescribesRunningSessionRatherThanJustPreference() {
-        assertEquals(SourceProtectionStatus.UNSUPPORTED, sourceProtectionStatus(26, true, true, false))
-        assertEquals(SourceProtectionStatus.STOPPED, sourceProtectionStatus(35, true, false, false))
-        assertEquals(SourceProtectionStatus.DISABLED, sourceProtectionStatus(35, false, true, false))
-        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, true, true, false))
-        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, false, true, true))
-        assertEquals(SourceProtectionStatus.ACTIVE, sourceProtectionStatus(35, true, true, true))
+        assertEquals(SourceProtectionStatus.UNSUPPORTED, sourceProtectionStatus(26, SourceValidationLevel.STANDARD, true, null))
+        assertEquals(SourceProtectionStatus.STOPPED, sourceProtectionStatus(35, SourceValidationLevel.STANDARD, false, null))
+        assertEquals(SourceProtectionStatus.DISABLED, sourceProtectionStatus(35, null, true, null))
+        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, SourceValidationLevel.STANDARD, true, null))
+        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, null, true, SourceValidationLevel.STANDARD))
+        assertEquals(SourceProtectionStatus.ACTIVE, sourceProtectionStatus(35, SourceValidationLevel.STANDARD, true, SourceValidationLevel.STANDARD))
     }
 }

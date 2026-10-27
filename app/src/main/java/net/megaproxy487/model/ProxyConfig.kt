@@ -7,6 +7,11 @@ import net.megaproxy487.R
 const val DEFAULT_VPN_MTU = 1400
 val VPN_MTU_RANGE = 1280..65535
 
+enum class SourceValidationLevel(val udpRecheckMillis: Long, @StringRes val labelResource: Int) {
+    STANDARD(1000, R.string.source_level_standard),
+    ADVANCED(0, R.string.source_level_advanced),
+}
+
 data class ProxyConfig(
     val type: ProxyType = ProxyType.HTTPS,
     val host: String = "",
@@ -28,6 +33,7 @@ data class ProxyConfig(
     val bypassLocalNetworks: Boolean = true,
     val mtu: Int = DEFAULT_VPN_MTU,
     val strictSourceValidation: Boolean = false,
+    val sourceValidationLevel: SourceValidationLevel = SourceValidationLevel.STANDARD,
     val resolvedProxyIp: String = "",
     val privateKey: String = "",
     val sshProfile: SshProfile = SshProfile.DEFAULT,
@@ -229,6 +235,7 @@ data class GlobalConnectionSettings(
     val bypassLocalNetworks: Boolean = true,
     val mtu: Int = DEFAULT_VPN_MTU,
     val strictSourceValidation: Boolean = false,
+    val sourceValidationLevel: SourceValidationLevel = SourceValidationLevel.STANDARD,
 ) {
     fun applyTo(config: ProxyConfig): ProxyConfig = config.copy(
         profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.CHROME_ANDROID else tlsProfile,
@@ -244,6 +251,7 @@ data class GlobalConnectionSettings(
         bypassLocalNetworks = bypassLocalNetworks,
         mtu = mtu,
         strictSourceValidation = strictSourceValidation,
+        sourceValidationLevel = sourceValidationLevel,
     )
 }
 

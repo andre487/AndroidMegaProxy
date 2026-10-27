@@ -7,15 +7,31 @@ applies when the VPN reconnects. It is local to the device, defaults to off and 
 included in profile exports or subscriptions. With it off, the native stack retains its
 original transport and link handlers: no UID queries, validation caches or packet checks.
 
-When enabled, TCP ownership is checked before proxy/direct-LAN forwarding; UDP ownership is
-checked on admission and for every outgoing datagram, including DNS, without a positive
-cache that could outlive the Android socket. Unknown owners, lookup exceptions and stale
-sessions are denied. Split mode accepts only the selected application UIDs; global mode
-requires an identifiable owner. Packages sharing a UID cannot be distinguished. The
-ownership lookup and forwarding are separate operations, not an atomic kernel guarantee.
-Slow new-flow lookups run outside the shared TUN loop with at most 64 concurrent admissions;
-excess attempts are closed. UDP checks add latency and CPU work and may disrupt apps or
-traffic without a visible owner, such as tethering. No direct retry bypasses a denial.
+Both levels check TCP ownership once before proxy/direct-LAN forwarding, adding latency
+when a connection is established, rather than repeating ownership checks on TCP data.
+UDP, including DNS, is checked at admission. Choose the UDP policy:
+
+| Level | UDP ownership checks | Tradeoff |
+| --- | --- | --- |
+| Standard (initial choice) | Admission and the first outgoing datagram after a fixed 1-second interval | Fewer Android API calls; a reused port may temporarily inherit an old permission |
+| Advanced | Admission and every outgoing datagram | Earlier detection of owner changes; more CPU work and latency |
+
+The Standard cache belongs only to the specific live flow. It is not shared by source port,
+destination or subsequent flows. Cache hits do not extend the deadline; no background timer
+is needed. Expired permission must be rechecked before forwarding the next datagram. A denied
+flow is closed. This deliberately allows a stale-owner window of up to 1 second between
+checks and does not offer the same protection as Advanced. Neither level makes ownership
+lookup and forwarding an atomic kernel operation.
+
+Unknown owners and lookup exceptions are denied when checked. Split mode accepts only the
+selected application UIDs; global mode requires an identifiable owner. Packages sharing a UID
+cannot be distinguished. Slow new-flow lookups run outside the shared TUN loop with at most
+64 concurrent admissions; excess attempts are closed. Both levels may disrupt apps or traffic
+without a visible owner, such as tethering. No direct retry bypasses a denial.
+
+The selected level is also device-local and applies on reconnection. Existing enabled settings
+without a level migrate to Advanced, preserving their previous behavior; fresh opt-in uses
+Standard. Visibility reports the actual running level, including when a level change is pending.
 
 IPv4/IPv6 Echo (ping) is blocked before the userspace stack; ordinary ICMP errors retain
 normal processing. Fragmented ICMP and IPv6 fragments with an unidentifiable transport are

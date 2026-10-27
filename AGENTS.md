@@ -169,9 +169,11 @@ branch names, credentials, signing material, or other secrets.
 
 - Strict source validation is device-local, opt-in and Android 10+; apply on reconnection.
   Disabled sessions retain the original native data path. Enabled sessions fail closed on
-  unknown/stale owners, validate TCP admission and every outgoing UDP datagram without positive
-  UID caching, and block TUN Echo while preserving ordinary ICMP error handling. Visibility
-  reports the active session, not proof of resistance to a separate-app bypass test.
+  unknown owners on lookup, validate TCP admission, and block TUN Echo while preserving ordinary
+  ICMP error handling. Standard caches UDP admission per live flow for a fixed non-sliding second;
+  Advanced checks every outgoing datagram. New opt-in defaults to Standard; legacy enabled settings
+  migrate to Advanced. Keep both levels local and preserve them across imports. Visibility reports
+  the actual running level and pending changes, not proof of a separate-app bypass test.
 
 ## Architecture landmarks
 

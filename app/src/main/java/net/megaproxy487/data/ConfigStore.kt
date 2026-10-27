@@ -771,6 +771,7 @@ class ConfigStore(context: Context) {
         put("bypassLocalNetworks", settings.bypassLocalNetworks)
         put("mtu", settings.mtu)
         put("strictSourceValidation", settings.strictSourceValidation)
+        put("sourceValidationLevel", settings.sourceValidationLevel.name)
     }.toString()
 
     private fun decodeGlobalConnectionSettings(value: String): GlobalConnectionSettings = operationResult {
@@ -793,6 +794,11 @@ class ConfigStore(context: Context) {
         GlobalConnectionSettings(
             mtu = mtu,
             strictSourceValidation = item.optBoolean("strictSourceValidation", false),
+            sourceValidationLevel = if (item.has("sourceValidationLevel")) {
+                net.megaproxy487.model.SourceValidationLevel.valueOf(item.getString("sourceValidationLevel"))
+            } else if (item.optBoolean("strictSourceValidation", false)) {
+                net.megaproxy487.model.SourceValidationLevel.ADVANCED
+            } else net.megaproxy487.model.SourceValidationLevel.STANDARD,
             tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
             sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),
             sshAuthMode = enumValue(item.optString("sshAuthMode"), SshAuthMode.AUTO),

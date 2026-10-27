@@ -159,7 +159,7 @@ class NativeProxyCore(
                                 java.net.InetSocketAddress(destination, destinationPort))
                         },
                     )
-                    Mobile.startStrict(borrowed.fd.toLong(), mtu.toLong(), json, protector(), reporter, validator)
+                    Mobile.startStrict(borrowed.fd.toLong(), mtu.toLong(), json, protector(), reporter, validator, config.sourceValidationLevel.udpRecheckMillis)
                 } else {
                     Mobile.start(borrowed.fd.toLong(), mtu.toLong(), json, protector(), reporter)
                 }

@@ -9,6 +9,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4
 import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.model.TlsProfile
 import net.megaproxy487.model.ProxyType
+import net.megaproxy487.model.SourceValidationLevel
 import net.megaproxy487.vpn.ConnectionStatsReader
 import net.megaproxy487.vpn.PersistentDiagnosticLog
 import net.megaproxy487.vpn.VpnTransportProtocol
@@ -29,10 +30,10 @@ class VpnDeviceTest : DeviceTestBase() {
 
     @Test fun strictSourceValidatedTcpUdpStopAndRestart() {
         org.junit.Assume.assumeTrue(Build.VERSION.SDK_INT >= 29)
-        socks5Traffic(true, strict = true)
+        SourceValidationLevel.entries.forEach { socks5Traffic(true, strict = true, level = it) }
     }
 
-    private fun socks5Traffic(authenticated: Boolean, strict: Boolean = false) {
+    private fun socks5Traffic(authenticated: Boolean, strict: Boolean = false, level: SourceValidationLevel = SourceValidationLevel.STANDARD) {
         io {
             val profile = store.activeProfile()
             store.saveProfile(profile.copy(config = profile.config.copy(
@@ -42,13 +43,14 @@ class VpnDeviceTest : DeviceTestBase() {
                 password = if (authenticated) argument("proxyPassword") else "",
             )))
             store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
-                routeAllApps = false, selectedPackages = setOf(context.packageName), bypassLocalNetworks = false, strictSourceValidation = strict))
+                routeAllApps = false, selectedPackages = setOf(context.packageName), bypassLocalNetworks = false, strictSourceValidation = strict, sourceValidationLevel = level))
         }
         saved()
         directOriginUnavailable()
         repeat(2) {
             connect()
             assertEquals(strict, ProxyVpnService.strictSourceValidationActive)
+            assertEquals(if (strict) level else null, ProxyVpnService.sourceValidationLevelActive)
             roundTrip()
             listOf(1200, 1350, 4096).forEach(::udpRoundTrip)
             await("SOCKS5 protocol indicator did not update") { VpnRuntimeState.transportProtocol.value == VpnTransportProtocol.SOCKS5 }
