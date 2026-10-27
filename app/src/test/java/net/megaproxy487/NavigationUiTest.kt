@@ -9,8 +9,8 @@ class NavigationUiTest : MainUiTestBase() {
         TestDiagnosticLog.begin()
         content { MegaProxyNavHost(activity, readConnectionStats = { null }) }
         icon(R.string.main_actions).performClick()
-        node(R.string.test_connection).performClick()
-        compose.onNodeWithTag("screen-connection-test").assertIsDisplayed()
+        node(R.string.diagnostics).performClick()
+        compose.onNodeWithTag("screen-diagnostics").assertIsDisplayed()
         node(R.string.run_again).assertIsNotEnabled()
         icon(R.string.back).performClick()
         compose.onNodeWithTag("screen-main").assertIsDisplayed()
@@ -26,27 +26,11 @@ class NavigationUiTest : MainUiTestBase() {
         compose.onNodeWithTag("screen-main").assertIsDisplayed()
     }
 
-    @Test fun speedMenuOpensSizeSelectionAndBackReturnsHome() {
-        content { MegaProxyNavHost(activity, readConnectionStats = { null }) }
-        icon(R.string.main_actions).performClick()
-        node(R.string.speed).performClick()
-        compose.onNodeWithTag("screen-speed").assertIsDisplayed()
-        drainConfigIo()
-        node(R.string.speed_split_tunnel_warning).assertDoesNotExist()
-        compose.onNodeWithText("h3").assertIsDisplayed()
-        compose.onNodeWithText("h2").performClick()
-        compose.onNodeWithText("h1").assertIsDisplayed()
-        compose.onNodeWithText(activity.uiText(R.string.cloudflare_speed_size, 25)).performClick()
-        compose.onNodeWithText(activity.uiText(R.string.cloudflare_speed_explanation, 25, 100)).assertIsDisplayed()
-        icon(R.string.back).performClick()
-        compose.onNodeWithTag("screen-main").assertIsDisplayed()
-    }
-
     @Test fun speedWarnsWhenMegaProxyIsExcludedFromSplitTunneling() {
         store.saveGlobalConnectionSettings(net.megaproxy487.model.GlobalConnectionSettings(
             routeAllApps = false, selectedPackages = setOf("other.package"),
         ))
-        content { SpeedTestScreen(activity) {} }
+        content { SpeedTestContent(activity) }
         node(R.string.speed_split_tunnel_warning).assertIsDisplayed()
     }
 
@@ -54,7 +38,7 @@ class NavigationUiTest : MainUiTestBase() {
         store.saveGlobalConnectionSettings(net.megaproxy487.model.GlobalConnectionSettings(
             routeAllApps = false, selectedPackages = setOf(activity.packageName),
         ))
-        content { SpeedTestScreen(activity) {} }
+        content { SpeedTestContent(activity) }
         node(R.string.speed_split_tunnel_warning).assertDoesNotExist()
     }
 

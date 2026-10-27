@@ -137,7 +137,7 @@ class MainScreenUiTest : MainUiTestBase() {
         VpnRuntimeState.update(VpnConnectionState.CONNECTING)
         screen()
         icon(R.string.main_actions).performClick()
-        node(R.string.test_connection).assertIsNotEnabled()
+        node(R.string.diagnostics).assertIsNotEnabled()
         compose.runOnIdle { activity.onBackPressedDispatcher.onBackPressed() }
         node(R.string.disconnect).performScrollTo().assertIsEnabled().performClick()
         command("STOP")

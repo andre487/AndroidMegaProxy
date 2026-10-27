@@ -35,7 +35,7 @@
     <string name="connect">Подключиться</string>
     <string name="disconnect">Отключиться</string>
     <string name="connecting">Подключение…</string>
-    <string name="test_connection">Тест</string>
+    <string name="diagnostics_speed_locked">Проверка скорости станет доступна после успешного теста соединения.</string>
     <string name="speed">Скорость</string>
     <string name="configure">Настроить</string>
     <string name="no_browser">Не найдено приложение для открытия ссылки.</string>
@@ -202,7 +202,7 @@
     <string name="crash_report_saved">Сохранён обезличенный отчёт о сбое. Его можно отправить, чтобы помочь с диагностикой.</string>
     <string name="report">Отправить отчёт</string>
     <string name="close">Закрыть</string>
-    <string name="connection_test_clipboard_label">Проверка подключения MegaProxy</string>
+    <string name="connection_test_clipboard_label">Диагностика MegaProxy</string>
     <string name="detected">Обнаружено</string><string name="selected_apps_only">Только выбранные приложения</string><string name="not_detected">Не обнаружено</string>
     <string name="visibility_intro">Проверка признаков VPN, видимых приложениям. Репутация IP проверяется внешним сервисом через каждую сеть.</string>
     <string name="globally_observable_signals">Глобально видимые признаки</string><string name="visible_to_selected_apps">Видно выбранным приложениям</string><string name="vpn_network_signals">Признаки VPN-сети</string>

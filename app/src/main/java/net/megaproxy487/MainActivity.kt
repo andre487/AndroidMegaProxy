@@ -253,11 +253,10 @@ private fun ProfileSelectorLabel(
 internal fun MainScreen(
     activity: Activity,
     onOpenSettings: () -> Unit,
-    onOpenConnectionTest: () -> Unit,
+    onOpenDiagnostics: () -> Unit,
     onEditProfile: (String) -> Unit,
     readConnectionStats: () -> NativeConnectionStats? = ConnectionStatsReader::snapshot,
     onOpenVisibility: () -> Unit = {},
-    onOpenSpeed: () -> Unit = {},
 ) {
     val connection by VpnRuntimeState.connection
     val runtimeAlwaysOn by VpnRuntimeState.alwaysOn
@@ -417,13 +416,9 @@ internal fun MainScreen(
                         }
                         DropdownMenu(actionsMenuExpanded, { actionsMenuExpanded = false }) {
                             DropdownMenuItem(
-                                text = { Text(stringResource(R.string.test_connection)) },
+                                text = { Text(stringResource(R.string.diagnostics)) },
                                 enabled = connection != VpnConnectionState.CONNECTING,
-                                onClick = { actionsMenuExpanded = false; onOpenConnectionTest() },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.speed)) },
-                                onClick = { actionsMenuExpanded = false; onOpenSpeed() },
+                                onClick = { actionsMenuExpanded = false; onOpenDiagnostics() },
                             )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.visibility)) },

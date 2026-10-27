@@ -98,12 +98,14 @@ UDP control connections; they do not measure UDP loss or RTT.
 
 ## Test, Speed and VPN visibility
 
-These are separate entries in the main menu; they measure different things:
+Diagnostics and VPN visibility are available in the main menu. Diagnostics starts the connection test on opening; speed checks unlock only after it passes. Speed checks require an explicit start. Both operations share a bounded log at the bottom, with copying and export to a text file. Running another connection test clears the log and locks speed checks until success. The connection test cannot be restarted during a speed check.
+
+The checks measure different things:
 
 | Screen | Meaning |
 | --- | --- |
-| Test | Proxy connection, HTTPS and exit IP/country; independent UDP/HTTP3 checks for supported transports. IP is selectable/copyable, status icons have spoken labels. If disconnected, a temporary test VPN may be used. |
-| Speed | Active Cloudflare transfer over the underlying network and VPN separately; progressively filled table with IP, flag/code, HTTP and TLS on separate lines, latency, download and upload. |
+| Diagnostics: connection test | Proxy connection, HTTPS and exit IP/country; independent UDP/HTTP3 checks for supported transports. IP is selectable/copyable, status icons have spoken labels. If disconnected, a temporary test VPN may be used. |
+| Diagnostics: speed | Active Cloudflare transfer over the underlying network and VPN separately; progressively filled table with IP, flag/code, HTTP and TLS on separate lines, latency, download and upload. |
 | VPN visibility | Local Android/interface signals plus ProxyCheck public-IP reputation per available route. Local heuristics and remote reputation are not proof that all apps can detect the VPN. |
 
 With split tunneling, select MegaProxy to measure the VPN route. It is selected by default;
@@ -113,14 +115,14 @@ On narrow windows, Speed shows the underlying network and VPN results in separat
 
 Speed uses 10/25/50 decimal MB per direction per route (10,000,000/25,000,000/50,000,000 bytes).
 Two routes and both directions can consume up to four times the selected payload, plus overhead.
-Default h3 falls back to h2 then h1; h2 permits h1 fallback, h1 stays h1. Fallback applies only to
+The default is h2 with h1 fallback. Selecting h3 permits h2 then h1 fallback; h1 stays h1. Fallback applies only to
 initial metadata negotiation, not certificate errors, HTTP failures or failed payload transfers.
 Latency is median **time to first byte** from three empty downloads, including request overhead;
 it is not SSL-handshake time, an ICMP ping or the main screen's passive RTT.
 Cloudflare's `h3.speed.cloudflare.com` endpoint is used for protocol-capable measurements.
 The log records DNS/TCP/TLS/QUIC stages, protocol/fallback, HTTP status, connection reuse,
 bytes and transfer timing; no response payloads or exit IP are added to the log.
-Leaving the screen cancels requests and discards its results/log; Home/background alone does not.
+Leaving Diagnostics or recreating its UI cancels speed requests and discards speed results. The shared in-memory log remains until the next connection test or process restart. Home/background alone does not cancel requests.
 
 ProxyCheck success is cached per public IP for 24 hours. Daily quota exhaustion, network failure
 and unknown response format are distinct states; unavailable routes are shown separately.

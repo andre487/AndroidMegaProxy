@@ -35,7 +35,7 @@
     <string name="connect">Connect</string>
     <string name="disconnect">Disconnect</string>
     <string name="connecting">Connecting…</string>
-    <string name="test_connection">Test</string>
+    <string name="diagnostics_speed_locked">Speed checks become available after the connection test passes.</string>
     <string name="speed">Speed</string>
     <string name="configure">Configure</string>
     <string name="no_browser">No browser is available.</string>
@@ -203,7 +203,7 @@
     <string name="crash_report_saved">A privacy-filtered crash report was saved. You can send it to help diagnose the problem.</string>
     <string name="report">Report</string>
     <string name="close">Close</string>
-    <string name="connection_test_clipboard_label">MegaProxy connection test</string>
+    <string name="connection_test_clipboard_label">MegaProxy diagnostics</string>
     <string name="detected">Detected</string><string name="selected_apps_only">Selected apps only</string><string name="not_detected">Not detected</string>
     <string name="visibility_intro">Check VPN signals visible to apps. IP reputation checks contact an external service over each network.</string>
     <string name="globally_observable_signals">Globally observable signals</string><string name="visible_to_selected_apps">Visible to selected apps</string><string name="vpn_network_signals">VPN network signals</string>

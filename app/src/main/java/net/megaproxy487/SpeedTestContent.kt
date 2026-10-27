@@ -9,32 +9,20 @@ import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.selectableGroup
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -62,117 +50,91 @@ private data class RouteSpeedResult(
     val unavailable: Boolean = false,
 )
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun SpeedTestScreen(activity: Activity, onBack: () -> Unit) {
+internal fun SpeedTestContent(activity: Activity, onRunningChanged: (Boolean) -> Unit = {}) {
     var results by remember { mutableStateOf(List(2) { RouteSpeedResult() }) }
     var running by remember { mutableStateOf(false) }
-    var preferredProtocol by remember { mutableStateOf(SPEED_TEST_PROTOCOLS.first()) }
+    var preferredProtocol by remember { mutableStateOf("h2") }
     var megabytes by remember { mutableStateOf(SPEED_TEST_MEGABYTES.first()) }
-    var log by remember { mutableStateOf<List<String>>(emptyList()) }
     val scope = rememberCoroutineScope()
     val store = remember(activity) { net.megaproxy487.data.ConfigStore(activity) }
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { ScreenTitle(stringResource(R.string.speed)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
-                    }
-                },
-            )
-        },
-        contentWindowInsets = WindowInsets.safeDrawing,
-    ) { padding ->
-        ScreenContent(Modifier.padding(padding)) {
-            Column(
-                Modifier.fillMaxSize().padding(16.dp).verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    stringResource(R.string.cloudflare_speed_explanation, megabytes, megabytes * 4),
-                    style = MaterialTheme.typography.bodyMedium,
-                )
-                val settings = readConfiguration(store) { store.globalConnectionSettings() }
-                if (settings != null && !settings.routeAllApps && activity.packageName !in settings.selectedPackages) {
-                    Card(colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                        contentColor = MaterialTheme.colorScheme.onErrorContainer,
-                    )) {
-                        Text(stringResource(R.string.speed_split_tunnel_warning), Modifier.padding(12.dp))
-                    }
-                }
-                FlowRow(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SPEED_TEST_MEGABYTES.forEach { size ->
-                        Row(
-                            Modifier.heightIn(min = 48.dp).selectable(
-                                selected = megabytes == size,
-                                enabled = !running,
-                                role = Role.RadioButton,
-                                onClick = { megabytes = size },
-                            ),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = megabytes == size, onClick = null, enabled = !running)
-                            Text(stringResource(R.string.cloudflare_speed_size, size))
-                        }
-                    }
-                }
-                Text(stringResource(R.string.speed_protocol_preference), style = MaterialTheme.typography.bodyMedium)
-                FlowRow(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SPEED_TEST_PROTOCOLS.forEach { protocol ->
-                        Row(
-                            Modifier.heightIn(min = 48.dp).selectable(
-                                selected = preferredProtocol == protocol, enabled = !running,
-                                role = Role.RadioButton, onClick = { preferredProtocol = protocol },
-                            ), verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            RadioButton(selected = preferredProtocol == protocol, onClick = null, enabled = !running)
-                            Text(protocol)
-                        }
-                    }
-                }
-                Button(
-                    enabled = !running,
-                    shape = RoundedCornerShape(12.dp),
-                    onClick = {
-                        running = true
-                        results = List(2) { RouteSpeedResult(pending = true) }
-                        log = emptyList()
-                        scope.launch {
-                            try {
-                                withContext(Dispatchers.IO) {
-                                    runSpeedChecks(activity, megabytes, preferredProtocol,
-                                        update = { index, result ->
-                                            withContext(Dispatchers.Main) {
-                                                results = results.toMutableList().also { it[index] = result }
-                                            }
-                                        },
-                                        log = { entry ->
-                                            withContext(Dispatchers.Main) { log = log + "${speedLogTime()}  $entry" }
-                                        },
-                                    )
-                                }
-                            } finally { running = false }
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth(),
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        Text(
+            stringResource(R.string.cloudflare_speed_explanation, megabytes, megabytes * 4),
+            style = MaterialTheme.typography.bodyMedium,
+        )
+        val settings = readConfiguration(store) { store.globalConnectionSettings() }
+        if (settings != null && !settings.routeAllApps && activity.packageName !in settings.selectedPackages) {
+            Card(colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.errorContainer,
+                contentColor = MaterialTheme.colorScheme.onErrorContainer,
+            )) {
+                Text(stringResource(R.string.speed_split_tunnel_warning), Modifier.padding(12.dp))
+            }
+        }
+        FlowRow(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            SPEED_TEST_MEGABYTES.forEach { size ->
+                Row(
+                    Modifier.heightIn(min = 48.dp).selectable(
+                        selected = megabytes == size,
+                        enabled = !running,
+                        role = Role.RadioButton,
+                        onClick = { megabytes = size },
+                    ),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(stringResource(if (running) R.string.cloudflare_speed_running else R.string.cloudflare_speed_run))
-                }
-                SpeedResultsTable(results)
-                SelectionContainer {
-                    Text(
-                        log.joinToString("\n").ifEmpty {
-                            stringResource(if (running) R.string.test_waiting else R.string.test_empty)
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        modifier = Modifier.fillMaxWidth(),
-                    )
+                    RadioButton(selected = megabytes == size, onClick = null, enabled = !running)
+                    Text(stringResource(R.string.cloudflare_speed_size, size))
                 }
             }
         }
+        Text(stringResource(R.string.speed_protocol_preference), style = MaterialTheme.typography.bodyMedium)
+        FlowRow(Modifier.fillMaxWidth().selectableGroup(), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            SPEED_TEST_PROTOCOLS.forEach { protocol ->
+                Row(
+                    Modifier.heightIn(min = 48.dp).selectable(
+                        selected = preferredProtocol == protocol, enabled = !running,
+                        role = Role.RadioButton, onClick = { preferredProtocol = protocol },
+                    ), verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    RadioButton(selected = preferredProtocol == protocol, onClick = null, enabled = !running)
+                    Text(protocol)
+                }
+            }
+        }
+        Button(
+            enabled = !running,
+            shape = RoundedCornerShape(12.dp),
+            onClick = {
+                running = true
+                onRunningChanged(true)
+                results = List(2) { RouteSpeedResult(pending = true) }
+                scope.launch {
+                    try {
+                        withContext(Dispatchers.IO) {
+                            runSpeedChecks(activity, megabytes, preferredProtocol,
+                                update = { index, result ->
+                                    withContext(Dispatchers.Main) {
+                                        results = results.toMutableList().also { it[index] = result }
+                                    }
+                                },
+                                log = { entry ->
+                                    withContext(Dispatchers.Main) { net.megaproxy487.vpn.TestDiagnosticLog.add(entry) }
+                                },
+                            )
+                        }
+                    } finally {
+                        running = false
+                        onRunningChanged(false)
+                    }
+                }
+            },
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text(stringResource(if (running) R.string.cloudflare_speed_running else R.string.cloudflare_speed_run))
+        }
+        SpeedResultsTable(results)
     }
 }
 
@@ -274,7 +236,3 @@ private suspend fun runSpeedChecks(
         }
     }
 }
-
-private fun speedLogTime(): String = java.time.LocalTime.now().format(
-    java.time.format.DateTimeFormatter.ofPattern("HH:mm:ss.SSS", systemFormattingLocale()),
-)
