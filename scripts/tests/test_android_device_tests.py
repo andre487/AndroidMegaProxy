@@ -1,3 +1,4 @@
+import errno
 import re
 import subprocess
 import sys
@@ -112,6 +113,46 @@ class InstrumentationResultTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "no validated default Wi-Fi"):
                     m.prepare_emulator(Mock(return_value=state), 26)
 
+    def test_invalid_utf8_logs_preserve_evidence_cleanup_and_test_verdict(self):
+        child = (
+            sys.executable,
+            "-c",
+            r"import os; os.write(1, b'event \xc0 FATAL EXCEPTION\n')",
+        )
+        # Binary fixture/configuration output must still fail strict decoding.
+        with self.assertRaises(UnicodeDecodeError):
+            m.command(*child)
+        for failed in (False, True):
+            with (
+                self.subTest(failed=failed),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                suite = ET.Element("testsuite")
+                case = ET.SubElement(suite, "testcase", time="1.0")
+                if failed:
+                    ET.SubElement(case, "failure", message="original assertion")
+                shell = Mock(
+                    side_effect=lambda *words: (
+                        m.command(*child, errors="replace")
+                        if words[0] == "logcat"
+                        else ""
+                    )
+                )
+                results = Path(directory)
+                m.finish_case(shell, results, "test", case, suite)
+                self.assertIn(
+                    "event \ufffd FATAL EXCEPTION",
+                    (results / "test-logcat.txt").read_text(),
+                )
+                shell.assert_any_call("am", "force-stop", m.PACKAGE)
+                report = ET.parse(results / "junit.xml").getroot()
+                self.assertEqual(report.get("tests"), "1")
+                self.assertEqual(report.get("failures"), "1" if failed else "0")
+                if failed:
+                    self.assertEqual(
+                        report[0].find("failure").get("message"), "original assertion"
+                    )
+
     def test_logcat_failure_preserves_evidence_and_failed_report(self):
         suite = ET.Element("testsuite")
         case = ET.SubElement(suite, "testcase", time="1.0")
@@ -126,7 +167,7 @@ class InstrumentationResultTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             results = Path(directory)
             with self.assertRaisesRegex(RuntimeError, "logcat failed"):
-                m.finish_case(shell, results, "test", case, suite, "10-07 10:58:32.000")
+                m.finish_case(shell, results, "test", case, suite)
             report = ET.parse(results / "junit.xml").getroot()
             self.assertEqual(report.get("tests"), "1")
             self.assertEqual(report.get("failures"), "1")
@@ -145,7 +186,7 @@ class InstrumentationResultTest(unittest.TestCase):
         shell = Mock(side_effect=["logcat", "ANR thread stacks", ""])
         with tempfile.TemporaryDirectory() as directory:
             results = Path(directory)
-            m.finish_case(shell, results, "test", case, suite, "10-22 08:18:00.000")
+            m.finish_case(shell, results, "test", case, suite)
             self.assertEqual(
                 (results / "test-anr.txt").read_text(), "ANR thread stacks"
             )
@@ -157,6 +198,93 @@ class InstrumentationResultTest(unittest.TestCase):
             ],
         )
         self.assertEqual(suite.get("failures"), "1")
+
+    def test_case_waits_for_previous_process_and_uses_precise_log_marker(self):
+        responses = iter(
+            [
+                "321",
+                "",
+                "",
+                "ActivityRecord{abc net.megaproxy487/.MainActivity}",
+                "",
+                "",
+            ]
+        )
+        marker = None
+
+        def response(*args):
+            nonlocal marker
+            if args[0] in ("sh", "dumpsys"):
+                return next(responses)
+            if args[0] == "log":
+                marker = args[-1]
+            if args[0] == "logcat":
+                return "10-27 19:18:58.997  123  123 I MegaProxyDeviceTest: " + marker
+            return ""
+
+        shell = Mock(side_effect=response)
+        with patch.object(m.time, "sleep"):
+            self.assertEqual(m.begin_case(shell, 26, "case"), "10-27 19:18:58.997")
+        self.assertEqual(
+            shell.call_args_list.count(call("dumpsys", "activity", "activities")), 3
+        )
+        self.assertNotIn(call("logcat", "-c"), shell.call_args_list)
+        suite = ET.Element("testsuite")
+        case = ET.SubElement(suite, "testcase", time="1.0")
+        evidence = Mock(return_value="")
+        with tempfile.TemporaryDirectory() as directory:
+            m.finish_case(
+                evidence, Path(directory), "case", case, suite, "10-27 19:18:58.997"
+            )
+        evidence.assert_any_call(
+            "logcat", "-d", "-v", "threadtime", "-T", "10-27 19:18:58.997"
+        )
+
+    def test_missing_start_marker_fails_before_instrumentation(self):
+        with self.assertRaisesRegex(RuntimeError, "start marker is missing"):
+            m.begin_case(Mock(return_value=""), 26, "case")
+
+    def test_previous_process_timeout_does_not_clear_evidence(self):
+        shell = Mock(return_value="still running")
+        with patch.object(m.time, "monotonic", side_effect=[0, 16]):
+            with self.assertRaisesRegex(RuntimeError, "did not finish"):
+                m.begin_case(shell, 35, "deniedNotifications")
+        self.assertNotIn(call("logcat", "-c"), shell.call_args_list)
+        shell.assert_any_call(
+            "pm", "revoke", m.PACKAGE, "android.permission.POST_NOTIFICATIONS"
+        )
+
+    def test_dual_port_retries_only_address_collisions_and_closes_both_sockets(self):
+        for error, attempts in [(errno.EADDRINUSE, 2), (errno.EACCES, 1)]:
+            with self.subTest(error=error):
+                tcp, udp = Mock(), Mock()
+                tcp.getsockname.return_value = ("127.0.0.1", 12345)
+                udp.bind.side_effect = [OSError(error, "bind"), None]
+                sockets = [Mock(), Mock(), Mock(), Mock()]
+                for index, sock in enumerate(sockets):
+                    sock.__enter__ = Mock(return_value=tcp if index % 2 == 0 else udp)
+                    sock.__exit__ = Mock(return_value=False)
+                with patch.object(m.socket, "socket", side_effect=sockets):
+                    if error == errno.EADDRINUSE:
+                        self.assertEqual(m.dual_protocol_port(), 12345)
+                    else:
+                        with self.assertRaises(OSError):
+                            m.dual_protocol_port()
+                for sock in sockets[: attempts * 2]:
+                    sock.__exit__.assert_called_once()
+
+    def test_dual_port_collision_retries_are_bounded(self):
+        tcp, udp = Mock(), Mock()
+        tcp.getsockname.return_value = ("127.0.0.1", 12345)
+        udp.bind.side_effect = OSError(errno.EADDRINUSE, "bind")
+        sockets = [Mock(), Mock()] * 8
+        for index, sock in enumerate(sockets[:2]):
+            sock.__enter__ = Mock(return_value=tcp if index == 0 else udp)
+            sock.__exit__ = Mock(return_value=False)
+        with patch.object(m.socket, "socket", side_effect=sockets):
+            with self.assertRaises(OSError):
+                m.dual_protocol_port()
+        self.assertEqual(udp.bind.call_count, 8)
 
     def test_adb_success_is_not_enough(self):
         for output in (

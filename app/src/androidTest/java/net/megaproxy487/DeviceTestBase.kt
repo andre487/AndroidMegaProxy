@@ -26,10 +26,8 @@ import net.megaproxy487.vpn.VpnConnectionState
 import net.megaproxy487.vpn.VpnRuntimeState
 import org.junit.Assert.*
 import org.junit.Rule
-import org.junit.rules.ExternalResource
-import org.junit.rules.RuleChain
-import org.junit.rules.TestWatcher
-import org.junit.runner.Description
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 import java.io.File
 import java.net.InetAddress
 import java.net.InetSocketAddress
@@ -159,23 +157,27 @@ abstract class DeviceTestBase {
         }.isSuccess)
     }
 
-    private val platform = object : ExternalResource() {
-        override fun before() {
-            listOf("png", "xml").forEach { File(context.getExternalFilesDir(null), "device-failure.$it").delete() }
-            if (arguments.getString("phase") != "verify") io {
-                assertTrue(context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE).edit().clear().commit())
-                val profile = store.activeProfile()
-                store.saveProfile(profile.copy(name = "Device fixture", config = ProxyConfig(
-                    host = "10.0.2.2", port = argument("proxyPort").toInt(), username = "exit",
-                    password = argument("proxyPassword"), allowInvalidProxyCertificate = true,
-                )))
-                store.saveGlobalConnectionSettings(GlobalConnectionSettings(bypassLocalNetworks = false))
-            }
-            assertTrue(context.getSharedPreferences("battery_optimization_reminder", Context.MODE_PRIVATE)
-                .edit().putLong("last_request_at", System.currentTimeMillis()).commit())
-            scenario = ActivityScenario.launch(MainActivity::class.java)
-            device.waitForIdle()
+    private fun prepare() {
+        io {
+            PersistentDiagnosticLog.initialize(context, PersistentDiagnosticLog.DEFAULT_LIMIT_MB)
+            PersistentDiagnosticLog.clear()
+            flushDiagnosticLog()
+            PersistentDiagnosticLog.write("event=device_test stage=start")
         }
+        listOf("png", "xml").forEach { File(context.getExternalFilesDir(null), "device-failure.$it").delete() }
+        if (arguments.getString("phase") != "verify") io {
+            assertTrue(context.getSharedPreferences("proxy_config", Context.MODE_PRIVATE).edit().clear().commit())
+            val profile = store.activeProfile()
+            store.saveProfile(profile.copy(name = "Device fixture", config = ProxyConfig(
+                host = "10.0.2.2", port = argument("proxyPort").toInt(), username = "exit",
+                password = argument("proxyPassword"), allowInvalidProxyCertificate = true,
+            )))
+            store.saveGlobalConnectionSettings(GlobalConnectionSettings(bypassLocalNetworks = false))
+        }
+        assertTrue(context.getSharedPreferences("battery_optimization_reminder", Context.MODE_PRIVATE)
+            .edit().putLong("last_request_at", System.currentTimeMillis()).commit())
+        scenario = ActivityScenario.launch(MainActivity::class.java)
+        device.waitForIdle()
     }
     private fun cleanup() {
         repeat(3) {
@@ -191,21 +193,31 @@ abstract class DeviceTestBase {
             saved()
         }
     }
-    private val evidence = object : TestWatcher() {
-        override fun failed(error: Throwable, description: Description) {
-            // The disposable fixture uses synthetic credentials. This is the app's
-            // sanitized, bounded log, including recovery events absent from logcat.
-            println("MegaProxy diagnostic tail:\n${PersistentDiagnosticLog.readTail(32 * 1024)}")
-            val directory = context.getExternalFilesDir(null)!!
-            device.takeScreenshot(File(directory, "device-failure.png"))
-            device.dumpWindowHierarchy(File(directory, "device-failure.xml"))
-        }
+    private fun captureFailure(error: Throwable) {
+        println("Device failure: ${error.javaClass.simpleName}")
+        val directory = requireNotNull(context.getExternalFilesDir(null))
+        device.takeScreenshot(File(directory, "device-failure.png"))
+        device.dumpWindowHierarchy(File(directory, "device-failure.xml"))
     }
-    private val activity = object : ExternalResource() {
-        override fun after() { scenario.close() }
+
+    private fun flushDiagnosticLog() {
+        // Test-only barrier after VPN shutdown; a busy/discarded barrier fails with a timeout.
+        val field = PersistentDiagnosticLog::class.java.getDeclaredField("executor").apply { isAccessible = true }
+        val executor = field.get(null) as ThreadPoolExecutor
+        executor.submit {}.get(5, TimeUnit.SECONDS)
     }
-    private val finish = object : ExternalResource() {
-        override fun after() { cleanup() }
-    }
-    @get:Rule val rules: RuleChain = RuleChain.outerRule(platform).around(activity).around(finish).around(evidence)
+
+    @get:Rule val rules: org.junit.rules.TestRule = DeviceTestEvidenceRule(
+        prepare = ::prepare,
+        cleanup = { if (::scenario.isInitialized) cleanup() },
+        close = { if (::scenario.isInitialized) scenario.close() },
+        evidence = ::captureFailure,
+        diagnostics = {
+            io {
+                PersistentDiagnosticLog.write("event=device_test stage=finish")
+                flushDiagnosticLog()
+            }
+            println("MegaProxy diagnostic tail:\n${PersistentDiagnosticLog.readTail(64 * 1024)}")
+        },
+    )
 }
