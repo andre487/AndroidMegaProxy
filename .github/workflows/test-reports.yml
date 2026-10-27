@@ -29,7 +29,34 @@ jobs:
     timeout-minutes: 5
     steps:
       # Parse uploaded data only; never check out or run code from the tested PR.
+      # Inline trusted code also works for fork reports without checking out PR code.
+      - name: Retry transient GitHub Check updates
+        run: |
+          cat > "$RUNNER_TEMP/test-report-check-retry.cjs" <<'JS'
+          const {setTimeout: sleep} = require('node:timers/promises');
+          const fetch = globalThis.fetch;
+          const api = new URL(process.env.GITHUB_API_URL);
+          globalThis.fetch = async (input, options) => {
+            const url = new URL(input instanceof Request ? input.url : input);
+            // Octokit sends JSON strings; do not replay streams or Check creation.
+            if (url.origin !== api.origin || options?.method !== 'PATCH' ||
+                typeof options.body !== 'string' ||
+                !/^\/repos\/[^/]+\/[^/]+\/check-runs\/\d+$/.test(url.pathname)) {
+              return fetch(input, options);
+            }
+            const delays = [1000, 3000];
+            for (let attempt = 0; ; attempt++) {
+              const response = await fetch(input, options);
+              if (response.status !== 404 || attempt === delays.length) return response;
+              await response.body?.cancel();
+              console.warn(`GitHub Check update returned 404; retry ${attempt + 1}/2 in ${delays[attempt]}ms`);
+              await sleep(delays[attempt], undefined, {signal: options.signal});
+            }
+          };
+          JS
       - name: Publish JUnit results in GitHub Checks
+        env:
+          NODE_OPTIONS: --require=${{ runner.temp }}/test-report-check-retry.cjs
         uses: dorny/test-reporter@d1b5dff021aa968b288b02285a8bf47471c5928a # v3
         with:
           artifact: ${{ inputs.artifact || '/^junit-(.+)$/' }}
