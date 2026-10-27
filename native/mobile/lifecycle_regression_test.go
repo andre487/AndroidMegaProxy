@@ -115,27 +115,42 @@ type allocationPacketSocket struct {
 
 func (c *allocationPacketSocket) Read(b []byte) (int, error) { return copy(b, c.packet), nil }
 func BenchmarkSOCKS5ReadAllocation(b *testing.B) {
-	target := S.ParseAddrString("192.0.2.1:443")
-	packet, err := S.EncodeUDPPacket(target, make([]byte, 1200))
+	benchmarkSOCKS5Read(b, "192.0.2.1:443", "192.0.2.1:443")
+}
+
+func BenchmarkSOCKS5ReadAllocationPeers(b *testing.B) {
+	for _, tc := range []struct{ name, target, reply string }{
+		{"ipv4", "192.0.2.1:443", "192.0.2.1:443"},
+		{"ipv6", "[2001:db8::1]:443", "[2001:db8::1]:443"},
+		{"mapped", "192.0.2.1:443", "[::ffff:192.0.2.1]:443"},
+		{"domain-ipv4", "origin.test:443", "192.0.2.1:443"},
+		{"domain-ipv6", "origin.test:443", "[2001:db8::1]:443"},
+	} {
+		b.Run(tc.name, func(b *testing.B) { benchmarkSOCKS5Read(b, tc.target, tc.reply) })
+	}
+}
+
+func benchmarkSOCKS5Read(b *testing.B, target, reply string) {
+	packet, err := S.EncodeUDPPacket(S.ParseAddrString(reply), make([]byte, 1200))
 	if err != nil {
 		b.Fatal(err)
 	}
-	p := &socks5PacketConn{Conn: &allocationPacketSocket{packet: packet}, target: target, peer: &net.UDPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 443}}
+	p := &socks5PacketConn{Conn: &allocationPacketSocket{packet: packet}, target: S.ParseAddrString(target), peer: &net.UDPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 443}}
 	buffer := make([]byte, 1400)
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _, err := p.ReadFrom(buffer)
-		if err != nil && !errors.Is(err, io.EOF) {
-			b.Fatal(err)
+		n, peer, err := p.ReadFrom(buffer)
+		if err != nil || n != 1200 || peer != p.peer {
+			b.Fatalf("UDP read: n=%d peer=%v err=%v", n, peer, err)
 		}
 	}
 }
 
 func TestSOCKS5ReadAllocationBudget(t *testing.T) {
 	result := testing.Benchmark(BenchmarkSOCKS5ReadAllocation)
-	if bytes := result.AllocedBytesPerOp(); bytes > 2048 {
-		t.Fatalf("UDP read allocates %d bytes per datagram", bytes)
+	if result.AllocedBytesPerOp() != 0 || result.AllocsPerOp() != 0 {
+		t.Fatalf("UDP read allocates %d bytes / %d objects per datagram", result.AllocedBytesPerOp(), result.AllocsPerOp())
 	}
 }
 

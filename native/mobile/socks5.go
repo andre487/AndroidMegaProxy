@@ -1,7 +1,9 @@
 package mobile
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -367,10 +369,20 @@ func (p *socks5PacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		}
 		// An IP target is pinned to its original IP and port. Domain targets are
 		// resolved at the proxy and use a virtual peer for the diagnostic QUIC client.
-		if p.target[0] != S.AtypDomainName && addr.String() != p.target.String() {
-			continue
+		// Equal wire addresses need no string allocations. Keep the textual
+		// fallback for equivalent IPv4 and IPv4-mapped IPv6 encodings.
+		if p.target[0] != S.AtypDomainName {
+			if addr[0] == p.target[0] {
+				if !bytes.Equal(addr, p.target) {
+					continue
+				}
+			} else if addr.String() != p.target.String() {
+				continue
+			}
 		}
-		if p.target[0] == S.AtypDomainName && (addr.UDPAddr() == nil || addr.UDPAddr().Port != p.peer.Port) {
+		// DecodeUDPPacket has already validated and sliced the whole address.
+		// Domain replies remain unsupported; numeric replies must keep the port.
+		if p.target[0] == S.AtypDomainName && (addr[0] == S.AtypDomainName || int(binary.BigEndian.Uint16(addr[len(addr)-2:])) != p.peer.Port) {
 			continue
 		}
 		copied := copy(b, payload)

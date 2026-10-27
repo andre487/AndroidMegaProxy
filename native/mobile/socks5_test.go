@@ -492,3 +492,72 @@ func TestSOCKS5BypassedTargetResetIsNotProxyFailure(t *testing.T) {
 		t.Fatalf("local target must not trigger VPN failover: %s", logs.text())
 	}
 }
+
+// A finite packet source makes a dropped reply observable as EOF, without a network timeout.
+type socks5ReplySocket struct {
+	net.Conn
+	packet []byte
+}
+
+func (c *socks5ReplySocket) Read(p []byte) (int, error) {
+	if c.packet == nil {
+		return 0, io.EOF
+	}
+	n := copy(p, c.packet)
+	c.packet = nil
+	return n, nil
+}
+
+func TestSOCKS5UDPReplyAddressPolicy(t *testing.T) {
+	for _, tc := range []struct {
+		name, target, reply string
+		allowed             bool
+	}{
+		{"ipv4", "192.0.2.1:443", "192.0.2.1:443", true},
+		{"ipv6", "[2001:db8::1]:443", "[2001:db8::1]:443", true},
+		{"ipv4-mapped-reply", "192.0.2.1:443", "[::ffff:192.0.2.1]:443", true},
+		{"ipv4-mapped-target", "[::ffff:192.0.2.1]:443", "192.0.2.1:443", true},
+		{"wrong-ipv4", "192.0.2.1:443", "192.0.2.2:443", false},
+		{"wrong-ipv6", "[2001:db8::1]:443", "[2001:db8::2]:443", false},
+		{"wrong-port", "192.0.2.1:443", "192.0.2.1:444", false},
+		{"wrong-mapped-port", "192.0.2.1:443", "[::ffff:192.0.2.1]:444", false},
+		{"different-family", "192.0.2.1:443", "[2001:db8::1]:443", false},
+		{"domain-ipv4", "origin.test:443", "192.0.2.1:443", true},
+		{"domain-ipv6", "origin.test:443", "[2001:db8::1]:443", true},
+		{"domain-mapped", "origin.test:443", "[::ffff:192.0.2.1]:443", true},
+		{"domain-wrong-port", "origin.test:443", "192.0.2.1:444", false},
+		{"domain-response", "origin.test:443", "origin.test:443", false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			packet, err := S.EncodeUDPPacket(S.ParseAddrString(tc.reply), []byte("ok"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			peer := &net.UDPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 443}
+			conn := &socks5PacketConn{Conn: &socks5ReplySocket{packet: packet}, target: S.ParseAddrString(tc.target), peer: peer}
+			payload := make([]byte, 16)
+			n, from, err := conn.ReadFrom(payload)
+			if tc.allowed {
+				if err != nil || string(payload[:n]) != "ok" || from != peer {
+					t.Fatalf("allowed reply: n=%d from=%v err=%v", n, from, err)
+				}
+			} else if err != io.EOF || n != 0 || from != nil {
+				t.Fatalf("untrusted reply escaped: n=%d from=%v err=%v", n, from, err)
+			}
+		})
+	}
+}
+
+func TestSOCKS5DomainUDPDiscardsMalformedReplies(t *testing.T) {
+	for _, packet := range [][]byte{
+		{}, {0, 0, 0, S.AtypIPv4, 192}, {0, 0, 0, S.AtypIPv6, 0},
+		{0, 0, 0, S.AtypDomainName, 255, 'a'}, {0, 0, 0, 255, 0, 0},
+		{0, 1, 0, S.AtypIPv4, 192, 0, 2, 1, 1, 187},
+		{0, 0, 1, S.AtypIPv4, 192, 0, 2, 1, 1, 187},
+	} {
+		conn := &socks5PacketConn{Conn: &socks5ReplySocket{packet: packet}, target: S.ParseAddrString("origin.test:443"), peer: &net.UDPAddr{Port: 443}}
+		if n, from, err := conn.ReadFrom(make([]byte, 16)); n != 0 || from != nil || err != io.EOF {
+			t.Fatalf("malformed packet escaped: n=%d from=%v err=%v", n, from, err)
+		}
+	}
+}
