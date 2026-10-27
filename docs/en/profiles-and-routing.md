@@ -10,7 +10,7 @@ or use the move actions. Selecting a different profile while connected reconnect
 
 | Scope | Settings |
 | --- | --- |
-| Per profile | Transport, server/Jump addresses, credentials and trust, DNS, IPv6, HTTP/3 preference |
+| Per profile | Transport, server/Jump addresses, credentials and trust, DNS, IPv6, HTTP/3 preference, optional authentication check host |
 | Shared across profiles | App routing, LAN bypass, fingerprints, SSH authentication/keepalive/channel/rotation settings, failover |
 | Device-local, not transferred | MTU, strict source validation and level, language, traffic units, update preferences; DNS security approvals stay local to each profile |
 
@@ -52,7 +52,12 @@ Some proxies return a decoy website or stall instead of exposing an authenticati
 
 For a regular **HTTPS** profile, **Authentication check host** is optional. Enter the operator-provided knock hostname, without a URL, path or port. During HTTPS-over-TCP diagnostics the app sends an authenticated CONNECT to that hostname on port 443 through the proxy, bounded to five seconds. An unmasked `407` confirms an authentication rejection and stops the check. `200` only confirms that CONNECT was accepted; the ordinary end-to-end HTTPS test still runs. Other statuses and timeouts are inconclusive and do not get labelled as wrong credentials.
 
-A blank field adds no probe request. The field is imported/exported as per-profile `proxy.knockHost` (legacy `browser.knockHost` is accepted when the shared field is absent; an explicit empty shared value disables the probe); other browser options remain ignored. This probe applies to regular HTTPS over TCP, not HTTPS Jump or selected HTTP/3. Editing the diagnostic host does not reconnect a running VPN; a new check uses it for the same runtime endpoint while preserving runtime credentials. It adds no per-packet checks.
+A blank field adds no probe request. JSON uses `profiles[].proxy.knockHost`; legacy
+`profiles[].browser.knockHost` is accepted only when the shared field is absent. An
+explicit empty shared value disables the probe, even if the legacy alias is set.
+Other browser options remain ignored.
+
+This probe applies to regular HTTPS over TCP, not HTTPS Jump or selected HTTP/3. Editing the diagnostic host does not reconnect a running VPN; a new check uses it for the same runtime endpoint while preserving runtime credentials. It adds no per-packet checks.
 
 The shared diagnostic log records `proxy_auth_probe` start, skipped/accepted/rejected/inconclusive outcome, HTTP status, elapsed time and safe failure class. It contains neither the probe/proxy hostname nor IPs, usernames, passwords or response bodies.
 
@@ -116,7 +121,8 @@ HTTPS/MASQUE/SOCKS5 endpoints; use JSON for SSH, Jump and other settings.
 Passwords and SSH private keys are optional export choices. Omitted secrets preserve existing
 values only for the same endpoint/account; explicit empty values clear them. URL query tokens
 remain in JSON even when passwords are omitted. Exported credentials/keys are readable: protect
-the file. A JSON export is not a full app backup. [Schemas and examples](../../config-schema/).
+the file. A JSON export is not a full app backup. [Pinned schemas and examples](../../config-schema/);
+[complete field reference](https://github.com/andre487/MegaProxyConfig/blob/main/docs/field-reference.md).
 
 **Settings → Traffic units** selects IEC (default, powers of 1024: KiB/MiB) or SI (1000: KB/MB)
 for totals and speeds; traffic-limit inputs remain in MiB. Language is selected separately

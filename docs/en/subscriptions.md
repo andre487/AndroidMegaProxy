@@ -85,3 +85,8 @@ property from the file; this preserves any subscription already configured on th
 The complete local profile store is limited to 1,000 profiles, 4,194,304 characters before encoding,
 and 8 MiB of encoded JSON. Imports, edits and subscription refreshes exceeding these limits
 fail without replacing the previous configuration.
+
+The optional authentication-check host follows the same endpoint/account boundary:
+an omitted `proxy.knockHost` (and absent legacy `browser.knockHost`) retains the
+local value only for the same account. An explicit empty shared field clears it.
+Changing only this diagnostic host does not require a VPN reconnect.
