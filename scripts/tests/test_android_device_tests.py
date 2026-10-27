@@ -159,7 +159,7 @@ class InstrumentationResultTest(unittest.TestCase):
         )
         self.assertEqual(suite.get("failures"), "1")
 
-    def test_case_waits_for_previous_process_and_activity_before_clearing_logcat(self):
+    def test_case_waits_for_previous_process_and_uses_precise_log_marker(self):
         responses = iter(
             [
                 "321",
@@ -170,25 +170,39 @@ class InstrumentationResultTest(unittest.TestCase):
                 "",
             ]
         )
+        marker = None
 
         def response(*args):
+            nonlocal marker
             if args[0] in ("sh", "dumpsys"):
                 return next(responses)
+            if args[0] == "log":
+                marker = args[-1]
+            if args[0] == "logcat":
+                return "10-27 19:18:58.997  123  123 I MegaProxyDeviceTest: " + marker
             return ""
 
         shell = Mock(side_effect=response)
         with patch.object(m.time, "sleep"):
-            m.begin_case(shell, 26, "case")
-        self.assertEqual(
-            shell.call_args_list[-2:],
-            [
-                call("logcat", "-c"),
-                call("log", "-t", "MegaProxyDeviceTest", "BEGIN case"),
-            ],
-        )
+            self.assertEqual(m.begin_case(shell, 26, "case"), "10-27 19:18:58.997")
         self.assertEqual(
             shell.call_args_list.count(call("dumpsys", "activity", "activities")), 3
         )
+        self.assertNotIn(call("logcat", "-c"), shell.call_args_list)
+        suite = ET.Element("testsuite")
+        case = ET.SubElement(suite, "testcase", time="1.0")
+        evidence = Mock(return_value="")
+        with tempfile.TemporaryDirectory() as directory:
+            m.finish_case(
+                evidence, Path(directory), "case", case, suite, "10-27 19:18:58.997"
+            )
+        evidence.assert_any_call(
+            "logcat", "-d", "-v", "threadtime", "-T", "10-27 19:18:58.997"
+        )
+
+    def test_missing_start_marker_fails_before_instrumentation(self):
+        with self.assertRaisesRegex(RuntimeError, "start marker is missing"):
+            m.begin_case(Mock(return_value=""), 26, "case")
 
     def test_previous_process_timeout_does_not_clear_evidence(self):
         shell = Mock(return_value="still running")

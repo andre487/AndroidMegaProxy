@@ -70,7 +70,7 @@ def require_success(output):
         raise RuntimeError("Instrumentation did not report exactly one successful test")
 
 
-def finish_case(shell, results, label, case, suite):
+def finish_case(shell, results, label, case, suite, log_start=None):
     error_message = None
     evidence = (
         (("anr", ("dumpsys", "dropbox", "--print", "data_app_anr")),)
@@ -78,7 +78,16 @@ def finish_case(shell, results, label, case, suite):
         else ()
     )
     for name, words in (
-        ("logcat", ("logcat", "-d", "-v", "threadtime")),
+        (
+            "logcat",
+            (
+                "logcat",
+                "-d",
+                "-v",
+                "threadtime",
+                *(("-T", log_start) if log_start else ()),
+            ),
+        ),
         *evidence,
         ("force-stop", ("am", "force-stop", PACKAGE)),
     ):
@@ -119,10 +128,23 @@ def begin_case(shell, api, label):
         if time.monotonic() >= deadline:
             raise RuntimeError("Previous Android process or activities did not finish")
         time.sleep(0.1)
-    # Start a fresh buffer only after the previous instrumentation process is gone.
-    # This works on API 26 too, without relying on date's fractional-second support.
-    shell("logcat", "-c")
-    shell("log", "-t", "MegaProxyDeviceTest", "BEGIN " + label)
+    # API 26 can fail logcat -c while logd is busy. Read our marker's precise
+    # device timestamp instead; date's rounded seconds include the previous case.
+    marker = "BEGIN " + label + " " + uuid.uuid4().hex
+    shell("log", "-p", "i", "-t", "MegaProxyDeviceTest", marker)
+    records = shell(
+        "logcat", "-d", "-v", "threadtime", "-s", "MegaProxyDeviceTest:I", "*:S"
+    )
+    match = re.search(
+        r"^(\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}).* MegaProxyDeviceTest: "
+        + re.escape(marker)
+        + r"$",
+        records,
+        re.MULTILINE,
+    )
+    if not match:
+        raise RuntimeError("Device Logcat start marker is missing")
+    return match.group(1)
 
 
 def dual_protocol_port():
@@ -532,8 +554,9 @@ def main():
                 name=method + ("." + phase if phase else ""),
             )
             started = time.monotonic()
+            log_start = None
             try:
-                begin_case(shell, args.api, label)
+                log_start = begin_case(shell, args.api, label)
                 options = [
                     "am",
                     "instrument",
@@ -576,7 +599,7 @@ def main():
                         print(f"Failure {extension} evidence unavailable", flush=True)
             finally:
                 case.set("time", f"{time.monotonic() - started:.3f}")
-                finish_case(shell, results, label, case, suite)
+                finish_case(shell, results, label, case, suite, log_start)
     return bool(failures)
 
 
