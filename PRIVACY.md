@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: October 11, 2026**
+**Last updated: October 27, 2026**
 
 MegaProxy is an Android VPN client for proxy servers you choose. It does not provide a proxy
 service, require an account, or automatically send usage data or crash reports to the developer.
@@ -14,6 +14,8 @@ connect to your servers. Passwords, imported private keys, configuration-subscri
 For per-app routing, MegaProxy reads the applications visible to it on your device and stores
 which applications you select. This information is used locally to configure routing, not
 uploaded as an application inventory. Profile exports can include these routing selections.
+Optional strict source validation also uses Android's local socket-owner lookup to check which app owns TCP/UDP traffic. These ownership
+checks and their settings stay on the device; they do not send an app inventory to a server.
 
 Connection statistics and diagnostic/crash logs are processed locally to display connection
 status and help troubleshoot failures. Logs contain operational events and error details;
@@ -53,9 +55,12 @@ device by public IP for 24 hours, and does not add them to diagnostic logs.
 When you explicitly start the speed test, MegaProxy contacts `https://h3.speed.cloudflare.com/`
 through each available route. Cloudflare receives the route's public IP and connection metadata.
 MegaProxy downloads and uploads the selected 10, 25 or 50 MB per route and displays the exit IP,
-country, negotiated protocol, latency and transfer speeds. The speed screen shows a temporary
-in-memory log of timing, protocol selection, HTTP status and transfer measurements; it contains
-no exit IP or response payloads and is discarded when the screen is closed.
+country, negotiated protocol, latency and transfer speeds. Diagnostics shares a bounded
+in-memory log between connection and speed tests, including timing, protocol selection, HTTP status
+and transfer measurements, without exit IPs or response payloads. Leaving Diagnostics cancels speed
+transfers; the shared log remains until the next connection test or process restart. It is copied
+or exported only when you choose that action. Diagnostic events are also written to the rotating
+local diagnostic log, which you can clear in Settings → Diagnostic log.
 
 If you configure a configuration subscription, MegaProxy downloads snapshots from the HTTPS
 sources you configure or their trusted replacements, automatically at the interval you choose when Android permits background work,

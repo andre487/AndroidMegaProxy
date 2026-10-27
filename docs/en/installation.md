@@ -26,9 +26,9 @@ link above or search for MegaProxy (`net.megaproxy487`), and install. Grant F-Dr
 permission if Android requests it.
 
 In MegaProxy, allow notifications for connection controls, add/import a profile, select global or
-per-app routing, and tap **Connect**. Confirm Android's VPN request. **Test**, **Speed** and
-**VPN visibility** are separate main-menu screens. MegaProxy's prominent split-routing switch
-and its app-list checkbox control the same selection; upstream sockets remain protected from loops.
+per-app routing, and tap **Connect**. Confirm Android's VPN request. **Diagnostics** starts a connection test on opening and unlocks speed tests after success; both
+share an exportable log. **Visibility** is a separate main-menu screen. For app selection and
+optional Android 10+ app ownership checks, see [profiles and routing](profiles-and-routing.md).
 
 ## Update safely
 

@@ -1,5 +1,7 @@
 # Connection quality metrics
 
+[Русский](../ru/connection-metrics.md) · [All guides](index.md)
+
 The main screen displays payload totals/rates and passive metrics to the **first proxy**:
 TCP RTT/retransmits for TCP transports, QUIC RTT/loss declarations for HTTP/3. An established
 HTTP/3 session identifies the transport before any tunnel payload is sent.
@@ -13,8 +15,8 @@ HTTP/3 session identifies the transport before any tunnel payload is sent.
   while the process runs; deltas are assigned to their observation time. Android
   suspension can delay observations. No probe traffic or wake lock is added.
 - Both metrics cover the phone to the **first proxy only**. SSH/HTTP2 channels and
-  subsequent jump hops are not counted again. Local bypass traffic and standalone
-  connection diagnostics are excluded from these TCP metrics.
+  subsequent jump hops are not counted again. SOCKS5 UDP control sockets are included,
+  not UDP path metrics. Local bypass traffic and standalone diagnostics are excluded.
 - Retransmits describe the phone's outgoing segments, not a packet-loss percentage.
   They cannot measure all download losses or the proxy-to-destination path. Zero
   retransmits does not prove a healthy end-to-end connection. Failed TCP dials
@@ -90,12 +92,6 @@ log complete TLS/SSH state objects. HTTP rejection messages use numeric status
 codes, not server-provided reason text; connection-test providers use indices.
 
 
-SOCKS5 profiles support TCP CONNECT and UDP ASSOCIATE, with optional credentials
-(1–255 UTF-8 bytes each), on port 1080 by default. SOCKS5 adds no encryption or TLS
-fingerprint. DNS defaults to DoH through the proxy; see [DNS modes](dns.md). The connection test also checks
-end-to-end HTTP/3 over SOCKS5 UDP. TCP metrics cover proxy TCP connections, including
-UDP control connections; they do not measure UDP loss or RTT.
-
 ## Test, Speed and VPN visibility
 
 Diagnostics and VPN visibility are available in the main menu. Diagnostics starts the connection test on opening; speed checks unlock only after it passes. Speed checks require an explicit start. Both operations share a bounded log at the bottom, with copying and export to a text file. Running another connection test clears the log and locks speed checks until success. The connection test cannot be restarted during a speed check.
@@ -122,13 +118,13 @@ it is not SSL-handshake time, an ICMP ping or the main screen's passive RTT.
 Cloudflare's `h3.speed.cloudflare.com` endpoint is used for protocol-capable measurements.
 The log records DNS/TCP/TLS/QUIC stages, protocol/fallback, HTTP status, connection reuse,
 bytes and transfer timing; no response payloads or exit IP are added to the log.
-Leaving Diagnostics or recreating its UI cancels speed requests and discards speed results. The shared in-memory log remains until the next connection test or process restart. Home/background alone does not cancel requests.
+Leaving Diagnostics or recreating its UI cancels speed requests and discards speed results. The shared in-memory log remains until the next connection test or process restart. Home/background alone does not cancel requests. Events are also copied to the rotating local
+diagnostic log; clear or export it separately in **Settings → Diagnostic log**.
 
 ProxyCheck success is cached per public IP for 24 hours. Daily quota exhaustion, network failure
 and unknown response format are distinct states; unavailable routes are shown separately.
 Tests parse fixtures rather than contacting ProxyCheck. Full endpoint inventory: [README](../../README.md#privacy-and-security).
 
-[Русская версия](../ru/connection-metrics.md)
 
 UDP forwarding is available with MASQUE, SOCKS5 and HTTPS when HTTP/3 is negotiated.
 HTTPS over TCP and SSH block ordinary UDP; DNS has its own routing rules in the

@@ -1,84 +1,52 @@
 # MegaProxy documentation
 
-Server configurations and setup instructions have moved to the dedicated
-[MegaProxyServer repository](https://github.com/andre487/MegaProxyServer).
+[Русский](../ru/index.md)
 
-Client documentation:
+MegaProxy connects your Android device to servers you control or trust. Servers and credentials
+are not included; server setup lives in [MegaProxyServer](https://github.com/andre487/MegaProxyServer).
 
-- [Configuration subscriptions](subscriptions.md)
-- [Strict traffic source validation](source-validation.md)
-- [Installation](installation.md)
-- [App updates](updates.md)
-- [Connection metrics, Test, Speed and VPN visibility](connection-metrics.md)
-- [SOCKS5](#socks5)
-- [MASQUE α (HTTP/3), experimental](masque.md)
-- [HTTPS with Jump](#https-with-jump)
+## Start here
 
-Developer documentation:
+1. [Install MegaProxy](installation.md), then add or import a [server profile](profiles-and-routing.md).
+2. Select all apps or choose apps in **Split tunneling**. Android 10+ also offers optional
+   [app ownership checks](source-validation.md), off by default.
+3. Tap **Connect** and approve Android's VPN request.
+4. Open **Diagnostics**: the connection test starts automatically; speed tests unlock after success.
 
-- [Fastlane workflow](fastlane.md)
-- [Testing policy and release acceptance](release-testing.md)
-- [Release automation](release-automation.md)
+## Guides
+
+| Guide | Covers |
+| --- | --- |
+| [Profiles and routing](profiles-and-routing.md) | HTTPS/SSH/Jump/SOCKS5, app selection, LAN bypass, failover, Always-on, import/export and local settings |
+| [App ownership checks](source-validation.md) | Standard/Advanced UDP policies, TCP admission, ping blocking and compatibility limits |
+| [DNS](dns.md) | DoH, plain TCP/UDP, routing and local security approvals |
+| [MASQUE α](masque.md) | Experimental HTTP/3 setup, fingerprints and interoperability limits |
+| [Diagnostics and metrics](connection-metrics.md) | Connection/speed checks, shared log, VPN visibility, passive metrics and MTU |
+| [Configuration subscriptions](subscriptions.md) | HTTPS sources, refresh, profile ownership and reconnect notifications |
+| [App updates](updates.md) | F-Droid/GitHub selection, daily checks, consent and version/signature rules |
 
 ## SOCKS5
 
-Select **SOCKS5** and enter the server hostname and port (default 1080). Leave both
-credentials empty, or enter a username and password of 1–255 UTF-8 bytes each.
-SOCKS5 does not encrypt the proxy connection or credentials and does not apply a
-browser TLS fingerprint. Application TLS and DoH retain their own encryption.
-By default, DNS uses the selected DoH provider over proxied TCP; other UDP uses UDP ASSOCIATE.
-The relay must return a reachable IP address and nonzero UDP port. Wildcard relay
-addresses use the proxy bootstrap IP; hostname relays are rejected without system DNS.
-Local-network bypass, app routing, IPv6 policy, failover and traffic counters apply.
-TCP RTT/retransmits describe the first proxy's TCP sockets, including UDP control
-connections; these are not measurements of the relayed UDP path. No SOCKS5 Jump
-mode is defined. JSON uses `proxy.type: "SOCKS5"`; ProxyList accepts
-`socks5://host:1080` and `socks5://user:password@host:1080`.
-
-For GOST, enable UDP explicitly: `gost -L 'socks5://user:password@:1080?udp=true'`.
-See [GOST SOCKS5 documentation](https://gost.run/en/tutorials/protocols/socks/).
-The proxy's advertised UDP relay must be reachable through its firewall/NAT.
+TCP CONNECT and UDP ASSOCIATE with optional credentials. **SOCKS5 does not encrypt the
+connection or password.** [Setup and relay limits](profiles-and-routing.md#socks5).
 
 ## HTTPS with Jump
 
-Select **HTTPS with Jump** to use two HTTPS CONNECT proxies in sequence:
-phone → jump proxy → destination proxy → website. Enter the destination proxy in the main
-connection fields and the first hop in **Jump HTTPS proxy**. Both ports default to 443.
-The jump proxy must allow CONNECT to the destination proxy hostname and port; it resolves that
-hostname. Only the jump proxy is bootstrapped on the phone. Both hops use the selected TLS
-fingerprint and support HTTP/1.1 and HTTP/2 CONNECT independently.
-
-Each hop verifies its own TLS certificate and can use separate Basic Auth credentials. The
-optional shared-authentication setting reuses the destination username and password. Certificate
-verification exceptions apply only to the selected hop. Connection tests and DoH use the chain;
-local-network destinations still follow the existing bypass setting. A failed hop never causes
-fallback to a direct connection to the destination proxy.
-
-JSON schema version 8 stores this mode as `proxy.type: "HTTPS_JUMP"`, with first-hop settings in
-`proxy.jump`: `host`, `port`, `sameAuthentication`, `username`, `password`, and
-`allowInvalidProxyCertificate`. Export passwords only when needed. Older application versions
-reject version 8 files, preventing a chain from being imported as a single proxy. ProxyList
-exports support single HTTPS, MASQUE and SOCKS5 proxies and omit chain profiles.
-
-HTTPS profiles, including HTTPS with Jump, also offer **Prefer HTTP/3 α** (off by default): try MASQUE
-on the same host/UDP port, then HTTPS when unavailable. Certificate and
-authentication errors remain terminal. HTTPS fallback blocks ordinary UDP and
-shows a warning; explicit MASQUE profiles never fall back. JSON stores the
-preference in `profiles[].proxy.preferHttp3`. With Jump, both nodes must support
-MASQUE and a usable datagram MTU; otherwise the entire chain retains HTTPS.
-
-[Русская версия](../ru/index.md)
-
-[DNS: modes, routing and certificates](dns.md).
+Two proxies with independent authentication and certificate checks; optional HTTP/3 requires
+both hops to support MASQUE. [Setup and fallback](profiles-and-routing.md#https-and-jump).
 
 ## Fingerprints and diagnostic logs
 
-The default HTTPS fingerprint currently follows Chrome Android; a future update may
-choose a different browser preset. SSH presets control the client banner and the
-preferred key-exchange, cipher and MAC ordering. These settings describe the connection
-to the proxy, not the browser or other apps inside the tunnel. QUIC presets and manual
-JA3 requirements are documented in [MASQUE](masque.md).
+Fingerprints describe the proxy connection, not the applications inside it. The persistent
+log rotates within a configurable storage limit; the Diagnostics screen has a separate shared
+in-memory log. [Controls](profiles-and-routing.md#import-export-and-local-controls) ·
+[Measured and logged data](connection-metrics.md).
 
-The log size setting limits the combined size of two rotating segments to 1–100 MiB.
-Older events are removed as the segments rotate; clearing the log deletes both.
-See [connection metrics](connection-metrics.md) for what is measured and logged.
+## For developers
+
+- [Fastlane commands and setup](fastlane.md)
+- [Testing policy and release acceptance](release-testing.md)
+- [Native benchmarks and their limits](native-benchmarks.md)
+- [Release automation](release-automation.md)
+- [Artwork and F-Droid graphics](graphics.md)
+- [Go dataplane](../../native/README.md)
