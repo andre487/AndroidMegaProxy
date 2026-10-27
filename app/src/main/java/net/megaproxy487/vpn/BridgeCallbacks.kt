@@ -34,3 +34,20 @@ internal class BridgeReporter(
         }
     }
 }
+
+
+internal class BridgeSourceValidator(
+    private val enabled: () -> Boolean,
+    private val allowedUids: Set<Int>?,
+    private val resolve: (Int, String, Int, String, Int) -> Int,
+) : mobile.SourceValidator {
+    override fun allow(protocol: Long, source: String, sourcePort: Long, destination: String, destinationPort: Long): Boolean {
+        if (!enabled() || (protocol != 6L && protocol != 17L) || sourcePort !in 1..65535L || destinationPort !in 1..65535L) return false
+        return try {
+            val uid = resolve(protocol.toInt(), source, sourcePort.toInt(), destination, destinationPort.toInt())
+            enabled() && uid >= 0 && (allowedUids == null || uid in allowedUids)
+        } catch (_: Exception) {
+            false
+        }
+    }
+}

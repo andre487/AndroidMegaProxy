@@ -167,6 +167,16 @@ branch names, credentials, signing material, or other secrets.
   downloads. Keep local profiles/selections and current tunnels; effective live changes mark
   pending reconnect rather than starting/stopping VPN automatically.
 
+- Strict source validation is device-local, opt-in and Android 10+; apply on reconnection.
+  Disabled sessions retain the original native data path. Enabled sessions fail closed on
+  unknown owners on lookup, validate TCP admission, and block TUN Echo while preserving ordinary
+  ICMP error handling. Standard caches UDP admission per live flow for a fixed non-sliding second;
+  Advanced checks every outgoing datagram. New opt-in defaults to Standard; legacy enabled settings
+  migrate to Advanced. Keep both levels local and preserve them across imports. Visibility reports
+  the actual running level and pending changes, not proof of a separate-app bypass test.
+  Bound all ownership JNI queries across sessions (including UDP rechecks), avoid ordinary payload copies and repeated prefix coalescing
+  in the ICMP filter, and prepare numeric UDP endpoint strings once per flow.
+
 ## Architecture landmarks
 
 - Validate networking optimizations against latency measurements. Prefer bounded racing of alternatives

@@ -39,7 +39,7 @@ data class PortableConfiguration(
 ) {
     internal fun mergeGlobalSettings(current: GlobalConnectionSettings): GlobalConnectionSettings {
         val incoming = globalConnectionSettings ?: return current
-        val fields = globalSettingFields ?: return incoming.copy(mtu = current.mtu)
+        val fields = globalSettingFields ?: return incoming.copy(mtu = current.mtu, strictSourceValidation = current.strictSourceValidation, sourceValidationLevel = current.sourceValidationLevel)
         return current.copy(
             tlsProfile = if ("tls.fingerprint" in fields) incoming.tlsProfile else current.tlsProfile,
             customJa3 = if ("tls.customJa3" in fields) incoming.customJa3 else current.customJa3,

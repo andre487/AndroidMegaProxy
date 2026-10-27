@@ -590,4 +590,21 @@
     <string name="mtu_invalid">Enter a whole number from 1280 to 65535.</string>
     <string name="mtu_reconnect">Applies to all profiles on this device after reconnection.</string>
     <string name="subscription_backups_hint">Up to 7 HTTPS URLs, one per line.</string>
+    <string name="strict_source_title">Strict source validation</string>
+    <string name="strict_source_description">Checks TCP and UDP app ownership; blocks unknown owners and ping. May delay TCP connection setup, slow UDP or disrupt apps. Applies on reconnection.</string>
+    <string name="strict_source_unsupported">Requires Android 10 or later.</string>
+    <string name="strict_source_section">Traffic source protection</string>
+    <string name="strict_source_active">Active</string>
+    <string name="strict_source_disabled">Disabled</string>
+    <string name="strict_source_stopped">VPN is not running. Connect to check the active protection.</string>
+    <string name="strict_source_active_detail">Advanced level: the current tunnel checks TCP admission and every outgoing UDP datagram and blocks ping. This session status is not a separate-app bypass test and does not hide VPN presence.</string>
+    <string name="strict_source_disabled_detail">The current tunnel uses Android app routing without additional source validation.</string>
+    <string name="strict_source_pending_enable">Protection is selected but is not active in the current tunnel. Reconnect to enable it.</string>
+    <string name="strict_source_pending_disable">Protection is still active in the current tunnel. Reconnect to disable it.</string>
+    <string name="source_level_standard">Standard</string>
+    <string name="source_level_advanced">Advanced</string>
+    <string name="source_level_standard_detail">Checks new UDP flows and rechecks on traffic at least once per second. Less overhead; a reused port may remain allowed until the next check.</string>
+    <string name="source_level_advanced_detail">Checks every outgoing UDP datagram. Detects owner changes sooner; higher latency and CPU usage.</string>
+    <string name="source_standard_active_detail">Standard level: the current tunnel checks TCP admission and caches UDP permission for up to 1 second per flow. A reused port may be temporarily accepted. Ping is blocked. This session status is not a separate-app bypass test and does not hide VPN presence.</string>
+    <string name="source_level_pending">The current tunnel still uses the previous validation level. Reconnect to apply the selected level.</string>
 </resources>

@@ -489,7 +489,9 @@ class ProxyVpnService : VpnService() {
             if (!isStartCurrent(generation)) {
                 return false
             }
-            val config = storedConfig.copy(resolvedProxyIp = proxyIp, resolvedJumpIp = jumpIp)
+            val config = storedConfig.copy(resolvedProxyIp = proxyIp, resolvedJumpIp = jumpIp).let {
+                if (testOnly && it.strictSourceValidation) it.copy(routeAllApps = false, selectedPackages = setOf(packageName)) else it
+            }
             val startupBlockingDetail = java.util.concurrent.atomic.AtomicReference<String?>(null)
             val started = proxyCore.start(establishedTunnel.fd, storedConfig.mtu, config) { message ->
                     failureDetail = message
@@ -519,6 +521,7 @@ class ProxyVpnService : VpnService() {
                     core = proxyCore
                     tunnelTestOnly = testOnly
                     activeSession = ConnectionTestTarget(promptProfileId, config)
+                    sourceValidationLevelActive = config.sourceValidationLevel.takeIf { config.strictSourceValidation }
                     isRunning = true
                     true
                 }
@@ -861,6 +864,7 @@ class ProxyVpnService : VpnService() {
             tunnelTestOnly = false
             activeSession = null
             isRunning = false
+            sourceValidationLevelActive = null
             result
         }
         SubscriptionNotifications.cancel(this)
@@ -967,6 +971,9 @@ class ProxyVpnService : VpnService() {
         .build()
 
     companion object {
+        @Volatile var sourceValidationLevelActive: net.megaproxy487.model.SourceValidationLevel? = null
+            private set
+        val strictSourceValidationActive: Boolean get() = sourceValidationLevelActive != null
         private val serviceThread = HandlerThread("megaproxy-vpn-control").apply { start() }
         private const val CHANNEL_ID = "vpn"
         private const val NOTIFICATION_ID = 101

@@ -134,6 +134,16 @@ func TestClosedPacketDeadlineCannotRetainNewTimers(t *testing.T) {
 }
 
 func FuzzNativeParsers(f *testing.F) {
+	ipv4Echo := make([]byte, 28)
+	ipv4Echo[0] = 0x45
+	ipv4Echo[9] = 1
+	ipv4Echo[20] = 8
+	ipv6Echo := make([]byte, 48)
+	ipv6Echo[0] = 0x60
+	ipv6Echo[6] = 58
+	ipv6Echo[40] = 128
+	f.Add(ipv4Echo)
+	f.Add(ipv6Echo)
 	f.Add([]byte(validNativeConfig))
 	f.Add([]byte("771,4865,0,29,0"))
 	f.Add([]byte{0, 1, 128, 0, 0, 1, 0, 0, 0, 0, 0, 0})
@@ -141,6 +151,7 @@ func FuzzNativeParsers(f *testing.F) {
 		if len(data) > 1024*1024 {
 			t.Skip()
 		}
+		_ = blockSourceEcho(data)
 		_, _ = parseConfig(string(data))
 		_, _ = parseJA3(string(data))
 		_, _, _ = buildAQuery(string(data))

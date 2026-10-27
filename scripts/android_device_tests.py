@@ -477,6 +477,10 @@ def main():
                 "Disposable emulator cannot reach the local SSH fixture"
             ) from None
         tests = [(name, None) for name in TESTS]
+        if args.api >= 29:
+            tests.append(
+                ("VpnDeviceTest#strictSourceValidatedTcpUdpStopAndRestart", None)
+            )
         if args.api >= 33:
             tests.append(("VpnDeviceTest#deniedNotificationsStillAllowVpn", None))
         tests += [

@@ -27,6 +27,8 @@ class InstrumentationResultTest(unittest.TestCase):
         }
         # The runner selects this permission scenario separately on API >= 33.
         selected.add("deniedNotificationsStillAllowVpn")
+        # Strict source ownership uses Android API 29+ and is selected separately.
+        selected.add("strictSourceValidatedTcpUdpStopAndRestart")
         self.assertEqual(methods, selected)
         self.assertEqual(len(m.TESTS), len(set(m.TESTS)))
 
