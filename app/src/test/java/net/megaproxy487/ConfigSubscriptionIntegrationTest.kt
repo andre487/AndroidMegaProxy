@@ -487,6 +487,7 @@ class ConfigSubscriptionIntegrationTest {
         assertEquals(local.copy(url = remote.url, fallbackUrls = remote.fallbackUrls), next.settings)
         assertEquals(setOf("one"), next.ownedIds)
         assertFalse(store.hasPendingReconnect())
+        drainScheduling()
         assertNull(context.getSystemService(JobScheduler::class.java).getPendingJob(SUBSCRIPTION_JOB_ID))
     }
 
