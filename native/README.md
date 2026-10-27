@@ -7,10 +7,11 @@ HTTPS with Jump nests a second HTTPS CONNECT transport inside the first, with in
 verification, authentication and HTTP/2 sessions. Only the jump is dialed directly; it resolves
 the destination proxy hostname. Application traffic counters exclude the intermediate tunnel.
 SSH with Jump creates a nested SSH client through the jump session. SSH transports support TCP;
-DNS is carried over DoH, while arbitrary UDP (including QUIC) is intentionally blocked.
+arbitrary UDP (including QUIC) is blocked. DNS defaults to DoH; optional plain TCP/UDP DNS
+follows the separate [DNS routing rules](../docs/en/dns.md).
 `Start` borrows the JVM-owned TUN descriptor for the call and duplicates it with CLOEXEC on
 entry. Go closes only its own duplicate; Java retains responsibility for the descriptor it passed.
-The bridge passes the Android TUN MTU explicitly (currently 1400). Generated gomobile types are
+The bridge passes the configured Android TUN MTU explicitly (default 1400). Generated gomobile types are
 compile-time JVM dependencies, so signature changes must compile on both sides.
 
 Use the supported Fastlane commands from the repository root:

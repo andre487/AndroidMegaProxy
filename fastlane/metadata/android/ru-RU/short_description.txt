@@ -1,1 +1,1 @@
-VPN с jump host для HTTPS/SSH, SOCKS5, MASQUE и выбором приложений
+VPN: HTTPS/SSH Jump, SOCKS5, MASQUE и контроль приложения-источника

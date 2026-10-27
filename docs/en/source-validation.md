@@ -1,47 +1,43 @@
-# Strict source validation
+# App ownership checks
 
-[Русский](../ru/source-validation.md) · [Documentation](index.md)
+[Русский](../ru/source-validation.md) · [All guides](index.md)
 
-In **Split tunneling**, optional **Strict source validation** requires Android 10+ and
-applies when the VPN reconnects. It is local to the device, defaults to off and is not
-included in profile exports or subscriptions. With it off, the native stack retains its
-original transport and link handlers: no UID queries, validation caches or packet checks.
+**Strict source validation** checks which app owns TCP/UDP traffic before forwarding it.
+Enable it in **Settings → Split tunneling** on Android 10+. It defaults to off, applies on
+reconnection and stays on this device: exports and subscriptions cannot enable it.
+With it off, the original native path has no UID queries, validation caches or added packet checks.
 
-Both levels check TCP ownership once before proxy/direct-LAN forwarding, adding latency
-when a connection is established, rather than repeating ownership checks on TCP data.
-UDP, including DNS, is checked at admission. Choose the UDP policy:
+## Levels and cost
 
-| Level | UDP ownership checks | Tradeoff |
+Both levels check TCP ownership once at connection admission, including direct-LAN traffic;
+they can delay connection setup but do not repeat ownership checks on TCP data.
+UDP, including DNS, is checked at admission and then according to the selected level:
+
+| Level | Outgoing UDP checks | Tradeoff |
 | --- | --- | --- |
-| Standard (initial choice) | Admission and the first outgoing datagram after a fixed 1-second interval | Fewer Android API calls; a reused port may temporarily inherit an old permission |
-| Advanced | Admission and every outgoing datagram | Earlier detection of owner changes; more CPU work and latency |
+| Standard (initial choice) | First datagram after each fixed 1-second interval | Fewer Android API calls; stale permission may last up to 1 second |
+| Advanced | Every datagram | Earlier detection of owner changes; more CPU work and latency |
 
-The Standard cache belongs only to the specific live flow. It is not shared by source port,
-destination or subsequent flows. Cache hits do not extend the deadline; no background timer
-is needed. Expired permission must be rechecked before forwarding the next datagram. A denied
-flow is closed. This deliberately allows a stale-owner window of up to 1 second between
-checks and does not offer the same protection as Advanced. Neither level makes ownership
-lookup and forwarding an atomic kernel operation.
+Standard caches permission only for that live flow, not for other destinations or later flows.
+Cache hits do not extend the deadline. The next datagram after expiry requires a new check;
+a denied flow is closed. **Standard does not offer the same protection as Advanced.** Neither
+makes owner lookup and forwarding an atomic kernel operation.
 
-Unknown owners and lookup exceptions are denied when checked. Split mode accepts only the
-selected application UIDs; global mode requires an identifiable owner. Packages sharing a UID
-cannot be distinguished. Slow new-flow lookups run outside the shared TUN loop with at most
-64 concurrent admissions. At most 8 ownership lookups can enter Android/JNI concurrently,
-shared across active and retiring sessions; excess requests fail closed. The query budget
-is initialized only when protection is enabled. Numeric UDP addresses are prepared once
-per flow. The ICMP filter reads only short headers for ordinary packets; unusually long
-extension chains use one packet copy rather than repeatedly coalescing growing prefixes.
-Strict UDP relays close both TUN and upstream when either direction fails, so a denied
-source cannot retain an idle proxy association until the normal UDP timeout. Both levels may disrupt apps or traffic
-without a visible owner, such as tethering. No direct retry bypasses a denial.
+## Blocking and compatibility
 
-The selected level is also device-local and applies on reconnection. Existing enabled settings
-without a level migrate to Advanced, preserving their previous behavior; fresh opt-in uses
-Standard. Visibility reports the actual running level, including when a level change is pending.
+Unknown owners and lookup errors are denied when checked. Split routing accepts only selected
+app UIDs; global routing requires an identifiable owner. Apps sharing a UID cannot be distinguished.
+Both levels can disrupt traffic without a visible owner, such as tethering. No direct retry
+bypasses a denial. Lookups run outside the shared TUN loop, limited to 64 concurrent admissions
+and 8 Android/JNI queries shared across active and retiring sessions; excess requests are denied.
 
-IPv4/IPv6 Echo (ping) is blocked before the userspace stack; ordinary ICMP errors retain
-normal processing. Fragmented ICMP and IPv6 fragments with an unidentifiable transport are
-also dropped. The physical network's ICMP is unaffected. The app's TCP/HTTP diagnostics
-continue working. **Visibility** reports the active tunnel's protection and whether a
-reconnect is needed. This is a session status, not an attack test from another application,
-and does not hide VPN interfaces or other system-visible VPN signals.
+Both levels block IPv4/IPv6 Echo (ping) in the TUN path, fragmented ICMP and IPv6 fragments with
+an unidentifiable transport. Ordinary ICMP errors keep normal processing; the physical network's
+ICMP is unaffected. TCP/HTTP diagnostics continue working.
+
+## Check the active protection
+
+**Visibility** shows the running level and whether a reconnect is needed, rather than merely
+the saved setting. This is a session status, not an attack test from another app, and does not
+hide VPN interfaces or other system-visible VPN signals. Changing the level also requires
+reconnection. Previously enabled settings without a level retain Advanced; fresh opt-in uses Standard.

@@ -4,7 +4,7 @@
 
 Open **Settings → App updates** to check manually, choose the update source, or disable automatic
 checks. Automatic checking is enabled by default; automatic APK downloading and silent installation
-are not. These features apply to releases containing this update mechanism, not older installed APKs.
+are not.
 
 ## How the source is selected
 
@@ -22,8 +22,8 @@ Repository-link support is checked only in the installer package; an unrelated i
 client does not change the source. This is a capability heuristic, not proof of the APK's origin.
 Clients without these handlers need manual source selection. The installer identifies an app,
 not the original download website. Installing an APK downloaded
-from the F-Droid website through a browser also selects GitHub initially. This is a default choice,
-not proof of the APK's origin. Source changes do not bypass signature checks.
+from the F-Droid website through a browser also selects GitHub initially. Source changes do not
+bypass signature checks.
 
 ## Automatic checks and notifications
 

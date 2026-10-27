@@ -79,6 +79,8 @@ they do not predict that device result.
 
 ## Encrypted transport round trips
 
+Transport benchmarks call dialers directly, without either strict source-validation level.
+
 Run these in order to inspect MASQUE, HTTPS and SSH separately:
 
 ```sh

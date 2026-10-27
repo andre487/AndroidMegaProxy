@@ -12,7 +12,8 @@
 
 MegaProxy is an open-source Android VPN client for HTTPS, SOCKS5, MASQUE α (HTTP/3)
 and SSH servers you control or trust, including **HTTPS and SSH jump hosts** for multi-hop connections.
-Route all apps or selected apps through your server.
+Route all apps or selected apps through your server. Optional **app ownership checks** on Android 10+
+validate TCP/UDP sources. Disabled by default, with [Standard and Advanced levels](docs/en/source-validation.md).
 No account, ads, analytics or remote telemetry. **Servers and credentials are not included.**
 
 ## Installation
@@ -33,7 +34,8 @@ install over the existing app to preserve profiles. PR APKs are test builds.
 
 1. Add or import a server profile.
 2. Choose global routing or select apps for split tunneling.
-3. Run **Test** from the main menu, then **Connect** and approve Android's VPN request.
+3. Tap **Connect** and approve Android's VPN request.
+4. Open **Diagnostics**: the connection test starts automatically; speed tests unlock after success.
 
 Server setup: [MegaProxyServer](https://github.com/andre487/MegaProxyServer).
 All guides: [English](docs/en/index.md) / [Русский](docs/ru/index.md).
@@ -44,13 +46,14 @@ All guides: [English](docs/en/index.md) / [Русский](docs/ru/index.md).
 - HTTPS CONNECT over HTTP/1.1 or multiplexed HTTP/2; optional HTTP/3 preference with HTTPS fallback.
 - SOCKS5 TCP/UDP, experimental MASQUE TCP/UDP over HTTP/3 and SSH.
 - Per-app routing, local-network bypass, optional IPv6 and Android Always-on VPN.
-- Optional [strict source validation](docs/en/source-validation.md) on Android 10+: app ownership checks and ping blocking, applied on reconnection.
+- Optional [app ownership checks](docs/en/source-validation.md): Standard/Advanced UDP policies, TCP admission and ping blocking; applied on reconnection.
 - Multiple profiles, import/export, HTTPS configuration subscriptions and automatic failover.
 - DNS-over-HTTPS, optional plain TCP/UDP DNS, selectable TLS/QUIC/SSH fingerprints and custom JA3.
-- Traffic totals/rates, passive TCP/QUIC metrics, connection tests, download/upload speed tests
-  and VPN visibility with ProxyCheck IP reputation.
+- Traffic totals/rates in IEC or SI, passive TCP/QUIC metrics, connection/speed diagnostics
+  with a shared exportable log, and VPN visibility with ProxyCheck IP reputation.
 - Local diagnostic logs, encrypted stored credentials, English and Russian interfaces.
 
+[Profiles, routing and Always-on](docs/en/profiles-and-routing.md) ·
 [Diagnostics and measurement limits](docs/en/connection-metrics.md) ·
 [Subscriptions](docs/en/subscriptions.md) · [App updates](docs/en/updates.md).
 
@@ -93,26 +96,24 @@ configured subscriptions and enabled app-update checks can also run in the backg
 | Subscriptions | Configured HTTPS sources receive their URL/query, optional Basic Auth, app version and `android` client ID; normal MegaProxy routing applies |
 | App updates | Selected F-Droid or GitHub source; [metadata/download endpoints and consent](docs/en/updates.md#network-and-implementation-details) |
 
-Speed defaults to h3 → h2 → h1; fallback only applies to initial protocol negotiation.
-Latency is median time to first byte from three requests, not passive proxy RTT. Leaving the
-screen cancels transfers; backgrounding alone does not. Its temporary timing log excludes IPs
-and response payloads. [Details](docs/en/connection-metrics.md#test-speed-and-vpn-visibility).
+Speed defaults to **h2 with h1 fallback**; h3 is optional. Fallback applies only to initial
+negotiation. Latency is median time to first byte from three requests, not passive proxy RTT.
+Leaving Diagnostics cancels speed transfers; Home does not. The shared log stays in memory until
+the next connection test or process restart; events also enter the rotating local diagnostic log.
+[Measurement and log details](docs/en/connection-metrics.md#test-speed-and-vpn-visibility).
 UDP probes test the proxy path, not every app's routing; fingerprint presets approximate handshakes,
 not complete browser behaviour. ProxyCheck verdicts and local VPN heuristics are not proof of anonymity.
 
 ## Configuration
 
-Import MegaProxy JSON, ProxyList, FoxyProxy JSON or supported SuperProxy text. Portable JSON version 8
-uses stable profile IDs; omitted secrets preserve saved values only for unchanged endpoints and accounts;
-explicit empty values clear them.
-Unsupported explicit transports are rejected. [Schema and examples](config-schema/) ·
-[MegaProxyConfig contract](https://github.com/andre487/MegaProxyConfig).
+Import MegaProxy JSON, ProxyList, FoxyProxy JSON or supported SuperProxy text. JSON transfers
+profiles and portable settings; ProxyList exports standalone HTTPS/MASQUE/SOCKS5 endpoints.
+Omitted secrets are kept only for unchanged servers/accounts; exported credentials and URL
+tokens are sensitive. Device-local settings, including app ownership checks, stay local.
+[Profiles and transfers](docs/en/profiles-and-routing.md) · [Schemas and examples](config-schema/).
+
 Trusted [configuration subscriptions](docs/en/subscriptions.md) refresh owned profiles without
 replacing local profiles or interrupting current tunnels; changed live settings offer reconnect.
-Exported credentials and URL tokens are sensitive.
-JSON transfers profiles and portable settings, not a full app backup. MTU, DNS security approvals,
-language, traffic units and update preferences stay local. ProxyList exports only standalone
-HTTPS/MASQUE/SOCKS5 endpoints; use JSON for SSH, Jump and other settings.
 
 ## Limitations
 

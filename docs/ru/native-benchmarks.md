@@ -80,6 +80,8 @@ go tool pprof -top -alloc_space test-results/native/profile/mobile.test test-res
 
 ## Передача через зашифрованные транспорты
 
+Бенчмарки транспортов вызывают dialer напрямую, без обоих уровней строгой проверки источника.
+
 Запускайте по порядку, чтобы исследовать MASQUE, HTTPS и SSH отдельно:
 
 ```sh
