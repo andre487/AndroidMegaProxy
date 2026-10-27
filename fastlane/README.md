@@ -39,6 +39,14 @@ Regenerate committed artwork from MegaProxyIdentity SVGs
 
 Run the native Go tests with the race detector
 
+### android native_benchmarks
+
+```sh
+[bundle exec] fastlane android native_benchmarks
+```
+
+Benchmark the native core locally; save samples and optional CPU/heap profiles
+
 ### android native_integration
 
 ```sh
