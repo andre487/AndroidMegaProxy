@@ -26,6 +26,32 @@ platform :android do
     end
   end
 
+  desc "Benchmark the native core locally; save samples and optional CPU/heap profiles"
+  lane :native_benchmarks do |options|
+    output = File.expand_path(options.fetch(:output, "test-results/native/benchmarks").to_s, project_root)
+    FileUtils.mkdir_p(output)
+    %w[bench.txt cpu.pprof heap.pprof mobile.test].each { |name| FileUtils.rm_f(File.join(output, name)) }
+    Dir.chdir(File.join(project_root, "native")) do
+      metadata = "commit: #{sh("git", "rev-parse", "HEAD", log: false).strip}\n"
+      metadata += "working tree:\n#{sh("git", "status", "--porcelain", log: false)}"
+      metadata += sh("go", "version", log: false)
+      metadata += sh("go", "env", "-json", "GOOS", "GOARCH", "GOAMD64", "GOARM64", "GOFLAGS", "GOTOOLCHAIN", "CGO_ENABLED", log: false)
+      File.write(File.join(output, "environment.txt"), metadata)
+      args = ["go", "test", "./mobile", "-run=^$", "-bench=#{options.fetch(:bench, 'Benchmark(Core|SOCKS5ReadAllocation)')}",
+              "-benchmem", "-count=#{options.fetch(:count, 10)}", "-benchtime=#{options.fetch(:benchtime, '200ms')}",
+              "-cpu=#{options.fetch(:cpu, 1)}", "-timeout=15m"]
+      if options[:profile].to_s == "true"
+        args += ["-cpuprofile=#{File.join(output, 'cpu.pprof')}", "-memprofile=#{File.join(output, 'heap.pprof')}",
+                 "-o", File.join(output, "mobile.test")]
+      end
+      File.write(File.join(output, "command.txt"), args.join("\n") + "\n")
+      result = sh(*args)
+      UI.user_error!("No native benchmarks matched") unless result.match?(/^Benchmark\S+\s+\d+\s+/)
+      File.write(File.join(output, "bench.txt"), result)
+    end
+    UI.success("Native benchmark results: #{output}")
+  end
+
   desc "Test production dialers against disposable GOST and OpenSSH servers (requires Docker)"
   lane :native_integration do
     report = File.join(project_root, "test-results/native/integration.xml")

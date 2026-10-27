@@ -16,6 +16,7 @@ explicit `JAVA_HOME` fails early. `bundle exec fastlane lanes` lists the checked
 | `bundle exec fastlane android python_checks` | Checks Python formatting/import order and runs unit tests. |
 | `bundle exec fastlane android native_fuzz` | Fuzzes native parsers for 20 seconds with two workers. |
 | `bundle exec fastlane android native_tests` | Runs all native Go tests and local uQUIC patch regressions with the race detector. |
+| `bundle exec fastlane android native_benchmarks` | Measures native CPU/allocation costs with ten samples; [comparison and profiling](native-benchmarks.md). Available options: `bench`, `count`, `benchtime`, `cpu`, `output`, `profile:true`. |
 | `bundle exec fastlane android native_integration` | Tests production dialers against real GOST/OpenSSH servers in Docker with the race detector. |
 | `bundle exec fastlane android android_checks` | Builds the native AAR, resolves pinned Robolectric SDKs through Gradle, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
 | `bundle exec fastlane android device_test_build` | Build the native AAR, debug APK and instrumentation APK. |
