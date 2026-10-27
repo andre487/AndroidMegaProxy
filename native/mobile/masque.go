@@ -1,7 +1,6 @@
 package mobile
 
 import (
-	"bytes"
 	"context"
 	"encoding/base64"
 	"errors"
@@ -667,12 +666,11 @@ func (p *masquePacketConn) receive() {
 			}
 			return
 		}
-		reader := bytes.NewReader(data)
-		id, err := quicvarint.Read(reader)
+		id, consumed, err := quicvarint.Parse(data)
 		if err != nil || id != 0 {
 			continue
 		}
-		payload := data[len(data)-reader.Len():]
+		payload := data[consumed:]
 		select {
 		case p.packets <- dnsReply{payload: payload}:
 		case <-p.Context().Done():
@@ -701,8 +699,23 @@ func (p *masquePacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 		return n, p.remote, nil
 	}
 }
+
+// Avoid formatting valid UDP endpoints on every packet. Other address types
+// retain the existing textual comparison, including custom net.Addr wrappers.
+func equalUDPPeers(a, b net.Addr) bool {
+	if a == nil || b == nil {
+		return false
+	}
+	x, xok := a.(*net.UDPAddr)
+	y, yok := b.(*net.UDPAddr)
+	if xok && yok && x != nil && y != nil && x.IP.To16() != nil && y.IP.To16() != nil {
+		return x.Port == y.Port && x.Zone == y.Zone && x.IP.Equal(y.IP)
+	}
+	return a.String() == b.String()
+}
+
 func (p *masquePacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	if addr == nil || addr.String() != p.remote.String() {
+	if !equalUDPPeers(addr, p.remote) {
 		return 0, errors.New("MASQUE UDP target cannot change")
 	}
 	select {
@@ -772,7 +785,7 @@ func (p *masqueDirectPacketConn) ReadFrom(b []byte) (int, net.Addr, error) {
 	return n, p.RemoteAddr(), err
 }
 func (p *masqueDirectPacketConn) WriteTo(b []byte, addr net.Addr) (int, error) {
-	if addr == nil || addr.String() != p.RemoteAddr().String() {
+	if !equalUDPPeers(addr, p.RemoteAddr()) {
 		return 0, errors.New("UDP target cannot change")
 	}
 	return p.Write(b)

@@ -26,7 +26,7 @@ func (p *jumpTestProtector) Protect(int) bool { p.calls.Add(1); return true }
 
 // Each server accepts exactly one CONNECT authority and credential pair. The
 // jump maps a deliberately unresolvable destination hostname to a local server.
-func jumpTestProxy(t *testing.T, h2 bool, authority, credentials, forward string, reject bool) *httptest.Server {
+func jumpTestProxy(t testing.TB, h2 bool, authority, credentials, forward string, reject bool, idleTimeout ...time.Duration) *httptest.Server {
 	t.Helper()
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodConnect || r.Host != authority {
@@ -61,7 +61,11 @@ func jumpTestProxy(t *testing.T, h2 bool, authority, credentials, forward string
 				return
 			}
 			defer conn.Close()
-			_ = conn.SetDeadline(time.Now().Add(5 * time.Second))
+			timeout := 5 * time.Second
+			if len(idleTimeout) > 0 {
+				timeout = idleTimeout[0]
+			}
+			_ = conn.SetDeadline(time.Now().Add(timeout))
 			_, _ = buffer.WriteString("HTTP/1.1 200 Connection Established\r\n\r\n")
 			_ = buffer.Flush()
 			if upstream == nil {

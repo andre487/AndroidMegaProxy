@@ -29,17 +29,17 @@ type masqueFixture struct {
 	serving  <-chan error
 }
 
-func masqueTestServer(t *testing.T) config { return newMasqueFixture(t, nil).config }
+func masqueTestServer(t testing.TB) config { return newMasqueFixture(t, nil).config }
 
-func newMasqueFixture(t *testing.T, wrap func(net.PacketConn) net.PacketConn, handler ...http.Handler) masqueFixture {
+func newMasqueFixture(t testing.TB, wrap func(net.PacketConn) net.PacketConn, handler ...http.Handler) masqueFixture {
 	return newMasqueFixtureWithDatagrams(t, wrap, true, handler...)
 }
 
-func newMasqueFixtureWithDatagrams(t *testing.T, wrap func(net.PacketConn) net.PacketConn, datagrams bool, handler ...http.Handler) masqueFixture {
+func newMasqueFixtureWithDatagrams(t testing.TB, wrap func(net.PacketConn) net.PacketConn, datagrams bool, handler ...http.Handler) masqueFixture {
 	return newMasqueFixtureWithCID(t, wrap, datagrams, 4, handler...)
 }
 
-func newMasqueFixtureWithCID(t *testing.T, wrap func(net.PacketConn) net.PacketConn, datagrams bool, cidLength int, handler ...http.Handler) masqueFixture {
+func newMasqueFixtureWithCID(t testing.TB, wrap func(net.PacketConn) net.PacketConn, datagrams bool, cidLength int, handler ...http.Handler) masqueFixture {
 	t.Helper()
 	certificateServer := httptest.NewTLSServer(nil)
 	certificate := certificateServer.TLS.Certificates[0]
