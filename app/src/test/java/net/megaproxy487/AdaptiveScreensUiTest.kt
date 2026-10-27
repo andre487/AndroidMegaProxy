@@ -35,7 +35,7 @@ class AdaptiveScreensUiTest : MainUiTestBase() {
     fun speedOptionsRemainReadableWithLargeFonts() {
         content {
             CompositionLocalProvider(LocalDensity provides Density(LocalDensity.current.density, 2f)) {
-                SpeedTestScreen(activity) {}
+                SpeedTestContent(activity)
             }
         }
         SPEED_TEST_MEGABYTES.forEach { size -> assertTextFits(activity.uiText(R.string.cloudflare_speed_size, size)) }

@@ -19,7 +19,7 @@ class SpeedResultsLayoutTest : MainUiTestBase() {
         content {
             val density = LocalDensity.current.density
             CompositionLocalProvider(LocalDensity provides Density(density, fontScale.value)) {
-                Box(Modifier.requiredWidth(width.value.dp)) { SpeedTestScreen(activity) {} }
+                Box(Modifier.requiredWidth(width.value.dp)) { SpeedTestContent(activity) }
             }
         }
         fun assertBlocks(count: Int) {

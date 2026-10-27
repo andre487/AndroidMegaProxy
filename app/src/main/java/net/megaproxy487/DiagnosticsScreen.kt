@@ -7,18 +7,13 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.net.VpnService
-import android.os.Bundle
-import androidx.activity.ComponentActivity
-import androidx.activity.enableEdgeToEdge
 import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -52,7 +47,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
@@ -65,22 +59,41 @@ import net.megaproxy487.data.ConfigStore
 import net.megaproxy487.vpn.ProxyVpnService
 import net.megaproxy487.vpn.TestDiagnosticLog
 import net.megaproxy487.vpn.TestState
-import net.megaproxy487.vpn.SshHostKeyPromptState
 import net.megaproxy487.vpn.hasOtherProvider
 import net.megaproxy487.vpn.openAndroidVpnSettings
 import net.megaproxy487.vpn.readAlwaysOnVpnStatus
-import net.megaproxy487.ui.theme.MegaProxyTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack: () -> Unit) {
+internal fun DiagnosticsScreen(activity: Activity, autoStart: Boolean, onBack: () -> Unit) {
     val state by TestDiagnosticLog.state
     val exitIp by TestDiagnosticLog.exitIp
     val countryCode by TestDiagnosticLog.countryCode
     val http3 by TestDiagnosticLog.http3
     val http3Fallback by TestDiagnosticLog.http3Fallback
     var showAlwaysOnConflict by remember { mutableStateOf(false) }
+    var speedRunning by remember { mutableStateOf(false) }
+    var exportMessage by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
+    val exportDocument = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/plain")) { uri ->
+        if (uri != null) {
+            val snapshot = TestDiagnosticLog.entries.joinToString("\n")
+            scope.launch {
+                try {
+                    withContext(kotlinx.coroutines.Dispatchers.IO) {
+                        activity.contentResolver.openOutputStream(uri, "wt")?.bufferedWriter()?.use {
+                            it.write(snapshot)
+                        } ?: throw UiException(R.string.error_open_export)
+                    }
+                    exportMessage = activity.uiText(R.string.diagnostic_log_exported)
+                } catch (cancelled: kotlinx.coroutines.CancellationException) {
+                    throw cancelled
+                } catch (error: Exception) {
+                    exportMessage = error.userMessage(activity, R.string.log_export_failed)
+                }
+            }
+        }
+    }
     val permission = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) {
         if (VpnService.prepare(activity) == null) ProxyVpnService.test(activity)
         else scope.launch {
@@ -94,7 +107,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
         }
     }
     val runTest = runTest@{
-        if (TestDiagnosticLog.state.value == TestState.RUNNING) return@runTest
+        if (TestDiagnosticLog.state.value == TestState.RUNNING || speedRunning) return@runTest
         TestDiagnosticLog.begin()
         scope.launch {
             try {
@@ -135,7 +148,7 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { ScreenTitle(stringResource(R.string.connection_test)) },
+                title = { ScreenTitle(stringResource(R.string.diagnostics)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.back))
@@ -201,16 +214,26 @@ internal fun ConnectionTestScreen(activity: Activity, autoStart: Boolean, onBack
                         }
                     }
                     WrappingActions(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Button(shape = RoundedCornerShape(12.dp), onClick = runTest, enabled = state != TestState.RUNNING) { Text(stringResource(R.string.run_again)) }
+                        Button(shape = RoundedCornerShape(12.dp), onClick = runTest, enabled = state != TestState.RUNNING && !speedRunning) { Text(stringResource(R.string.run_again)) }
+                    }
+                    Text(stringResource(R.string.speed), style = MaterialTheme.typography.titleMedium)
+                    if (state == TestState.SUCCEEDED) {
+                        SpeedTestContent(activity, onRunningChanged = { speedRunning = it })
+                    } else {
+                        Text(stringResource(R.string.diagnostics_speed_locked), style = MaterialTheme.typography.bodySmall)
+                    }
+                    Text(activity.uiText(R.string.test_privacy_help), style = MaterialTheme.typography.bodySmall)
+                    Text(stringResource(R.string.diagnostic_log), style = MaterialTheme.typography.titleMedium)
+                    WrappingActions(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Button(shape = RoundedCornerShape(12.dp), onClick = {
                             val clipboard = activity.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                             clipboard.setPrimaryClip(ClipData.newPlainText(activity.uiText(R.string.connection_test_clipboard_label), TestDiagnosticLog.entries.joinToString("\n")))
                         }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.copy_log)) }
+                        Button(shape = RoundedCornerShape(12.dp), onClick = {
+                            exportDocument.launch("MegaProxy-diagnostics.log")
+                        }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.export_action)) }
                     }
-                    Text(
-                        activity.uiText(R.string.test_privacy_help),
-                        style = MaterialTheme.typography.bodySmall,
-                    )
+                    exportMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                     Box(Modifier.fillMaxWidth().heightIn(min = 160.dp, max = logHeight)) {
                         SelectionContainer {
                             Text(
