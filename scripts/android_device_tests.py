@@ -54,9 +54,9 @@ TESTS = (
 )
 
 
-def command(*args, timeout=300):
+def command(*args, timeout=300, errors="strict"):
     return subprocess.check_output(
-        args, text=True, stderr=subprocess.STDOUT, timeout=timeout
+        args, encoding="utf-8", errors=errors, stderr=subprocess.STDOUT, timeout=timeout
     ).strip()
 
 
@@ -482,7 +482,15 @@ def main():
     adb = [str(adb_path), "-s", serial]
 
     def shell(*words):
-        return command(*adb, "shell", shlex.join(words), timeout=180)
+        # Android logs may contain arbitrary bytes; never let decoding skip evidence
+        # or cleanup. Keep fixture keys/configuration and other commands strict.
+        return command(
+            *adb,
+            "shell",
+            shlex.join(words),
+            timeout=180,
+            errors="replace" if words[0] == "logcat" else "strict",
+        )
 
     if int(shell("getprop", "ro.build.version.sdk")) != args.api:
         parser.error("Connected emulator API does not match --api")

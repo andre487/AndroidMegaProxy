@@ -113,6 +113,46 @@ class InstrumentationResultTest(unittest.TestCase):
                 with self.assertRaisesRegex(RuntimeError, "no validated default Wi-Fi"):
                     m.prepare_emulator(Mock(return_value=state), 26)
 
+    def test_invalid_utf8_logs_preserve_evidence_cleanup_and_test_verdict(self):
+        child = (
+            sys.executable,
+            "-c",
+            r"import os; os.write(1, b'event \xc0 FATAL EXCEPTION\n')",
+        )
+        # Binary fixture/configuration output must still fail strict decoding.
+        with self.assertRaises(UnicodeDecodeError):
+            m.command(*child)
+        for failed in (False, True):
+            with (
+                self.subTest(failed=failed),
+                tempfile.TemporaryDirectory() as directory,
+            ):
+                suite = ET.Element("testsuite")
+                case = ET.SubElement(suite, "testcase", time="1.0")
+                if failed:
+                    ET.SubElement(case, "failure", message="original assertion")
+                shell = Mock(
+                    side_effect=lambda *words: (
+                        m.command(*child, errors="replace")
+                        if words[0] == "logcat"
+                        else ""
+                    )
+                )
+                results = Path(directory)
+                m.finish_case(shell, results, "test", case, suite)
+                self.assertIn(
+                    "event \ufffd FATAL EXCEPTION",
+                    (results / "test-logcat.txt").read_text(),
+                )
+                shell.assert_any_call("am", "force-stop", m.PACKAGE)
+                report = ET.parse(results / "junit.xml").getroot()
+                self.assertEqual(report.get("tests"), "1")
+                self.assertEqual(report.get("failures"), "1" if failed else "0")
+                if failed:
+                    self.assertEqual(
+                        report[0].find("failure").get("message"), "original assertion"
+                    )
+
     def test_logcat_failure_preserves_evidence_and_failed_report(self):
         suite = ET.Element("testsuite")
         case = ET.SubElement(suite, "testcase", time="1.0")
