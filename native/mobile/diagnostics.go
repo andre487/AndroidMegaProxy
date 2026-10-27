@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"strings"
 	"sync/atomic"
 
@@ -53,6 +54,13 @@ func errorClass(err error) string {
 	var rejected *masqueConnectError
 	if errors.As(err, &rejected) {
 		if rejected.status == 407 {
+			return "proxy_authentication"
+		}
+		return "connect_rejected"
+	}
+	var httpRejected *httpConnectStatusError
+	if errors.As(err, &httpRejected) {
+		if httpRejected.status == http.StatusProxyAuthRequired {
 			return "proxy_authentication"
 		}
 		return "connect_rejected"

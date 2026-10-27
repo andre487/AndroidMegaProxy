@@ -5,6 +5,7 @@ import net.megaproxy487.UiException
 import net.megaproxy487.requireUi
 
 import net.megaproxy487.model.DnsProvider
+import net.megaproxy487.model.validAuthProbeHost
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.ProxyType
@@ -262,6 +263,9 @@ object ConfigTransfer {
                 put("allowInvalidProxyCertificate", profile.config.jumpAllowInvalidProxyCertificate)
             })
         })
+        if (profile.config.type == ProxyType.HTTPS && profile.config.authProbeHost.isNotBlank()) {
+            put("browser", JSONObject().put("knockHost", profile.config.authProbeHost.trim()))
+        }
         put("tls", JSONObject().apply {
             put("fingerprint", profile.config.profile.name)
             put("customJa3", profile.config.customJa3.trim())
@@ -286,6 +290,13 @@ object ConfigTransfer {
         val host = proxy.limitedString("host", 253).trim()
         requireUi(host.isNotEmpty() && !host.contains(Regex("[/:\\s]")))
         val type = enumValue(proxy.optString("type"), ProxyType.HTTPS)
+        val browser = item.optJSONObject("browser")
+        val authProbeHost = if (type == ProxyType.HTTPS && browser?.has("knockHost") == true) {
+            requireUi(browser.opt("knockHost") is String) { UiException(R.string.validation_auth_probe_host) }
+            browser.limitedString("knockHost", 253).trim().also {
+                requireUi(validAuthProbeHost(it)) { UiException(R.string.validation_auth_probe_host) }
+            }
+        } else ""
         val jump = proxy.optJSONObject("jump")
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
             requireUi(array.length() <= MAX_IMPORTED_PACKAGES) { UiException(R.string.error_profile_packages) }
@@ -321,6 +332,7 @@ object ConfigTransfer {
                 jumpAcceptAnyHostKey = jump?.optBoolean("acceptAnyHostKey", false) ?: false,
                 allowInvalidProxyCertificate = proxy.optBoolean("allowInvalidProxyCertificate", false),
                 preferHttp3 = proxy.optBoolean("preferHttp3", false),
+                authProbeHost = authProbeHost,
                 profile = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT),
                 customJa3 = tls.limitedString("customJa3", MAX_CUSTOM_JA3_LENGTH),
                 dnsProvider = enumValue(dns.optString("provider"), DnsProvider.CLOUDFLARE),

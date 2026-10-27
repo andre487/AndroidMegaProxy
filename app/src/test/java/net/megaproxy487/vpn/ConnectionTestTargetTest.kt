@@ -7,6 +7,14 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ConnectionTestTargetTest {
+    @Test fun diagnosticHostUpdatesImmediatelyWithoutApplyingDraftCredentialsOrAnotherEndpoint() {
+        val config = ProxyConfig(host = "runtime.example", password = "runtime")
+        val target = ConnectionTestTarget("runtime", config)
+        val stored = ProxyProfile(id = "runtime", colorIndex = 0, config = config.copy(password = "draft", authProbeHost = "knock.example"))
+        assertEquals(config.copy(authProbeHost = "knock.example"), target.withStoredDiagnosticSettings(stored).config)
+        assertEquals(config, target.withStoredDiagnosticSettings(stored.copy(config = stored.config.copy(host = "new.example"))).config)
+    }
+
     @Test fun failoverTestKeepsRuntimeConfigAndTrustDestinationTogether() {
         val runtime = ConnectionTestTarget("fallback", ProxyConfig(host = "fallback.example"))
         val target = connectionTestTarget(runtime) { error("selected draft must not be read") }
@@ -27,14 +35,14 @@ class ConnectionTestTargetTest {
             password = "runtime", trustedHostKey = "old")
         val target = ConnectionTestTarget("runtime", config)
         val stored = ProxyProfile(id = "runtime", colorIndex = 0, config = config.copy(password = "draft", trustedHostKey = "approved"))
-        assertEquals(config.copy(trustedHostKey = "approved"), target.withStoredTrust(stored).config)
-        assertEquals(config, target.withStoredTrust(stored.copy(id = "selected")).config)
+        assertEquals(config.copy(trustedHostKey = "approved"), target.withStoredDiagnosticSettings(stored).config)
+        assertEquals(config, target.withStoredDiagnosticSettings(stored.copy(id = "selected")).config)
     }
 
     @Test fun editedHostCannotSupplyTrustForRuntimeEndpoint() {
         val config = ProxyConfig(type = ProxyType.SSH, host = "old.example", trustedHostKey = "old")
         val target = ConnectionTestTarget("runtime", config)
         val stored = ProxyProfile(id = "runtime", colorIndex = 0, config = config.copy(host = "new.example", trustedHostKey = "new"))
-        assertEquals(config, target.withStoredTrust(stored).config)
+        assertEquals(config, target.withStoredDiagnosticSettings(stored).config)
     }
 }

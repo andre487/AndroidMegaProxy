@@ -63,7 +63,10 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 		connect, testReporter = preferred.connectTarget, reporter
 		defer preferred.Close()
 	} else if c.isHTTPS() {
-		dialer := &httpsConnectDialer{config: c, protector: protector, reporter: reporter}
+		testConfig := c
+		// Diagnostics must reach the proxy even for a private probe hostname.
+		testConfig.BypassLocalNetworks = false
+		dialer := &httpsConnectDialer{config: testConfig, protector: protector, reporter: reporter}
 		connect, testReporter = dialer.connectTarget, dialer.reporter
 		defer dialer.Close()
 	} else if c.Type == "SOCKS5" {
@@ -81,7 +84,15 @@ func TestConnection(rawConfig string, protector Protector, reporter Reporter) (s
 		defer dialer.invalidate()
 	}
 	report(reporter, "event=connection_test result=started")
+	if c.Type == "HTTPS" {
+		if preferred != nil {
+			report(reporter, "event=proxy_auth_probe result=skipped reason=transport_http3")
+		} else if err := checkProxyAuthentication(ctx, c.AuthProbeHost, connect, reporter); err != nil {
+			return "", err
+		}
+	}
 	if _, err := testHTTPSGet(ctx, connect, testReporter, "example.com", "/", false); err != nil {
+		report(reporter, "event=connection_test stage=https_check result=failed reason=%s", errorClass(err))
 		return "", fmt.Errorf("example.com check: %w", err)
 	}
 	report(reporter, "event=connection_test stage=https_check result=success")

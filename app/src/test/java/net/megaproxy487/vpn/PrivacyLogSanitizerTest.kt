@@ -44,6 +44,7 @@ class PrivacyLogSanitizerTest {
             "x509 certificate signed by authority Private Company CA" to "certificate",
             "MASQUE proxy authentication failed (status 407): private-user" to "authentication",
             "timeout contacting private-server" to "timeout",
+            "example.com check: HTTP/2 proxy CONNECT: context deadline exceeded" to "timeout",
             "private-peer-message" to "other",
         )) assertEquals(reason, nativeFailureReason(raw))
     }
@@ -58,6 +59,15 @@ class PrivacyLogSanitizerTest {
         assertEquals(failure, limiter.filter(failure, 0))
         assertEquals("$base suppressed=980", limiter.filter(base, 10_000))
         repeat(100) { assertEquals("event=masque_session result=draining reason=goaway", limiter.filter("event=masque_session result=draining reason=goaway", 0)) }
+    }
+
+    @Test fun authenticationProbeEventsContainOnlyAllowlistedOutcomeData() {
+        for (event in listOf(
+            "event=proxy_auth_probe result=started timeout_ms=5000",
+            "event=proxy_auth_probe result=rejected reason=proxy_authentication status=407 elapsed_ms=12",
+            "event=proxy_auth_probe result=inconclusive reason=timeout status=0 elapsed_ms=5000",
+            "event=proxy_auth_probe result=connect_accepted authentication=unconfirmed status=200 elapsed_ms=4",
+        )) assertEquals(event, PrivacyLogSanitizer.sanitize(event))
     }
 
     @Test

@@ -8,6 +8,14 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ProxyConfigTest {
+    @Test fun authenticationProbeHostnameIsOptionalAndRejectsUrlsPortsAndControlCharacters() {
+        for (host in listOf("", "knock.example", "127.0.0.1", "localhost")) assertTrue(validAuthProbeHost(host))
+        for (host in listOf("https://knock.example", "name:443", "user@host", "host/path", "host?query",
+            "host#fragment", "bad host", "bad\nname", "a..b", "-host", "a".repeat(64) + ".example")) {
+            assertFalse(validAuthProbeHost(host))
+        }
+    }
+
     @Test fun basicAuthRejectsColonInUsernameWhileSocksAndSshAllowIt() {
         for (type in ProxyType.entries) {
             val config = ProxyConfig(type = type, host = "proxy.example", port = type.defaultPort,

@@ -166,7 +166,7 @@ class ConfigStore(context: Context) {
 
     /** Compare the config actually started, before bootstrap IPs were filled in. */
     fun reconcileStartedConfiguration(profileId: String, config: ProxyConfig, appliedToken: String?): String? = synchronized(storageLock) {
-        if (connectionProfileId() != profileId || connectionConfig() != config) {
+        if (connectionProfileId() != profileId || connectionConfig().copy(authProbeHost = "") != config.copy(authProbeHost = "")) {
             if (!hasPendingReconnect()) markPendingReconnect()
         } else clearPendingReconnect(appliedToken)
         pendingReconnectToken()
@@ -417,7 +417,7 @@ class ConfigStore(context: Context) {
         if ((connectionProfileId() !in ids || alwaysOnProfileId() !in ids) && isFailoverActive()) {
             editor.putBoolean(FAILOVER_ACTIVE, false).remove(FAILOVER_NOTICE)
         }
-        if (connectionRunning && (oldConnection != newConnection || connectionProfileId() != nextConnection)) {
+        if (connectionRunning && (oldConnection.copy(authProbeHost = "") != newConnection.copy(authProbeHost = "") || connectionProfileId() != nextConnection)) {
             editor.putString(PENDING_RECONNECT, UUID.randomUUID().toString())
         }
         putSubscription(editor, state.copy(settings = nextSettings, ownedIds = incoming.map(ProxyProfile::id).toSet(),
@@ -686,6 +686,7 @@ class ConfigStore(context: Context) {
         put("sameJumpAuthentication", config.sameJumpAuthentication)
         put("allowInvalidProxyCertificate", config.allowInvalidProxyCertificate)
         put("preferHttp3", config.preferHttp3)
+        put("authProbeHost", config.authProbeHost.trim())
         put("fingerprint", config.profile.name)
         put("customJa3", config.customJa3.trim())
         put("dnsProvider", config.dnsProvider.name)
@@ -738,6 +739,7 @@ class ConfigStore(context: Context) {
             sameJumpAuthentication = item.optBoolean("sameJumpAuthentication", true),
             allowInvalidProxyCertificate = item.optBoolean("allowInvalidProxyCertificate", false),
             preferHttp3 = item.optBoolean("preferHttp3", false),
+            authProbeHost = item.optString("authProbeHost"),
             profile = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT),
             customJa3 = item.optString("customJa3"),
             dnsProvider = enumValue(item.optString("dnsProvider"), DnsProvider.CLOUDFLARE),

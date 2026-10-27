@@ -55,6 +55,17 @@ class ConfigSubscriptionIntegrationTest {
     private fun apply(value: PortableConfiguration, running: Boolean = false) = store.applySubscriptionSnapshot(
         store.subscriptionState()!!.generation, value, 0, 1000, running)
 
+    @Test fun diagnosticHostRefreshDoesNotRequestVpnReconnect() {
+        val original = profile("one").let { it.copy(config = it.config.copy(type = ProxyType.HTTPS, port = 443,
+            username = "user", password = "test-password")) }
+        bootstrap(original)
+        store.setConnectionProfile("one")
+        val changed = original.copy(config = original.config.copy(authProbeHost = "knock.example"))
+        assertTrue(apply(parseSubscriptionSnapshot(document(changed).toString(), store.profiles()), running = true))
+        assertFalse(store.hasPendingReconnect())
+        assertEquals("knock.example", store.profile("one")!!.config.authProbeHost)
+    }
+
     @Test fun jsonRefreshPreservesLocalDnsConsentOnlyForUnchangedResolver() {
         val original = profile("one").let { it.copy(config = it.config.copy(
             dnsProvider = DnsProvider.CUSTOM, customDohUrl = "https://dns.example/dns-query")) }

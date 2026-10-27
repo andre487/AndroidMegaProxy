@@ -40,7 +40,7 @@ DNS queries to interception. These exceptions require local confirmation and are
 Applications can also use their own encrypted DNS connections; these follow normal routing.
 
 When you run a connection test, MegaProxy contacts a test website and external IP/country lookup
-services through the proxy; MASQUE and SOCKS5 tests also contact external HTTP/3 diagnostic services.
+services through the proxy; an optional profile-provided authentication check host is also contacted through the HTTPS proxy. MASQUE and SOCKS5 tests also contact external HTTP/3 diagnostic services.
 They receive the exit IP and test requests, including TLS/QUIC connection parameters, to check connectivity and
 identify the proxy's apparent country, not your GPS location. The current services are listed in
 [Network privacy details](README.md#privacy-and-security). These providers handle requests under

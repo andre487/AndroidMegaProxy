@@ -58,6 +58,17 @@ class ConfigStoreIntegrationTest {
             .put("profiles", JSONArray().put(profile)).toString()),
     )
 
+    @Test fun authenticationProbeSurvivesStorageAndDiagnosticOnlyChangeDuringStartupNeedsNoReconnect() {
+        val original = secretProfile()
+        val changed = original.copy(config = original.config.copy(authProbeHost = "knock.example"))
+        store.setConnectionProfile(original.id)
+        val started = store.connectionConfig()
+        store.saveProfile(changed)
+        assertEquals("knock.example", ConfigStore(context).profile(original.id)!!.config.authProbeHost)
+        assertEquals("knock.example", store.globalConnectionSettings().applyTo(changed.config).authProbeHost)
+        assertNull(store.reconcileStartedConfiguration(original.id, started, null))
+    }
+
     @Test fun mtuDefaultsPersistsAndSurvivesProfileImports() {
         assertEquals(1400, store.globalConnectionSettings().mtu)
         for (mtu in listOf(1280, 1400, 1500, 1420, 65535)) {

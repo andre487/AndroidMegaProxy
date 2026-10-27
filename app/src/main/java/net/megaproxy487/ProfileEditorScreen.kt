@@ -173,13 +173,13 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
     fun acceptText(value: String, maxLength: Int, update: (String) -> Unit) {
         if (value.length <= maxLength) update(value)
     }
-    fun updateConfig(updated: ProxyConfig) {
+    fun updateConfig(updated: ProxyConfig, affectsConnection: Boolean = true) {
         if (updated == config) return
         config = updated
         profile = profile.copy(config = updated)
-        saveProfile(affectsConnection = true)
+        saveProfile(affectsConnection = affectsConnection)
         error = globalSettings.applyTo(updated).connectionValidationError()?.let { activity.uiText(it) }
-        if (ProxyVpnService.isRunning && !connectionChangeDeferred && profile.id == editedConnectionProfileId) {
+        if (affectsConnection && ProxyVpnService.isRunning && !connectionChangeDeferred && profile.id == editedConnectionProfileId) {
             if (alwaysOnActive) {
                 connectionChangeDeferred = true
                 showAlwaysOnNotice = true
@@ -356,6 +356,17 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                   description = stringResource(R.string.prefer_http3_description),
                   onCheckedChange = { updateConfig(config.copy(preferHttp3 = it)) },
               ) }
+              if (config.type == ProxyType.HTTPS) item {
+                OutlinedTextField(
+                    config.authProbeHost,
+                    { value -> acceptText(value, 253) { updateConfig(config.copy(authProbeHost = it), affectsConnection = false) } },
+                    label = { FieldLabel(stringResource(R.string.auth_probe_host)) },
+                    isError = fieldError(R.string.validation_auth_probe_host) != null,
+                    supportingText = { Text(fieldError(R.string.validation_auth_probe_host)
+                        ?: stringResource(R.string.auth_probe_host_help)) },
+                    singleLine = true, modifier = Modifier.fillMaxWidth().revealOnKeyboard(),
+                )
+              }
               if (config.type == ProxyType.MASQUE) {
                 item { Text(stringResource(R.string.masque_fingerprint_description), style = MaterialTheme.typography.bodySmall) }
                 if (globalSettings.tlsProfile == TlsProfile.CUSTOM) item {

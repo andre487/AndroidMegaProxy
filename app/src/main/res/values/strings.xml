@@ -607,4 +607,7 @@
     <string name="source_level_advanced_detail">Checks every outgoing UDP datagram. Detects owner changes sooner; higher latency and CPU usage.</string>
     <string name="source_standard_active_detail">Standard level: the current tunnel checks TCP admission and caches UDP permission for up to 1 second per flow. A reused port may be temporarily accepted. Ping is blocked. This session status is not a separate-app bypass test and does not hide VPN presence.</string>
     <string name="source_level_pending">The current tunnel still uses the previous validation level. Reconnect to apply the selected level.</string>
+    <string name="auth_probe_host">Authentication check host (optional)</string>
+    <string name="auth_probe_host_help">For HTTPS over TCP diagnostics. Use the server\'s configured knock host to reveal masked authentication errors. Leave empty if unknown.</string>
+    <string name="validation_auth_probe_host">Enter a hostname without a URL, path or port.</string>
 </resources>

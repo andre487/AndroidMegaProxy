@@ -47,6 +47,7 @@ internal fun ConfigEdits<ProxyProfile>.profile(before: ProxyProfile, after: Prox
         it.copy(config = it.config.copy(password = after.config.password, unreadableSecrets = it.config.unreadableSecrets - "password"))
     }
     record("allowInvalidProxyCertificate", before.config.allowInvalidProxyCertificate, after.config.allowInvalidProxyCertificate) { it.copy(config = it.config.copy(allowInvalidProxyCertificate = after.config.allowInvalidProxyCertificate)) }
+    record("authProbeHost", before.config.authProbeHost, after.config.authProbeHost) { it.copy(config = it.config.copy(authProbeHost = after.config.authProbeHost)) }
     record("preferHttp3", before.config.preferHttp3, after.config.preferHttp3) { it.copy(config = it.config.copy(preferHttp3 = after.config.preferHttp3)) }
     record("profile", before.config.profile, after.config.profile) { it.copy(config = it.config.copy(profile = after.config.profile)) }
     record("customJa3", before.config.customJa3, after.config.customJa3) { it.copy(config = it.config.copy(customJa3 = after.config.customJa3)) }

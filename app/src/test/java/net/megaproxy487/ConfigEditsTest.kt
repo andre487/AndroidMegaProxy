@@ -8,6 +8,14 @@ import org.junit.Test
 class ConfigEditsTest {
     private val initial = ProxyProfile("one", "original", 0, config = ProxyConfig(host = "old.example", password = "old"))
 
+    @Test fun authenticationProbeEditPreservesConcurrentCredentialRefresh() {
+        val changed = initial.copy(config = initial.config.copy(authProbeHost = "knock.example"))
+        var saved = initial.copy(config = initial.config.copy(password = "rotated"))
+        ConfigEdits<ProxyProfile>().profile(initial, changed).write { saved = it(saved) }
+        assertEquals("knock.example", saved.config.authProbeHost)
+        assertEquals("rotated", saved.config.password)
+    }
+
     @Test fun untouchedCredentialsAndSecuritySurviveRenameWhileIntentionalConflictsUseUserValue() {
         val edits = ConfigEdits<ProxyProfile>()
         val renamed = initial.copy(name = "renamed")

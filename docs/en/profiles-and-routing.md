@@ -46,6 +46,16 @@ if unavailable; authentication and certificate errors are terminal. Jump needs M
 usable datagram MTU on both hops, otherwise the entire chain uses HTTPS/TCP.
 HTTPS/TCP fallback blocks ordinary UDP and shows a warning. Explicit MASQUE never falls back.
 
+### Masked authentication errors
+
+Some proxies return a decoy website or stall instead of exposing an authentication failure. A timeout or HTML response alone cannot reliably identify a decoy.
+
+For a regular **HTTPS** profile, **Authentication check host** is optional. Enter the operator-provided knock hostname, without a URL, path or port. During HTTPS-over-TCP diagnostics the app sends an authenticated CONNECT to that hostname on port 443 through the proxy, bounded to five seconds. An unmasked `407` confirms an authentication rejection and stops the check. `200` only confirms that CONNECT was accepted; the ordinary end-to-end HTTPS test still runs. Other statuses and timeouts are inconclusive and do not get labelled as wrong credentials.
+
+A blank field adds no probe request. The field is imported/exported as the existing per-profile `browser.knockHost`; other browser options remain ignored. This probe applies to regular HTTPS over TCP, not HTTPS Jump or selected HTTP/3. Editing the diagnostic host does not reconnect a running VPN; a new check uses it for the same runtime endpoint while preserving runtime credentials. It adds no per-packet checks.
+
+The shared diagnostic log records `proxy_auth_probe` start, skipped/accepted/rejected/inconclusive outcome, HTTP status, elapsed time and safe failure class. It contains neither the probe/proxy hostname nor IPs, usernames, passwords or response bodies.
+
 ### SOCKS5
 
 Leave both authentication fields empty, or supply a username and password of 1–255 UTF-8 bytes
