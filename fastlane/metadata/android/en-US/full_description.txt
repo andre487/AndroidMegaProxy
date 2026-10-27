@@ -8,6 +8,7 @@
 <li>DoH by default, optional plain TCP/UDP DNS, TLS/QUIC/SSH presets and custom JA3.</li>
 <li>Connection diagnostics and download/upload speed tests with a shared exportable log; VPN visibility and IP reputation.</li>
 <li>Traffic totals/rates in IEC or SI, passive TCP/QUIC metrics, F-Droid/GitHub update checks, English and Russian interfaces.</li>
+<li>Optional HTTPS authentication diagnostics using an operator-provided knock host.</li>
 </ul>
 
 <p>No account, ads or analytics. Passwords and private keys are encrypted at rest; logs stay local unless shared. Diagnostics, enabled app-update checks and configured subscriptions contact external services. SOCKS5 does not encrypt its connection or credentials. MASQUE is experimental.</p>
