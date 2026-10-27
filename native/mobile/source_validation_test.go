@@ -1,7 +1,10 @@
 package mobile
 
 import (
+	"fmt"
+	"gvisor.dev/gvisor/pkg/buffer"
 	"net"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -171,7 +174,7 @@ func TestSourceEchoPolicy(t *testing.T) {
 
 func TestDisabledSourceValidationKeepsOriginalDataPath(t *testing.T) {
 	endpoint := &sourceLinkEndpoint{}
-	handler := &sourceTestTransport{}
+	handler := dnsTransport{}
 	normal := sourceStackConfig(endpoint, handler, nil, 0)
 	if normal.LinkEndpoint != endpoint || normal.TransportHandler != handler {
 		t.Fatal("disabled mode installed a data-path wrapper")
@@ -209,7 +212,7 @@ func TestSourceLookupDoesNotBlockTUNAndAdmissionIsBounded(t *testing.T) {
 func TestStandardUDPValidationWindowIsFixedAndFlowLocal(t *testing.T) {
 	v := &sourceTestValidator{allowed: true}
 	now := time.Unix(100, 0)
-	conn := &sourceUDP{UDPConn: &sourceTestConn{}, validator: v, recheckInterval: time.Second}
+	conn := newSourceUDP(&sourceTestConn{}, v, time.Second)
 	if !conn.allowedAt(now) || v.calls != 1 {
 		t.Fatal("new flow was not checked")
 	}
@@ -223,7 +226,7 @@ func TestStandardUDPValidationWindowIsFixedAndFlowLocal(t *testing.T) {
 	if conn.allowedAt(now.Add(time.Second)) || v.calls != 2 {
 		t.Fatal("cache hit extended the stale-owner window")
 	}
-	another := &sourceUDP{UDPConn: &sourceTestConn{}, validator: v, recheckInterval: time.Second}
+	another := newSourceUDP(&sourceTestConn{}, v, time.Second)
 	if another.allowedAt(now) || v.calls != 3 {
 		t.Fatal("new flow reused another flow's decision")
 	}
@@ -231,7 +234,7 @@ func TestStandardUDPValidationWindowIsFixedAndFlowLocal(t *testing.T) {
 	if conn.allowedAt(now.Add(2*time.Second)) || v.calls != 3 {
 		t.Fatal("denied flow resurrected cached permission")
 	}
-	fresh := &sourceUDP{UDPConn: &sourceTestConn{}, validator: v, recheckInterval: time.Second}
+	fresh := newSourceUDP(&sourceTestConn{}, v, time.Second)
 	if !fresh.allowedAt(now.Add(2*time.Second)) || v.calls != 4 {
 		t.Fatal("fresh socket not rechecked")
 	}
@@ -242,5 +245,168 @@ func TestSourceValidationIntervalRejectsUnsupportedModes(t *testing.T) {
 		if err := StartStrict(-1, 1400, "", nil, nil, &sourceTestValidator{}, interval); err == nil || err.Error() != "unsupported UDP source validation interval" {
 			t.Fatal("unbounded source cache interval")
 		}
+	}
+}
+
+func blockSourceEcho(p []byte) bool {
+	return blockSourceEchoPrefix(func(n int) ([]byte, bool) {
+		if n > len(p) {
+			return nil, false
+		}
+		return p[:n], true
+	})
+}
+
+type sourceCountingDispatcher struct{ packets int }
+
+func (d *sourceCountingDispatcher) DeliverNetworkPacket(tcpip.NetworkProtocolNumber, *stack.PacketBuffer) {
+	d.packets++
+}
+func (d *sourceCountingDispatcher) DeliverLinkPacket(tcpip.NetworkProtocolNumber, *stack.PacketBuffer) {
+}
+
+func TestSourceFilterReadsHeadersOnlyAndHandlesTruncation(t *testing.T) {
+	for _, v6 := range []bool{false, true} {
+		p := make([]byte, 65535)
+		headerSize := 20
+		if v6 {
+			p[0] = 0x60
+			p[6] = 17
+			headerSize = 40
+		} else {
+			p[0] = 0x45
+			p[9] = 6
+		}
+		requested := 0
+		blocked := blockSourceEchoPrefix(func(n int) ([]byte, bool) {
+			if n > requested {
+				requested = n
+			}
+			return p[:n], true
+		})
+		if blocked || requested != headerSize {
+			t.Fatal("payload was read/copied for a TCP/UDP packet")
+		}
+	}
+	// Every truncation of a non-empty extension chain must be safe to inspect.
+	p := make([]byte, 56)
+	p[0] = 0x60
+	p[6] = 60
+	p[40] = 58
+	p[48] = 128
+	for n := 0; n <= len(p); n++ {
+		_ = blockSourceEcho(p[:n])
+		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: buffer.MakeWithData(p[:n])})
+		receiver := &sourceCountingDispatcher{}
+		sourceDispatcher{receiver}.DeliverNetworkPacket(0x86dd, pkt)
+		pkt.DecRef()
+		if receiver.packets != 0 {
+			t.Fatalf("truncated/Echo packet escaped: %d bytes", n)
+		}
+	}
+}
+
+func BenchmarkSourcePacketFilter(b *testing.B) {
+	for _, size := range []int{1500, 65535} {
+		p := make([]byte, size)
+		p[0] = 0x45
+		p[9] = 6
+		pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: buffer.MakeWithData(p)})
+		defer pkt.DecRef()
+		for _, mode := range []string{"disabled", "header-only", "previous-full-copy"} {
+			b.Run(fmt.Sprintf("%d/%s", size, mode), func(b *testing.B) {
+				receiver := &sourceCountingDispatcher{}
+				strict := sourceDispatcher{receiver}
+				b.ReportAllocs()
+				for b.Loop() {
+					switch mode {
+					case "disabled":
+						receiver.DeliverNetworkPacket(0x800, pkt)
+					case "header-only":
+						strict.DeliverNetworkPacket(0x800, pkt)
+					case "previous-full-copy":
+						v := pkt.ToView()
+						blocked := blockSourceEcho(v.AsSlice())
+						v.Release()
+						if !blocked {
+							receiver.DeliverNetworkPacket(0x800, pkt)
+						}
+					}
+				}
+			})
+		}
+	}
+}
+
+type sourceValidatorFunc func(int, string, int, string, int) bool
+
+func (f sourceValidatorFunc) Allow(p int, s string, sp int, d string, dp int) bool {
+	return f(p, s, sp, d, dp)
+}
+func TestSourceQueriesAreBoundedAcrossUDPAndAdmissions(t *testing.T) {
+	entered := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var calls atomic.Int32
+	validator := limitedSourceValidator{sourceValidatorFunc(func(int, string, int, string, int) bool { calls.Add(1); entered <- struct{}{}; <-release; return true }), make(chan struct{}, 2)}
+	done := make(chan struct{}, 2)
+	for i := 0; i < 2; i++ {
+		go func() { validator.Allow(17, "", 1, "", 2); done <- struct{}{} }()
+	}
+	<-entered
+	<-entered
+	if validator.Allow(6, "", 1, "", 2) || calls.Load() != 2 {
+		t.Fatal("excess query attached another JNI thread")
+	}
+	close(release)
+	<-done
+	<-done
+	if !validator.Allow(17, "", 1, "", 2) {
+		t.Fatal("query slot leaked")
+	}
+}
+
+func TestSourceUDPReusesNumericAddressesWithoutGoAllocations(t *testing.T) {
+	v := &sourceTestValidator{allowed: true}
+	conn := newSourceUDP(&sourceTestConn{}, v, 0)
+	allocations := testing.AllocsPerRun(1000, func() {
+		if !conn.query() {
+			panic("unexpected denial")
+		}
+	})
+	if allocations != 0 {
+		t.Fatalf("UDP reformats addresses on every query: %v allocations", allocations)
+	}
+}
+
+func TestSourceQueryBudgetSurvivesSessionReplacement(t *testing.T) {
+	endpoint := &sourceLinkEndpoint{}
+	handler := dnsTransport{}
+	first := sourceStackConfig(endpoint, handler, &sourceTestValidator{}, 0).TransportHandler.(sourceTransport).validator.(limitedSourceValidator)
+	second := sourceStackConfig(endpoint, handler, &sourceTestValidator{}, time.Second).TransportHandler.(sourceTransport).validator.(limitedSourceValidator)
+	if first.slots != second.slots || cap(first.slots) != 8 {
+		t.Fatal("reconnect reset the JNI concurrency budget")
+	}
+}
+
+func TestSourceFilterHandlesSegmentedLongExtensionChains(t *testing.T) {
+	p := make([]byte, 40+8*128+8)
+	p[0] = 0x60
+	p[6] = 60
+	for offset := 40; offset < 40+8*128; offset += 128 {
+		p[offset] = 60
+		p[offset+1] = 15
+	}
+	p[40+7*128] = 17
+	payload := buffer.MakeWithData(p[:64])
+	for offset := 64; offset < len(p); offset += 64 {
+		part := buffer.MakeWithData(p[offset:min(offset+64, len(p))])
+		payload.Merge(&part)
+	}
+	pkt := stack.NewPacketBuffer(stack.PacketBufferOptions{Payload: payload})
+	defer pkt.DecRef()
+	receiver := &sourceCountingDispatcher{}
+	sourceDispatcher{receiver}.DeliverNetworkPacket(0x86dd, pkt)
+	if receiver.packets != 1 || pkt.Data().Size() != len(p) {
+		t.Fatal("long headers changed or blocked a UDP packet")
 	}
 }

@@ -146,9 +146,9 @@ class NativeProxyCore(
             ParcelFileDescriptor.fromFd(tunFd).use { borrowed ->
                 if (config.strictSourceValidation) {
                     if (android.os.Build.VERSION.SDK_INT < 29) throw IllegalStateException(vpnService.getString(net.megaproxy487.R.string.strict_source_unsupported))
-                    val uids = if (config.routeAllApps) null else config.selectedPackages.mapNotNull { name ->
-                        runCatching { vpnService.packageManager.getApplicationInfo(name, 0).uid }.getOrNull()
-                    }.toSet().ifEmpty { setOf(vpnService.applicationInfo.uid) }
+                    val uids = if (config.routeAllApps) null else config.selectedPackages.mapNotNullTo(mutableSetOf()) { name ->
+                        operationResult { vpnService.packageManager.getApplicationInfo(name, 0).uid }.getOrNull()
+                    }.ifEmpty { setOf(vpnService.applicationInfo.uid) }
                     val connectivity = vpnService.getSystemService(android.net.ConnectivityManager::class.java)
                     val validator = BridgeSourceValidator(
                         { callbacksEnabled.get() && isCurrent() },

@@ -28,6 +28,25 @@ func StartStrict(tunFD int, mtu int, rawConfig string, protector Protector, repo
 	return start(tunFD, mtu, rawConfig, protector, reporter, validator, time.Duration(udpRecheckMillis)*time.Millisecond)
 }
 
+// Shared across sessions: repeated reconnects must not accumulate attached JNI threads.
+// The semaphore is allocated only when strict validation is first enabled.
+var sourceQuerySlots = sync.OnceValue(func() chan struct{} { return make(chan struct{}, 8) })
+
+type limitedSourceValidator struct {
+	SourceValidator
+	slots chan struct{}
+}
+
+func (v limitedSourceValidator) Allow(protocol int, source string, sourcePort int, destination string, destinationPort int) bool {
+	select {
+	case v.slots <- struct{}{}:
+		defer func() { <-v.slots }()
+		return v.SourceValidator.Allow(protocol, source, sourcePort, destination, destinationPort)
+	default:
+		return false
+	}
+}
+
 type sourceTransport struct {
 	adapter.TransportHandler
 	validator  SourceValidator
@@ -60,11 +79,11 @@ func (t sourceTransport) HandleTCP(conn adapter.TCPConn) {
 
 func (t sourceTransport) HandleUDP(conn adapter.UDPConn) {
 	t.dispatch(conn, func() {
-		if !sourceAllowed(t.validator, 17, conn.ID()) {
+		guarded := newSourceUDP(conn, t.validator, t.udpRecheck)
+		if !guarded.query() {
 			_ = conn.Close()
 			return
 		}
-		guarded := &sourceUDP{UDPConn: conn, validator: t.validator, recheckInterval: t.udpRecheck}
 		if t.udpRecheck > 0 {
 			guarded.recheckAt = time.Now().Add(t.udpRecheck)
 		}
@@ -74,16 +93,28 @@ func (t sourceTransport) HandleUDP(conn adapter.UDPConn) {
 
 type sourceUDP struct {
 	adapter.UDPConn
-	validator       SourceValidator
-	recheckInterval time.Duration
-	mu              sync.Mutex
-	recheckAt       time.Time
-	denied          bool
+	source, destination         string
+	sourcePort, destinationPort int
+	validator                   SourceValidator
+	recheckInterval             time.Duration
+	mu                          sync.Mutex
+	recheckAt                   time.Time
+	denied                      bool
+}
+
+func newSourceUDP(conn adapter.UDPConn, validator SourceValidator, interval time.Duration) *sourceUDP {
+	id := conn.ID()
+	return &sourceUDP{UDPConn: conn, validator: validator, recheckInterval: interval,
+		source: net.IP(id.RemoteAddress.AsSlice()).String(), sourcePort: int(id.RemotePort),
+		destination: net.IP(id.LocalAddress.AsSlice()).String(), destinationPort: int(id.LocalPort)}
+}
+func (c *sourceUDP) query() bool {
+	return c.validator.Allow(17, c.source, c.sourcePort, c.destination, c.destinationPort)
 }
 
 func (c *sourceUDP) allowed() bool {
 	if c.recheckInterval == 0 {
-		return sourceAllowed(c.validator, 17, c.ID())
+		return c.query()
 	}
 	return c.allowedAt(time.Now())
 }
@@ -97,7 +128,7 @@ func (c *sourceUDP) allowedAt(now time.Time) bool {
 	if now.Before(c.recheckAt) {
 		return true
 	}
-	if !sourceAllowed(c.validator, 17, c.ID()) {
+	if !c.query() {
 		c.denied = true
 		return false
 	}
@@ -125,10 +156,10 @@ func (c *sourceUDP) ReadFrom(p []byte) (int, net.Addr, error) {
 }
 
 // Selection happens only at startup. Disabled sessions retain both original objects.
-func sourceStackConfig(endpoint stack.LinkEndpoint, handler adapter.TransportHandler, validator SourceValidator, udpRecheck time.Duration) *core.Config {
+func sourceStackConfig(endpoint stack.LinkEndpoint, handler dnsTransport, validator SourceValidator, udpRecheck time.Duration) *core.Config {
 	cfg := &core.Config{LinkEndpoint: endpoint, TransportHandler: handler}
 	if validator != nil {
-		cfg.TransportHandler = sourceTransport{TransportHandler: handler, validator: validator, slots: make(chan struct{}, 64), udpRecheck: udpRecheck}
+		cfg.TransportHandler = sourceTransport{TransportHandler: sourceUDPTransport{handler}, validator: limitedSourceValidator{validator, sourceQuerySlots()}, slots: make(chan struct{}, 64), udpRecheck: udpRecheck}
 		cfg.LinkEndpoint = &sourceLinkEndpoint{LinkEndpoint: endpoint}
 	}
 	return cfg

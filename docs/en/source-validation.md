@@ -26,7 +26,13 @@ lookup and forwarding an atomic kernel operation.
 Unknown owners and lookup exceptions are denied when checked. Split mode accepts only the
 selected application UIDs; global mode requires an identifiable owner. Packages sharing a UID
 cannot be distinguished. Slow new-flow lookups run outside the shared TUN loop with at most
-64 concurrent admissions; excess attempts are closed. Both levels may disrupt apps or traffic
+64 concurrent admissions. At most 8 ownership lookups can enter Android/JNI concurrently,
+shared across active and retiring sessions; excess requests fail closed. The query budget
+is initialized only when protection is enabled. Numeric UDP addresses are prepared once
+per flow. The ICMP filter reads only short headers for ordinary packets; unusually long
+extension chains use one packet copy rather than repeatedly coalescing growing prefixes.
+Strict UDP relays close both TUN and upstream when either direction fails, so a denied
+source cannot retain an idle proxy association until the normal UDP timeout. Both levels may disrupt apps or traffic
 without a visible owner, such as tethering. No direct retry bypasses a denial.
 
 The selected level is also device-local and applies on reconnection. Existing enabled settings

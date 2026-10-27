@@ -174,6 +174,8 @@ branch names, credentials, signing material, or other secrets.
   Advanced checks every outgoing datagram. New opt-in defaults to Standard; legacy enabled settings
   migrate to Advanced. Keep both levels local and preserve them across imports. Visibility reports
   the actual running level and pending changes, not proof of a separate-app bypass test.
+  Bound all ownership JNI queries across sessions (including UDP rechecks), avoid ordinary payload copies and repeated prefix coalescing
+  in the ICMP filter, and prepare numeric UDP endpoint strings once per flow.
 
 ## Architecture landmarks
 
