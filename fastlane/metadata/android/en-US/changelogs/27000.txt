@@ -1,0 +1,3 @@
+- Added optional TCP/UDP app ownership checks on Android 10+ with Standard and Advanced levels, applied after reconnection.
+- Combined connection and speed tests in Diagnostics with a shared log that can be copied or exported.
+- Added an optional operator-provided knock host to diagnose HTTPS proxy authentication rejections over TCP.
