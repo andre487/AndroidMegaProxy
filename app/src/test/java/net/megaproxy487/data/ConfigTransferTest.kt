@@ -12,7 +12,7 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConfigTransferTest {
-    @Test fun authenticationProbeUsesExistingKnockFieldAndDiscardsOtherBrowserOptions() {
+    @Test fun authenticationProbeUsesSharedFieldWithLegacyFallbackAndExplicitDisable() {
         val config = ProxyConfig(host = "proxy.example", username = "private-user", password = "private-password", authProbeHost = "knock.example")
         val encoded = ConfigTransfer.encodeProfile(ProxyProfile(id = "probe", colorIndex = 0, config = config), true, false)
         val root = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID).put("version", 8)
@@ -21,12 +21,17 @@ class ConfigTransferTest {
         val imported = ConfigTransfer.importJson(root.toString())
         assertEquals("knock.example", imported.profiles.single().config.authProbeHost)
         assertFalse(imported.notice.browserFields)
-        encoded.getJSONObject("browser").put("authMode", "challenge")
+        encoded.put("browser", JSONObject().put("knockHost", "legacy.example").put("authMode", "challenge"))
         assertTrue(ConfigTransfer.importJson(root.toString()).notice.browserFields)
         val reexported = ConfigTransfer.encodeProfile(imported.profiles.single(), true, false)
-        assertEquals(setOf("knockHost"), reexported.getJSONObject("browser").keySet())
+        assertFalse(reexported.has("browser"))
+        assertEquals("knock.example", reexported.getJSONObject("proxy").getString("knockHost"))
+        encoded.getJSONObject("proxy").put("knockHost", "")
+        assertEquals("", ConfigTransfer.importJson(root.toString()).profiles.single().config.authProbeHost)
+        encoded.getJSONObject("proxy").remove("knockHost")
+        assertEquals("legacy.example", ConfigTransfer.importJson(root.toString()).profiles.single().config.authProbeHost)
         for (value in listOf<Any>("https://knock.example/path", "host:443", true)) {
-            encoded.getJSONObject("browser").put("knockHost", value)
+            encoded.getJSONObject("proxy").put("knockHost", value)
             assertTrue(runCatching { ConfigTransfer.importJson(root.toString()) }.isFailure)
         }
     }

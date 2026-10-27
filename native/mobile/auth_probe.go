@@ -16,6 +16,12 @@ func validAuthProbeHost(host string) bool {
 	if host == "" {
 		return true
 	}
+	if strings.HasPrefix(host, "[") != strings.HasSuffix(host, "]") {
+		return false
+	}
+	if net.ParseIP(strings.TrimSuffix(strings.TrimPrefix(host, "["), "]")) != nil {
+		return true
+	}
 	if len(host) > 253 {
 		return false
 	}
@@ -38,7 +44,7 @@ func checkProxyAuthentication(ctx context.Context, host string, connect func(con
 	started := time.Now()
 	probeCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 	defer cancel()
-	connection, err := connect(probeCtx, net.JoinHostPort(host, "443"))
+	connection, err := connect(probeCtx, net.JoinHostPort(strings.TrimSuffix(strings.TrimPrefix(host, "["), "]"), "443"))
 	if connection != nil {
 		// HTTP/1 TLS close_notify must not extend the bounded probe; HTTP/2
 		// deadlines affect only this stream and preserve the shared session.

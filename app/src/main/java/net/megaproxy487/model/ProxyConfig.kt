@@ -308,8 +308,12 @@ internal fun validPlainDnsUrl(value: String): Boolean = runCatching {
         uri.rawUserInfo == null && uri.rawQuery == null && uri.rawFragment == null
 }.getOrDefault(false)
 
-/** DNS hostname only: no URL, credentials, path or port. */
+/** Hostname or IP literal: no URL, credentials, path or port. */
 fun validAuthProbeHost(host: String): Boolean = host.isEmpty() ||
+    (host.length <= 253 && host.contains(':') && !host.contains('%') && runCatching {
+        val literal = host.removeSurrounding("[", "]")
+        java.net.URI("https://[$literal]/").host != null
+    }.getOrDefault(false)) ||
     (host.length <= 253 && host.split('.').all { label ->
         label.length in 1..63 && label.matches(Regex("[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?"))
     })

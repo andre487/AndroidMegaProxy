@@ -17,7 +17,8 @@
         "type": "HTTPS",
         "host": "proxy.example.com",
         "port": 443,
-        "username": "demo"
+        "username": "demo",
+        "knockHost": "knock.example.com"
       },
       "browser": {
         "knockHost": "knock.example.com",

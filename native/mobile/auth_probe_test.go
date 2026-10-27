@@ -50,7 +50,7 @@ func TestAuthenticationProbeReveals407ThroughProductionHTTPSDialer(t *testing.T)
 			if !strings.Contains(logs.text(), "event=proxy_auth_probe result=rejected reason=proxy_authentication status=407") {
 				t.Fatal("missing structured authentication failure")
 			}
-			for _, private := range []string{"127.0.0.1", "localhost", "private-user", "private-password", "unused.invalid"} {
+			for _, private := range []string{"127.0.0.1", "localhost", "2001:db8::1", "[2001:db8::1]", "private-user", "private-password", "unused.invalid"} {
 				if strings.Contains(logs.text(), private) {
 					t.Fatal("private field leaked into probe logs")
 				}
@@ -104,12 +104,12 @@ func TestAuthenticationProbeAcceptedConnectRemainsUnconfirmedAndClosesStream(t *
 }
 
 func TestAuthenticationProbeHostnameValidation(t *testing.T) {
-	for _, host := range []string{"", "knock.example", "127.0.0.1", "localhost"} {
+	for _, host := range []string{"", "knock.example", "127.0.0.1", "localhost", "2001:db8::1", "[2001:db8::1]"} {
 		if !validAuthProbeHost(host) {
 			t.Fatal("valid hostname rejected")
 		}
 	}
-	for _, host := range []string{"https://knock.example", "name:443", "user@host", "host/path", "host\\path", "host?query", "host#fragment", "bad host", "bad\nname", "a..b", "-host", strings.Repeat("a", 64) + ".example", strings.Repeat("a.", 127) + "aa"} {
+	for _, host := range []string{"https://knock.example", "name:443", "[2001:db8::1", "2001:db8::1]", "user@host", "host/path", "host\\path", "host?query", "host#fragment", "bad host", "bad\nname", "a..b", "-host", strings.Repeat("a", 64) + ".example", strings.Repeat("a.", 127) + "aa"} {
 		if validAuthProbeHost(host) {
 			t.Fatal("invalid hostname accepted")
 		}

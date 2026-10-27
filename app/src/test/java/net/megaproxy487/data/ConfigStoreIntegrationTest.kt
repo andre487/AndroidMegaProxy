@@ -69,6 +69,31 @@ class ConfigStoreIntegrationTest {
         assertNull(store.reconcileStartedConfiguration(original.id, started, null))
     }
 
+    @Test fun sharedKnockHostMergePreservesOmissionAndAcceptsExplicitDisable() {
+        val profile = secretProfile().let { it.copy(config = it.config.copy(authProbeHost = "knock.example")) }
+        store.saveProfile(profile)
+        val encoded = ConfigTransfer.encodeProfile(profile, true, true)
+        encoded.getJSONObject("proxy").remove("knockHost")
+        importProfile(encoded)
+        assertEquals("knock.example", store.profile(profile.id)!!.config.authProbeHost)
+        encoded.getJSONObject("proxy").put("knockHost", "")
+        importProfile(encoded)
+        assertEquals("", store.profile(profile.id)!!.config.authProbeHost)
+    }
+
+    @Test fun exportedFieldsAreAllDeclaredInSharedSchema() {
+        store.profiles().forEach { store.saveProfile(it.copy(config = it.config.copy(host = "proxy.example"))) }
+        for (type in net.megaproxy487.model.ProxyType.entries) {
+            val profile = net.megaproxy487.model.ProxyProfile(id = type.name, colorIndex = 0,
+                config = net.megaproxy487.model.ProxyConfig(type = type, host = "proxy.example",
+                    jumpHost = "jump.example", authProbeHost = if (type == net.megaproxy487.model.ProxyType.HTTPS) "knock.example" else ""))
+            store.saveProfile(profile)
+        }
+        val exported = ConfigTransfer.exportJson(store, true, true)
+        ConfigSchemas.assertValid(exported)
+        assertEquals(ConfigImportNotice(), ConfigImportNotices.inspect(JSONObject(exported)))
+    }
+
     @Test fun mtuDefaultsPersistsAndSurvivesProfileImports() {
         assertEquals(1400, store.globalConnectionSettings().mtu)
         for (mtu in listOf(1280, 1400, 1500, 1420, 65535)) {

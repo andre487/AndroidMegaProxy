@@ -304,7 +304,8 @@ class ConfigStore(context: Context) {
         val merged = configuration.profiles.map { source ->
             val current = existingById[source.id]
             val selected = if (current == null) source else resolveProfile(current, source)
-            val resolved = retainProfileSecrets(selected, current, configuration.secretPresence[source.id] ?: ProfileSecretPresence())
+            val resolved = retainProfileSecrets(selected, current, configuration.secretPresence[source.id] ?: ProfileSecretPresence(),
+                knockHostPresent = configuration.knockHostPresent?.contains(source.id) != false)
             when {
                 current == null -> added += resolved
                 current == resolved -> unchanged += resolved
@@ -393,7 +394,8 @@ class ConfigStore(context: Context) {
         }
         val byId = existing.associateBy(ProxyProfile::id)
         val incoming = configuration.profiles.map { source -> retainProfileSecrets(source, byId[source.id],
-            configuration.secretPresence[source.id] ?: ProfileSecretPresence()) }
+            configuration.secretPresence[source.id] ?: ProfileSecretPresence(),
+                knockHostPresent = configuration.knockHostPresent?.contains(source.id) != false) }
         val merged = local + incoming
         val ids = merged.map(ProxyProfile::id).toSet()
         requireUi(ids.size == merged.size) { UiException(R.string.error_config_duplicate_ids) }

@@ -37,6 +37,7 @@ data class PortableConfiguration(
     val subscription: ConfigSubscription? = null,
     val globalSettingFields: Set<String>? = null,
     val diagnosticLogLimitPresent: Boolean = true,
+    val knockHostPresent: Set<String>? = null,
 ) {
     internal fun mergeGlobalSettings(current: GlobalConnectionSettings): GlobalConnectionSettings {
         val incoming = globalConnectionSettings ?: return current
@@ -181,6 +182,11 @@ object ConfigTransfer {
                 }
             } else null,
             skippedProfiles = decoded.count(Result<ProxyProfile>::isFailure),
+            knockHostPresent = (0 until array.length()).mapNotNull { index ->
+                val item = array.optJSONObject(index) ?: return@mapNotNull null
+                if (item.optJSONObject("proxy")?.has("knockHost") == true || item.optJSONObject("browser")?.has("knockHost") == true)
+                    item.optString("id").ifBlank { "import-$index" } else null
+            }.toSet(),
             secretPresence = (0 until array.length()).mapNotNull { index ->
                 val item = array.optJSONObject(index) ?: return@mapNotNull null
                 val id = item.optString("id").ifBlank { "import-$index" }
@@ -246,6 +252,7 @@ object ConfigTransfer {
             if (includePrivateKeys) put("privateKey", profile.config.privateKey)
             put("allowInvalidProxyCertificate", profile.config.allowInvalidProxyCertificate)
             put("preferHttp3", profile.config.preferHttp3)
+            if (profile.config.type == ProxyType.HTTPS) put("knockHost", profile.config.authProbeHost.trim())
             put("sshProfile", profile.config.sshProfile.name)
             put("trustedHostKey", profile.config.trustedHostKey)
             put("acceptAnyHostKey", profile.config.acceptAnyHostKey)
@@ -263,9 +270,6 @@ object ConfigTransfer {
                 put("allowInvalidProxyCertificate", profile.config.jumpAllowInvalidProxyCertificate)
             })
         })
-        if (profile.config.type == ProxyType.HTTPS && profile.config.authProbeHost.isNotBlank()) {
-            put("browser", JSONObject().put("knockHost", profile.config.authProbeHost.trim()))
-        }
         put("tls", JSONObject().apply {
             put("fingerprint", profile.config.profile.name)
             put("customJa3", profile.config.customJa3.trim())
@@ -291,9 +295,10 @@ object ConfigTransfer {
         requireUi(host.isNotEmpty() && !host.contains(Regex("[/:\\s]")))
         val type = enumValue(proxy.optString("type"), ProxyType.HTTPS)
         val browser = item.optJSONObject("browser")
-        val authProbeHost = if (type == ProxyType.HTTPS && browser?.has("knockHost") == true) {
-            requireUi(browser.opt("knockHost") is String) { UiException(R.string.validation_auth_probe_host) }
-            browser.limitedString("knockHost", 253).trim().also {
+        val probeOptions = if (proxy.has("knockHost")) proxy else browser
+        val authProbeHost = if (type == ProxyType.HTTPS && probeOptions?.has("knockHost") == true) {
+            requireUi(probeOptions.opt("knockHost") is String) { UiException(R.string.validation_auth_probe_host) }
+            probeOptions.limitedString("knockHost", 253).trim().also {
                 requireUi(validAuthProbeHost(it)) { UiException(R.string.validation_auth_probe_host) }
             }
         } else ""

@@ -154,7 +154,7 @@ branch names, credentials, signing material, or other secrets.
   entire feature matrix on every device.
 
 - Regular HTTPS/TCP diagnostics may use an optional per-profile authentication probe hostname,
-  imported/exported as `browser.knockHost`. Only an explicit 407 proves authentication rejection;
+  imported/exported as `proxy.knockHost`, with legacy `browser.knockHost` fallback. Only an explicit 407 proves authentication rejection;
   200, timeouts and unexpected statuses do not prove absence/presence of a decoy. Keep probes
   bounded, always proxied despite LAN bypass, outside packet handling and normal VPN startup.
   Diagnostic-only changes do not require reconnects; live tests retain runtime credentials.

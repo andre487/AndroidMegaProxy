@@ -126,6 +126,7 @@ internal fun retainProfileSecrets(
     source: net.megaproxy487.model.ProxyProfile,
     current: net.megaproxy487.model.ProxyProfile?,
     presence: ProfileSecretPresence,
+    knockHostPresent: Boolean = true,
 ): net.megaproxy487.model.ProxyProfile {
     if (current == null) return source
     val sameDns = source.config.dnsProvider == current.config.dnsProvider &&
@@ -134,6 +135,7 @@ internal fun retainProfileSecrets(
     val sameAccount = sameProxyAccount(source.config, current.config, jump = false)
     val sameJumpAccount = sameProxyAccount(source.config, current.config, jump = true)
     return source.copy(config = source.config.copy(
+        authProbeHost = if (knockHostPresent || !sameAccount) source.config.authProbeHost else current.config.authProbeHost,
         allowInsecureDns = sameDns && current.config.allowInsecureDns,
         allowInvalidDohCertificate = sameDns && current.config.allowInvalidDohCertificate,
         password = if (presence.password) source.config.password else current.config.password.takeIf { sameAccount }.orEmpty(),

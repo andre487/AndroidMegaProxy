@@ -90,7 +90,7 @@ configured subscriptions and enabled app-update checks can also run in the backg
 | Proxy bootstrap DNS | Cloudflare, Yandex, Google or Quad9 DoH may be contacted directly before VPN exists |
 | Application DNS | DoH through the proxy by default; optional TCP DNS through the proxy or UDP DNS (direct for HTTPS/TCP and SSH). Intercepted UDP/TCP port 53 only; app-specific encrypted DNS follows normal routing. [Routing and security](docs/en/dns.md) |
 | Connection test | `example.com`; exit IP/country from `speed.cloudflare.com/cdn-cgi/trace`, then IP fallbacks `ifconfig.me`, `api.ipify.org`, `icanhazip.com` and country fallbacks `ifconfig.co`, `ipapi.co`, `api.country.is` |
-| Optional proxy authentication check | Profile-provided `browser.knockHost`, CONNECT to port 443 through the HTTPS proxy during diagnostics; [masked authentication](docs/en/profiles-and-routing.md#masked-authentication-errors) |
+| Optional proxy authentication check | Profile-provided `proxy.knockHost`, CONNECT to port 443 through the HTTPS proxy during diagnostics; [masked authentication](docs/en/profiles-and-routing.md#masked-authentication-errors) |
 | UDP/HTTP3 test | `www.cloudflare.com/cdn-cgi/trace` and `quic.browserleaks.com/`, independently through MASQUE/SOCKS5 UDP with verified certificates and no TCP fallback |
 | VPN visibility | Route IP lookup as above, then `https://proxycheck.io/v3/`; successful reputation results cached per IP for 24 hours, quota exhaustion shown separately |
 | Speed | `https://h3.speed.cloudflare.com/cdn-cgi/trace`, `/__down`, `/__up`; underlying/VPN networks separately, 10/25/50 decimal MB per direction (up to four times the selected amount plus overhead) |
