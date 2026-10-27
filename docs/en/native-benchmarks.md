@@ -76,4 +76,53 @@ traffic pattern. Measure throughput, latency, CPU, memory and ownership-query fr
 strict disabled, standard and advanced. These host microbenchmarks identify Go hot spots;
 they do not predict that device result.
 
+
+## Encrypted transport round trips
+
+Run these in order to inspect MASQUE, HTTPS and SSH separately:
+
+```sh
+bundle exec fastlane android native_benchmarks 'bench:BenchmarkTransportMASQUE' output:test-results/native/masque
+bundle exec fastlane android native_benchmarks 'bench:BenchmarkTransportHTTPS' output:test-results/native/https
+bundle exec fastlane android native_benchmarks 'bench:BenchmarkTransportSSH' output:test-results/native/ssh
+```
+
+These opt-in benchmarks open only loopback listeners and use the production dialers with
+local echo peers. No Docker, Internet access, personal proxy or supplied credentials is needed.
+They are outside the default CPU-only suite and required CI timing checks.
+
+| Transport | Workload |
+| --- | --- |
+| MASQUE | Warm QUIC streams at 64/1400/32768 bytes; CONNECT-UDP at 64/1200 bytes, with a fixed deadline or one renewed per exchange. |
+| HTTPS | Warm CONNECT streams over HTTP/1.1, HTTP/2 and preferred HTTP/3 at 64/1400/32768 bytes. The benchmark verifies selection instead of silently measuring a fallback. |
+| SSH | Warm encrypted direct-tcpip channel at 64/1400/32768 bytes, OpenSSH-style client profile, password authentication and a pinned ephemeral host key. The local peer is x/crypto/ssh, not OpenSSH. |
+
+One operation is a sequential request/echo round trip. `MB/s` counts both directions.
+Setup, certificate/key generation, authentication and the initial tunnel/channel open are outside
+the timer, as is one warm-up exchange. Payload contents are checked after the loop; each exchange
+checks its length/errors. SSH channels do not implement net.Conn deadlines; a watchdog closes
+stalled stream benchmarks. This is not a test of SSH deadline support.
+
+CPU and heap profiles cover **both client and echo server in one process**, including runtime,
+crypto and library allocations. Per-operation allocation counts also include both endpoints.
+Do not attribute server allocations to Android or compare these timings directly with the
+in-memory `Core*` suite. The echo peers do not forward to a separate origin. Server-side request
+validation, credentials and key checks remain active; TLS peers use test-only self-signed trust
+exceptions. Profiles retain their normal encryption and TLS/SSH fingerprints.
+
+For example, profile one narrow case separately:
+
+```sh
+bundle exec fastlane android native_benchmarks \
+  'bench:BenchmarkTransportMASQUE/datagram/bytes=1200/refresh-deadline=false$' \
+  count:1 benchtime:5s profile:true output:test-results/native/masque-profile
+```
+
+Compare raw samples with benchstat as above. Unchanged stream scenarios are useful controls for
+host drift: a timing change shared by controls is not evidence of an optimization's effect.
+These are warm single-flow loopback measurements, without packet loss, congestion, radio changes,
+reconnect storms, jump chains, sustained rekey/rotation workloads, TUN or JNI. Real GOST/OpenSSH
+interoperability remains the separate `native_integration` lane; Android integration remains the
+device lanes. These results do not establish which transport is fastest on a phone.
+
 [Русская версия](../ru/native-benchmarks.md)

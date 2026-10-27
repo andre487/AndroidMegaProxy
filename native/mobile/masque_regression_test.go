@@ -485,3 +485,80 @@ func TestQUICStreamDiagnosticsIdentifySharedFailedSession(t *testing.T) {
 		t.Fatalf("missing shared QUIC session identity: %s", logs.text())
 	}
 }
+
+func TestUDPPeerComparisonPreservesAddressPolicy(t *testing.T) {
+	addresses := []net.Addr{
+		&net.UDPAddr{IP: net.IP{192, 0, 2, 1}, Port: 443},
+		&net.UDPAddr{IP: net.ParseIP("::ffff:192.0.2.1"), Port: 443},
+		&net.UDPAddr{IP: net.ParseIP("192.0.2.2"), Port: 443},
+		&net.UDPAddr{IP: net.ParseIP("192.0.2.1"), Port: 444},
+		&net.UDPAddr{IP: net.ParseIP("2001:db8::1"), Port: 443},
+		&net.UDPAddr{IP: net.ParseIP("fe80::1"), Zone: "wlan0", Port: 443},
+		&net.UDPAddr{IP: net.ParseIP("fe80::1"), Zone: "wlan1", Port: 443},
+		&net.UDPAddr{Port: 443}, &net.UDPAddr{IP: net.IP{1, 2}, Port: 443},
+		&net.TCPAddr{IP: net.ParseIP("192.0.2.1"), Port: 443},
+	}
+	for _, a := range addresses {
+		for _, b := range addresses {
+			if equalUDPPeers(a, b) != (a.String() == b.String()) {
+				t.Fatalf("peer policy changed for %v / %v", a, b)
+			}
+		}
+	}
+	if equalUDPPeers(nil, addresses[0]) || equalUDPPeers(addresses[0], nil) {
+		t.Fatal("nil peer accepted")
+	}
+	if n := testing.AllocsPerRun(1000, func() {
+		if !equalUDPPeers(addresses[0], addresses[1]) {
+			panic("mapped peer rejected")
+		}
+	}); n != 0 {
+		t.Fatalf("peer check allocates: %v", n)
+	}
+}
+
+func TestMASQUEContextPrefixFiltering(t *testing.T) {
+	zero := [][]byte{{0}, {0x40, 0}, {0x80, 0, 0, 0}, {0xc0, 0, 0, 0, 0, 0, 0, 0}}
+	fixture := newMasqueFixture(t, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Capsule-Protocol", "?1")
+		w.WriteHeader(200)
+		stream := w.(http3.HTTPStreamer).HTTPStream()
+		defer stream.Close()
+		for {
+			data, err := stream.ReceiveDatagram(r.Context())
+			if err != nil {
+				return
+			}
+			if len(data) != 2 || int(data[1]) >= len(zero) {
+				t.Error("unexpected request")
+				return
+			}
+			for _, bad := range [][]byte{{}, {1}, {0x40}, {0x80, 0}, {0xc0, 0, 0}} {
+				if stream.SendDatagram(bad) != nil {
+					return
+				}
+			}
+			if stream.SendDatagram(append(append([]byte(nil), zero[data[1]]...), data[1])) != nil {
+				return
+			}
+		}
+	}))
+	d := &masqueDialer{config: fixture.config, protector: &jumpTestProtector{}}
+	defer d.Close()
+	conn, err := d.DialUDP(&M.Metadata{DstIP: netip.MustParseAddr("192.0.2.1"), DstPort: 443})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	peer := &net.UDPAddr{IP: net.IPv4(192, 0, 2, 1), Port: 443}
+	for i := range zero {
+		_ = conn.SetDeadline(time.Now().Add(3 * time.Second))
+		if _, err := conn.WriteTo([]byte{byte(i)}, peer); err != nil {
+			t.Fatal(err)
+		}
+		var buf [8]byte
+		if n, _, err := conn.ReadFrom(buf[:]); err != nil || n != 1 || buf[0] != byte(i) {
+			t.Fatalf("context encoding %d: n=%d err=%v", i, n, err)
+		}
+	}
+}
