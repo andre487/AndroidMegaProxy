@@ -65,15 +65,25 @@ def svg(content):
 
 def adaptive_layers(content):
     background, foreground = svg(content), svg(content)
-    for root, keep_background in ((background, True), (foreground, False)):
-        artwork = root.find(f".//{{{SVG}}}g[@id='icon-2']")
-        if artwork is None or artwork.find(f"{{{SVG}}}g[@id='Background']") is None:
-            raise ValueError(
-                "Identity icon layers changed; review the adaptive icon recipe"
+    for root, discard in ((background, "foreground"), (foreground, "background")):
+        layers = {}
+        for name in ("background", "foreground"):
+            matches = root.findall(f".//{{{SVG}}}g[@data-name='{name}']")
+            if len(matches) != 1:
+                raise ValueError(f"Expected exactly one Identity {name} group")
+            layers[name] = matches[0]
+        if any(
+            layers[other] in layers[name].iter()
+            for name, other in (
+                ("background", "foreground"),
+                ("foreground", "background"),
             )
-        for child in list(artwork):
-            if (child.get("id") == "Background") != keep_background:
-                artwork.remove(child)
+        ):
+            raise ValueError("Identity background and foreground groups must not nest")
+        for parent in root.iter():
+            if layers[discard] in list(parent):
+                parent.remove(layers[discard])
+                break
     # Keep the complete wordmark inside Android's 66dp safe circle on the 108dp layer.
     x, y, width, height = map(float, foreground.get("viewBox").split())
     foreground.set(

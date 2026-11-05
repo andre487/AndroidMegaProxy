@@ -12,8 +12,11 @@ sys.path.insert(0, str(Path(__file__).parents[1]))
 import update_graphics as m
 
 ICON = b"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">
-<g clip-path="url(#clip)"><g id="icon-2"><g id="Background"><rect width="120" height="120" fill="blue"/></g>
-<path id="logo" d="M30 50H90V70H30Z" fill="white"/></g></g></svg>"""
+<g clip-path="url(#clip)" transform="scale(0.5)">
+<g data-name="background"><rect id="Gradient" width="240" height="240" fill="blue"/>
+<g><g data-name="Ring 1"/><g data-name="Ring 2"/><g data-name="Ring 3"/></g></g>
+<g data-name="foreground"><g data-name="MPX"><path id="logo" d="M60 100H180V140H60Z" fill="white"/></g></g>
+</g></svg>"""
 
 
 class UpdateGraphicsTest(unittest.TestCase):
@@ -104,12 +107,34 @@ class UpdateGraphicsTest(unittest.TestCase):
 
     def test_adaptive_layers_preserve_center_and_reject_changed_structure(self):
         background, foreground = map(m.svg, m.adaptive_layers(ICON))
+        self.assertIsNotNone(background.find(".//*[@id='Gradient']"))
+        self.assertIsNotNone(background.find(".//*[@data-name='Ring 3']"))
+        self.assertIsNone(foreground.find(".//*[@data-name='Ring 1']"))
+        self.assertEqual(
+            "scale(0.5)", foreground.find(f"{{{m.SVG}}}g").get("transform")
+        )
         self.assertIsNone(background.find(f".//*[@id='logo']"))
-        self.assertIsNone(foreground.find(f".//*[@id='Background']"))
+        self.assertIsNone(foreground.find(f".//*[@id='Gradient']"))
         self.assertIsNotNone(foreground.find(f".//*[@id='logo']"))
         self.assertEqual("-20 -20 160 160", foreground.get("viewBox"))
         with self.assertRaises(ValueError):
-            m.adaptive_layers(ICON.replace(b'id="Background"', b'id="renamed"'))
+            m.adaptive_layers(
+                ICON.replace(b'data-name="background"', b'data-name="renamed"')
+            )
+        # Internal IDs, group names and nesting may change independently of the contract.
+        changed = ICON.replace(b"Gradient", b"new-gradient").replace(
+            b"Ring 2", b"new-ring"
+        )
+        m.adaptive_layers(changed)
+        with self.assertRaises(ValueError):
+            m.adaptive_layers(
+                ICON.replace(b'data-name="MPX"', b'data-name="foreground"')
+            )
+        with self.assertRaises(ValueError):
+            m.adaptive_layers(
+                b'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 120 120">'
+                b'<g data-name="background"><g data-name="foreground"/></g></svg>'
+            )
         with self.assertRaises(ValueError):
             m.svg(
                 b'<svg xmlns="http://www.w3.org/2000/svg"><image href="logo.png"/></svg>'

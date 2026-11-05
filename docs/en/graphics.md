@@ -37,8 +37,10 @@ without downloading Identity or running a renderer.
 | Local `docs/assets/get-it-on-github.svg` | 1292×500 GitHub download badge PNG; local notices are retained |
 
 Adaptive layers retain the SVG's background/rings and keep the wordmark inside Android's safe
-circle by scaling it to 75% of the 108dp foreground canvas. The extraction uses the Identity
-`icon-2` and `Background` layer IDs; a changed SVG structure requires reviewing the recipe.
+circle by scaling it to 75% of the 108dp foreground canvas. Extraction selects groups by
+`data-name="background"` and `data-name="foreground"`, preserving definitions and parent transforms.
+Each group must occur exactly once and neither may contain the other. Internal IDs and group
+structure can change freely; Inkscape labels are preserved by Identity's exporter.
 The social preview is rendered directly from its dedicated Identity SVG.
 Identity-derived artwork retains the upstream license in `assets/branding/IDENTITY-LICENSE`;
 the GitHub badge retains its separate notices.
