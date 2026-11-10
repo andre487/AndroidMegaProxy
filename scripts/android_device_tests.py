@@ -252,8 +252,14 @@ def fixture():
                     "-j",
                     "REJECT",
                 ]
-                command("sudo", "-n", "iptables", "-I", *rule)
-                firewall.append(rule)
+                for tool, address in (
+                    ("iptables", origin_ip),
+                    ("ip6tables", origin_ipv6),
+                ):
+                    family_rule = list(rule)
+                    family_rule[2] = address
+                    command("sudo", "-n", tool, "-I", *family_rule)
+                    firewall.append((tool, family_rule))
         socks_auth = start(
             "socks-auth",
             "1080",
@@ -385,9 +391,9 @@ def fixture():
             subprocess.run(
                 ["docker", "rm", "-f", container], capture_output=True, timeout=30
             )
-        for rule in reversed(firewall):
+        for tool, rule in reversed(firewall):
             subprocess.run(
-                ["sudo", "-n", "iptables", "-D", *rule],
+                ["sudo", "-n", tool, "-D", *rule],
                 capture_output=True,
                 timeout=30,
             )

@@ -99,6 +99,14 @@ abstract class DeviceTestBase {
         if (VpnService.prepare(context) != null) systemButton("android:id/button1")
         await("Real VPN did not connect") { ProxyVpnService.isRunning && vpnPresent() && VpnRuntimeState.connection.value == VpnConnectionState.CONNECTED }
         saved()
+        val routing = store.globalConnectionSettings()
+        if (routing.routeAllApps || context.packageName in routing.selectedPackages) {
+            val manager = context.getSystemService(ConnectivityManager::class.java)
+            // Service readiness precedes Android installing the calling UID's default route.
+            await("VPN did not become the test process default network") {
+                manager.getNetworkCapabilities(manager.activeNetwork)?.hasTransport(NetworkCapabilities.TRANSPORT_VPN) == true
+            }
+        }
     }
     protected fun roundTrip(host: String = argument("originHost")) {
         val payload = "MegaProxy device ${System.nanoTime()}"

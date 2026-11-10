@@ -14,7 +14,7 @@ class ProfileEditorUiTest : MainUiTestBase() {
         val id = store.activeProfileId()
         content { ProfileEditorScreen(activity, id, {}) }
         for (type in ProxyType.entries) {
-            selectOption(R.string.profile_type, type.titleRes)
+            if (store.profile(id)!!.config.type != type) selectOption(R.string.profile_type, type.titleRes)
             val label = when (type) {
                 ProxyType.HTTPS_JUMP -> R.string.destination_https_proxy_hostname
                 ProxyType.SOCKS5 -> R.string.socks5_proxy_hostname
