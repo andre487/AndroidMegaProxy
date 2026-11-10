@@ -251,6 +251,15 @@ func TestRealProxyServers(t *testing.T) {
 						if err != nil || response.StatusCode != 200 || !bytes.Equal(body, payload) {
 							t.Fatalf("HTTP echo failed: %v", err)
 						}
+						invalid := cfg
+						invalid.Password = "wrong-password"
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						conn, authErr := realServerDialer(t, invalid)(ctx, target)
+						cancel()
+						if authErr == nil {
+							conn.Close()
+							t.Fatal("invalid proxy credentials reached origin: possible direct bypass")
+						}
 						if target6 {
 							blocked := cfg
 							blocked.AllowIPv6 = false

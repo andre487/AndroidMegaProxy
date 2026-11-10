@@ -12,7 +12,8 @@ scope of verification in the relevant PR/release; never include credentials or p
 IPv6 regression tests cover editor inputs, JSON/URL exports, native configuration and literal
 bootstrap. Real GOST/OpenSSH tests vary IPv4/IPv6 proxy, jump and TCP destination addresses;
 SOCKS5 UDP covers both destination families. GOST 3.3.0 MASQUE IPv6 CONNECT-UDP is an expected
-rejection, not a supported round trip. API 26/35 tests exercise IPv6 destinations through all six
+rejection, not a supported round trip. A controlled MASQUE relay separately forwards datagrams to
+a real IPv6 UDP origin to test client support. API 26/35 tests exercise IPv6 destinations through all six
 proxy types via TUN/JNI, including SOCKS5 UDP and MASQUE UDP rejection. These use numeric addresses;
 AAAA-only proxy hostname bootstrap remains unsupported by the A-only resolver. Physical-device
 IPv6 uplinks need a separate check. Adding tests is not evidence of passing runs; record CI results.
