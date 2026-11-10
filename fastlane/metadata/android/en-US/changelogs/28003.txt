@@ -1,0 +1,4 @@
+- IPv6 proxy and jump-host addresses are now accepted with or without brackets.
+- Fixed JSON profile imports and proxy-link exports containing IPv6 addresses.
+- Connection setup now tries IPv6 DNS records when no resolver returns IPv4 and at least one returns a valid response without an IPv4 address.
+- Updated the app and VPN notification icons.
