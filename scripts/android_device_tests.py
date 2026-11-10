@@ -29,6 +29,7 @@ TESTS = (
     "DnsDeviceTest#resolverModesThroughRealTun",
     "VpnDeviceTest#trafficStopAndRestart",
     "VpnDeviceTest#ipv6DestinationsThroughEveryProxyType",
+    "VpnDeviceTest#ipv6ProxiesAndDestinationsThroughEveryProxyType",
     "VpnDeviceTest#socks5AuthenticatedTcpUdpStopAndRestart",
     "VpnDeviceTest#socks5AnonymousTcpUdpStopAndRestart",
     "VpnDeviceTest#masqueTrafficStopAndRestart",
@@ -343,7 +344,26 @@ def fixture():
             "-lf",
             "/etc/ssh/ssh_host_ed25519_key.pub",
         ).split()[1]
+        ipv6_proxies = {
+            transport
+            + "Ipv6": command(
+                "docker",
+                "inspect",
+                "--format",
+                "{{range .NetworkSettings.Networks}}{{.GlobalIPv6Address}}{{end}}",
+                container,
+            )
+            for transport, container in (
+                ("https", https),
+                ("socks5", socks_auth),
+                ("masque", masque),
+                ("ssh", ssh),
+            )
+        }
+        if not all(ipv6_proxies.values()):
+            raise RuntimeError("IPv6 proxy address is missing")
         yield {
+            **ipv6_proxies,
             "originHost": origin_ip,
             "originIpv6": origin_ipv6,
             "directDnsPort": str(direct_dns.server_address[1]),
