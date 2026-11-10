@@ -70,12 +70,13 @@ func parseConfig(raw string) (config, error) {
 	if !validAuthProbeHost(c.AuthProbeHost) {
 		return c, errors.New("invalid diagnostic probe hostname")
 	}
-	c.Host = strings.TrimSpace(c.Host)
+	c.Host = normalizeProxyHost(c.Host)
+	c.JumpHost = normalizeProxyHost(c.JumpHost)
 	c.DialHost = strings.TrimSpace(c.DialHost)
 	if c.Type == "" {
 		c.Type = "HTTPS"
 	}
-	if c.Host == "" || strings.ContainsAny(c.Host, "/: \t\r\n") {
+	if !validProxyHost(c.Host) {
 		return c, errors.New("invalid proxy hostname")
 	}
 	if c.Type != "HTTPS_JUMP" && net.ParseIP(c.DialHost) == nil {
@@ -97,7 +98,7 @@ func parseConfig(raw string) (config, error) {
 		return c, errors.New("SOCKS5 requires no credentials or a username and password of 1 to 255 UTF-8 bytes each")
 	}
 	if c.Type == "SSH_JUMP" || c.Type == "HTTPS_JUMP" {
-		if c.JumpHost == "" || strings.ContainsAny(c.JumpHost, "/: \t\r\n") {
+		if !validProxyHost(c.JumpHost) {
 			return c, errors.New("invalid jump hostname")
 		}
 		if net.ParseIP(c.JumpDialHost) == nil {
@@ -162,6 +163,18 @@ func parseConfig(raw string) (config, error) {
 		return c, errors.New("invalid SSH channel limit")
 	}
 	return c, nil
+}
+
+func normalizeProxyHost(host string) string {
+	host = strings.TrimSpace(host)
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") && net.ParseIP(host[1:len(host)-1]) != nil {
+		return host[1 : len(host)-1]
+	}
+	return host
+}
+
+func validProxyHost(host string) bool {
+	return net.ParseIP(host) != nil || (host != "" && !strings.ContainsAny(host, "/: \t\r\n[]@?#%"))
 }
 
 func (c config) isHTTPProxy() bool { return c.isHTTPS() || c.Type == "MASQUE" }

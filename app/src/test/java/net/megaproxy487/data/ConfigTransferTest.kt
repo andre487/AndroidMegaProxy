@@ -12,6 +12,28 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConfigTransferTest {
+    @Test fun ipv6AddressesRoundTripThroughJsonAndUrlExports() {
+        for (type in ProxyType.entries) for (host in listOf("2001:db8::1", "[2001:db8::1]")) {
+            val profile = ProxyProfile(id = "ipv6", colorIndex = 0, config = ProxyConfig(
+                type = type, host = host, port = 8443, username = "user", password = "password", jumpHost = host))
+            val encoded = ConfigTransfer.encodeProfile(profile, true, false)
+            val raw = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID).put("version", ConfigTransfer.SCHEMA_VERSION)
+                .put("profiles", JSONArray().put(encoded)).toString()
+            ConfigSchemas.assertValid(raw)
+            val imported = ConfigTransfer.importJson(raw).profiles.single().config
+            assertEquals(host, imported.host)
+            if (type.hasJump) assertEquals(host, imported.jumpHost)
+            if (type == ProxyType.HTTPS || type == ProxyType.MASQUE || type == ProxyType.SOCKS5) {
+                val uri = java.net.URI(ConfigTransfer.exportProxyList(listOf(profile), true).trim())
+                assertEquals("[2001:db8::1]", uri.host)
+                assertEquals(8443, uri.port)
+                val fromUrl = ProxyListParser.parse(uri.toString()).getOrThrow().proxies.single().config
+                assertEquals("[2001:db8::1]", fromUrl.host)
+                assertEquals(null, fromUrl.validationError())
+            }
+        }
+    }
+
     @Test fun authenticationProbeUsesSharedFieldWithLegacyFallbackAndExplicitDisable() {
         val config = ProxyConfig(host = "proxy.example", username = "private-user", password = "private-password", authProbeHost = "knock.example")
         val encoded = ConfigTransfer.encodeProfile(ProxyProfile(id = "probe", colorIndex = 0, config = config), true, false)

@@ -6,6 +6,38 @@ import (
 	"testing"
 )
 
+func TestIPv6ProxyConfig(t *testing.T) {
+	for _, transport := range []string{"HTTPS", "HTTPS_JUMP", "MASQUE", "SOCKS5", "SSH", "SSH_JUMP"} {
+		for _, host := range []string{"2001:db8::1", "[2001:db8::1]", "2001:db8:::1", "[::1]:443", "host:443", "::1%eth0", "https://[::1]"} {
+			for _, jump := range []bool{false, true} {
+				c := config{Type: transport, Host: "proxy.example", DialHost: "2001:db8::1", Port: 443,
+					Username: "user", Password: "password", Profile: "CHROME_ANDROID", DoHURL: "https://dns.example/query",
+					JumpHost: "jump.example", JumpDialHost: "2001:db8::2", JumpPort: 443, JumpUsername: "user", JumpPassword: "password"}
+				if jump {
+					if transport != "HTTPS_JUMP" && transport != "SSH_JUMP" {
+						continue
+					}
+					c.JumpHost = host
+				} else {
+					c.Host = host
+				}
+				raw, err := json.Marshal(c)
+				if err != nil {
+					t.Fatal(err)
+				}
+				parsed, err := parseConfig(string(raw))
+				valid := host == "2001:db8::1" || host == "[2001:db8::1]"
+				if (err == nil) != valid {
+					t.Fatalf("%s host=%s jump=%v: %v", transport, host, jump, err)
+				}
+				if valid && ((!jump && parsed.Host != "2001:db8::1") || (jump && parsed.JumpHost != "2001:db8::1")) {
+					t.Fatal("IPv6 brackets not normalized")
+				}
+			}
+		}
+	}
+}
+
 func TestParseJA3(t *testing.T) {
 	s, err := parseJA3("771,4865-4866,0-10-11-13-16-43-51,29-23,0")
 	if err != nil {

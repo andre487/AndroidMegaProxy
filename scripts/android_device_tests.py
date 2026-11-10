@@ -28,6 +28,7 @@ TESTS = (
     "VpnDeviceTest#deniedVpnConsentDoesNotStartTunnel",
     "DnsDeviceTest#resolverModesThroughRealTun",
     "VpnDeviceTest#trafficStopAndRestart",
+    "VpnDeviceTest#ipv6DestinationsThroughEveryProxyType",
     "VpnDeviceTest#socks5AuthenticatedTcpUdpStopAndRestart",
     "VpnDeviceTest#socks5AnonymousTcpUdpStopAndRestart",
     "VpnDeviceTest#masqueTrafficStopAndRestart",
@@ -193,7 +194,7 @@ def fixture():
         blackhole.bind(("127.0.0.1", 0))
         command("docker", "build", "-t", image, str(ROOT / "native/integration"))
         image_built = True
-        command("docker", "network", "create", name)
+        command("docker", "network", "create", "--ipv6", name)
         network_created = True
 
         def start(alias, port, server_image, *args):
@@ -223,6 +224,15 @@ def fixture():
             "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
             origin,
         )
+        origin_ipv6 = command(
+            "docker",
+            "inspect",
+            "--format",
+            "{{range .NetworkSettings.Networks}}{{.GlobalIPv6Address}}{{end}}",
+            origin,
+        )
+        if not origin_ipv6:
+            raise RuntimeError("IPv6 origin address is missing")
         # Emulator user-mode networking originates in the host OUTPUT chain. Container
         # traffic uses FORWARD, so only the proxies can reach the unpublished origin.
         if sys.platform == "linux":
@@ -329,6 +339,7 @@ def fixture():
         ).split()[1]
         yield {
             "originHost": origin_ip,
+            "originIpv6": origin_ipv6,
             "directDnsPort": str(direct_dns.server_address[1]),
             "proxyPort": https_port,
             "socksPort": port(socks_auth, "1080"),
@@ -354,6 +365,13 @@ def fixture():
             "blackholeMasquePort": str(blackhole.getsockname()[1]),
             "proxyPassword": password,
             "sshPort": ssh_port,
+            "sshExitHost": command(
+                "docker",
+                "inspect",
+                "--format",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                ssh,
+            ),
             "sshPassword": password,
             "sshKey": base64.b64encode(key.encode()).decode(),
             "sshFingerprint": fingerprint,

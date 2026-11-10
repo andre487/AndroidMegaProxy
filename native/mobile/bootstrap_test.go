@@ -11,6 +11,15 @@ import (
 	"time"
 )
 
+func TestBootstrapIPv6LiteralDoesNotUseDNS(t *testing.T) {
+	for _, host := range []string{"2001:db8::1", "[2001:db8::1]"} {
+		got, err := ResolveProxy(host, nil, nil)
+		if err != nil || got != "2001:db8::1" {
+			t.Fatalf("literal bootstrap: %q %v", got, err)
+		}
+	}
+}
+
 func TestBootstrapResolversUseDirectHTTPSAddresses(t *testing.T) {
 	if len(bootstrapResolvers) < 3 {
 		t.Fatalf("bootstrap resolver count = %d, want failover", len(bootstrapResolvers))

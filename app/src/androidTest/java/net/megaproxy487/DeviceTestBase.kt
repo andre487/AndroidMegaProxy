@@ -100,11 +100,11 @@ abstract class DeviceTestBase {
         await("Real VPN did not connect") { ProxyVpnService.isRunning && vpnPresent() && VpnRuntimeState.connection.value == VpnConnectionState.CONNECTED }
         saved()
     }
-    protected fun roundTrip() {
+    protected fun roundTrip(host: String = argument("originHost")) {
         val payload = "MegaProxy device ${System.nanoTime()}"
         Socket().use { socket ->
             socket.soTimeout = 15_000
-            socket.connect(InetSocketAddress(argument("originHost"), 8080), 15_000)
+            socket.connect(InetSocketAddress(host, 8080), 15_000)
             val request = "POST /echo HTTP/1.1\r\nHost: fixture\r\nConnection: close\r\nContent-Length: ${payload.length}\r\n\r\n$payload"
             socket.getOutputStream().write(request.toByteArray(Charsets.US_ASCII))
             val response = socket.getInputStream().bufferedReader(Charsets.US_ASCII).readText()
@@ -114,7 +114,7 @@ abstract class DeviceTestBase {
         }
         // A successful round trip to the private origin proves Android has
         // installed this UID's VPN route before the one-shot UDP DNS probe.
-        dnsPolicyRoundTrip()
+        if (!store.activeProfile().config.allowIpv6) dnsPolicyRoundTrip()
     }
     // Local AAAA suppression proves both DNS transports reach the native TUN
     // interceptor. Network DoH/fallback is tested by the native TLS fixtures.

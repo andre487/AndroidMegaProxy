@@ -34,7 +34,7 @@ var bootstrapResolvers = []bootstrapResolver{
 
 // ResolveProxy bootstraps the proxy address through protected encrypted DNS.
 func ResolveProxy(host string, protector Protector, reporter Reporter) (string, error) {
-	host = strings.TrimSpace(host)
+	host = normalizeProxyHost(host)
 	if ip := net.ParseIP(host); ip != nil {
 		return ip.String(), nil
 	}
