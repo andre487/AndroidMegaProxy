@@ -3,7 +3,7 @@
 import socket
 import ssl
 import struct
-import subprocess
+import subprocess as sp
 import tempfile
 import threading
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -33,8 +33,9 @@ class Echo(BaseHTTPRequestHandler):
 
 
 def udp_echo():
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
-        sock.bind(("0.0.0.0", 8081))
+    with socket.socket(socket.AF_INET6, socket.SOCK_DGRAM) as sock:
+        sock.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        sock.bind(("::", 8081))
         while True:
             payload, address = sock.recvfrom(65535)
             sock.sendto(payload, address)
@@ -75,7 +76,7 @@ def dns_tcp():
 def doh():
     with tempfile.TemporaryDirectory() as directory:
         cert, key = directory + "/cert.pem", directory + "/key.pem"
-        subprocess.run(
+        sp.run(
             [
                 "openssl",
                 "req",
@@ -93,8 +94,8 @@ def doh():
                 cert,
             ],
             check=True,
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
+            stdout=sp.DEVNULL,
+            stderr=sp.DEVNULL,
         )
         server = ThreadingHTTPServer(("0.0.0.0", 8444), Echo)
         context = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
@@ -105,4 +106,14 @@ def doh():
 
 for target in (udp_echo, dns_udp, dns_tcp, doh):
     threading.Thread(target=target, daemon=True).start()
-ThreadingHTTPServer(("0.0.0.0", 8080), Echo).serve_forever()
+
+
+class DualStackHTTPServer(ThreadingHTTPServer):
+    address_family = socket.AF_INET6
+
+    def server_bind(self):
+        self.socket.setsockopt(socket.IPPROTO_IPV6, socket.IPV6_V6ONLY, 0)
+        super().server_bind()
+
+
+DualStackHTTPServer(("::", 8080), Echo).serve_forever()

@@ -25,6 +25,81 @@ import org.junit.runner.RunWith
 
 @RunWith(AndroidJUnit4::class)
 class VpnDeviceTest : DeviceTestBase() {
+    @Test fun ipv6DestinationsThroughEveryProxyType() = ipv6Traffic(false)
+    @Test fun ipv6ProxiesAndDestinationsThroughEveryProxyType() = ipv6Traffic(true)
+
+    private fun ipv6Traffic(ipv6Proxy: Boolean) {
+        val target = argument("originIpv6")
+        for (type in ProxyType.entries) {
+            assertFalse("IPv6 origin reachable without VPN", runCatching {
+                java.net.Socket().use { it.connect(java.net.InetSocketAddress(target, 8080), 1_000) }
+            }.isSuccess)
+            io {
+                val profile = store.activeProfile()
+                val port = argument(when (type) {
+                    ProxyType.SSH, ProxyType.SSH_JUMP -> "sshPort"
+                    ProxyType.SOCKS5 -> "socksPort"
+                    ProxyType.MASQUE -> "masquePort"
+                    else -> "proxyPort"
+                }).toInt()
+                val proxyHost = argument(when (type) {
+                    ProxyType.SSH, ProxyType.SSH_JUMP -> "sshIpv6"
+                    ProxyType.SOCKS5 -> "socks5Ipv6"
+                    ProxyType.MASQUE -> "masqueIpv6"
+                    else -> "httpsIpv6"
+                })
+                val proxyPort = when (type) {
+                    ProxyType.SSH, ProxyType.SSH_JUMP -> 2222
+                    ProxyType.SOCKS5 -> 1080
+                    else -> 8443
+                }
+                store.saveProfile(profile.copy(config = profile.config.copy(
+                    type = type,
+                    host = if (ipv6Proxy) "[$proxyHost]" else when (type) {
+                        ProxyType.HTTPS_JUMP -> argument("tcpExitHost")
+                        ProxyType.SSH_JUMP -> argument("sshExitHost")
+                        else -> "10.0.2.2"
+                    },
+                    port = if (ipv6Proxy) proxyPort else when (type) {
+                        ProxyType.HTTPS_JUMP -> 8443
+                        ProxyType.SSH_JUMP -> 2222
+                        else -> port
+                    }, allowIpv6 = true,
+                    username = if (type.isSsh) "proxy" else "exit", password = argument("proxyPassword"),
+                    trustedHostKey = argument("sshFingerprint"),
+                    jumpHost = if (ipv6Proxy) proxyHost else "10.0.2.2",
+                    jumpPort = if (ipv6Proxy) proxyPort else port,
+                    jumpTrustedHostKey = argument("sshFingerprint"),
+                    jumpAllowInvalidProxyCertificate = true,
+                    allowInvalidProxyCertificate = true, preferHttp3 = false,
+                )))
+            }
+            saved()
+            connect()
+            roundTrip(target)
+            if (type == ProxyType.SOCKS5 || type == ProxyType.MASQUE) {
+                DatagramSocket().use { socket ->
+                    socket.soTimeout = 10_000
+                    val payload = "IPv6 TUN UDP".toByteArray()
+                    val address = InetAddress.getByName(target)
+                    socket.send(DatagramPacket(payload, payload.size, address, 8081))
+                    val reply = DatagramPacket(ByteArray(128), 128)
+                    if (type == ProxyType.MASQUE) {
+                        // GOST 3.3.0 rejects IPv6 CONNECT-UDP; a direct fallback must not deliver it.
+                        assertThrows(java.net.SocketTimeoutException::class.java) { socket.receive(reply) }
+                    } else {
+                        socket.receive(reply)
+                        assertEquals(address, reply.address)
+                        assertEquals(8081, reply.port)
+                        assertArrayEquals(payload, reply.data.copyOf(reply.length))
+                    }
+                }
+            }
+            click(R.string.disconnect)
+            stopped()
+        }
+    }
+
     @Test fun socks5AuthenticatedTcpUdpStopAndRestart() = socks5Traffic(true)
     @Test fun socks5AnonymousTcpUdpStopAndRestart() = socks5Traffic(false)
 

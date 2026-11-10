@@ -21,6 +21,8 @@ type bootstrapResolver struct {
 	url     string
 }
 
+var errBootstrapNoAddress = errors.New("bootstrap DNS response contains no requested address")
+
 // Each resolver is dialled by a documented IP address, while TLS still verifies
 // the provider hostname. Multiple networks block individual public resolvers, so
 // bootstrap must not have a single point of failure.
@@ -34,7 +36,7 @@ var bootstrapResolvers = []bootstrapResolver{
 
 // ResolveProxy bootstraps the proxy address through protected encrypted DNS.
 func ResolveProxy(host string, protector Protector, reporter Reporter) (string, error) {
-	host = strings.TrimSpace(host)
+	host = normalizeProxyHost(host)
 	if ip := net.ParseIP(host); ip != nil {
 		return ip.String(), nil
 	}
@@ -46,19 +48,33 @@ func ResolveProxy(host string, protector Protector, reporter Reporter) (string, 
 		return "", err
 	}
 	type answer struct{ ip, provider string }
-	result, err := raceFirst(context.Background(), len(bootstrapResolvers), func(ctx context.Context, index int) (answer, error) {
-		resolver := bootstrapResolvers[index]
-		ip, err := resolveProxyWithResolver(ctx, query, id, resolver, protector)
-		if err != nil {
-			err = fmt.Errorf("%s: %w", resolver.name, err)
+	for _, recordType := range []uint16{1, 28} {
+		requestQuery := append([]byte(nil), query...)
+		binary.BigEndian.PutUint16(requestQuery[len(requestQuery)-4:], recordType)
+		result, resolveErr := raceFirst(context.Background(), len(bootstrapResolvers), func(ctx context.Context, index int) (answer, error) {
+			resolver := bootstrapResolvers[index]
+			ip, err := resolveProxyWithResolver(ctx, requestQuery, id, resolver, protector)
+			if err != nil {
+				err = fmt.Errorf("%s: %w", resolver.name, err)
+			}
+			return answer{ip, resolver.name}, err
+		}, nil)
+		if resolveErr == nil {
+			family := "ipv4"
+			if recordType == 28 {
+				family = "ipv6"
+			}
+			report(reporter, "event=bootstrap_dns stage=response result=success family=%s provider=%s", family, result.provider)
+			return result.ip, nil
 		}
-		return answer{ip, resolver.name}, err
-	}, nil)
-	if err != nil {
-		return "", fmt.Errorf("all bootstrap DoH resolvers failed: %w", err)
+		err = resolveErr
+		// Prefer any available A answer; only a valid NODATA response permits AAAA fallback.
+		if recordType == 1 && errors.Is(err, errBootstrapNoAddress) {
+			continue
+		}
+		break
 	}
-	report(reporter, "event=bootstrap_dns stage=response result=success family=ipv4 provider=%s", result.provider)
-	return result.ip, nil
+	return "", fmt.Errorf("all bootstrap DoH resolvers failed: %w", err)
 }
 
 func resolveProxyWithResolver(ctx context.Context, query []byte, id uint16, resolver bootstrapResolver, protector Protector) (string, error) {
@@ -104,7 +120,7 @@ func resolveProxyWithResolver(ctx context.Context, query []byte, id uint16, reso
 	if err != nil {
 		return "", err
 	}
-	ip, err := parseAResponse(payload, id)
+	ip, err := parseAddressResponse(payload, id, binary.BigEndian.Uint16(query[len(query)-4:]))
 	if err != nil {
 		return "", err
 	}
@@ -135,14 +151,20 @@ func buildAQuery(host string) ([]byte, uint16, error) {
 	return message, id, nil
 }
 
-func parseAResponse(message []byte, id uint16) (string, error) {
+func parseAddressResponse(message []byte, id, requestedType uint16) (string, error) {
 	if len(message) < 12 || binary.BigEndian.Uint16(message[0:2]) != id {
 		return "", errors.New("invalid bootstrap DNS response")
 	}
 	if binary.BigEndian.Uint16(message[2:4])&0x000f != 0 {
 		return "", errors.New("bootstrap DNS returned an error")
 	}
+	if binary.BigEndian.Uint16(message[2:4])&0x8200 != 0x8000 {
+		return "", errors.New("invalid or truncated bootstrap DNS response")
+	}
 	questions := int(binary.BigEndian.Uint16(message[4:6]))
+	if questions != 1 {
+		return "", errors.New("invalid bootstrap DNS question count")
+	}
 	answers := int(binary.BigEndian.Uint16(message[6:8]))
 	offset := 12
 	for range questions {
@@ -150,6 +172,9 @@ func parseAResponse(message []byte, id uint16) (string, error) {
 		offset, err = skipDNSName(message, offset)
 		if err != nil || offset+4 > len(message) {
 			return "", errors.New("malformed bootstrap DNS question")
+		}
+		if binary.BigEndian.Uint16(message[offset:]) != requestedType || binary.BigEndian.Uint16(message[offset+2:]) != 1 {
+			return "", errors.New("unexpected bootstrap DNS question")
 		}
 		offset += 4
 	}
@@ -166,12 +191,19 @@ func parseAResponse(message []byte, id uint16) (string, error) {
 		if offset+length > len(message) {
 			return "", errors.New("truncated bootstrap DNS answer")
 		}
-		if recordType == 1 && recordClass == 1 && length == net.IPv4len {
+		if recordType == requestedType && recordClass == 1 {
+			expectedLength := net.IPv4len
+			if requestedType == 28 {
+				expectedLength = net.IPv6len
+			}
+			if length != expectedLength {
+				return "", errors.New("invalid bootstrap DNS address length")
+			}
 			return net.IP(message[offset : offset+length]).String(), nil
 		}
 		offset += length
 	}
-	return "", errors.New("bootstrap DNS response contains no IPv4 address")
+	return "", errBootstrapNoAddress
 }
 
 func skipDNSName(message []byte, offset int) (int, error) {

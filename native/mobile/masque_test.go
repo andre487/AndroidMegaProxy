@@ -174,6 +174,76 @@ func TestMASQUEStreamsAndDatagrams(t *testing.T) {
 	}
 }
 
+func TestMASQUEIPv6UDPOrigin(t *testing.T) {
+	origin, err := net.ListenPacket("udp6", "[::1]:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer origin.Close()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		buffer := make([]byte, 2048)
+		n, peer, err := origin.ReadFrom(buffer)
+		if err == nil {
+			_, _ = origin.WriteTo(append([]byte("origin:"), buffer[:n]...), peer)
+		}
+	}()
+	defer func() { origin.Close(); <-done }()
+	peer := origin.LocalAddr().(*net.UDPAddr)
+	fixture := newMasqueFixture(t, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Proto != "connect-udp" || r.URL.Path != fmt.Sprintf("/.well-known/masque/udp/::1/%d/", peer.Port) {
+			w.WriteHeader(400)
+			return
+		}
+		conn, err := net.DialUDP("udp6", nil, peer)
+		if err != nil {
+			w.WriteHeader(502)
+			return
+		}
+		defer conn.Close()
+		conn.SetDeadline(time.Now().Add(5 * time.Second))
+		w.Header().Set("Capsule-Protocol", "?1")
+		w.WriteHeader(200)
+		stream := w.(http3.HTTPStreamer).HTTPStream()
+		defer stream.Close()
+		data, err := stream.ReceiveDatagram(r.Context())
+		if err != nil || len(data) == 0 || data[0] != 0 {
+			return
+		}
+		if _, err = conn.Write(data[1:]); err != nil {
+			return
+		}
+		buffer := make([]byte, 2048)
+		n, err := conn.Read(buffer)
+		if err != nil {
+			return
+		}
+		if err := stream.SendDatagram(append([]byte{0}, buffer[:n]...)); err != nil {
+			return
+		}
+		<-r.Context().Done()
+	}))
+	cfg := fixture.config
+	cfg.AllowIPv6 = true
+	d := &masqueDialer{config: cfg, protector: &jumpTestProtector{}}
+	defer d.Close()
+	packet, err := d.DialUDP(&M.Metadata{DstIP: netip.MustParseAddr("::1"), DstPort: uint16(peer.Port)})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer packet.Close()
+	packet.SetDeadline(time.Now().Add(5 * time.Second))
+	if _, err := packet.WriteTo([]byte("IPv6"), peer); err != nil {
+		t.Fatal(err)
+	}
+	buffer := make([]byte, 64)
+	n, from, err := packet.ReadFrom(buffer)
+	if err != nil || string(buffer[:n]) != "origin:IPv6" || from.String() != peer.String() {
+		t.Fatalf("IPv6 origin response: %v", err)
+	}
+}
+
 func TestMASQUETrustAuthenticationAndCancellation(t *testing.T) {
 	base := masqueTestServer(t)
 	for _, failure := range []string{"password", "certificate"} {

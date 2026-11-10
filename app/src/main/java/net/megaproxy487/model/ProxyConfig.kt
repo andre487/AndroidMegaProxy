@@ -72,7 +72,7 @@ data class ProxyConfig(
         mtu !in VPN_MTU_RANGE -> R.string.mtu_invalid
         unavailableAuthentication() -> R.string.error_credentials_unavailable
         host.isBlank() -> if (!type.isSsh) R.string.validation_proxy_host else R.string.validation_ssh_host
-        host.contains(Regex("[/:\\s]")) -> R.string.validation_host_format
+        !validProxyHost(host) -> R.string.validation_host_format
         port !in 1..65535 -> R.string.validation_port
         type == ProxyType.HTTPS && !validAuthProbeHost(authProbeHost.trim()) -> R.string.validation_auth_probe_host
         type.isHttpProxy && username.isBlank() -> R.string.validation_basic_username
@@ -82,7 +82,7 @@ data class ProxyConfig(
         type == ProxyType.SOCKS5 && ((username.isEmpty() != password.isEmpty()) ||
             username.toByteArray(Charsets.UTF_8).size > 255 || password.toByteArray(Charsets.UTF_8).size > 255) -> R.string.validation_socks5_auth
         type.hasJump && jumpHost.isBlank() -> R.string.validation_jump_host
-        type.hasJump && jumpHost.contains(Regex("[/:\\s]")) -> R.string.validation_jump_host_format
+        type.hasJump && !validProxyHost(jumpHost) -> R.string.validation_jump_host_format
         type.hasJump && jumpPort !in 1..65535 -> R.string.validation_jump_port
         type == ProxyType.SSH_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> R.string.validation_jump_ssh_username
         type == ProxyType.HTTPS_JUMP && !sameJumpAuthentication && jumpUsername.isBlank() -> R.string.validation_jump_basic_username
@@ -284,6 +284,10 @@ data class Ja3Spec(
         }.getOrNull()
     }
 }
+
+fun validProxyHost(host: String): Boolean = host.isNotEmpty() && if (':' in host) {
+    validAuthProbeHost(host)
+} else !host.contains(Regex("[/\\s\\[\\]@?#%]"))
 
 internal fun validDohUrl(value: String): Boolean = runCatching {
     val uri = URI(value)

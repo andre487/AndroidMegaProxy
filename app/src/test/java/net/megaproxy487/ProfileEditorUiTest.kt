@@ -10,6 +10,39 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ProfileEditorUiTest : MainUiTestBase() {
+    @Test fun ipv6InputsPersistAndRejectMalformedAddressesForEveryProtocol() {
+        val id = store.activeProfileId()
+        content { ProfileEditorScreen(activity, id, {}) }
+        for (type in ProxyType.entries) {
+            if (store.profile(id)!!.config.type != type) selectOption(R.string.profile_type, type.titleRes)
+            val label = when (type) {
+                ProxyType.HTTPS_JUMP -> R.string.destination_https_proxy_hostname
+                ProxyType.SOCKS5 -> R.string.socks5_proxy_hostname
+                ProxyType.MASQUE -> R.string.masque_proxy_hostname
+                ProxyType.HTTPS -> R.string.https_proxy_hostname
+                else -> R.string.destination_ssh_hostname
+            }
+            for (host in listOf("2001:db8::1", "[2001:db8::2]")) {
+                field(label).performTextReplacement(host)
+                saved()
+                node(R.string.validation_host_format).assertDoesNotExist()
+                assertEquals(host, store.profile(id)!!.config.host)
+            }
+            field(label).performTextReplacement("[::1]:443")
+            saved()
+            node(R.string.validation_host_format).assertExists()
+            field(label).performTextReplacement("::1")
+            saved()
+            if (type.hasJump) {
+                val jumpLabel = if (type == ProxyType.HTTPS_JUMP) R.string.https_jump_hostname else R.string.jump_ssh_hostname
+                field(jumpLabel).performTextReplacement("[2001:db8::3]")
+                saved()
+                assertEquals("[2001:db8::3]", store.profile(id)!!.config.jumpHost)
+                node(R.string.validation_jump_host_format).assertDoesNotExist()
+            }
+        }
+    }
+
     private fun field(id: Int): SemanticsNodeInteraction {
         compose.onNode(hasScrollToIndexAction()).performScrollToNode(hasText(text(id)))
         return node(id)

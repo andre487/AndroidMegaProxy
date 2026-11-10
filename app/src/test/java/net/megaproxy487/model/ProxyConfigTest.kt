@@ -8,6 +8,22 @@ import org.junit.Assert.assertNull
 import org.junit.Test
 
 class ProxyConfigTest {
+    @Test fun ipv6ProxyAddressesWorkForEveryTransport() {
+        for (type in ProxyType.entries) {
+            val base = net.megaproxy487.model.ProxyConfig(type = type, host = "proxy.example",
+                username = "user", password = "password", jumpHost = "jump.example")
+            for (host in listOf("2001:db8::1", "[2001:db8::1]", "::1", "::ffff:192.0.2.1")) {
+                for (enabled in listOf(false, true)) {
+                    assertNull(base.copy(host = host, jumpHost = host, allowIpv6 = enabled).validationError())
+                }
+            }
+            for (host in listOf("2001:db8:::1", "[::1]:22", "host:443", "https://[::1]", "::1/path", "[::1", "::1%eth0")) {
+                assertEquals(R.string.validation_host_format, base.copy(host = host).validationError())
+                if (type.hasJump) assertEquals(R.string.validation_jump_host_format, base.copy(jumpHost = host).validationError())
+            }
+        }
+    }
+
     @Test fun authenticationProbeHostnameIsOptionalAndRejectsUrlsPortsAndControlCharacters() {
         for (host in listOf("", "knock.example", "127.0.0.1", "localhost")) assertTrue(validAuthProbeHost(host))
         for (host in listOf("https://knock.example", "name:443", "user@host", "host/path", "host?query",

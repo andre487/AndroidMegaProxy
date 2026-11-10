@@ -28,6 +28,8 @@ TESTS = (
     "VpnDeviceTest#deniedVpnConsentDoesNotStartTunnel",
     "DnsDeviceTest#resolverModesThroughRealTun",
     "VpnDeviceTest#trafficStopAndRestart",
+    "VpnDeviceTest#ipv6DestinationsThroughEveryProxyType",
+    "VpnDeviceTest#ipv6ProxiesAndDestinationsThroughEveryProxyType",
     "VpnDeviceTest#socks5AuthenticatedTcpUdpStopAndRestart",
     "VpnDeviceTest#socks5AnonymousTcpUdpStopAndRestart",
     "VpnDeviceTest#masqueTrafficStopAndRestart",
@@ -193,7 +195,7 @@ def fixture():
         blackhole.bind(("127.0.0.1", 0))
         command("docker", "build", "-t", image, str(ROOT / "native/integration"))
         image_built = True
-        command("docker", "network", "create", name)
+        command("docker", "network", "create", "--ipv6", name)
         network_created = True
 
         def start(alias, port, server_image, *args):
@@ -223,6 +225,15 @@ def fixture():
             "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
             origin,
         )
+        origin_ipv6 = command(
+            "docker",
+            "inspect",
+            "--format",
+            "{{range .NetworkSettings.Networks}}{{.GlobalIPv6Address}}{{end}}",
+            origin,
+        )
+        if not origin_ipv6:
+            raise RuntimeError("IPv6 origin address is missing")
         # Emulator user-mode networking originates in the host OUTPUT chain. Container
         # traffic uses FORWARD, so only the proxies can reach the unpublished origin.
         if sys.platform == "linux":
@@ -242,8 +253,14 @@ def fixture():
                     "-j",
                     "REJECT",
                 ]
-                command("sudo", "-n", "iptables", "-I", *rule)
-                firewall.append(rule)
+                for tool, address in (
+                    ("iptables", origin_ip),
+                    ("ip6tables", origin_ipv6),
+                ):
+                    family_rule = list(rule)
+                    family_rule[2] = address
+                    command("sudo", "-n", tool, "-I", *family_rule)
+                    firewall.append((tool, family_rule))
         socks_auth = start(
             "socks-auth",
             "1080",
@@ -327,8 +344,28 @@ def fixture():
             "-lf",
             "/etc/ssh/ssh_host_ed25519_key.pub",
         ).split()[1]
+        ipv6_proxies = {
+            transport
+            + "Ipv6": command(
+                "docker",
+                "inspect",
+                "--format",
+                "{{range .NetworkSettings.Networks}}{{.GlobalIPv6Address}}{{end}}",
+                container,
+            )
+            for transport, container in (
+                ("https", https),
+                ("socks5", socks_auth),
+                ("masque", masque),
+                ("ssh", ssh),
+            )
+        }
+        if not all(ipv6_proxies.values()):
+            raise RuntimeError("IPv6 proxy address is missing")
         yield {
+            **ipv6_proxies,
             "originHost": origin_ip,
+            "originIpv6": origin_ipv6,
             "directDnsPort": str(direct_dns.server_address[1]),
             "proxyPort": https_port,
             "socksPort": port(socks_auth, "1080"),
@@ -354,6 +391,13 @@ def fixture():
             "blackholeMasquePort": str(blackhole.getsockname()[1]),
             "proxyPassword": password,
             "sshPort": ssh_port,
+            "sshExitHost": command(
+                "docker",
+                "inspect",
+                "--format",
+                "{{range .NetworkSettings.Networks}}{{.IPAddress}}{{end}}",
+                ssh,
+            ),
             "sshPassword": password,
             "sshKey": base64.b64encode(key.encode()).decode(),
             "sshFingerprint": fingerprint,
@@ -367,9 +411,9 @@ def fixture():
             subprocess.run(
                 ["docker", "rm", "-f", container], capture_output=True, timeout=30
             )
-        for rule in reversed(firewall):
+        for tool, rule in reversed(firewall):
             subprocess.run(
-                ["sudo", "-n", "iptables", "-D", *rule],
+                ["sudo", "-n", tool, "-D", *rule],
                 capture_output=True,
                 timeout=30,
             )

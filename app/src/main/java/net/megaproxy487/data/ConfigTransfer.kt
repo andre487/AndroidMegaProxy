@@ -91,7 +91,8 @@ object ConfigTransfer {
                     else -> "https://"
                 })
                 if (config.type != ProxyType.SOCKS5 || config.username.isNotEmpty() || password.isNotEmpty()) append(userInfo).append('@')
-                append(config.host.trim())
+                val host = config.host.trim().removeSurrounding("[", "]")
+                append(if (':' in host) "[$host]" else host)
                 if (config.port != config.type.defaultPort) append(':').append(config.port)
                 if (query.isNotEmpty()) append('?').append(query)
             }
@@ -292,7 +293,7 @@ object ConfigTransfer {
         val dns = item.optJSONObject("dns") ?: JSONObject()
         val routing = item.optJSONObject("routing") ?: JSONObject()
         val host = proxy.limitedString("host", 253).trim()
-        requireUi(host.isNotEmpty() && !host.contains(Regex("[/:\\s]")))
+        requireUi(net.megaproxy487.model.validProxyHost(host))
         val type = enumValue(proxy.optString("type"), ProxyType.HTTPS)
         val browser = item.optJSONObject("browser")
         val probeOptions = if (proxy.has("knockHost")) proxy else browser

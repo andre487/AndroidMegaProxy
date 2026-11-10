@@ -35,6 +35,10 @@ approvals; a changed resolver requires new approval.
 Query tokens in custom DoH URLs remain in exported JSON even when passwords are omitted.
 Treat the file as sensitive.
 Proxy bootstrap DNS precedes the VPN; see the README endpoint inventory.
+Bootstrap prefers A records. If no resolver supplies A and at least one returns a valid response
+without A, it queries AAAA and can connect to an IPv6-only proxy or jump host. DNS/HTTP errors alone
+do not trigger this fallback. Numeric IPv4/IPv6 addresses bypass DNS. Bootstrap DoH endpoints still
+use their pinned IPv4 addresses, so an IPv6-only uplink without IPv4 reachability is not covered.
 
 DNS admission is limited to 64 flows per proxy, shared by intercepted TCP and UDP. When full,
 the oldest completed UDP flow is evicted together with its TUN mapping. Pending responses

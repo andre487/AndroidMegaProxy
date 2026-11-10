@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -37,7 +38,7 @@ func TestRealProxyServers(t *testing.T) {
 	t.Log("Building OpenSSH/HTTP fixture and starting real proxy servers")
 	dockerTest(t, "build", "-t", image, "../integration")
 	t.Cleanup(func() { dockerTest(t, "image", "rm", image) })
-	dockerTest(t, "network", "create", id)
+	dockerTest(t, "network", "create", "--ipv6", "--subnet", fmt.Sprintf("fd42:%x:%x::/64", uint16(time.Now().UnixNano()>>16), uint16(time.Now().UnixNano())), id)
 	t.Cleanup(func() { dockerTest(t, "network", "rm", id) })
 
 	start := func(alias, port, serverImage string, args ...string) string {
@@ -191,6 +192,129 @@ func TestRealProxyServers(t *testing.T) {
 	sshJumpConfig.JumpHost, sshJumpConfig.JumpUsername, sshJumpConfig.JumpPassword = "localhost", "proxy", "ssh-jump-test-password"
 	sshJumpConfig.JumpDialHost, sshJumpConfig.JumpPort = endpoint(sshJump, "2222")
 	sshJumpConfig.JumpTrustedHostKey = fingerprint(sshJump)
+
+	containerIP := func(container string, ipv6 bool) string {
+		t.Helper()
+		field := "IPAddress"
+		if ipv6 {
+			field = "GlobalIPv6Address"
+		}
+		address := strings.TrimSpace(dockerTest(t, "inspect", "--format", "{{range .NetworkSettings.Networks}}{{."+field+"}}{{end}}", container))
+		ip, err := netip.ParseAddr(address)
+		if err != nil || ip.Is6() != ipv6 {
+			t.Fatalf("missing container address: %q %v", address, err)
+		}
+		return address
+	}
+	for _, tc := range []struct {
+		name, container string
+		cfg             config
+		port            int
+		jumpContainer   string
+		jumpPort        int
+	}{
+		{"https", h1, base, 8443, "", 0},
+		{"http2", h2, h2Config, 8443, "", 0},
+		{"masque", masque, masqueConfig, 8443, "", 0},
+		{"socks5", socksAuth, socksConfig, 1080, "", 0},
+		{"ssh", sshExit, sshConfig, 2222, "", 0},
+		{"https_jump", h1, httpsJump, 8443, h2, 8443},
+		{"ssh_jump", sshExit, sshJumpConfig, 2222, sshJump, 2222},
+	} {
+		for _, proxy6 := range []bool{false, true} {
+			for _, jump6 := range []bool{false, true} {
+				if jump6 && tc.jumpContainer == "" {
+					continue
+				}
+				for _, target6 := range []bool{false, true} {
+					t.Run(fmt.Sprintf("ipv6_%s/proxy6=%v/jump6=%v/target6=%v", tc.name, proxy6, jump6, target6), func(t *testing.T) {
+						cfg := tc.cfg
+						cfg.Host = containerIP(tc.container, proxy6)
+						cfg.DialHost, cfg.Port, cfg.AllowIPv6 = cfg.Host, tc.port, true
+						if tc.jumpContainer != "" {
+							cfg.JumpHost = containerIP(tc.jumpContainer, jump6)
+							cfg.JumpDialHost, cfg.JumpPort = cfg.JumpHost, tc.jumpPort
+						}
+						targetIP := containerIP(id+"-origin", target6)
+						target := net.JoinHostPort(targetIP, "8080")
+						dial := realServerDialer(t, cfg)
+						transport := &http.Transport{DialContext: func(ctx context.Context, _, address string) (net.Conn, error) { return dial(ctx, address) }}
+						defer transport.CloseIdleConnections()
+						client := &http.Client{Transport: transport, Timeout: 15 * time.Second}
+						payload := bytes.Repeat([]byte("IPv6 round trip"), 4096)
+						response, err := client.Post("http://"+target+"/echo", "application/octet-stream", bytes.NewReader(payload))
+						if err != nil {
+							t.Fatal(err)
+						}
+						defer response.Body.Close()
+						body, err := io.ReadAll(io.LimitReader(response.Body, int64(len(payload)+1)))
+						if err != nil || response.StatusCode != 200 || !bytes.Equal(body, payload) {
+							t.Fatalf("HTTP echo failed: %v", err)
+						}
+						invalid := cfg
+						invalid.Password = "wrong-password"
+						ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+						conn, authErr := realServerDialer(t, invalid)(ctx, target)
+						cancel()
+						if authErr == nil {
+							conn.Close()
+							t.Fatal("invalid proxy credentials reached origin: possible direct bypass")
+						}
+						if target6 {
+							blocked := cfg
+							blocked.AllowIPv6 = false
+							ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+							defer cancel()
+							conn, err := realServerDialer(t, blocked)(ctx, target)
+							if err == nil {
+								conn.Close()
+								t.Fatal("IPv4-only mode accepted IPv6 destination")
+							}
+						}
+						if cfg.Type == "SOCKS5" || cfg.Type == "MASQUE" {
+							var packet net.PacketConn
+							metadata := &M.Metadata{DstIP: netip.MustParseAddr(targetIP), DstPort: 8081}
+							if cfg.Type == "SOCKS5" {
+								d := &socks5Dialer{config: cfg, protector: &jumpTestProtector{}}
+								defer d.Close()
+								packet, err = d.DialUDP(metadata)
+							} else {
+								d := &masqueDialer{config: cfg, protector: &jumpTestProtector{}}
+								defer d.Close()
+								packet, err = d.DialUDP(metadata)
+							}
+							if cfg.Type == "MASQUE" && target6 {
+								// GOST 3.3.0 rejects IPv6 CONNECT-UDP; never accept a direct fallback.
+								if err == nil {
+									packet.Close()
+									t.Fatal("GOST IPv6 UDP limitation changed; require a positive round trip")
+								}
+								var rejected *masqueConnectError
+								if !errors.As(err, &rejected) {
+									t.Fatalf("expected CONNECT-UDP rejection, got %v", err)
+								}
+								return
+							}
+							if err != nil {
+								t.Fatal(err)
+							}
+							defer packet.Close()
+							peer := &net.UDPAddr{IP: net.ParseIP(targetIP), Port: 8081}
+							packet.SetDeadline(time.Now().Add(5 * time.Second))
+							if _, err = packet.WriteTo([]byte("IPv6 UDP"), peer); err != nil {
+								t.Fatal(err)
+							}
+							buffer := make([]byte, 64)
+							n, from, err := packet.ReadFrom(buffer)
+							if err != nil || string(buffer[:n]) != "IPv6 UDP" || from.String() != peer.String() {
+								t.Fatalf("UDP echo failed: %v", err)
+							}
+						}
+					})
+				}
+			}
+		}
+	}
 
 	// An accidental direct connection must not be able to satisfy a positive test.
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
