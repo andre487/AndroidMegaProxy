@@ -128,3 +128,55 @@ interoperability remains the separate `native_integration` lane; Android integra
 device lanes. These results do not establish which transport is fastest on a phone.
 
 [Русская версия](../ru/native-benchmarks.md)
+
+## Linux comparison with sing-box
+
+`native_compare_build` builds the production `mobile.Start` and pinned sing-box **1.14.4**
+with the same installed Go toolchain (`GOTOOLCHAIN=local`, `CGO_ENABLED=0`, `-trimpath`,
+`with_gvisor` for sing-box). sing-box dependencies do not enter `native/go.mod`.
+Use Linux and the Go version in `native/go.mod`:
+
+```sh
+bundle exec fastlane android native_compare_build output:/tmp/core-comparison-bin
+bundle exec fastlane android native_compare binaries:/tmp/core-comparison-bin samples:5 seconds:3
+```
+
+Run workloads on a dedicated Linux VM with at least two available CPUs, `/dev/net/tun`,
+`sudo`, `iproute2` and `iperf3`. No host computer changes are needed. You can build on another
+Linux machine of the same architecture and copy the binary directory plus `scripts/compare_cores.py`
+to the VM. Without Fastlane on the VM, invoke the same runner directly:
+
+```sh
+sudo unshare --net -- python3 compare_cores.py run \
+  --binaries /tmp/core-comparison-bin --output /tmp/core-comparison-results \
+  --samples 5 --seconds 3
+```
+
+The runner rejects PID 1's network namespace. A private outer namespace hosts a sing-box
+SOCKS5 server, TCP/UDP echo and iperf3. A separate client namespace connects through a veth.
+Both cores use the same SOCKS5 server. Only the workload destination routes through TUN;
+the proxy retains its connected route. System routes remain unchanged. Cleanup terminates
+only owned processes; interfaces disappear with their namespaces. No personal proxies,
+external origins, DNS queries, Android/JNI or strict source validation are involved.
+
+MTU (default 1400), IPv4, `GOMAXPROCS=1` and one core CPU are fixed. Servers, load generators
+and the coordinator use the other CPUs. sing-box uses its `gvisor` stack; results do not apply
+to its other stacks. Direct traffic bypasses both TUN and SOCKS5: it is a ceiling/control,
+not an equivalent third proxy core.
+
+Workloads: TCP upload/download and UDP with 1/8 streams, 64-byte TCP/UDP echo, and new TCP
+connections plus echo with 1/8 streams. UDP offers 20 Mbit/s total regardless of stream count
+(`udp_mbps` / `--udp-mbps`). iperf3 omits one warm-up second; the core stays warm between
+workloads. Engine order rotates between samples. Each sample starts a fresh core process.
+Failed workloads are not retried. Each measurement verifies increasing TUN counters.
+
+A new output directory contains version/hash/CPU-affinity metadata in `environment.json`,
+configs, logs, per-measurement JSON, `samples.json`, `samples.csv` and median `summary.md`.
+Metrics include receiver goodput, UDP loss/jitter, operations per second, latency p50/p95/p99,
+core CPU and periodically sampled RSS. Core CPU includes iperf3 warm-up. Server/generator
+resources are excluded from core metrics. Existing outputs are never overwritten.
+
+On a two-vCPU VM, the server and generator compete for the second CPU. Inspect the direct
+control, raw-sample spread, VM load and reproducibility. Results do not establish a core's
+absolute limit, phone energy use or Android performance. This is a manual benchmark,
+not a required CI check or performance threshold.

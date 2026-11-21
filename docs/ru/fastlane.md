@@ -17,6 +17,8 @@ Ruby 3.4.10 (`.ruby-version`), затем выполните `bundle install`. �
 | `bundle exec fastlane android native_fuzz` | Запускает fuzz-тесты нативных парсеров на 20 секунд с двумя worker-процессами. |
 | `bundle exec fastlane android native_tests` | Запускает все нативные Go-тесты и регрессии локальных патчей uQUIC с race detector. |
 | `bundle exec fastlane android native_benchmarks` | Измеряет время и аллокации ядра в десяти сэмплах; [сравнение и профилирование](native-benchmarks.md). Опции: `bench`, `count`, `benchtime`, `cpu`, `output`, `profile:true`. |
+| `bundle exec fastlane android native_compare_build` | Собирает рабочее ядро и закреплённый sing-box одним Go toolchain; `output` выбирает новый каталог бинарников. |
+| `bundle exec fastlane android native_compare` | Запускает изолированное Linux-сравнение через TUN; нужны sudo, iproute2 и iperf3. Опции: `binaries`, `output`, `samples`, `seconds`, `mtu`, `udp_mbps`. См. [методику](native-benchmarks.md#сравнение-с-sing-box-на-linux). |
 | `bundle exec fastlane android native_integration` | Проверяет сетевой код с настоящими GOST/OpenSSH в Docker и race detector. |
 | `bundle exec fastlane android android_checks` | Собирает native AAR, получает закреплённые SDK Robolectric через Gradle, запускает Android unit-тесты и lint, собирает debug APK, затем собирает и проверяет unsigned release APK. Команда отклоняет переменные release-подписи. |
 | `bundle exec fastlane android device_test_build` | Собирает native AAR, debug APK и instrumentation APK. |

@@ -52,6 +52,22 @@ platform :android do
     UI.success("Native benchmark results: #{output}")
   end
 
+  desc "Build MegaProxy and pinned sing-box with the same Go toolchain for Linux comparison"
+  lane :native_compare_build do |options|
+    output = File.expand_path(options.fetch(:output, "test-results/native/comparison-build").to_s, project_root)
+    sh(ENV.fetch("PYTHON", "python3"), File.join(project_root, "scripts/compare_cores.py"), "build", "--output", output)
+  end
+
+  desc "Compare Linux TUN cores in private namespaces (requires sudo, iproute2 and iperf3)"
+  lane :native_compare do |options|
+    binaries = File.expand_path(options.fetch(:binaries, "test-results/native/comparison-build").to_s, project_root)
+    output = File.expand_path(options.fetch(:output, "test-results/native/comparison-#{Time.now.utc.strftime('%Y%m%dT%H%M%SZ')}").to_s, project_root)
+    sh("sudo", "unshare", "--net", "--", ENV.fetch("PYTHON", "python3"),
+       File.join(project_root, "scripts/compare_cores.py"), "run", "--binaries", binaries, "--output", output,
+       "--samples", options.fetch(:samples, 5).to_s, "--seconds", options.fetch(:seconds, 3).to_s,
+       "--mtu", options.fetch(:mtu, 1400).to_s, "--udp-mbps", options.fetch(:udp_mbps, 20).to_s)
+  end
+
   desc "Test production dialers against disposable GOST and OpenSSH servers (requires Docker)"
   lane :native_integration do
     report = File.join(project_root, "test-results/native/integration.xml")

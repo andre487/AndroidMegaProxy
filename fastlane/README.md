@@ -47,6 +47,22 @@ Run the native Go tests with the race detector
 
 Benchmark the native core locally; save samples and optional CPU/heap profiles
 
+### android native_compare_build
+
+```sh
+[bundle exec] fastlane android native_compare_build
+```
+
+Build MegaProxy and pinned sing-box with the same Go toolchain for Linux comparison
+
+### android native_compare
+
+```sh
+[bundle exec] fastlane android native_compare
+```
+
+Compare Linux TUN cores in private namespaces (requires sudo, iproute2 and iperf3)
+
 ### android native_integration
 
 ```sh
