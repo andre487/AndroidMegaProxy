@@ -66,7 +66,8 @@ platform :android do
        File.join(project_root, "scripts/compare_cores.py"), "run", "--binaries", binaries, "--output", output,
        "--samples", options.fetch(:samples, 5).to_s, "--seconds", options.fetch(:seconds, 3).to_s,
        "--mtu", options.fetch(:mtu, 1400).to_s, "--udp-mbps", options.fetch(:udp_mbps, 20).to_s,
-       "--transport", options.fetch(:transport, "all").to_s)
+       "--transport", options.fetch(:transport, "all").to_s,
+       "--link-mtu", options.fetch(:link_mtu, 1500).to_s)
   end
 
   desc "Test production dialers against disposable GOST and OpenSSH servers (requires Docker)"

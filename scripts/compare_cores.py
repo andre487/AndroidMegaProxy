@@ -630,6 +630,8 @@ def run(args):
         core_cpus=sorted(core_cpus),
         other_cpus=sorted(other_cpus),
         mtu=args.mtu,
+        underlay_mtu=args.link_mtu,
+        runner_sha256=hashlib.sha256(pathlib.Path(__file__).read_bytes()).hexdigest(),
         samples=args.samples,
         seconds=args.seconds,
         udp_mbps=args.udp_mbps,
@@ -691,7 +693,7 @@ def run(args):
                 ("client0", CLIENT, True),
             ):
                 ip("addr", "add", f"{address}/30", "dev", name, client=client)
-                ip("link", "set", name, "mtu", str(args.mtu), "up", client=client)
+                ip("link", "set", name, "mtu", str(args.link_mtu), "up", client=client)
             ip("link", "set", "lo", "up", client=True)
             echo = stack.enter_context(
                 process(
@@ -1039,6 +1041,7 @@ def main():
     bench.add_argument("--samples", type=int, default=5)
     bench.add_argument("--seconds", type=int, default=3)
     bench.add_argument("--mtu", type=int, default=1400)
+    bench.add_argument("--link-mtu", type=int, default=1500)
     bench.add_argument("--udp-mbps", type=float, default=20)
     bench.add_argument("--transport", choices=["all", *TRANSPORTS], default="all")
     args = parser.parse_args()
@@ -1049,6 +1052,7 @@ def main():
             1 <= args.samples <= 30
             and 1 <= args.seconds <= 30
             and 1280 <= args.mtu <= 65535
+            and 1280 <= args.link_mtu <= 65535
             and 0 < args.udp_mbps <= 10000
         ):
             parser.error("Invalid benchmark samples, seconds, MTU or UDP offered load")

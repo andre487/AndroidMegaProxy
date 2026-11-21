@@ -188,10 +188,16 @@ HTTP versions have dedicated listeners/ports; HTTP/3 ports have no TCP fallback 
 
 Only the numeric workload destination routes through TUN. The proxy keeps its connected
 veth route; no system routes change and no external origins, DNS, personal proxies,
-Android/JNI or strict source validation participate. MTU (default 1400), IPv4, `GOMAXPROCS=1`
-and one core CPU are fixed. Other CPUs host servers, generators and the coordinator.
+Android/JNI or strict source validation participate. TUN MTU (default 1400), underlay veth
+MTU (default 1500), IPv4, `GOMAXPROCS=1` and one core CPU are fixed. Other CPUs host servers,
+generators and the coordinator.
 sing-box uses `gvisor`; other stacks are outside this comparison. Direct traffic bypasses
 both TUN and proxy, providing a control rather than an equivalent third core.
+
+TUN and underlay MTUs are independent (`mtu` / `--mtu` and `link_mtu` / `--link-mtu`).
+Nested QUIC needs encapsulation space in the underlay: forcing both to 1400 caused an
+HTTP/3 jump probe timeout in this fixture. Both MTUs are recorded; failures with a reduced
+underlay MTU must not be mixed into the normal-link performance table.
 
 For each supported pair, measure TCP upload/download and connection+64-byte echo with 1/8
 streams, and TCP echo latency. UDP-capable transports also get 1/8-stream UDP at a fixed
