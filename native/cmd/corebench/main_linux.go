@@ -27,7 +27,7 @@ type protector struct{}
 
 func (protector) Protect(int) bool { return true }
 
-func runCore(mtu int, proxy string) error {
+func runCore(mtu int, configPath string) error {
 	file, err := os.OpenFile("/dev/net/tun", os.O_RDWR, 0)
 	if err != nil {
 		return err
@@ -41,18 +41,7 @@ func runCore(mtu int, proxy string) error {
 	if err := unix.IoctlIfreq(int(file.Fd()), unix.TUNSETIFF, request); err != nil {
 		return err
 	}
-	host, port, err := net.SplitHostPort(proxy)
-	if err != nil {
-		return err
-	}
-	portNumber, err := net.LookupPort("tcp", port)
-	if err != nil || net.ParseIP(host) == nil {
-		return errors.New("proxy must be a numeric IP and port")
-	}
-	config, err := json.Marshal(map[string]any{
-		"type": "SOCKS5", "host": host, "dialHost": host, "port": portNumber,
-		"dohUrl": "https://dns.invalid/dns-query", "bypassLocalNetworks": false,
-	})
+	config, err := os.ReadFile(configPath)
 	if err != nil {
 		return err
 	}
@@ -202,7 +191,7 @@ func probe(address, network string, duration time.Duration, streams int, reconne
 func main() {
 	mode := flag.String("mode", "core", "core, echo or probe")
 	mtu := flag.Int("mtu", 1400, "TUN MTU")
-	proxy := flag.String("proxy", "198.18.0.1:1080", "numeric SOCKS5 endpoint")
+	configPath := flag.String("config", "", "private native config file (core mode)")
 	address := flag.String("address", "198.19.0.1:9000", "local benchmark origin")
 	network := flag.String("network", "tcp", "probe network: tcp or udp")
 	duration := flag.Duration("duration", 3*time.Second, "probe duration")
@@ -212,7 +201,7 @@ func main() {
 	var err error
 	switch *mode {
 	case "core":
-		err = runCore(*mtu, *proxy)
+		err = runCore(*mtu, *configPath)
 	case "echo":
 		err = serve(*address)
 	case "probe":

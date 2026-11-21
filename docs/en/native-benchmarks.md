@@ -131,52 +131,84 @@ device lanes. These results do not establish which transport is fastest on a pho
 
 ## Linux comparison with sing-box
 
-`native_compare_build` builds the production `mobile.Start` and pinned sing-box **1.14.4**
-with the same installed Go toolchain (`GOTOOLCHAIN=local`, `CGO_ENABLED=0`, `-trimpath`,
-`with_gvisor` for sing-box). sing-box dependencies do not enter `native/go.mod`.
-Use Linux and the Go version in `native/go.mod`:
+Build the production `mobile.Start`, sing-box **1.14.4** (`with_gvisor`) and GOST **3.3.0**
+(commit `cb76f63754768c7b5d68895a0d51635b0141b80f`) with one installed Go toolchain.
+`GOTOOLCHAIN=local`, `CGO_ENABLED=0` and `-trimpath` are fixed. External tool dependencies do
+not enter `native/go.mod`. Use Linux and the Go version from that file:
 
 ```sh
 bundle exec fastlane android native_compare_build output:/tmp/core-comparison-bin
 bundle exec fastlane android native_compare binaries:/tmp/core-comparison-bin samples:5 seconds:3
+# Select one transport when investigating a result:
+bundle exec fastlane android native_compare binaries:/tmp/core-comparison-bin transport:https-h2
 ```
 
 Run workloads on a dedicated Linux VM with at least two available CPUs, `/dev/net/tun`,
-`sudo`, `iproute2` and `iperf3`. No host computer changes are needed. You can build on another
-Linux machine of the same architecture and copy the binary directory plus `scripts/compare_cores.py`
-to the VM. Without Fastlane on the VM, invoke the same runner directly:
+`sudo`, `iproute2` (including `ss`), `iperf3`, `openssl`, `ssh-keygen` and `sshd`.
+No host computer changes are needed. Binaries may be built on another Linux machine of the
+same architecture. Copy their directory plus `scripts/compare_cores.py` to the VM. Without
+Fastlane there, use the same runner directly:
 
 ```sh
 sudo unshare --net -- python3 compare_cores.py run \
   --binaries /tmp/core-comparison-bin --output /tmp/core-comparison-results \
-  --samples 5 --seconds 3
+  --samples 5 --seconds 3 --transport all
 ```
 
-The runner rejects PID 1's network namespace. A private outer namespace hosts a sing-box
-SOCKS5 server, TCP/UDP echo and iperf3. A separate client namespace connects through a veth.
-Both cores use the same SOCKS5 server. Only the workload destination routes through TUN;
-the proxy retains its connected route. System routes remain unchanged. Cleanup terminates
-only owned processes; interfaces disappear with their namespaces. No personal proxies,
-external origins, DNS queries, Android/JNI or strict source validation are involved.
+| Transport | MegaProxy | sing-box counterpart | Tunneled UDP |
+| --- | --- | --- | --- |
+| `socks5` | SOCKS5 | SOCKS5 | yes |
+| `https-h1` | TLS + HTTP/1.1 CONNECT | TLS + HTTP/1.1 CONNECT | no |
+| `https-h2` | TLS + HTTP/2 CONNECT | unsupported | no |
+| `https-h3` | HTTPS with HTTP/3 preferred | unsupported | yes |
+| `masque` | mandatory HTTP/3 CONNECT/CONNECT-UDP | unsupported | yes |
+| `ssh` | SSH | SSH | no |
+| `https-jump-h1` | two HTTPS/1.1 hops | two HTTP outbounds with detour | no |
+| `https-jump-h2` | two HTTPS/2 hops | unsupported | no |
+| `https-jump-h3` | two HTTPS/3 hops | unsupported | yes |
+| `ssh-jump` | two SSH hops | two SSH outbounds with detour | no |
 
-MTU (default 1400), IPv4, `GOMAXPROCS=1` and one core CPU are fixed. Servers, load generators
-and the coordinator use the other CPUs. sing-box uses its `gvisor` stack; results do not apply
-to its other stacks. Direct traffic bypasses both TUN and SOCKS5: it is a ceiling/control,
-not an equivalent third proxy core.
+sing-box's ordinary HTTP outbound only implements HTTP/1.1 CONNECT in this pinned version;
+there is no compatible MASQUE outbound. Unsupported pairs are listed in `support.json` and
+the report, not replaced with another protocol. Mixed HTTP-version chains, fingerprint
+variants and authentication variants are not a separate matrix. HTTPS uses the ordinary
+CHROME_ANDROID profile; SSH peers are pinned and use the same OpenSSH banner, Curve25519
+and ChaCha20-Poly1305 on both clients. SOCKS5 is anonymous; HTTPS uses disposable Basic
+credentials and SSH uses a disposable Ed25519 client key.
 
-Workloads: TCP upload/download and UDP with 1/8 streams, 64-byte TCP/UDP echo, and new TCP
-connections plus echo with 1/8 streams. UDP offers 20 Mbit/s total regardless of stream count
-(`udp_mbps` / `--udp-mbps`). iperf3 omits one warm-up second; the core stays warm between
-workloads. Engine order rotates between samples. Each sample starts a fresh core process.
-Failed workloads are not retried. Each measurement verifies increasing TUN counters.
+The runner rejects PID 1's network namespace. A private outer namespace hosts the shared
+SOCKS5 server, GOST TLS/HTTP2/HTTP3 listeners, two separate OpenSSH daemons, echo and iperf3.
+The existing system SSH daemon/configuration is untouched. New daemons allow forwarding
+only to benchmark destinations, and do not allow shell sessions. Exit listeners in jump
+chains bind to the server namespace's loopback: the client cannot reach them directly.
+TLS certificates, SSH keys, credentials and client configurations live only in a temporary
+private directory, removed after cleanup. Both clients validate the private certificate
+through `SSL_CERT_FILE`; system CA stores stay unchanged. Secrets are excluded from results.
+HTTP versions have dedicated listeners/ports; HTTP/3 ports have no TCP fallback listener.
 
-A new output directory contains version/hash/CPU-affinity metadata in `environment.json`,
-configs, logs, per-measurement JSON, `samples.json`, `samples.csv` and median `summary.md`.
-Metrics include receiver goodput, UDP loss/jitter, operations per second, latency p50/p95/p99,
-core CPU and periodically sampled RSS. Core CPU includes iperf3 warm-up. Server/generator
-resources are excluded from core metrics. Existing outputs are never overwritten.
+Only the numeric workload destination routes through TUN. The proxy keeps its connected
+veth route; no system routes change and no external origins, DNS, personal proxies,
+Android/JNI or strict source validation participate. MTU (default 1400), IPv4, `GOMAXPROCS=1`
+and one core CPU are fixed. Other CPUs host servers, generators and the coordinator.
+sing-box uses `gvisor`; other stacks are outside this comparison. Direct traffic bypasses
+both TUN and proxy, providing a control rather than an equivalent third core.
 
-On a two-vCPU VM, the server and generator compete for the second CPU. Inspect the direct
-control, raw-sample spread, VM load and reproducibility. Results do not establish a core's
-absolute limit, phone energy use or Android performance. This is a manual benchmark,
-not a required CI check or performance threshold.
+For each supported pair, measure TCP upload/download and connection+64-byte echo with 1/8
+streams, and TCP echo latency. UDP-capable transports also get 1/8-stream UDP at a fixed
+20 Mbit/s total offered load and UDP echo latency. UDP via protected direct sockets is
+excluded. iperf3 omits one warm-up second. Every measured scenario gets a fresh, warmed core
+process, so a failure cannot poison the next scenario. Workload order stays fixed. Pair order
+reverses on alternate samples. Failed
+workloads are not retried: their errors are saved, the matrix continues, and the final exit
+status is nonzero. Medians use passed samples only; passed/total counts remain visible.
+Every proxied measurement checks bidirectional TUN counters.
+
+A fresh output directory holds `environment.json`, `support.json`, logs, per-measurement
+JSON, `samples.json`, `samples.csv` and median `summary.md`. Metrics include receiver goodput,
+UDP loss/jitter, operations/s, p50/p95/p99, core CPU and sampled RSS. CPU includes iperf warm-up;
+server/generator resources are not attributed to the core. Existing data is never overwritten.
+On a two-vCPU VM, servers and generators compete for the second CPU, especially with encrypted
+chains. Inspect raw-sample spread and the direct control. Results do not establish an absolute
+core limit, UDP maximum capacity, phone energy use or Android performance. This manual benchmark
+is outside required CI and has no performance thresholds. The full matrix has 130 workloads
+per sample; the default five-sample run takes tens of minutes, plus any failed-workload timeouts.

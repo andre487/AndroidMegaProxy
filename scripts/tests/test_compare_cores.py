@@ -51,10 +51,12 @@ class CoreComparisonTest(unittest.TestCase):
     def test_summary_keeps_engines_and_scenarios_separate(self):
         rows = [
             dict(
+                transport="socks5",
                 engine="megaproxy",
                 scenario="tcp_forward",
                 streams=1,
                 sample=index,
+                status="passed",
                 receiver_mbps=value,
                 core_cpu_percent=50,
                 core_peak_rss_bytes=1048576,
@@ -63,17 +65,93 @@ class CoreComparisonTest(unittest.TestCase):
         ]
         rows.append(
             dict(
+                transport="direct",
                 engine="direct",
                 scenario="tcp_forward",
                 streams=1,
                 sample=1,
+                status="passed",
                 receiver_mbps=100,
+            )
+        )
+        rows.append(
+            dict(
+                transport="https-h1",
+                engine="megaproxy",
+                scenario="tcp_forward",
+                streams=1,
+                sample=1,
+                status="passed",
+                receiver_mbps=900,
+            )
+        )
+        rows.append(
+            dict(
+                transport="socks5",
+                engine="megaproxy",
+                scenario="tcp_forward",
+                streams=1,
+                sample=4,
+                status="failed",
+                error="control socket closed",
             )
         )
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             m.summary(rows, root)
             text = (root / "summary.md").read_text()
-            self.assertIn("| megaproxy | tcp_forward | 1 | 2.000 |", text)
-            self.assertIn("| direct | tcp_forward | 1 | 100.000 |", text)
-            self.assertEqual(5, len((root / "samples.csv").read_text().splitlines()))
+            self.assertIn(
+                "| socks5 | megaproxy | tcp_forward | 1 | 3/4 | 2.000 |", text
+            )
+            self.assertIn("| direct | direct | tcp_forward | 1 | 1/1 | 100.000 |", text)
+            self.assertEqual(7, len((root / "samples.csv").read_text().splitlines()))
+            self.assertIn("Failed measurements", text)
+            self.assertIn("control socket closed", text)
+
+    def test_transport_matrix_never_substitutes_protocols_or_direct_udp(self):
+        material = dict(
+            password="temporary-fixture",
+            private_key="temporary-key",
+            key_path="/private/client",
+            entry_fingerprint="SHA256:entry",
+            exit_fingerprint="SHA256:exit",
+            entry_public_key="entry-key",
+            exit_public_key="exit-key",
+        )
+        for name, support in m.TRANSPORTS.items():
+            with self.subTest(name=name):
+                native, outbounds = m.transport_configs(name, material)
+                self.assertFalse(native["bypassLocalNetworks"])
+                self.assertEqual(support["sing_box"], outbounds is not None)
+                if "jump" in name:
+                    self.assertEqual("127.0.0.1", native["host"])
+                    self.assertEqual(m.PROXY, native["jumpHost"])
+                    if outbounds:
+                        self.assertEqual("jump", outbounds[0]["detour"])
+                        self.assertNotIn("detour", outbounds[1])
+                if name.startswith("https"):
+                    self.assertEqual(name.endswith("3"), native["preferHttp3"])
+                    if outbounds:
+                        self.assertEqual(["http/1.1"], outbounds[0]["tls"]["alpn"])
+                if support["udp"]:
+                    self.assertTrue(name in ("socks5", "masque") or name.endswith("h3"))
+                else:
+                    self.assertTrue(
+                        native["type"] in ("HTTPS", "HTTPS_JUMP", "SSH", "SSH_JUMP")
+                    )
+
+    def test_failed_measurement_retains_error_without_retry(self):
+        result = SimpleNamespace(
+            stdout='{"error":"control socket closed"}', stderr="", returncode=1
+        )
+        with patch.object(m, "command", return_value=result) as run:
+            raw, resources = m.measure(["iperf3"], None)
+        self.assertEqual("control socket closed", raw["error"])
+        self.assertIsNone(resources["core_cpu_percent"])
+        run.assert_called_once()
+        with patch.object(
+            m, "command", side_effect=m.subprocess.TimeoutExpired("iperf3", 60)
+        ) as run:
+            raw, _ = m.measure(["iperf3"], None)
+        self.assertIn("timed out", raw["error"])
+        run.assert_called_once()

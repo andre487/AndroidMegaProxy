@@ -53,7 +53,7 @@ Benchmark the native core locally; save samples and optional CPU/heap profiles
 [bundle exec] fastlane android native_compare_build
 ```
 
-Build MegaProxy and pinned sing-box with the same Go toolchain for Linux comparison
+Build MegaProxy, sing-box and GOST with the same Go toolchain for Linux comparison
 
 ### android native_compare
 
