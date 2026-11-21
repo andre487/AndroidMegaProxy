@@ -14,6 +14,15 @@ spec.loader.exec_module(m)
 
 
 class VirusTotalTests(unittest.TestCase):
+    def setUp(self):
+        directory = tempfile.TemporaryDirectory()
+        self.addCleanup(directory.cleanup)
+        self.summary = Path(directory.name) / "summary.md"
+        # Mock reports must never append to the real GitHub Actions summary.
+        environment = patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": str(self.summary)})
+        environment.start()
+        self.addCleanup(environment.stop)
+
     def test_upload_large_apk_waits_for_complete_verdict(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "mega-proxy-universal.apk"
@@ -115,6 +124,9 @@ class VirusTotalTests(unittest.TestCase):
             ):
                 m.scan_artifacts(directory)
             self.assertIn("| 1 | 0 |", (directory / "VIRUSTOTAL.md").read_text())
+            self.assertEqual(
+                (directory / "VIRUSTOTAL.md").read_text(), self.summary.read_text()
+            )
             (directory / "z.apk").write_bytes(b"APK")
             with (
                 patch.object(
