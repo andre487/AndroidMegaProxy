@@ -19,17 +19,18 @@ import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 SING_BOX = "v1.14.4"
+SING_BOX_NEXT = "v1.15.0-alpha.13"
 GOST_COMMIT = "cb76f63754768c7b5d68895a0d51635b0141b80f"  # v3.3.0
 TRANSPORTS = {
     "socks5": {"udp": True, "sing_box": True},
     "https-h1": {"udp": False, "sing_box": True},
-    "https-h2": {"udp": False, "sing_box": False},
-    "https-h3": {"udp": True, "sing_box": False},
-    "masque": {"udp": True, "sing_box": False},
+    "https-h2": {"udp": False, "sing_box": True, "preview": True},
+    "https-h3": {"udp": True, "sing_box": True, "preview": True},
+    "masque": {"udp": True, "sing_box": True, "preview": True},
     "ssh": {"udp": False, "sing_box": True},
     "https-jump-h1": {"udp": False, "sing_box": True},
-    "https-jump-h2": {"udp": False, "sing_box": False},
-    "https-jump-h3": {"udp": True, "sing_box": False},
+    "https-jump-h2": {"udp": False, "sing_box": True, "preview": True},
+    "https-jump-h3": {"udp": True, "sing_box": True, "preview": True},
     "ssh-jump": {"udp": False, "sing_box": True},
 }
 ORIGIN = "198.19.0.1"
@@ -63,15 +64,23 @@ def build(output):
         cwd=ROOT / "native",
         env=env,
     )
-    command(
-        "go",
-        "install",
-        "-trimpath",
-        "-tags=with_gvisor",
-        f"-ldflags=-X github.com/sagernet/sing-box/constant.Version={SING_BOX[1:]}",
-        f"github.com/sagernet/sing-box/cmd/sing-box@{SING_BOX}",
-        env=dict(env, GOBIN=str(output)),
-    )
+    for binary, version in (("sing-box", SING_BOX), ("sing-box-next", SING_BOX_NEXT)):
+        with tempfile.TemporaryDirectory(prefix="megaproxy-sing-build-") as temporary:
+            command(
+                "go",
+                "install",
+                "-trimpath",
+                "-tags="
+                + (
+                    "with_gvisor,with_quic"
+                    if version == SING_BOX_NEXT
+                    else "with_gvisor"
+                ),
+                f"-ldflags=-X github.com/sagernet/sing-box/constant.Version={version[1:]}",
+                f"github.com/sagernet/sing-box/cmd/sing-box@{version}",
+                env=dict(env, GOBIN=temporary),
+            )
+            shutil.copy2(pathlib.Path(temporary) / "sing-box", output / binary)
     with tempfile.TemporaryDirectory(prefix="megaproxy-gost-source-") as temporary:
         source = pathlib.Path(temporary)
         command("git", "init", "-q", source)
@@ -103,6 +112,7 @@ def build(output):
             "commit": capture("git", "-C", ROOT, "rev-parse", "HEAD"),
             "dirty": bool(capture("git", "-C", ROOT, "status", "--porcelain")),
             "sing_box": SING_BOX,
+            "sing_box_next": SING_BOX_NEXT,
             "gost_commit": GOST_COMMIT,
             "go": capture("go", "version"),
             "binaries": {
@@ -110,7 +120,7 @@ def build(output):
                     "sha256": hashlib.sha256((output / name).read_bytes()).hexdigest(),
                     "build_info": capture("go", "version", "-m", output / name),
                 }
-                for name in ("megaproxy-bench", "sing-box", "gost")
+                for name in ("megaproxy-bench", "sing-box", "sing-box-next", "gost")
             },
         },
     )
@@ -338,6 +348,12 @@ def summary(rows, output):
                 + ".",
             ]
         )
+    report.extend(
+        [
+            "",
+            f"sing-box {SING_BOX}: original pairs; {SING_BOX_NEXT} (prerelease): HTTP/2, HTTP/3 and MASQUE pairs. No version fallback for prerelease HTTP outbounds.",
+        ]
+    )
     (output / "summary.md").write_text("\n".join(report) + "\n")
 
 
@@ -381,6 +397,9 @@ def transport_configs(name, material):
             password=material["password"],
             tls=dict(enabled=True, alpn=["http/1.1"]),
         )
+        if TRANSPORTS[name].get("preview"):
+            outbound.update(version=version, disable_version_fallback=True)
+            outbound["tls"]["alpn"] = ["h2" if version == 2 else "h3"]
         outbounds = [outbound]
         if jumped:
             native.update(
@@ -637,6 +656,7 @@ def run(args):
         udp_mbps=args.udp_mbps,
         iperf_version=capture("iperf3", "--version"),
         sing_box_version=capture(binaries / "sing-box", "version"),
+        sing_box_next_version=capture(binaries / "sing-box-next", "version"),
         scope="IPv4; gVisor sing-box stack; strict source validation off; numeric origins, no DNS",
         transport_selection=args.transport,
         gost_version=capture(binaries / "gost", "-V"),
@@ -813,7 +833,12 @@ def run(args):
                                         ]
                                         if engine == "megaproxy"
                                         else [
-                                            binaries / "sing-box",
+                                            binaries
+                                            / (
+                                                "sing-box-next"
+                                                if TRANSPORTS[transport].get("preview")
+                                                else "sing-box"
+                                            ),
                                             "run",
                                             "-c",
                                             client_path,

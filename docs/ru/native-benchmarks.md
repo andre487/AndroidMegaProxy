@@ -132,7 +132,7 @@ bundle exec fastlane android native_benchmarks \
 
 ## Сравнение с sing-box на Linux
 
-Собирайте рабочий `mobile.Start`, sing-box **1.14.4** (`with_gvisor`) и GOST **3.3.0**
+Собирайте рабочий `mobile.Start`, sing-box **1.14.4** (`with_gvisor`) + **1.15.0-alpha.13** (`with_gvisor,with_quic`) и GOST **3.3.0**
 (коммит `cb76f63754768c7b5d68895a0d51635b0141b80f`) одним установленным Go toolchain.
 Зафиксированы `GOTOOLCHAIN=local`, `CGO_ENABLED=0` и `-trimpath`. Зависимости внешних
 инструментов не попадают в `native/go.mod`. Нужны Linux и версия Go из этого файла:
@@ -160,18 +160,20 @@ sudo unshare --net -- python3 compare_cores.py run \
 | --- | --- | --- | --- |
 | `socks5` | SOCKS5 | SOCKS5 | да |
 | `https-h1` | TLS + HTTP/1.1 CONNECT | TLS + HTTP/1.1 CONNECT | нет |
-| `https-h2` | TLS + HTTP/2 CONNECT | не поддерживается | нет |
-| `https-h3` | HTTPS с предпочтением HTTP/3 | не поддерживается | да |
-| `masque` | обязательный HTTP/3 CONNECT/CONNECT-UDP | не поддерживается | да |
+| `https-h2` | TLS + HTTP/2 CONNECT | 1.15 alpha: HTTP/2 CONNECT | нет |
+| `https-h3` | HTTPS с предпочтением HTTP/3 | 1.15 alpha: HTTP/3 CONNECT + CONNECT-UDP | да |
+| `masque` | обязательный HTTP/3 CONNECT/CONNECT-UDP | 1.15 alpha: HTTP/3 CONNECT + CONNECT-UDP | да |
 | `ssh` | SSH | SSH | нет |
 | `https-jump-h1` | два HTTPS/1.1-узла | два HTTP outbound через detour | нет |
-| `https-jump-h2` | два HTTPS/2-узла | не поддерживается | нет |
-| `https-jump-h3` | два HTTPS/3-узла | не поддерживается | да |
+| `https-jump-h2` | два HTTPS/2-узла | 1.15 alpha: HTTP/2 detour | нет |
+| `https-jump-h3` | два HTTPS/3-узла | 1.15 alpha: HTTP/3 detour + CONNECT-UDP | да |
 | `ssh-jump` | два SSH-узла | два SSH outbound через detour | нет |
 
-Обычный HTTP outbound этой версии sing-box реализует только HTTP/1.1 CONNECT;
-совместимого MASQUE outbound нет. Отсутствующие пары отмечаются в `support.json` и отчёте,
-а не подменяются другим протоколом. Смешанные версии HTTP в цепочке, варианты отпечатков
+Прежние пары сохраняют стабильный sing-box 1.14.4. HTTP/2, HTTP/3 и MASQUE используют
+закреплённый предварительный **1.15.0-alpha.13**: версия HTTP задана явно, fallback
+отключён на обоих узлах цепочки. MASQUE здесь — CONNECT-UDP (RFC 9298), не CONNECT-IP.
+Версии и хеши обоих бинарников записываются; результаты версий не объединяются.
+Смешанные версии HTTP в цепочке, варианты отпечатков
 и аутентификации не образуют отдельную матрицу. HTTPS использует обычный CHROME_ANDROID;
 SSH проверяет закреплённые ключи и использует одинаковые OpenSSH banner, Curve25519 и
 ChaCha20-Poly1305 у обоих клиентов. SOCKS5 — без аутентификации, HTTPS — с временными Basic

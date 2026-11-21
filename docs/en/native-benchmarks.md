@@ -131,7 +131,7 @@ device lanes. These results do not establish which transport is fastest on a pho
 
 ## Linux comparison with sing-box
 
-Build the production `mobile.Start`, sing-box **1.14.4** (`with_gvisor`) and GOST **3.3.0**
+Build the production `mobile.Start`, sing-box **1.14.4** (`with_gvisor`) + **1.15.0-alpha.13** (`with_gvisor,with_quic`) and GOST **3.3.0**
 (commit `cb76f63754768c7b5d68895a0d51635b0141b80f`) with one installed Go toolchain.
 `GOTOOLCHAIN=local`, `CGO_ENABLED=0` and `-trimpath` are fixed. External tool dependencies do
 not enter `native/go.mod`. Use Linux and the Go version from that file:
@@ -159,18 +159,20 @@ sudo unshare --net -- python3 compare_cores.py run \
 | --- | --- | --- | --- |
 | `socks5` | SOCKS5 | SOCKS5 | yes |
 | `https-h1` | TLS + HTTP/1.1 CONNECT | TLS + HTTP/1.1 CONNECT | no |
-| `https-h2` | TLS + HTTP/2 CONNECT | unsupported | no |
-| `https-h3` | HTTPS with HTTP/3 preferred | unsupported | yes |
-| `masque` | mandatory HTTP/3 CONNECT/CONNECT-UDP | unsupported | yes |
+| `https-h2` | TLS + HTTP/2 CONNECT | 1.15 alpha: HTTP/2 CONNECT | no |
+| `https-h3` | HTTPS with HTTP/3 preferred | 1.15 alpha: HTTP/3 CONNECT + CONNECT-UDP | yes |
+| `masque` | mandatory HTTP/3 CONNECT/CONNECT-UDP | 1.15 alpha: HTTP/3 CONNECT + CONNECT-UDP | yes |
 | `ssh` | SSH | SSH | no |
 | `https-jump-h1` | two HTTPS/1.1 hops | two HTTP outbounds with detour | no |
-| `https-jump-h2` | two HTTPS/2 hops | unsupported | no |
-| `https-jump-h3` | two HTTPS/3 hops | unsupported | yes |
+| `https-jump-h2` | two HTTPS/2 hops | 1.15 alpha: HTTP/2 detour | no |
+| `https-jump-h3` | two HTTPS/3 hops | 1.15 alpha: HTTP/3 detour + CONNECT-UDP | yes |
 | `ssh-jump` | two SSH hops | two SSH outbounds with detour | no |
 
-sing-box's ordinary HTTP outbound only implements HTTP/1.1 CONNECT in this pinned version;
-there is no compatible MASQUE outbound. Unsupported pairs are listed in `support.json` and
-the report, not replaced with another protocol. Mixed HTTP-version chains, fingerprint
+Original pairs retain stable sing-box 1.14.4. HTTP/2, HTTP/3 and MASQUE pairs use
+pinned **1.15.0-alpha.13**, a prerelease: HTTP version is explicit and version fallback
+is disabled on both chain hops. MASQUE here means CONNECT-UDP (RFC 9298), not CONNECT-IP.
+Both binary versions and hashes are recorded; do not pool their results.
+Mixed HTTP-version chains, fingerprint
 variants and authentication variants are not a separate matrix. HTTPS uses the ordinary
 CHROME_ANDROID profile; SSH peers are pinned and use the same OpenSSH banner, Curve25519
 and ChaCha20-Poly1305 on both clients. SOCKS5 is anonymous; HTTPS uses disposable Basic

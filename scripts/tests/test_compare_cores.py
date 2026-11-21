@@ -132,7 +132,18 @@ class CoreComparisonTest(unittest.TestCase):
                 if name.startswith("https"):
                     self.assertEqual(name.endswith("3"), native["preferHttp3"])
                     if outbounds:
-                        self.assertEqual(["http/1.1"], outbounds[0]["tls"]["alpn"])
+                        version = int(name[-1])
+                        self.assertEqual(
+                            [{"1": "http/1.1", "2": "h2", "3": "h3"}[name[-1]]],
+                            outbounds[0]["tls"]["alpn"],
+                        )
+                        if support.get("preview"):
+                            for outbound in outbounds:
+                                self.assertEqual(version, outbound["version"])
+                                self.assertTrue(outbound["disable_version_fallback"])
+                if name == "masque":
+                    self.assertEqual(3, outbounds[0]["version"])
+                    self.assertTrue(outbounds[0]["disable_version_fallback"])
                 if support["udp"]:
                     self.assertTrue(name in ("socks5", "masque") or name.endswith("h3"))
                 else:
