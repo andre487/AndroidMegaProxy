@@ -68,40 +68,6 @@ var newUClientConnection = func(
 		connIDGenerator,
 	)
 	s.ctx, s.ctxCancel = context.WithCancelCause(ctx)
-	s.preSetup()
-	// [UQUIC] A QUICSpec is authoritative over the Initial CRYPTO framing (via
-	// InitialPacketSpec.FrameBuilder), and uPacketPacker re-frames every Initial
-	// datagram. The upstream anti-DPI ClientHello scrambler would cut the stream at
-	// the SNI/ECH, producing non-contiguous CRYPTO frames that the re-framing path
-	// cannot reassemble (breaks multi-datagram Initials, e.g. Chrome 146). Disable it.
-	s.initialStream.DisableScrambling()
-	s.sentPacketHandler = ackhandler.NewUAckHandler(
-		initialPacketNumber,
-		protocol.ByteCount(s.config.InitialPacketSize),
-		s.rttStats,
-		&s.connStats,
-		false, // has no effect
-		s.conn.capabilities().ECN,
-		s.receivedPacketHandler.IgnorePacketsBelow,
-		s.perspective,
-		s.qlogger,
-		s.logger,
-	)
-	s.currentPacketMTU.Store(uint32(s.config.InitialPacketSize))
-	// [UQUIC] Set Initial packet number encoding length.
-	// Per-packet list takes precedence over single-value override.
-	if len(uSpec.InitialPacketSpec.InitPacketNumberLengths) > 0 {
-		ackhandler.SetInitialPacketNumberLengths(
-			s.sentPacketHandler,
-			protocol.PacketNumber(uSpec.InitialPacketSpec.InitPacketNumber),
-			uSpec.InitialPacketSpec.InitPacketNumberLengths,
-		)
-	} else if uSpec.InitialPacketSpec.InitPacketNumberLength != 0 {
-		ackhandler.SetInitialPacketNumberLength(s.sentPacketHandler, uSpec.InitialPacketSpec.InitPacketNumberLength)
-	}
-
-	oneRTTStream := newCryptoStream()
-
 	var params *wire.TransportParameters
 
 	if uSpec.ClientHelloSpec != nil {
@@ -169,6 +135,41 @@ var newUClientConnection = func(
 			params.MaxDatagramFrameSize = protocol.InvalidByteCount
 		}
 	}
+	s.localParams = params
+	s.preSetup()
+	// [UQUIC] A QUICSpec is authoritative over the Initial CRYPTO framing (via
+	// InitialPacketSpec.FrameBuilder), and uPacketPacker re-frames every Initial
+	// datagram. The upstream anti-DPI ClientHello scrambler would cut the stream at
+	// the SNI/ECH, producing non-contiguous CRYPTO frames that the re-framing path
+	// cannot reassemble (breaks multi-datagram Initials, e.g. Chrome 146). Disable it.
+	s.initialStream.DisableScrambling()
+	s.sentPacketHandler = ackhandler.NewUAckHandler(
+		initialPacketNumber,
+		protocol.ByteCount(s.config.InitialPacketSize),
+		s.rttStats,
+		&s.connStats,
+		false, // has no effect
+		s.conn.capabilities().ECN,
+		s.receivedPacketHandler.IgnorePacketsBelow,
+		s.perspective,
+		s.qlogger,
+		s.logger,
+	)
+	s.currentPacketMTU.Store(uint32(s.config.InitialPacketSize))
+	// [UQUIC] Set Initial packet number encoding length.
+	// Per-packet list takes precedence over single-value override.
+	if len(uSpec.InitialPacketSpec.InitPacketNumberLengths) > 0 {
+		ackhandler.SetInitialPacketNumberLengths(
+			s.sentPacketHandler,
+			protocol.PacketNumber(uSpec.InitialPacketSpec.InitPacketNumber),
+			uSpec.InitialPacketSpec.InitPacketNumberLengths,
+		)
+	} else if uSpec.InitialPacketSpec.InitPacketNumberLength != 0 {
+		ackhandler.SetInitialPacketNumberLength(s.sentPacketHandler, uSpec.InitialPacketSpec.InitPacketNumberLength)
+	}
+
+	oneRTTStream := newCryptoStream()
+
 	if s.qlogger != nil {
 		s.qlogTransportParameters(params, protocol.PerspectiveClient, false)
 	}

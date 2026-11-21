@@ -211,7 +211,9 @@ type Conn struct {
 	// pacingDeadline is the time when the next packet should be sent
 	pacingDeadline monotime.Time
 
-	peerParams *wire.TransportParameters
+	// Browser receive credit must match the transport parameters sent by uTLS.
+	localParams *wire.TransportParameters
+	peerParams  *wire.TransportParameters
 
 	timer *time.Timer
 	// keepAlivePingSent stores whether a keep alive PING is in flight.
@@ -522,8 +524,12 @@ func (c *Conn) preSetup() {
 		false, // ACK_FREQUENCY is not supported yet
 	)
 	c.rttStats = utils.NewRTTStats()
+	initialWindow := protocol.ByteCount(c.config.InitialConnectionReceiveWindow)
+	if c.localParams != nil {
+		initialWindow = c.localParams.InitialMaxData
+	}
 	c.connFlowController = flowcontrol.NewConnectionFlowController(
-		protocol.ByteCount(c.config.InitialConnectionReceiveWindow),
+		initialWindow,
 		protocol.ByteCount(c.config.MaxConnectionReceiveWindow),
 		func(size protocol.ByteCount) bool {
 			if c.config.AllowConnectionWindowIncrease == nil {
@@ -2940,10 +2946,20 @@ func (c *Conn) newFlowController(id protocol.StreamID) flowcontrol.StreamFlowCon
 			initialSendWindow = c.peerParams.InitialMaxStreamDataBidiLocal
 		}
 	}
+	initialReceiveWindow := protocol.ByteCount(c.config.InitialStreamReceiveWindow)
+	if c.localParams != nil {
+		initialReceiveWindow = c.localParams.InitialMaxStreamDataUni
+		if id.Type() == protocol.StreamTypeBidi {
+			initialReceiveWindow = c.localParams.InitialMaxStreamDataBidiRemote
+			if id.InitiatedBy() == c.perspective {
+				initialReceiveWindow = c.localParams.InitialMaxStreamDataBidiLocal
+			}
+		}
+	}
 	return flowcontrol.NewStreamFlowController(
 		id,
 		c.connFlowController,
-		protocol.ByteCount(c.config.InitialStreamReceiveWindow),
+		initialReceiveWindow,
 		protocol.ByteCount(c.config.MaxStreamReceiveWindow),
 		initialSendWindow,
 		c.rttStats,

@@ -1,6 +1,7 @@
 package mobile
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
@@ -560,5 +561,57 @@ func TestMASQUEContextPrefixFiltering(t *testing.T) {
 		if n, _, err := conn.ReadFrom(buf[:]); err != nil || n != 1 || buf[0] != byte(i) {
 			t.Fatalf("context encoding %d: n=%d err=%v", i, n, err)
 		}
+	}
+}
+
+// A browser can advertise much more receive credit than quic-go's defaults.
+func TestMASQUEBulkDownloadPreservesControlStream(t *testing.T) {
+	const size = 32 << 20
+	payload := make([]byte, size)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+	fixture := newMasqueFixture(t, nil, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		stream := w.(http3.HTTPStreamer).HTTPStream()
+		defer stream.Close()
+		if r.Host == "control.example:443" {
+			_, _ = io.Copy(stream, stream)
+			return
+		}
+		_, _ = stream.Write(payload)
+	}))
+	for _, profile := range []string{"CHROME_ANDROID", "FIREFOX_ANDROID", "RANDOMIZED"} {
+		t.Run(profile, func(t *testing.T) {
+			cfg := fixture.config
+			cfg.Profile = profile
+			d := &masqueDialer{config: cfg, protector: &jumpTestProtector{}}
+			defer d.Close()
+			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+			defer cancel()
+			control, err := d.connectTarget(ctx, "control.example:443")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer control.Close()
+			_ = control.SetDeadline(time.Now().Add(10 * time.Second))
+			conn, err := d.connectTarget(ctx, "bulk.example:443")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer conn.Close()
+			_ = conn.SetDeadline(time.Now().Add(10 * time.Second))
+			got, err := io.ReadAll(conn)
+			if err != nil || !bytes.Equal(got, payload) {
+				t.Fatalf("bulk download: received=%d expected=%d error=%v", len(got), size, err)
+			}
+			if _, err := control.Write([]byte("alive")); err != nil {
+				t.Fatal(err)
+			}
+			b := make([]byte, 5)
+			if _, err := io.ReadFull(control, b); err != nil || string(b) != "alive" {
+				t.Fatalf("bulk download killed shared control stream: %q %v", b, err)
+			}
+		})
 	}
 }

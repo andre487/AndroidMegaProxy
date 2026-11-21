@@ -7,3 +7,5 @@ MegaProxy integration patches expose HTTP/3 `CanTakeNewRequest` for GOAWAY retir
 The uQUIC 1-RTT PTO packer delegates to the base packer, preserving its mandatory PING when no retransmittable frames remain. This prevents a local INTERNAL_ERROR after packet loss. The deterministic empty-probe regression runs in the native Fastlane test lane. Browser Initial/TLS fingerprints are unchanged.
 
 Replace this local module with an upstream release once the compatibility fixes and required integration APIs are available and production-dialer tests pass.
+
+Browser-spec flow control initializes connection and stream receive credit from the actual advertised transport parameters before connection setup. Bidirectional local/remote and unidirectional limits remain distinct, and data beyond the advertised credit is still rejected. Ordinary connections retain configured receive windows. This prevents false FLOW_CONTROL_ERROR closures on bulk downloads without changing browser Initial/TLS fingerprints.
