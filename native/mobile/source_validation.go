@@ -8,7 +8,9 @@ import (
 
 	"github.com/xjasonlyu/tun2socks/v2/core"
 	"github.com/xjasonlyu/tun2socks/v2/core/adapter"
+	"github.com/xjasonlyu/tun2socks/v2/core/option"
 	"gvisor.dev/gvisor/pkg/tcpip/stack"
+	"gvisor.dev/gvisor/pkg/tcpip/transport/tcp"
 )
 
 // SourceValidator is implemented by the active Android VPN. Unknown owners fail closed.
@@ -158,6 +160,8 @@ func (c *sourceUDP) ReadFrom(p []byte) (int, net.Addr, error) {
 // Selection happens only at startup. Disabled sessions retain both original objects.
 func sourceStackConfig(endpoint stack.LinkEndpoint, handler dnsTransport, validator SourceValidator, udpRecheck time.Duration) *core.Config {
 	cfg := &core.Config{LinkEndpoint: endpoint, TransportHandler: handler}
+	// Bound the send queue to avoid expensive RACK scans while processing TUN ACKs.
+	cfg.Options = []option.Option{option.WithTCPSendBufferSizeRange(tcp.MinBufferSize, 32<<10, 128<<10)}
 	if validator != nil {
 		cfg.TransportHandler = sourceTransport{TransportHandler: sourceUDPTransport{handler}, validator: limitedSourceValidator{validator, sourceQuerySlots()}, slots: make(chan struct{}, 64), udpRecheck: udpRecheck}
 		cfg.LinkEndpoint = &sourceLinkEndpoint{LinkEndpoint: endpoint}

@@ -1,5 +1,10 @@
 # Native core benchmarks
 
+The production TUN stack starts TCP send buffers at 32 KiB and caps their growth at 128 KiB,
+in both ordinary and strict source-validation modes. RACK remains enabled. Record these limits
+when comparing throughput: larger queues increase ACK-processing costs, while a small cap can
+limit throughput on paths with high bandwidth and RTT.
+
 Run the Go benchmarks through Fastlane. The default suite requires no emulator, Docker,
 credentials or external servers and leaves production code unchanged:
 
