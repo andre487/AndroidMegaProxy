@@ -166,3 +166,48 @@ class CoreComparisonTest(unittest.TestCase):
             raw, _ = m.measure(["iperf3"], None)
         self.assertIn("timed out", raw["error"])
         run.assert_called_once()
+
+    def test_iperf_version_is_pinned_and_resolved_once(self):
+        with (
+            patch.object(m.shutil, "which", return_value="/private/iperf3"),
+            patch.object(
+                m, "capture", return_value="iperf 3.22.1 (cJSON 1.7.15)\nLinux"
+            ) as capture,
+        ):
+            binary, version = m.iperf_tool("custom-iperf")
+        self.assertEqual(Path("/private/iperf3"), binary)
+        self.assertTrue(version.startswith("iperf 3.22.1 "))
+        capture.assert_called_once_with(binary, "--version")
+        for version in ["iperf 3.16", "iperf 3.18", "iperf 3.22.10", ""]:
+            with (
+                self.subTest(version=version),
+                patch.object(m.shutil, "which", return_value="/private/iperf3"),
+                patch.object(m, "capture", return_value=version),
+            ):
+                with self.assertRaisesRegex(RuntimeError, "3.22.1 is required"):
+                    m.iperf_tool("custom-iperf")
+        with patch.object(m.shutil, "which", return_value=None):
+            with self.assertRaisesRegex(RuntimeError, "Missing iperf3"):
+                m.iperf_tool("absent")
+
+    def test_signal_exit_is_explicit_even_with_json_error(self):
+        result = SimpleNamespace(
+            stdout='{"error":"control socket closed"}', stderr="", returncode=-11
+        )
+        with patch.object(m, "command", return_value=result) as run:
+            raw, _ = m.measure(["/private/iperf3"], None)
+        self.assertEqual(-11, raw["returncode"])
+        self.assertIn("SIGSEGV", raw["error"])
+        self.assertIn("control socket closed", raw["error"])
+        run.assert_called_once()
+        self.assertEqual("exit code 1", m.exit_description(1))
+        self.assertEqual("signal 999 (999)", m.exit_description(-999))
+
+    def test_http3_jump_is_excluded_until_gost_server_fix(self):
+        self.assertNotIn("https-jump-h3", m.TRANSPORTS)
+        self.assertIn("GOST", m.EXCLUDED_TRANSPORTS["https-jump-h3"])
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            m.summary([], root)
+            text = (root / "summary.md").read_text()
+        self.assertIn("Excluded https-jump-h3", text)

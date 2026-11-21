@@ -144,7 +144,11 @@ bundle exec fastlane android native_compare binaries:/tmp/core-comparison-bin tr
 ```
 
 Run workloads on a dedicated Linux VM with at least two available CPUs, `/dev/net/tun`,
-`sudo`, `iproute2` (including `ss`), `iperf3`, `openssl`, `ssh-keygen` and `sshd`.
+`sudo`, `iproute2` (including `ss`), **iperf3 3.22.1**, `openssl`, `ssh-keygen` and `sshd`.
+Both client and server use the same resolved executable. Select a private installation with
+`iperf:/opt/iperf-3.22.1/bin/iperf3` in Fastlane or `--iperf /opt/iperf-3.22.1/bin/iperf3`
+in the runner. Other versions are rejected before setup: old 3.16 can segfault during thread
+cleanup. The selected version, path and SHA-256 are recorded in `environment.json`.
 No host computer changes are needed. Binaries may be built on another Linux machine of the
 same architecture. Copy their directory plus `scripts/compare_cores.py` to the VM. Without
 Fastlane there, use the same runner directly:
@@ -165,8 +169,10 @@ sudo unshare --net -- python3 compare_cores.py run \
 | `ssh` | SSH | SSH | no |
 | `https-jump-h1` | two HTTPS/1.1 hops | two HTTP outbounds with detour | no |
 | `https-jump-h2` | two HTTPS/2 hops | 1.15 alpha: HTTP/2 detour | no |
-| `https-jump-h3` | two HTTPS/3 hops | 1.15 alpha: HTTP/3 detour + CONNECT-UDP | yes |
 | `ssh-jump` | two SSH hops | two SSH outbounds with detour | no |
+
+`https-jump-h3` is excluded from both engines until GOST fixes its fatal handling of oversized
+nested-QUIC DATAGRAMs. The exclusion and reason remain explicit in metadata and the report.
 
 Original pairs retain stable sing-box 1.14.4. HTTP/2, HTTP/3 and MASQUE pairs use
 pinned **1.15.0-alpha.13**, a prerelease: HTTP version is explicit and version fallback
@@ -220,3 +226,8 @@ chains. Inspect raw-sample spread and the direct control. Results do not establi
 core limit, UDP maximum capacity, phone energy use or Android performance. This manual benchmark
 is outside required CI and has no performance thresholds. The full matrix has 130 workloads
 per sample; the default five-sample run takes tens of minutes, plus any failed-workload timeouts.
+
+Measurement JSON retains exit codes and names signals such as `SIGSEGV` explicitly. If a fixture
+server exits, the run aborts without retrying; `summary.md`, `samples.json` and `status.json`
+retain the partial results, with `complete: false` and the failing server/exit status. A finished
+matrix with workload failures has `complete: true` and still exits nonzero.

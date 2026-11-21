@@ -10,6 +10,7 @@ import pathlib
 import platform
 import secrets
 import shutil
+import signal
 import socket
 import statistics
 import subprocess
@@ -18,6 +19,7 @@ import threading
 import time
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
+IPERF_VERSION = "3.22.1"
 SING_BOX = "v1.14.4"
 SING_BOX_NEXT = "v1.15.0-alpha.13"
 GOST_COMMIT = "cb76f63754768c7b5d68895a0d51635b0141b80f"  # v3.3.0
@@ -30,8 +32,10 @@ TRANSPORTS = {
     "ssh": {"udp": False, "sing_box": True},
     "https-jump-h1": {"udp": False, "sing_box": True},
     "https-jump-h2": {"udp": False, "sing_box": True, "preview": True},
-    "https-jump-h3": {"udp": True, "sing_box": True, "preview": True},
     "ssh-jump": {"udp": False, "sing_box": True},
+}
+EXCLUDED_TRANSPORTS = {
+    "https-jump-h3": "GOST closes the UDP association on oversized nested-QUIC DATAGRAMs; excluded pending a server fix."
 }
 ORIGIN = "198.19.0.1"
 PROXY = "198.18.0.1"
@@ -178,6 +182,30 @@ def usage(pid):
     )
 
 
+def iperf_tool(path):
+    binary = shutil.which(str(path))
+    if binary is None:
+        raise RuntimeError(f"Missing iperf3 executable: {path}")
+    binary = pathlib.Path(binary).resolve()
+    version = capture(binary, "--version")
+    if version.split()[:2] != ["iperf", IPERF_VERSION]:
+        raise RuntimeError(
+            f"iperf3 {IPERF_VERSION} is required for both client and server; "
+            "select it with --iperf (Fastlane: iperf:PATH). Older iperf3 can crash during thread cleanup."
+        )
+    return binary, version
+
+
+def exit_description(code):
+    if code >= 0:
+        return f"exit code {code}"
+    try:
+        name = signal.Signals(-code).name
+    except ValueError:
+        name = str(-code)
+    return f"signal {name} ({-code})"
+
+
 def measure(args, child):
     initial = usage(child.pid) if child else None
     rss = []
@@ -205,7 +233,14 @@ def measure(args, child):
                     "error": result.stderr.strip() or "Invalid measurement JSON",
                     "stdout": result.stdout,
                 }
-            if result.returncode:
+            raw["returncode"] = result.returncode
+            if result.returncode < 0:
+                detail = raw.get("error")
+                raw["error"] = (
+                    f"Measurement terminated by {exit_description(result.returncode)}"
+                    + (f": {detail}" if detail else "")
+                )
+            elif result.returncode:
                 raw.setdefault(
                     "error", f"Measurement exited with code {result.returncode}"
                 )
@@ -215,7 +250,10 @@ def measure(args, child):
             raw = {"error": "Measurement timed out after 60 seconds"}
         final = usage(child.pid) if child else None
         if child and child.poll() is not None:
-            raw["error"] = "Core exited during measurement"
+            raw["core_returncode"] = child.returncode
+            raw["error"] = (
+                f"Core exited during measurement: {exit_description(child.returncode)}"
+            )
     finally:
         stop.set()
         thread.join()
@@ -352,6 +390,15 @@ def summary(rows, output):
         [
             "",
             f"sing-box {SING_BOX}: original pairs; {SING_BOX_NEXT} (prerelease): HTTP/2, HTTP/3 and MASQUE pairs. No version fallback for prerelease HTTP outbounds.",
+        ]
+    )
+    report.extend(
+        [
+            "",
+            *[
+                f"Excluded {name}: {reason}"
+                for name, reason in EXCLUDED_TRANSPORTS.items()
+            ],
         ]
     )
     (output / "summary.md").write_text("\n".join(report) + "\n")
@@ -623,6 +670,7 @@ def run(args):
         raise RuntimeError(
             "Run inside a private network namespace: sudo unshare --net -- python3 scripts/compare_cores.py run ..."
         )
+    iperf, iperf_version = iperf_tool(args.iperf)
     available = sorted(os.sched_getaffinity(0))
     if len(available) < 2:
         raise RuntimeError("At least two available CPUs are required")
@@ -654,11 +702,14 @@ def run(args):
         samples=args.samples,
         seconds=args.seconds,
         udp_mbps=args.udp_mbps,
-        iperf_version=capture("iperf3", "--version"),
+        iperf_version=iperf_version,
+        iperf_path=str(iperf),
+        iperf_sha256=hashlib.sha256(iperf.read_bytes()).hexdigest(),
         sing_box_version=capture(binaries / "sing-box", "version"),
         sing_box_next_version=capture(binaries / "sing-box-next", "version"),
         scope="IPv4; gVisor sing-box stack; strict source validation off; numeric origins, no DNS",
         transport_selection=args.transport,
+        excluded_transports=EXCLUDED_TRANSPORTS,
         gost_version=capture(binaries / "gost", "-V"),
         openssl_version=capture("openssl", "version"),
         openssh_version=command(
@@ -725,7 +776,7 @@ def run(args):
             ready(echo, lambda: "READY" in (output / "echo.log").read_text())
             server = stack.enter_context(
                 process(
-                    ["iperf3", "-s", "-B", ORIGIN],
+                    [iperf, "-s", "-B", ORIGIN],
                     output / "iperf-server.log",
                     other_cpus,
                 )
@@ -755,6 +806,9 @@ def run(args):
             material, daemons = start_transport_servers(
                 stack, binaries, private, output, other_cpus
             )
+            fixtures = [("echo", echo), ("iperf3", server), ("SOCKS5", proxy)] + [
+                (f"SSH {i}", daemon) for i, daemon in enumerate(daemons)
+            ]
             cases = [
                 (kind, streams)
                 for kind in ("tcp_forward", "tcp_reverse", "udp", "connect")
@@ -914,7 +968,7 @@ def run(args):
                             )
                             if scenario in ("tcp_forward", "tcp_reverse", "udp"):
                                 load = [
-                                    "iperf3",
+                                    str(iperf),
                                     "-c",
                                     ORIGIN,
                                     "-J",
@@ -998,7 +1052,7 @@ def run(args):
                             else:
                                 metrics = (
                                     iperf_metrics(raw, scenario == "udp")
-                                    if load[0] == "iperf3"
+                                    if scenario in ("tcp_forward", "tcp_reverse", "udp")
                                     else dict(
                                         operations_per_second=raw[
                                             "operations_per_second"
@@ -1028,22 +1082,37 @@ def run(args):
                                 {"command": load, "raw": raw, "measurement": row},
                             )
                             save(output / "samples.json", rows)
-                            if any(
-                                p.poll() is not None
-                                for p in (echo, server, proxy, *daemons)
-                            ):
-                                raise RuntimeError(
-                                    "Benchmark server exited during measurement"
-                                )
+                            for label, fixture in fixtures:
+                                code = fixture.poll()
+                                if code is not None:
+                                    raise RuntimeError(
+                                        f"Benchmark server {label} exited with {exit_description(code)}; inspect its log"
+                                    )
             summary(rows, output)
             failed = sum(row["status"] == "failed" for row in rows)
             save(
-                output / "status.json", {"passed": len(rows) - failed, "failed": failed}
+                output / "status.json",
+                {"passed": len(rows) - failed, "failed": failed, "complete": True},
             )
             if failed:
                 raise RuntimeError(
                     f"{failed} measurements failed; inspect summary.md and raw JSON"
                 )
+    except Exception as error:
+        if not (output / "status.json").exists():
+            save(output / "samples.json", rows)
+            summary(rows, output)
+            failed = sum(row["status"] == "failed" for row in rows)
+            save(
+                output / "status.json",
+                {
+                    "passed": len(rows) - failed,
+                    "failed": failed,
+                    "complete": False,
+                    "error": str(error),
+                },
+            )
+        raise
     finally:
         # sudo should not leave benchmark artifacts owned by root in the caller's workspace.
         if "SUDO_UID" in os.environ:
@@ -1063,6 +1132,11 @@ def main():
     )
     bench.add_argument("--binaries", type=pathlib.Path, required=True)
     bench.add_argument("--output", type=pathlib.Path, required=True)
+    bench.add_argument(
+        "--iperf",
+        default="iperf3",
+        help=f"Client/server executable; must be iperf3 {IPERF_VERSION}",
+    )
     bench.add_argument("--samples", type=int, default=5)
     bench.add_argument("--seconds", type=int, default=3)
     bench.add_argument("--mtu", type=int, default=1400)
@@ -1085,7 +1159,6 @@ def main():
             "ip",
             "nsenter",
             "unshare",
-            "iperf3",
             "openssl",
             "ssh-keygen",
             "sshd",
