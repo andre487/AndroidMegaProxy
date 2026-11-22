@@ -32,25 +32,20 @@
         }
       ]
     },
-    "alwaysOnProfileId": {
-      "anyOf": [
-        {
-          "type": "string",
-          "maxLength": 256,
-          "minLength": 1
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "diagnosticLogLimitMb": {
       "type": "integer",
       "minimum": 1,
       "maximum": 100
     },
     "tls": {
-      "$ref": "#/$defs/tls"
+      "$ref": "#/$defs/tls",
+      "properties": {
+        "fingerprint": {
+          "deprecated": true,
+          "description": "Legacy document-wide preset. Prefer the receiving client's platform section; Android uses android.tls.fingerprint."
+        }
+      },
+      "type": "object"
     },
     "ssh": {
       "$ref": "#/$defs/ssh"
@@ -68,44 +63,6 @@
       },
       "maxItems": 1000,
       "minItems": 1
-    },
-    "browser": {
-      "type": "object",
-      "properties": {
-        "theme": {
-          "type": "string",
-          "enum": [
-            "system",
-            "light",
-            "dark"
-          ]
-        },
-        "language": {
-          "type": "string",
-          "enum": [
-            "auto",
-            "en",
-            "ru"
-          ]
-        },
-        "routing": {
-          "$ref": "#/$defs/browserRouting"
-        },
-        "webRTC": {
-          "type": "string",
-          "enum": [
-            "browser",
-            "default",
-            "default_public_and_private_interfaces",
-            "default_public_interface_only",
-            "disable_non_proxied_udp",
-            "proxy_only",
-            "disabled"
-          ]
-        }
-      },
-      "required": [],
-      "additionalProperties": true
     },
     "subscription": {
       "anyOf": [
@@ -158,9 +115,6 @@
         },
         "routing": {
           "$ref": "#/$defs/routing"
-        },
-        "browser": {
-          "$ref": "#/$defs/browserProfile"
         }
       },
       "required": [
@@ -249,6 +203,11 @@
           ],
           "description": "Optional shared HTTPS proxy authentication-check hostname/IP, without scheme, path or port. Empty explicitly disables it. Clients prefer this key over legacy profiles[].browser.knockHost, including when empty. Android uses it only in regular HTTPS/TCP diagnostics; an unmasked CONNECT 407 proves authentication rejection, while 200, timeouts and HTML do not prove a decoy. Never bypass the proxy for this check or log addresses/credentials.",
           "default": ""
+        },
+        "preferHttp2": {
+          "type": "boolean",
+          "default": false,
+          "description": "Prefer HTTP/2 for HTTPS transports. preferHttp3 also enables HTTP/2 fallback where supported."
         }
       },
       "required": [
@@ -377,12 +336,12 @@
             "YANDEX_BROWSER",
             "CUSTOM"
           ],
-          "description": "Outer TLS/QUIC preset. Android selects the document-level preset; DEFAULT resolves to CHROME_ANDROID. MASQUE supports CHROME_ANDROID, FIREFOX_ANDROID, RANDOMIZED and CUSTOM."
+          "description": "Portable preset identifier. Clients map supported presets to their transport implementation. Unsupported values reset to DEFAULT with an import notice."
         },
         "customJa3": {
           "type": "string",
           "maxLength": 8192,
-          "description": "Custom outer handshake JA3. Android HTTPS uses the document-level value; MASQUE uses profiles[].tls.customJa3 for its separate QUIC-compatible JA3. Consumers validate JA3 semantics beyond this schema."
+          "description": "Custom handshake JA3. Consumers supporting custom fingerprints validate its semantics and transport compatibility."
         }
       },
       "required": [],
@@ -395,20 +354,15 @@
           "type": "boolean",
           "default": true
         },
-        "routeAllApps": {
-          "type": "boolean"
-        },
-        "selectedPackages": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "maxLength": 256,
-            "pattern": "^[A-Za-z0-9_.]+$"
-          },
-          "maxItems": 1000
-        },
         "allowIpv6": {
-          "type": "boolean"
+          "type": "boolean",
+          "default": false,
+          "description": "Profile permission for IPv6 destinations through this proxy."
+        },
+        "systemAllowIpv6": {
+          "type": "boolean",
+          "default": false,
+          "description": "Root routing option: allow IPv6 destinations through the system connection."
         }
       },
       "required": [],
@@ -507,160 +461,6 @@
       "required": [],
       "additionalProperties": true
     },
-    "browserProfile": {
-      "type": "object",
-      "properties": {
-        "knockHost": {
-          "anyOf": [
-            {
-              "const": ""
-            },
-            {
-              "type": "string",
-              "maxLength": 253,
-              "minLength": 1,
-              "pattern": "^(?:[^\\s/:@?#\\\\]+|\\[?(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\\]?)$"
-            }
-          ]
-        },
-        "bypass": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "maxLength": 253,
-            "minLength": 1,
-            "pattern": "^(?:[^\\s/:@?#\\\\]+|\\[?(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\\]?)$"
-          },
-          "maxItems": 1000,
-          "uniqueItems": true
-        },
-        "authMode": {
-          "type": "string",
-          "enum": [
-            "auto",
-            "challenge"
-          ]
-        },
-        "masqueTemplate": {
-          "type": "string",
-          "maxLength": 2048
-        }
-      },
-      "required": [],
-      "additionalProperties": true
-    },
-    "browserRouting": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean"
-        },
-        "mode": {
-          "type": "string",
-          "enum": [
-            "domains",
-            "tabs"
-          ]
-        },
-        "domains": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 253,
-            "pattern": "^(?:[^\\s*/:@?#\\\\]+|[a-zA-Z0-9*](?:[a-zA-Z0-9.*-]*[a-zA-Z0-9*])?|\\[?(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\\]?)$"
-          },
-          "maxItems": 1000,
-          "uniqueItems": true
-        },
-        "sites": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": 253,
-            "pattern": "^(?:[^\\s*/:@?#\\\\]+|[a-zA-Z0-9*](?:[a-zA-Z0-9.*-]*[a-zA-Z0-9*])?|\\[?(?:[0-9a-fA-F]{0,4}:){2,7}[0-9a-fA-F]{0,4}\\]?)$"
-          },
-          "maxItems": 1000,
-          "uniqueItems": true
-        },
-        "subscriptions": {
-          "$ref": "#/$defs/browserSubscriptions"
-        },
-        "assignments": {
-          "type": "array",
-          "maxItems": 1000,
-          "items": {
-            "type": "object",
-            "required": [
-              "domain",
-              "profileId"
-            ],
-            "properties": {
-              "domain": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 253,
-                "pattern": "^[^\\s*/:@?#\\\\]+$"
-              },
-              "profileId": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": 256
-              },
-              "includeSubdomains": {
-                "type": "boolean",
-                "default": true
-              }
-            },
-            "additionalProperties": true
-          }
-        },
-        "strategy": {
-          "type": "string",
-          "enum": [
-            "manual",
-            "lists",
-            "profiles",
-            "tabs",
-            "failover"
-          ]
-        }
-      },
-      "required": [],
-      "additionalProperties": true
-    },
-    "browserSubscriptions": {
-      "type": "object",
-      "properties": {
-        "domainSources": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-          },
-          "maxItems": 64,
-          "uniqueItems": true
-        },
-        "siteSources": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "pattern": "^[a-z0-9][a-z0-9_-]{0,63}$"
-          },
-          "maxItems": 64,
-          "uniqueItems": true
-        },
-        "autoUpdate": {
-          "type": "boolean"
-        },
-        "throughProxy": {
-          "type": "boolean"
-        }
-      },
-      "required": [],
-      "additionalProperties": true
-    },
     "configSubscription": {
       "type": "object",
       "properties": {
@@ -701,5 +501,6 @@
       ],
       "additionalProperties": true
     }
-  }
+  },
+  "description": "Shared fields only. Platform-named extension objects at document and profile level are validated by the owning application. Unsupported fields are reported and discarded by receivers."
 }

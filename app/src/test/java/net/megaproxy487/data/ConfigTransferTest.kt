@@ -12,6 +12,27 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConfigTransferTest {
+    @Test fun androidFingerprintOnlyImportsFromSupportedSectionWithPriorityOverLegacy() {
+        val root = JSONObject(String(ConfigSchemas.bytes("android-v8.json")))
+        val androidTls = root.getJSONObject("android").getJSONObject("tls")
+        root.remove("tls")
+        fun imported() = ConfigTransfer.importJson(root.toString())
+        for (preset in listOf("default", "DEFAULT", "CHROME_ANDROID", "FIREFOX_ANDROID")) {
+            androidTls.put("fingerprint", preset)
+            val result = imported()
+            assertEquals(TlsProfile.valueOf(preset.uppercase()), result.globalConnectionSettings?.tlsProfile)
+            assertEquals(ConfigImportNotice(), result.notice)
+        }
+        root.put("tls", JSONObject().put("fingerprint", "CHROME_ANDROID"))
+        androidTls.remove("fingerprint")
+        assertEquals(TlsProfile.CHROME_ANDROID, imported().globalConnectionSettings?.tlsProfile)
+        androidTls.put("fingerprint", "FIREFOX_ANDROID")
+        assertEquals(TlsProfile.FIREFOX_ANDROID, imported().globalConnectionSettings?.tlsProfile)
+        root.getJSONObject("android").put("version", 2)
+        assertEquals(TlsProfile.CHROME_ANDROID, imported().globalConnectionSettings?.tlsProfile)
+        assertTrue(imported().notice.unknownFields)
+    }
+
     @Test fun ipv6AddressesRoundTripThroughJsonAndUrlExports() {
         for (type in ProxyType.entries) for (host in listOf("2001:db8::1", "[2001:db8::1]")) {
             val profile = ProxyProfile(id = "ipv6", colorIndex = 0, config = ProxyConfig(

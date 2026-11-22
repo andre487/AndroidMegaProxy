@@ -127,7 +127,7 @@ selection so initial UDP replies fit too, including the peer's PMTU convergence
 reserve and conservative DATAGRAM budget. A further OPTIONS round trip confirms
 probe ACK delivery. One per-session MTU diagnostic records only numeric limits.
 Padding and receive-MTU parameters are
-adjusted while preserving the TLS fingerprint. Firefox Jump falls back because
+adjusted while preserving the TLS fingerprint. With the default Firefox preset, Jump falls back to HTTPS/TCP because
 its DATAGRAM limit is too small for nested QUIC.
 
 CONNECT-UDP responses 404/405/501 and a missing Capsule-Protocol header select

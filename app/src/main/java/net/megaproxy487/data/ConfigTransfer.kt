@@ -107,8 +107,9 @@ object ConfigTransfer {
         put("alwaysOnProfileId", store.alwaysOnProfileId())
         put("diagnosticLogLimitMb", store.diagnosticLogLimitMb())
         val global = store.globalConnectionSettings()
+        put("android", JSONObject().put("version", 1).put("tls", JSONObject().put("fingerprint",
+            if (global.tlsProfile == TlsProfile.DEFAULT) "default" else global.tlsProfile.name)))
         put("tls", JSONObject().apply {
-            put("fingerprint", global.tlsProfile.name)
             put("customJa3", global.customJa3.trim())
         })
         put("ssh", JSONObject().apply {
@@ -162,9 +163,11 @@ object ConfigTransfer {
         val profiles = if (version in 2..5) decodedProfiles.map {
             it.copy(config = it.config.copy(allowIpv6 = legacyIpv6))
         } else decodedProfiles
+        val androidTls = root.androidSection()?.optJSONObject("tls")
+        val fingerprint = if (androidTls?.has("fingerprint") == true) androidTls else root.optJSONObject("tls")
         val globalFields = listOf("tls", "ssh", "failover", "routing").flatMap { group ->
             root.optJSONObject(group)?.keys()?.asSequence()?.map { "$group.$it" }?.toList().orEmpty()
-        }.toSet()
+        }.toSet() + if (fingerprint?.has("fingerprint") == true) setOf("tls.fingerprint") else emptySet()
         return PortableConfiguration(
             globalSettingFields = globalFields + if (version in 2..3) setOf("ssh.fingerprint") else emptySet(),
             diagnosticLogLimitPresent = root.has("diagnosticLogLimitMb"),
@@ -178,7 +181,7 @@ object ConfigTransfer {
             alwaysOnProfileId = root.optString("alwaysOnProfileId").ifBlank { null },
             diagnosticLogLimitMb = root.optInt("diagnosticLogLimitMb", 3).coerceIn(1, 100),
             globalConnectionSettings = if (version >= 2 && (globalFields.isNotEmpty() || version < 4)) {
-                decodeGlobalSettings(root).let { global ->
+                decodeGlobalSettings(root, fingerprint?.optString("fingerprint").orEmpty()).let { global ->
                     if (version < 4) global.copy(sshProfile = profiles.first().config.sshProfile) else global
                 }
             } else null,
@@ -203,12 +206,12 @@ object ConfigTransfer {
         )
     }
 
-    private fun decodeGlobalSettings(root: JSONObject): GlobalConnectionSettings {
+    private fun decodeGlobalSettings(root: JSONObject, fingerprint: String): GlobalConnectionSettings {
         val tls = root.optJSONObject("tls") ?: JSONObject()
         val routing = root.optJSONObject("routing") ?: JSONObject()
         val ssh = root.optJSONObject("ssh") ?: JSONObject()
         val failover = root.optJSONObject("failover") ?: JSONObject()
-        val parsedTls = enumValue(tls.optString("fingerprint"), TlsProfile.DEFAULT)
+        val parsedTls = if (fingerprint == "default") TlsProfile.DEFAULT else enumValue(fingerprint, TlsProfile.DEFAULT)
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
             requireUi(array.length() <= MAX_IMPORTED_PACKAGES) { UiException(R.string.error_config_packages) }
             (0 until array.length()).mapNotNull { index ->

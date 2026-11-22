@@ -238,7 +238,7 @@ class VpnDeviceTest : DeviceTestBase() {
                 jumpAllowInvalidProxyCertificate = true,
             )))
             store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
-                routeAllApps = false, selectedPackages = setOf(context.packageName)))
+                tlsProfile = TlsProfile.CHROME_ANDROID, routeAllApps = false, selectedPackages = setOf(context.packageName)))
         }
         saved()
         directOriginUnavailable()

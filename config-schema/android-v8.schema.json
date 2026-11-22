@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://raw.githubusercontent.com/andre487/MegaProxyConfig/main/schemas/android-v8.schema.json",
-  "title": "AndroidMegaProxy version 8 baseline",
+  "title": "Legacy distribution alias for MegaProxy shared version 8 schema",
   "type": "object",
   "properties": {
     "schema": {
@@ -32,25 +32,20 @@
         }
       ]
     },
-    "alwaysOnProfileId": {
-      "anyOf": [
-        {
-          "type": "string",
-          "maxLength": 256,
-          "minLength": 1
-        },
-        {
-          "type": "null"
-        }
-      ]
-    },
     "diagnosticLogLimitMb": {
       "type": "integer",
       "minimum": 1,
       "maximum": 100
     },
     "tls": {
-      "$ref": "#/$defs/tls"
+      "$ref": "#/$defs/tls",
+      "properties": {
+        "fingerprint": {
+          "deprecated": true,
+          "description": "Legacy document-wide preset. Prefer the receiving client's platform section; Android uses android.tls.fingerprint."
+        }
+      },
+      "type": "object"
     },
     "ssh": {
       "$ref": "#/$defs/ssh"
@@ -136,10 +131,10 @@
           "enum": [
             "HTTPS",
             "SOCKS5",
-            "MASQUE",
             "HTTPS_JUMP",
             "SSH",
-            "SSH_JUMP"
+            "SSH_JUMP",
+            "MASQUE"
           ]
         },
         "host": {
@@ -208,6 +203,11 @@
           ],
           "description": "Optional shared HTTPS proxy authentication-check hostname/IP, without scheme, path or port. Empty explicitly disables it. Clients prefer this key over legacy profiles[].browser.knockHost, including when empty. Android uses it only in regular HTTPS/TCP diagnostics; an unmasked CONNECT 407 proves authentication rejection, while 200, timeouts and HTML do not prove a decoy. Never bypass the proxy for this check or log addresses/credentials.",
           "default": ""
+        },
+        "preferHttp2": {
+          "type": "boolean",
+          "default": false,
+          "description": "Prefer HTTP/2 for HTTPS transports. preferHttp3 also enables HTTP/2 fallback where supported."
         }
       },
       "required": [
@@ -336,12 +336,12 @@
             "YANDEX_BROWSER",
             "CUSTOM"
           ],
-          "description": "Outer TLS/QUIC preset. Android selects the document-level preset; DEFAULT resolves to CHROME_ANDROID. MASQUE supports CHROME_ANDROID, FIREFOX_ANDROID, RANDOMIZED and CUSTOM."
+          "description": "Portable preset identifier. Clients map supported presets to their transport implementation. Unsupported values reset to DEFAULT with an import notice."
         },
         "customJa3": {
           "type": "string",
           "maxLength": 8192,
-          "description": "Custom outer handshake JA3. Android HTTPS uses the document-level value; MASQUE uses profiles[].tls.customJa3 for its separate QUIC-compatible JA3. Consumers validate JA3 semantics beyond this schema."
+          "description": "Custom handshake JA3. Consumers supporting custom fingerprints validate its semantics and transport compatibility."
         }
       },
       "required": [],
@@ -354,20 +354,15 @@
           "type": "boolean",
           "default": true
         },
-        "routeAllApps": {
-          "type": "boolean"
-        },
-        "selectedPackages": {
-          "type": "array",
-          "items": {
-            "type": "string",
-            "maxLength": 256,
-            "pattern": "^[A-Za-z0-9_.]+$"
-          },
-          "maxItems": 1000
-        },
         "allowIpv6": {
-          "type": "boolean"
+          "type": "boolean",
+          "default": false,
+          "description": "Profile permission for IPv6 destinations through this proxy."
+        },
+        "systemAllowIpv6": {
+          "type": "boolean",
+          "default": false,
+          "description": "Root routing option: allow IPv6 destinations through the system connection."
         }
       },
       "required": [],
@@ -506,5 +501,6 @@
       ],
       "additionalProperties": true
     }
-  }
+  },
+  "description": "Shared fields only. Platform-named extension objects at document and profile level are validated by the owning application. Unsupported fields are reported and discarded by receivers."
 }

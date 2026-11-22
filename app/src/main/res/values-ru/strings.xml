@@ -346,7 +346,7 @@
     <string name="option_dnsprovider_yandex_safe">Яндекс: безопасный</string>
     <string name="option_dnsprovider_yandex_family">Яндекс: семейный</string>
     <string name="option_dnsprovider_custom">Свой URL DoH</string>
-    <string name="option_tlsprofile_default">По умолчанию (сейчас Chrome Android)</string>
+    <string name="option_tlsprofile_default">По умолчанию (сейчас Firefox Android)</string>
     <string name="option_tlsprofile_chrome_android">Chrome Android 133 (uTLS)</string>
     <string name="option_tlsprofile_firefox_android">Firefox Android 120 (uTLS)</string>
     <string name="option_tlsprofile_edge_android">Edge Android (ожидается проверенный отпечаток)</string>

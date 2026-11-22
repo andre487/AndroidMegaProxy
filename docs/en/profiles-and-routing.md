@@ -17,6 +17,18 @@ or use the move actions. Selecting a different profile while connected reconnect
 Edits affecting a running connection need reconnection. Subscription changes leave the current
 tunnel running and offer **Reconnect**; [subscription ownership and refresh rules](subscriptions.md).
 
+The default TLS fingerprint is Firefox Android. Selecting a named preset keeps that choice
+across updates. In a config file or subscription, use the following document-level section
+to follow the application's default:
+
+```json
+"android": { "version": 1, "tls": { "fingerprint": "default" } }
+```
+
+Android also accepts `DEFAULT`. It reads the deprecated `tls.fingerprint` when the Android
+preset is absent. Omitting both preserves the current selection on import and refresh.
+Global `tls.customJa3` and per-profile QUIC JA3 keep their existing locations.
+
 ## Server types
 
 MegaProxy provides no servers. Obtain a profile from an operator you trust or use

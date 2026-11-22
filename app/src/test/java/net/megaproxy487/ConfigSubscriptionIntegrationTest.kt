@@ -148,6 +148,16 @@ class ConfigSubscriptionIntegrationTest {
         store.importConfiguration(ConfigTransfer.importJson(json.toString()))
         assertEquals(expected, store.globalConnectionSettings())
 
+        json.put("android", JSONObject().put("version", 1).put("tls", JSONObject().put("fingerprint", "default")))
+        assertTrue(apply(parseSubscriptionSnapshot(json.toString(), store.profiles())))
+        assertEquals(TlsProfile.DEFAULT, store.globalConnectionSettings().tlsProfile)
+        val exported = JSONObject(ConfigTransfer.exportJson(store, false))
+        assertEquals("default", exported.getJSONObject("android").getJSONObject("tls").getString("fingerprint"))
+        assertFalse(exported.getJSONObject("tls").has("fingerprint"))
+        json.getJSONObject("android").put("version", 2)
+        store.importConfiguration(ConfigTransfer.importJson(json.toString()))
+        assertEquals(TlsProfile.CHROME_ANDROID, store.globalConnectionSettings().tlsProfile)
+
         json.put("routing", JSONObject().put("routeAllApps", true).put("selectedPackages", JSONArray()))
         json.put("diagnosticLogLimitMb", 8)
         assertTrue(apply(parseSubscriptionSnapshot(json.toString(), store.profiles())))

@@ -252,7 +252,7 @@ enum class DnsProvider(val title: String, val url: String) {
 }
 
 enum class TlsProfile(val title: String, val available: Boolean = true) {
-    DEFAULT("Default (currently Chrome Android)"),
+    DEFAULT("Default (currently Firefox Android)"),
     CHROME_ANDROID("Chrome Android 133 (uTLS)"),
     FIREFOX_ANDROID("Firefox Android 120 (uTLS)"),
     EDGE_ANDROID("Edge Android (awaiting a verified profile)", false),
@@ -281,7 +281,7 @@ data class GlobalConnectionSettings(
     val sourceValidationLevel: SourceValidationLevel = SourceValidationLevel.STANDARD,
 ) {
     fun applyTo(config: ProxyConfig): ProxyConfig = config.copy(
-        profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.CHROME_ANDROID else tlsProfile,
+        profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.FIREFOX_ANDROID else tlsProfile,
         customJa3 = if (config.type == ProxyType.MASQUE) config.customJa3 else customJa3,
         sshProfile = sshProfile,
         sshAuthMode = sshAuthMode,

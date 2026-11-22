@@ -90,11 +90,11 @@ class ProxyConfigTest {
     }
 
     @Test
-    fun `default TLS fingerprint currently resolves to Chrome Android`() {
+    fun `default TLS fingerprint currently resolves to Firefox Android`() {
         val resolved = GlobalConnectionSettings(tlsProfile = TlsProfile.DEFAULT)
             .applyTo(ProxyConfig())
 
-        assertEquals(TlsProfile.CHROME_ANDROID, resolved.profile)
+        assertEquals(TlsProfile.FIREFOX_ANDROID, resolved.profile)
     }
 
     @Test
