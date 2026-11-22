@@ -42,11 +42,4 @@ TCP CONNECT и UDP ASSOCIATE с необязательной авторизац�
 [Управление](profiles-and-routing.md#импорт-экспорт-и-локальные-настройки) ·
 [Измеряемые и журналируемые данные](connection-metrics.md).
 
-## Для разработчиков
-
-- [Команды и настройка Fastlane](fastlane.md)
-- [Регламент тестирования и приёмка релиза](release-testing.md)
-- [Бенчмарки ядра и границы измерений](native-benchmarks.md)
-- [Автоматизация релиза](release-automation.md)
-- [Графика приложения и F-Droid](graphics.md)
-- [Сетевое ядро Go](../../native/README.md)
+Материалы для разработчиков собраны в [английском разделе](../en/index.md#for-developers).

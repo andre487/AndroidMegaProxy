@@ -131,5 +131,3 @@ These are warm single-flow loopback measurements, without packet loss, congestio
 reconnect storms, jump chains, sustained rekey/rotation workloads, TUN or JNI. Real GOST/OpenSSH
 interoperability remains the separate `native_integration` lane; Android integration remains the
 device lanes. These results do not establish which transport is fastest on a phone.
-
-[Русская версия](../ru/native-benchmarks.md)

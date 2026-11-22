@@ -163,7 +163,7 @@ class ChangeScopeTest(unittest.TestCase):
                 "emulator26": False,
                 "emulator35": False,
             },
-            m.classify(["scripts/github_actions.py", "docs/ru/fastlane.md"]),
+            m.classify(["scripts/github_actions.py", "docs/en/fastlane.md"]),
         )
 
     def test_docs_only_skip_all_suites(self):

@@ -175,5 +175,3 @@ Set `OPENAI_API_KEY` and `OPENAI_RELEASE_MODEL` in the environment first. The ex
 `ref` keeps later commits out of the preview; both GitHub and F-Droid notes print to stdout.
 Automatic baseline selection requires `GITHUB_REPOSITORY=owner/repo` and authenticated `gh`.
 Use `previous:v1.1.1` only to override that selection explicitly.
-
-[Русская версия](../ru/release-automation.md)

@@ -49,4 +49,4 @@ in-memory log. [Controls](profiles-and-routing.md#import-export-and-local-contro
 - [Native benchmarks and their limits](native-benchmarks.md)
 - [Release automation](release-automation.md)
 - [Artwork and F-Droid graphics](graphics.md)
-- [Go dataplane](../../native/README.md)
+- [Go dataplane](go-dataplane.md)

@@ -1,6 +1,6 @@
 # Updating artwork
 
-[Русский](../ru/graphics.md) · [Fastlane commands](fastlane.md)
+[Fastlane commands](fastlane.md)
 
 [MegaProxyIdentity](https://github.com/andre487/MegaProxyIdentity) is the source of truth for
 MegaProxy artwork. Edit its SVGs, then regenerate AndroidMegaProxy's committed PNG/XML outputs.

@@ -38,7 +38,7 @@ install over the existing app to preserve profiles. PR APKs are test builds.
 4. Open **Diagnostics**: the connection test starts automatically; speed tests unlock after success.
 
 Server setup: [MegaProxyServer](https://github.com/andre487/MegaProxyServer).
-All guides: [English](docs/en/index.md) / [Русский](docs/ru/index.md).
+User guides: [English](docs/en/index.md) / [Русский](docs/ru/index.md).
 
 ## Features
 
@@ -136,12 +136,12 @@ bundle exec fastlane android debug_artifact
 ```
 
 Output: `app/build/outputs/apk/debug/app-debug.apk`. Use the checked-in Gradle wrapper through
-Fastlane. Setup, tests, emulator and signing: [English](docs/en/fastlane.md) / [Русский](docs/ru/fastlane.md).
-[Go dataplane](native/README.md) · [Release automation](docs/en/release-automation.md).
+Fastlane. Setup, tests, emulator and signing: [Fastlane guide](docs/en/fastlane.md).
+[Go dataplane](docs/en/go-dataplane.md) · [Release automation](docs/en/release-automation.md).
 
 ## Contributing
 
-Select checks using the [testing policy](docs/en/release-testing.md) ([по-русски](docs/ru/release-testing.md)).
+Select checks using the [testing policy](docs/en/release-testing.md).
 Keep credentials, private keys and personal traffic out of issues/logs. Focused bug reports and PRs are welcome.
 
 ## License

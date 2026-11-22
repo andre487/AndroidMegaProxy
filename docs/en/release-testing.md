@@ -1,6 +1,6 @@
 # Testing policy
 
-[Русский](../ru/release-testing.md) · [Commands and setup](fastlane.md)
+[Commands and setup](fastlane.md)
 
 Use the smallest layer that observes the real behaviour. Do not require every feature on
 four devices for every release, duplicate CI locally without a reason, or maintain committed

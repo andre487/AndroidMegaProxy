@@ -11,8 +11,7 @@ branch names, credentials, signing material, or other secrets.
   installation path.
 - Fastlane is the primary supported entry point for builds, checks, tests, and release artifacts.
   Run it through Bundler (`bundle exec fastlane ...`) so `Gemfile.lock` controls dependency versions.
-  Keep the English and Russian command reference in `docs/en/fastlane.md` and
-  `docs/ru/fastlane.md` synchronized with the lanes in `fastlane/Fastfile`.
+  Keep the command reference in `docs/en/fastlane.md` synchronized with the lanes in `fastlane/Fastfile`.
 - Direct scripts and Gradle tasks may remain implementation details behind Fastlane lanes, but
   documentation and CI should normally expose the Fastlane commands.
 - Launch local Android emulators with `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and
@@ -113,7 +112,7 @@ branch names, credentials, signing material, or other secrets.
   subsequent explicit exclusion must survive reloads, unrelated edits and profile changes.
 
 - Keep UI labels and explanations concise in both languages. Put implementation details in the
-  current EN/RU documentation; retain actionable limits, security risks and privacy consequences in UI.
+  English technical documentation; retain actionable limits, security risks and privacy consequences in UI.
 - All user-visible UI text must use Android string resources and be supplied in both the default
   English resources and Russian resources. The app language selects UI words; number, date and
   other data formatting follows the system locale. Do not localize standardized data-unit symbols.
@@ -148,10 +147,12 @@ branch names, credentials, signing material, or other secrets.
   app-enforced retention timer. Uninstalling the app does not remove email or exported/shared copies.
 - Keep the privacy-policy link at the bottom of Settings, targeting the public policy on `main`,
   with localized labels and an error message when no browser can open it.
-- Update current EN/RU documentation while preserving historical changelogs. Do not maintain
-  `docs/reviews` or require committed review reports. Keep test policy in `docs/en/release-testing.md`
-  and `docs/ru/release-testing.md`; select manual checks by changed risk rather than repeating the
-  entire feature matrix on every device.
+- Maintain user guides in both `docs/en` and `docs/ru`. Keep `docs/ru` focused on installation,
+  settings, everyday use, troubleshooting, and user-facing privacy and compatibility limits.
+  Write technical documentation only in English under `docs/en`, including build, CI, release,
+  benchmarking, and implementation details. Link to it from user guides when useful.
+  Preserve historical changelogs. Do not maintain `docs/reviews` or require committed review reports.
+  Keep test policy in `docs/en/release-testing.md`. Select manual checks by changed risk.
 
 - Regular HTTPS/TCP diagnostics may use an optional per-profile authentication probe hostname,
   imported/exported as `proxy.knockHost`, with legacy `browser.knockHost` fallback. Only an explicit 407 proves authentication rejection;

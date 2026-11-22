@@ -98,5 +98,3 @@ Defaults and signer verification are in [the release script](../../scripts/build
 
 Signed artifacts, API/token setup, publication and recovery: [release automation](release-automation.md).
 `release_finish` merges and tags; it is not a dry run. PR checks never sign releases or submit to VirusTotal.
-
-[Русская версия](../ru/fastlane.md)
