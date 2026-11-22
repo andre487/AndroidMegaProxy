@@ -132,7 +132,7 @@
     <string name="private_key_format_hint">OpenSSH or PEM. Encrypted PKCS#8 is unsupported.</string>
     <string name="ssh_key_passphrase">Key passphrase</string>
     <string name="ssh_optional_phrase">Key passphrase (optional)</string>
-    <string name="ssh_optional_phrase_detail">Leave empty to enter the passphrase when connecting. A filled passphrase is saved on this device.</string>
+    <string name="ssh_optional_phrase_detail">Leave this field empty if the key is unused or you prefer to enter its passphrase when connecting. A passphrase entered here is saved on this device.</string>
     <string name="ssh_unlock_profile_changed">Could not unlock the current profile. Reopen it and try again.</string>
     <string name="ssh_unlock_failed">Could not unlock this key. Check the passphrase and try again.</string>
     <string name="ssh_unlock_destination">Destination key passphrase</string>
