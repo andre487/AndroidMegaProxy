@@ -581,21 +581,26 @@ def main():
         parameters.update(stalled)
         # Verify the emulator-to-host leg too, before any VPN or test starts.
         try:
-            banner = shell(
-                "sh",
-                "-c",
-                # Older toybox can exit on stdin EOF before a delayed SSH banner.
-                f"sleep 3 | toybox nc -w 3 -q 1 10.0.2.2 {int(parameters['sshPort'])}",
+            output = shell(
+                "am",
+                "instrument",
+                "-w",
+                "-r",
+                "-e",
+                "class",
+                PACKAGE + ".FixtureReadinessTest#sshBanner",
+                "-e",
+                "sshPort",
+                parameters["sshPort"],
+                RUNNER,
             )
-            if not banner.startswith("SSH-"):
-                raise RuntimeError("Local SSH fixture did not send its banner")
+            (results / "preflight-ssh.txt").write_text(output)
+            require_success(output)
         except (RuntimeError, subprocess.SubprocessError):
             (results / "preflight-connectivity.txt").write_text(
                 shell("dumpsys", "connectivity")
             )
-            raise RuntimeError(
-                "Disposable emulator cannot reach the local SSH fixture"
-            ) from None
+            raise
         tests = [(name, None) for name in TESTS]
         if args.api >= 29:
             tests.append(
