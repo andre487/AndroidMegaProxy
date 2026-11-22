@@ -94,8 +94,8 @@ abstract class DeviceTestBase {
         assertTrue("System dialog did not close: $resource", device.wait(Until.gone(By.res(resource)), 10_000))
         device.waitForIdle()
     }
-    protected fun connect() {
-        click(R.string.connect)
+    protected fun connect(startConnection: () -> Unit = { click(R.string.connect) }) {
+        startConnection()
         if (VpnService.prepare(context) != null) systemButton("android:id/button1")
         await("Real VPN did not connect") { ProxyVpnService.isRunning && vpnPresent() && VpnRuntimeState.connection.value == VpnConnectionState.CONNECTED }
         saved()
