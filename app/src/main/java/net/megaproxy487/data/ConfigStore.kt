@@ -819,7 +819,7 @@ class ConfigStore(context: Context) {
         put("routeAllApps", settings.routeAllApps)
         put("bypassLocalNetworks", settings.bypassLocalNetworks)
         put("mtu", settings.mtu)
-        put("strictSourceValidation", settings.strictSourceValidation)
+        settings.sourceValidationOverride?.let { put("strictSourceValidation", it) }
         put("sourceValidationLevel", settings.sourceValidationLevel.name)
     }.toString()
 
@@ -842,7 +842,8 @@ class ConfigStore(context: Context) {
         val parsedTls = enumValue(item.optString("fingerprint"), TlsProfile.DEFAULT)
         GlobalConnectionSettings(
             mtu = mtu,
-            strictSourceValidation = item.optBoolean("strictSourceValidation", false),
+            // Older writers also stored false for untouched defaults. Preserve possible explicit opt-outs.
+            sourceValidationOverride = if (item.has("strictSourceValidation")) item.getBoolean("strictSourceValidation") else null,
             sourceValidationLevel = if (item.has("sourceValidationLevel")) {
                 when (val level = item.getString("sourceValidationLevel")) {
                     "ADVANCED" -> net.megaproxy487.model.SourceValidationLevel.STRICT

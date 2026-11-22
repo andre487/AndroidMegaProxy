@@ -13,7 +13,7 @@
 MegaProxy is an open-source Android VPN client for HTTPS, SOCKS5, MASQUE α (HTTP/3)
 and SSH servers you control or trust, including **HTTPS and SSH jump hosts** for multi-hop connections.
 Route all apps or selected apps through your server. Optional **app ownership checks** on Android 10+
-validate TCP/UDP sources. Disabled by default, with [Standard and Strict levels](docs/en/source-validation.md).
+validate TCP/UDP sources. Split tunneling defaults to [Standard](docs/en/source-validation.md), and all-app routing defaults to off.
 No account, ads, analytics or remote telemetry. **Servers and credentials are not included.**
 
 ## Installation

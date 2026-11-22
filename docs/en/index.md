@@ -8,8 +8,8 @@ are not included; server setup lives in [MegaProxyServer](https://github.com/and
 ## Start here
 
 1. [Install MegaProxy](installation.md), then add or import a [server profile](profiles-and-routing.md).
-2. Select all apps or choose apps in **Split tunneling**. Android 10+ also offers optional
-   [app ownership checks](source-validation.md), off by default.
+2. Select all apps or choose apps in **Split tunneling**. On Android 10+, selecting apps enables
+   [Standard ownership checks](source-validation.md) by default.
 3. Tap **Connect** and approve Android's VPN request.
 4. Open **Diagnostics**: the connection test starts automatically; speed tests unlock after success.
 

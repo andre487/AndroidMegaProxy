@@ -126,7 +126,7 @@ class VpnDeviceTest : DeviceTestBase() {
                 password = if (authenticated) argument("proxyPassword") else "",
             )))
             store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
-                routeAllApps = false, selectedPackages = setOf(context.packageName), bypassLocalNetworks = false, strictSourceValidation = strict, sourceValidationLevel = level))
+                routeAllApps = false, selectedPackages = setOf(context.packageName), bypassLocalNetworks = false, sourceValidationOverride = strict, sourceValidationLevel = level))
         }
         saved()
         directOriginUnavailable()

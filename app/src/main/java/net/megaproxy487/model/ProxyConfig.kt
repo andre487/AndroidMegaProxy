@@ -277,9 +277,12 @@ data class GlobalConnectionSettings(
     val routeAllApps: Boolean = true,
     val bypassLocalNetworks: Boolean = true,
     val mtu: Int = DEFAULT_VPN_MTU,
-    val strictSourceValidation: Boolean = false,
+    val sourceValidationOverride: Boolean? = null,
     val sourceValidationLevel: SourceValidationLevel = SourceValidationLevel.STANDARD,
 ) {
+    val strictSourceValidation: Boolean
+        get() = sourceValidationOverride ?: (!routeAllApps && android.os.Build.VERSION.SDK_INT >= 29)
+
     fun applyTo(config: ProxyConfig): ProxyConfig = config.copy(
         profile = if (tlsProfile == TlsProfile.DEFAULT) TlsProfile.FIREFOX_ANDROID else tlsProfile,
         customJa3 = if (config.type == ProxyType.MASQUE) config.customJa3 else customJa3,

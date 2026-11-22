@@ -61,7 +61,7 @@ class ConfigEditsTest {
     @Test fun globalFieldEditsPreserveNewRoutingFailoverAndFingerprintValues() {
         val initial = GlobalConnectionSettings()
         val remote = initial.copy(tlsProfile = TlsProfile.FIREFOX_ANDROID, bypassLocalNetworks = false,
-            failoverMode = FailoverMode.ALL, customJa3 = "remote", selectedPackages = setOf("new.package"), mtu = 1420, strictSourceValidation = true, sourceValidationLevel = SourceValidationLevel.STRICT)
+            failoverMode = FailoverMode.ALL, customJa3 = "remote", selectedPackages = setOf("new.package"), mtu = 1420, sourceValidationOverride = true, sourceValidationLevel = SourceValidationLevel.STRICT)
         var saved = remote
         ConfigEdits<GlobalConnectionSettings>().settings(initial, initial.copy(sshKeepaliveSeconds = 60))
             .write { saved = it(saved) }

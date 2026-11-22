@@ -37,7 +37,7 @@ class SourceProtectionTest {
     }
 
     @Test fun profileImportsCannotDisableLocalProtection() {
-        val current = net.megaproxy487.model.GlobalConnectionSettings(strictSourceValidation = true, sourceValidationLevel = SourceValidationLevel.STRICT)
+        val current = net.megaproxy487.model.GlobalConnectionSettings(sourceValidationOverride = true, sourceValidationLevel = SourceValidationLevel.STRICT)
         for (fields in listOf<Set<String>?>(null, emptySet(), setOf("routing.routeAllApps"))) {
             val imported = net.megaproxy487.data.PortableConfiguration(emptyList(), null, null,
                 globalConnectionSettings = net.megaproxy487.model.GlobalConnectionSettings(), globalSettingFields = fields)

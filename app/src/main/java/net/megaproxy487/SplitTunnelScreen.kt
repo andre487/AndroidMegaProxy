@@ -216,7 +216,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                         Modifier.fillMaxWidth().heightIn(min = 56.dp).toggleable(
                             value = settings.strictSourceValidation,
                             enabled = supported || settings.strictSourceValidation,
-                            onValueChange = { updateSettings(settings.copy(strictSourceValidation = it)) },
+                            onValueChange = { updateSettings(settings.copy(sourceValidationOverride = it)) },
                             role = Role.Switch,
                         ),
                         verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
@@ -235,7 +235,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                                 Row(
                                     Modifier.fillMaxWidth().heightIn(min = 56.dp).selectable(
                                         selected = settings.sourceValidationLevel == level,
-                                        onClick = { updateSettings(settings.copy(sourceValidationLevel = level)) },
+                                        onClick = { updateSettings(settings.copy(sourceValidationOverride = true, sourceValidationLevel = level)) },
                                         role = Role.RadioButton,
                                     ),
                                     verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,

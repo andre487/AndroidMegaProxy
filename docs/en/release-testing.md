@@ -148,7 +148,7 @@ field height above it, and navigation returning when the keyboard closes. Inspec
 and scrolling as well. In short windows the app bar disappears while typing; notices
 move into the scrollable form. Orientation and font arguments affect only the test Activity. Afterward uninstall only `net.megaproxy487.keyboardreview.test` and `net.megaproxy487.keyboardreview`.
 
-For strict source validation changes, check opt-in persistence and pending reconnect status,
+For strict source validation changes, check that split routing defaults to Standard on Android 10+, all-app routing defaults to off, and explicit choices persist across mode changes and reconnection,
 API 26 unavailability, and API 35 real TCP/UDP/DNS through JNI at both levels. Check unknown/stale UID denial,
 UDP source-port reuse (immediate denial in Strict; sliding 1-second idle window in Standard), both Echo families and preserved MTU errors with deterministic native/JVM
 tests. Verify disabled sessions install no filtering wrappers. A visibility status is not a

@@ -3,8 +3,9 @@
 [Русский](../ru/source-validation.md) · [All guides](index.md)
 
 **Strict source validation** checks which app owns TCP/UDP traffic before forwarding it.
-Enable it in **Settings → Split tunneling** on Android 10+. It defaults to off, applies on
-reconnection and stays on this device: exports and subscriptions cannot enable it.
+On Android 10+, split tunneling defaults to Standard and all-app routing defaults to off.
+An explicit choice in **Settings → Split tunneling** persists across routing changes, imports and updates.
+Changes apply on reconnection. Older installations keep their saved on/off setting.
 With it off, the original native path has no UID queries, validation caches or added packet checks.
 
 ## Levels and cost
