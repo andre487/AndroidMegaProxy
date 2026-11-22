@@ -2,14 +2,20 @@ package net.megaproxy487
 
 import android.os.Process
 import android.util.Base64
-import android.view.accessibility.AccessibilityNodeInfo
+import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.hasAnyAncestor
+import androidx.compose.ui.test.hasSetTextAction
+import androidx.compose.ui.test.hasText
+import androidx.compose.ui.test.isDialog
+import androidx.compose.ui.test.junit4.createEmptyComposeRule
+import androidx.compose.ui.test.performSemanticsAction
+import androidx.compose.ui.test.performTextReplacement
 import androidx.test.ext.junit.runners.AndroidJUnit4
-import androidx.test.uiautomator.By
-import androidx.test.uiautomator.Until
 import net.megaproxy487.model.KeyPassphrase
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.SshAuthMode
 import org.junit.Assert.*
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import java.io.File
@@ -17,15 +23,11 @@ import java.security.KeyStore
 
 @RunWith(AndroidJUnit4::class)
 class KeystoreProcessDeviceTest : DeviceTestBase() {
+    @get:Rule(order = Int.MIN_VALUE) val compose = createEmptyComposeRule()
+
     private fun confirmPassphrase() {
-        // Removing the error moves the button. Its semantic action stays on the dialog.
-        device.waitForIdle()
-        val dialog = requireNotNull(instrumentation.uiAutomation.rootInActiveWindow)
-        check(dialog.findAccessibilityNodeInfosByText(text(R.string.ssh_key_passphrase)).isNotEmpty())
-        val label = dialog.findAccessibilityNodeInfosByText(text(R.string.connect))
-            .single { it.text?.toString() == text(R.string.connect) }
-        val button = generateSequence(label) { it.parent }.first { it.isClickable && it.isEnabled }
-        assertTrue("Dialog rejected Connect", button.performAction(AccessibilityNodeInfo.ACTION_CLICK))
+        compose.onNode(hasAnyAncestor(isDialog()) and hasText(text(R.string.connect)))
+            .performSemanticsAction(SemanticsActions.OnClick) { it() }
     }
 
     @Test fun credentialsSurviveProcessRestart() {
@@ -82,13 +84,15 @@ class KeystoreProcessDeviceTest : DeviceTestBase() {
             click(R.string.cancel)
             stopped()
             click(R.string.connect)
-            appNode(By.clazz("android.widget.EditText")).text = "incorrect"
+            val input = compose.onNode(hasAnyAncestor(isDialog()) and hasSetTextAction())
+            input.performTextReplacement("incorrect")
             confirmPassphrase()
-            appNode(By.text(text(R.string.ssh_unlock_failed)))
+            compose.waitUntil(10_000) {
+                compose.onAllNodes(hasAnyAncestor(isDialog()) and hasText(text(R.string.ssh_unlock_failed)))
+                    .fetchSemanticsNodes().isNotEmpty()
+            }
             assertFalse(store.isConnectionDesired())
-            appNode(By.clazz("android.widget.EditText")).text = phrase
-            assertTrue("Corrected input still shows the previous error",
-                device.wait(Until.gone(By.text(text(R.string.ssh_unlock_failed))), 10_000))
+            input.performTextReplacement(phrase)
             connect(::confirmPassphrase)
             roundTrip()
             assertTrue(store.activeProfile().config.privateKeyPassphrase == KeyPassphrase(phrase))
