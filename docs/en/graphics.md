@@ -1,6 +1,6 @@
 # Updating artwork
 
-[Fastlane commands](fastlane.md)
+[CLI commands](commands.md)
 
 [MegaProxyIdentity](https://github.com/andre487/MegaProxyIdentity) is the source of truth for
 MegaProxy artwork. Edit its SVGs, then regenerate AndroidMegaProxy's committed PNG/XML outputs.
@@ -15,12 +15,12 @@ macOS or `sudo apt-get install librsvg2-bin` on Debian/Ubuntu), and use the proj
 Python uses only the standard library; generation does not require Pillow or ImageMagick.
 
 ```sh
-bundle exec fastlane android update_graphics
+uv run manage.py update-graphics
 # Reproduce a reviewed Identity revision:
-bundle exec fastlane android update_graphics ref:FULL_SHA
+uv run manage.py update-graphics --ref FULL_SHA
 ```
 
-The lane calls `scripts/update_graphics.py`. It resolves one Identity commit and downloads all
+The command calls `scripts/update_graphics.py`. It resolves one Identity commit and downloads all
 inputs at that SHA before rendering. It replaces outputs only after every download and render
 succeeds. Review the images and commit them together with `assets/branding/identity-lock.json`.
 The lock records source/output SHA-256 hashes and the renderer version; use the same librsvg
@@ -45,7 +45,7 @@ The social preview is rendered directly from its dedicated Identity SVG.
 Identity-derived artwork retains the upstream license in `assets/branding/IDENTITY-LICENSE`;
 the GitHub badge retains its separate notices.
 
-`bundle exec fastlane android python_checks` verifies committed hashes, output dimensions,
+`uv run manage.py python checks` verifies committed hashes, output dimensions,
 source pinning, layer extraction and preservation of existing files when rendering fails.
 It also rejects untracked-by-manifest artwork outside screenshots and the GitHub badge source.
 

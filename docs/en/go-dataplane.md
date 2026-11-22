@@ -14,25 +14,25 @@ entry. Go closes only its own duplicate; Java retains responsibility for the des
 The bridge passes the configured Android TUN MTU explicitly (default 1400). Generated gomobile types are
 compile-time JVM dependencies, so signature changes must compile on both sides.
 
-Use the supported Fastlane commands from the repository root:
+Use the supported CLI commands from the repository root:
 
 ```shell
-bundle exec fastlane android native_tests
-bundle exec fastlane android native_fuzz
-bundle exec fastlane android native_integration
-bundle exec fastlane android debug_artifact
+uv run manage.py native tests
+uv run manage.py native fuzz
+uv run manage.py native integration
+uv run manage.py android debug
 ```
 
-`native_tests` includes the Go race detector; `native_fuzz` runs a bounded 20-second parser campaign.
-`native_integration` requires Docker and exercises production dialers against real GOST/OpenSSH
+`native tests` includes the Go race detector; `native fuzz` runs a bounded 20-second parser campaign.
+`native integration` requires Docker and exercises production dialers against real GOST/OpenSSH
 servers and a private HTTP/UDP origin. It runs in the native CI job, with no Android emulator.
-See the [fixture and scenario details](fastlane.md#dependencies-and-releases).
+See the [fixture and scenario details](commands.md#dependencies-and-releases).
 Android build lanes prepare `app/libs/megaproxy.aar` through `scripts/build-fdroid-native.sh`, which
 installs the pinned gomobile/gobind version and uses the reproducible binding flags. Do not replace
 that build path with `gomobile@latest`. Go dependencies are pinned in `go.mod` and `go.sum`.
 
 Requirements and environment setup are in the root [README](../../README.md#building-from-source)
-and the [Fastlane reference](fastlane.md). Native tests use local servers and synthetic
+and the [CLI reference](commands.md). Native tests use local servers and synthetic
 file descriptors; they do not certify real Android TUN/JNI lifecycle behavior.
 
 MASQUE uses uQUIC with protected UDP sockets and one shared HTTP/3 session.

@@ -30,10 +30,9 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          ruby-version: "3.4.10"
-          bundler-cache: true
+          version: "0.13.8"
       - name: Prepare release PR
         id: prepare
         env:
@@ -46,7 +45,7 @@ jobs:
           test -n "$OPENAI_API_KEY" || { echo 'Configure OPENAI_API_KEY'; exit 1; }
           test -n "$OPENAI_RELEASE_MODEL" || { echo 'Configure OPENAI_RELEASE_MODEL in Actions Variables or Secrets'; exit 1; }
           gh auth setup-git
-          bundle exec fastlane android release_prepare
+          uv run --locked manage.py release prepare
 
   finalize:
     needs: prepare
@@ -59,10 +58,9 @@ jobs:
           ref: ${{ github.sha }}
           fetch-depth: 0
           persist-credentials: false
-      - uses: ruby/setup-ruby@v1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          ruby-version: "3.4.10"
-          bundler-cache: true
+          version: "0.13.8"
       - name: Require full CI, merge, and tag
         env:
           GH_TOKEN: ${{ secrets.RELEASE_BOT_TOKEN }}
@@ -72,4 +70,4 @@ jobs:
         run: |
           test -n "$GH_TOKEN" || { echo 'Configure RELEASE_BOT_TOKEN'; exit 1; }
           gh auth setup-git
-          bundle exec fastlane android release_finish
+          uv run --locked manage.py release finish

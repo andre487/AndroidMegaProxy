@@ -46,21 +46,21 @@
     {
       "label": "Test: Go core",
       "type": "shell",
-      "command": "source \"$HOME/.zshrc.extra\"; bundle exec fastlane android native_tests",
+      "command": "source \"$HOME/.zshrc.extra\"; uv run manage.py native tests",
       "group": "test",
       "problemMatcher": []
     },
     {
       "label": "Test: Android checks",
       "type": "shell",
-      "command": "source \"$HOME/.zshrc.extra\"; bundle exec fastlane android android_checks",
+      "command": "source \"$HOME/.zshrc.extra\"; uv run manage.py android checks",
       "group": "test",
       "problemMatcher": []
     },
     {
       "label": "Test: All",
       "type": "shell",
-      "command": "source \"$HOME/.zshrc.extra\"; bundle exec fastlane android test",
+      "command": "source \"$HOME/.zshrc.extra\"; uv run manage.py test",
       "group": {
         "kind": "test",
         "isDefault": true
@@ -70,7 +70,7 @@
     {
       "label": "Android: Build debug APK",
       "type": "shell",
-      "command": "source \"$HOME/.zshrc.extra\"; bundle exec fastlane android debug_artifact",
+      "command": "source \"$HOME/.zshrc.extra\"; uv run manage.py android debug",
       "group": {
         "kind": "build",
         "isDefault": true

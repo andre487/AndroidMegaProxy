@@ -887,14 +887,9 @@ class ReleaseTests(unittest.TestCase):
                     patch.object(m, "generate_notes", return_value=GENERATED),
                     patch.object(m, "emit"),
                 ):
-                    # ruby/setup-ruby creates these before release preparation.
-                    for name in (
-                        ".bundle/config",
-                        "vendor/bundle/ruby/gems/fixture.rb",
-                    ):
-                        path = work / name
-                        path.parent.mkdir(parents=True, exist_ok=True)
-                        path.write_text("Bundler fixture\n")
+                    env = work / ".venv"
+                    env.mkdir()
+                    (env / "pyvenv.cfg").write_text("uv fixture\n")
                     self.assertEqual("", git("status", "--porcelain"))
                     for path in (work / m.GRADLE, work / "unexpected.txt"):
                         original = path.read_text() if path.exists() else None

@@ -163,7 +163,7 @@ class ChangeScopeTest(unittest.TestCase):
                 "emulator26": False,
                 "emulator35": False,
             },
-            m.classify(["scripts/github_actions.py", "docs/en/fastlane.md"]),
+            m.classify(["scripts/github_actions.py", "docs/en/commands.md"]),
         )
 
     def test_docs_only_skip_all_suites(self):
@@ -210,7 +210,10 @@ class ChangeScopeTest(unittest.TestCase):
             self.assertTrue(m.classify([name])["android"])
         for name in [
             ".github/workflows/ci.yml",
-            "fastlane/Fastfile",
+            "manage.py",
+            "uv.lock",
+            ".python-version",
+            "pyproject.toml",
             "new-build-input.conf",
             "scripts/ci_changes.py",
             "scripts/ci_history.py",

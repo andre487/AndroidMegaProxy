@@ -126,17 +126,16 @@ replacing local profiles or interrupting current tunnels; changed live settings 
 
 ## Building from source
 
-Use JDK 21, Go 1.26.3+ (`native/go.mod`), Ruby 3.4.10, Android SDK Platform 36 /
+Use JDK 21, Go 1.26.3+ (`native/go.mod`), uv, Android SDK Platform 36 /
 Build Tools 36.0.0 and NDK 29.0.14206865. Set `ANDROID_HOME`; native builds download pinned
 Go tooling. JDK discovery uses `JAVA_HOME`, macOS `java_home` or `PATH` without a fixed install path.
 
 ```sh
-bundle install
-bundle exec fastlane android debug_artifact
+uv sync --locked
+uv run manage.py android debug
 ```
 
-Output: `app/build/outputs/apk/debug/app-debug.apk`. Use the checked-in Gradle wrapper through
-Fastlane. Setup, tests, emulator and signing: [Fastlane guide](docs/en/fastlane.md).
+Output: `app/build/outputs/apk/debug/app-debug.apk`. Use the checked-in Gradle wrapper through the project CLI. Setup, tests, emulator and signing: [CLI guide](docs/en/commands.md).
 [Go dataplane](docs/en/go-dataplane.md) · [Release automation](docs/en/release-automation.md).
 
 ## Contributing

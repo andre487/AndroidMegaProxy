@@ -21,7 +21,7 @@ __pycache__/
 .venv/
 .playwright-cli/
 
-# Local Bundler configuration and installed gems
+# Local files left by older Bundler-based builds
 /.bundle/
 /vendor/bundle/
 

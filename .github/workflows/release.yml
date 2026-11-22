@@ -36,11 +36,9 @@ jobs:
           go-version-file: native/go.mod
           cache-dependency-path: native/go.sum
 
-      - name: Set up Ruby and Fastlane
-        uses: ruby/setup-ruby@v1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          ruby-version: "3.4.10"
-          bundler-cache: true
+          version: "0.13.8"
 
       - name: Install Android SDK components
         run: |
@@ -92,13 +90,13 @@ jobs:
           MEGAPROXY_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
           MEGAPROXY_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           MEGAPROXY_GIT_COMMIT: ${{ github.sha }}
-        run: bundle exec fastlane android release_artifacts
+        run: uv run --locked manage.py release artifacts
 
       - name: Scan signed APKs with VirusTotal
         timeout-minutes: 35
         env:
           VIRUSTOTAL_API_KEY: ${{ secrets.VIRUSTOTAL_API_KEY }}
-        run: bundle exec fastlane android virus_total
+        run: uv run --locked manage.py release virus-total
 
       - name: Preserve VirusTotal reports
         if: always()
@@ -141,4 +139,4 @@ jobs:
       - name: Attach VirusTotal links to release notes
         env:
           GH_TOKEN: ${{ github.token }}
-        run: python3 scripts/virus_total.py --attach-to-release "$GITHUB_REF_NAME"
+        run: uv run --locked python scripts/virus_total.py --attach-to-release "$GITHUB_REF_NAME"

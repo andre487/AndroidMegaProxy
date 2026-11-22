@@ -34,10 +34,9 @@ jobs:
         with:
           go-version-file: native/go.mod
           cache-dependency-path: native/go.sum
-      - uses: ruby/setup-ruby@v1
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
-          ruby-version: "3.4.10"
-          bundler-cache: true
+          version: "0.13.8"
       - uses: android-actions/setup-android@v4
         with:
           packages: platform-tools
@@ -60,7 +59,7 @@ jobs:
           echo "ANDROID_NDK_HOME=$ANDROID_HOME/ndk/29.0.14206865" >> "$GITHUB_ENV"
           "$ANDROID_HOME/emulator/emulator" -accel-check
       - name: Build debug and instrumentation APKs
-        run: bundle exec fastlane android device_test_build
+        run: uv run --locked manage.py android device-build
       - name: Run real Android tests
         id: device_tests
         continue-on-error: true
@@ -79,7 +78,7 @@ jobs:
           script: |
             mkdir -p test-results/android-api${{ inputs.api }}
             touch test-results/android-api${{ inputs.api }}/runner-started
-            bundle exec fastlane android device_tests api:${{ inputs.api }}
+            uv run --locked manage.py android device-tests --api ${{ inputs.api }}
       - name: Collect runner diagnostics
         if: ${{ !cancelled() && steps.device_tests.outcome == 'failure' }}
         env:

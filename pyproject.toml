@@ -1,8 +1,21 @@
+[project]
+name = "megaproxy-tools"
+version = "0.0.0"
+requires-python = ">=3.12"
+dependencies = ["click>=8.1,<9"]
+
+[dependency-groups]
+dev = [
+    "black==26.10.1",
+    "isort==9.0.1",
+    "unittest-xml-reporting==4.0.0",
+]
+
 [tool.black]
 line-length = 88
-target-version = ["py310"]
+target-version = ["py312"]
 
 [tool.isort]
 profile = "black"
 line_length = 88
-py_version = 310
+py_version = 312

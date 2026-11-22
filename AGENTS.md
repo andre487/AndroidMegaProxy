@@ -9,16 +9,14 @@ branch names, credentials, signing material, or other secrets.
 - JDK 21 is the project toolchain. CI and F-Droid builds must use JDK 21. Local configuration must
   discover a compatible JDK without hard-coding a Homebrew, macOS architecture, or user-specific
   installation path.
-- Fastlane is the primary supported entry point for builds, checks, tests, and release artifacts.
-  Run it through Bundler (`bundle exec fastlane ...`) so `Gemfile.lock` controls dependency versions.
-  Keep the command reference in `docs/en/fastlane.md` synchronized with the lanes in `fastlane/Fastfile`.
-- Direct scripts and Gradle tasks may remain implementation details behind Fastlane lanes, but
-  documentation and CI should normally expose the Fastlane commands.
+- Manage builds, checks, emulator tests and releases through the Click commands in `manage.py`.
+  Use `uv run manage.py` locally and `uv run --locked manage.py` in CI. Keep the command reference
+  in `docs/en/commands.md` in sync. Keep F-Droid listing files in `fastlane/metadata/android`.
 - Launch local Android emulators with `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and
   their lowercase variants unset, so emulator networking does not inherit the host proxy.
 
-- Python runtime scripts use the standard library and native `gh` for GitHub access. Format with
-  pinned Black/isort through `python_format`; `python_tests` and `python_checks` use `PYTHON`.
+- Run all host-side project Python in the same uv-managed environment. Pin dependencies in
+  `pyproject.toml` and `uv.lock`. Run `uv run manage.py python format` and `uv run manage.py python checks`.
 
 ## CI and artifacts
 
@@ -40,7 +38,7 @@ branch names, credentials, signing material, or other secrets.
   signing material and must never produce or publish a signed release APK.
 - Surface downloadable APK artifacts in the GitHub Actions job summary in addition to uploading
   them through `actions/upload-artifact`.
-- Test lanes produce JUnit XML. CI uploads separate `junit-*` artifacts on success or failure and
+- Test commands produce JUnit XML. CI uploads separate `junit-*` artifacts on success or failure and
   publishes each suite's GitHub Check independently as soon as its job finishes; fork reports use trusted `workflow_run`
   without executing PR code. Keep original suite checks as merge requirements.
 - Prefer extracting UI-facing decisions into small production contracts and testing those with
@@ -50,7 +48,7 @@ branch names, credentials, signing material, or other secrets.
   plain test Application. Inject platform operations; do not load Go JNI or real Keystore in
   those tests. Gradle resolves pinned API 26/35 Robolectric SDK jars before tests; the test
   runtime uses offline resolution. UI tests dispatch configuration work deterministically;
-  a controlled worker test verifies the background-read boundary. They run through Fastlane
+  a controlled worker test verifies the background-read boundary. They run through the project CLI
   Android checks without an emulator.
 - Exercise real screens and ConfigStore with a test-only Keystore provider. Before asserting
   service commands or their absence, drain ordered configuration writes and check both completion
@@ -59,12 +57,12 @@ branch names, credentials, signing material, or other secrets.
 - Keep device tests focused on real TUN/JNI traffic, service lifecycle, system permissions,
   Keystore process restarts and document providers. Keep deterministic logic in JVM/Go tests.
   Never fall back to unaccelerated software emulation or retry failed tests to obtain green CI.
-- The native CI job also runs `native_integration`: real GOST/OpenSSH containers and a private
+- The native CI job also runs `native integration`: real GOST/OpenSSH containers and a private
   HTTP origin, using disposable credentials and the production dialers. Keep it separate from
   ordinary local Go tests and Android TUN/JNI coverage; never use a public or personal proxy.
 
 - Vendor MegaProxyConfig schemas/examples with commit and SHA-256 in `config-schema/`. Update only
-  through `bundle exec fastlane android renew_config_schema [ref:FULL_SHA]`; CI never fetches upstream.
+  through `uv run manage.py renew-config-schema [--ref FULL_SHA]`; CI never fetches upstream.
   JVM checks validate real exports against both schemas. Keep permissive legacy imports; omitted
   transport types default to HTTPS, but explicit unsupported transports fail instead of changing
   protocol. Report
@@ -74,12 +72,12 @@ branch names, credentials, signing material, or other secrets.
 ## Releases and distribution
 
 - Release builds and signing are separate from PR CI. Release artifacts are created only through
-  the dedicated release workflow/Fastlane lane.
+  the dedicated release workflow and CLI command.
 - Release notes compare against the last reachable published stable release with all APKs and
   checksums; skip failed releases and bare tags. Use the actual Git diff and concise EN/RU bullets
   with one sentence per change.
   Keep GitHub notes in `release-notes/X.Y.Z.md` separate from F-Droid's 500-character summaries;
-  preview existing releases through `release_notes_preview` without rewriting published history.
+  preview existing releases through `release preview` without rewriting published history.
 - Automated release PRs request a merge commit; finalization also accepts squash merges. Verify
   the tested base (and release head for two-parent merges) and exact tested tree before tagging
   the actual merged commit. Same-version preparation may resume the unique merged release PR
@@ -101,7 +99,7 @@ branch names, credentials, signing material, or other secrets.
   excuse to maintain a duplicate unused build path.
 - MegaProxyIdentity SVGs are the sole source for owned artwork; screenshots and the local GitHub
   download badge are exceptions. Regenerate committed PNG/XML with
-  `bundle exec fastlane android update_graphics [ref:FULL_SHA]`; keep source/output hashes in
+  `uv run manage.py update-graphics [--ref FULL_SHA]`; keep source/output hashes in
   `assets/branding/identity-lock.json`. Normal builds must remain offline with respect to artwork.
 - Store F-Droid listing metadata and current store artwork under `fastlane/metadata/android`.
   Obsolete artwork does not need an archive copy in the working tree because Git preserves history.

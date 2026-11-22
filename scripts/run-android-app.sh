@@ -12,7 +12,7 @@ fi
 
 (
     cd "$project_dir"
-    bundle exec fastlane android debug_artifact
+    uv run manage.py android debug
 )
 
 adb -e install -r "$project_dir/app/build/outputs/apk/debug/app-debug.apk"

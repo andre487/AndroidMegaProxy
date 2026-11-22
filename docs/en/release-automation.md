@@ -137,18 +137,18 @@ unchanged. This reuses preparation outputs without paying for another API respon
 If the PR was already merged but tag creation failed, the same finalization rerun
 rechecks CI/tree and creates or verifies the tag without merging again.
 This also works after squash merge with the same version. If the helper itself
-was fixed, run `release_finish` from updated trusted `main`: rerunning an old
+was fixed, run `release finish` from updated trusted `main`: rerunning an old
 workflow uses its original code. A new workflow dispatch with the same version
 resumes the merged release PR when its tag is absent.
 
 If `main` or the PR head changed, the old finalization cannot approve that new code.
 Update the branch deliberately so its single release commit is based on current
 `main`, rerun full CI, and finalize the explicitly selected new head using a trusted
-`main` checkout, authenticated `gh`, and Fastlane:
+`main` checkout, authenticated `gh`, and uv:
 
 ```sh
 export GITHUB_REPOSITORY=andre487/AndroidMegaProxy
-bundle exec fastlane android release_finish version:0.1.2 pr:123 head:FULL_40_CHARACTER_SHA
+uv run manage.py release finish --version 0.1.2 --pr 123 --head FULL_40_CHARACTER_SHA
 ```
 
 The helper fetches the PR for validation but never checks it out or executes it.
@@ -158,7 +158,7 @@ same recovery procedure. Starting preparation again never silently adopts or
 replaces an existing branch. After a tag-build failure, rerun that build instead
 of moving the tag. Automated external F-Droid submissions are not part of this flow.
 
-Manual preparation uses `bundle exec fastlane android release_prepare version:0.1.2`
+Manual preparation uses `uv run manage.py release prepare --version 0.1.2`
 from a clean current-main checkout, with the same API/token/model configuration.
 
 API format: [OpenAI Structured Outputs](https://developers.openai.com/api/docs/guides/structured-outputs).
@@ -168,10 +168,10 @@ Merge contract: [GitHub merge API](https://docs.github.com/en/rest/pulls/pulls#m
 Preview an existing release without writing release files or publishing anything:
 
 ```shell
-bundle exec fastlane android release_notes_preview version:1.1.3 ref:v1.1.3
+uv run manage.py release preview --version 1.1.3 --ref v1.1.3
 ```
 
 Set `OPENAI_API_KEY` and `OPENAI_RELEASE_MODEL` in the environment first. The explicit
 `ref` keeps later commits out of the preview; both GitHub and F-Droid notes print to stdout.
 Automatic baseline selection requires `GITHUB_REPOSITORY=owner/repo` and authenticated `gh`.
-Use `previous:v1.1.1` only to override that selection explicitly.
+Use `--previous v1.1.1` only to override that selection explicitly.

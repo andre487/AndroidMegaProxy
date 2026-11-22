@@ -1,6 +1,6 @@
 # Testing policy
 
-[Commands and setup](fastlane.md)
+[Commands and setup](commands.md)
 
 Use the smallest layer that observes the real behaviour. Do not require every feature on
 four devices for every release, duplicate CI locally without a reason, or maintain committed
@@ -22,11 +22,11 @@ IPv6 uplinks need a separate check. Adding tests is not evidence of passing runs
 | Change | Check |
 | --- | --- |
 | Documentation / artwork only | Local links, images, EN/RU consistency and claims against source; no APK build |
-| Kotlin/UI/configuration | Relevant JVM/Robolectric tests during development; `bundle exec fastlane android android_checks` before delivery |
-| Go transport/DNS | `bundle exec fastlane android native_tests`; add `native_integration` for dialer/auth/trust/server changes |
-| Python/automation | `bundle exec fastlane android python_checks` (stdlib runtime, pinned style/test tools; Node.js for workflow JS tests) |
+| Kotlin/UI/configuration | Relevant JVM/Robolectric tests during development; `uv run manage.py android checks` before delivery |
+| Go transport/DNS | `uv run manage.py native tests`; add `native integration` for dialer/auth/trust/server changes |
+| Python/automation | `uv run manage.py python checks` (stdlib runtime, pinned style/test tools; Node.js for workflow JS tests) |
 | TUN/JNI/service/permissions/Keystore/SAF | Existing API 26/35 integration suites in CI; local disposable emulator only when needed to reproduce |
-| Broad or shared build change | All affected lanes; `test` alone excludes Python, Docker integration and devices |
+| Broad or shared build change | All affected commands; `test` alone excludes Python, Docker integration and devices |
 
 Keep parsers, formatting, resource parity, navigation and state transitions in deterministic JVM/Go
 tests. Compose interactions use the existing Robolectric harness with injected platform operations
@@ -58,7 +58,7 @@ whether to scroll; a runtime state update alone does not prove the matching cont
 - JUnit reports publish per suite immediately. A missing report or skipped suite is not a pass.
   Check publication retries only a 404 on the same Check update, twice after 1 and 3 seconds;
   it never reruns tests or creates another Check. An exhausted retry still fails publication.
-  PR APKs use no release secrets. Commands, artifacts and emulator prerequisites: [Fastlane](fastlane.md).
+  PR APKs use no release secrets. Commands, artifacts and emulator prerequisites: [Project commands](commands.md).
 
 The device suites exercise real TUN/JNI TCP/UDP, HTTPS/SOCKS5/MASQUE, HTTPS preference/fallback,
 all four Jump HTTP/3 availability pairs, QUIC presets/size/auth/trust, split routing, failover,
@@ -134,7 +134,7 @@ configuration checks local; they are not part of the VPN integration CI scenario
 Unlock phones before starting. The test Activity keeps the screen on without changing the system timeout.
 
 ```sh
-bundle exec fastlane run gradle tasks:"assembleDebug assembleDebugAndroidTest" flags:"--no-daemon -I scripts/keyboard-review.gradle"
+./gradlew --no-daemon -I scripts/keyboard-review.gradle assembleDebug assembleDebugAndroidTest
 adb -s SERIAL install app/build/outputs/apk/debug/app-debug.apk
 adb -s SERIAL install app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb -s SERIAL shell am instrument -w -r -e class net.megaproxy487.KeyboardInsetsDeviceTest -e language en -e orientation landscape -e fontScale 2.0 net.megaproxy487.keyboardreview.test/androidx.test.runner.AndroidJUnitRunner

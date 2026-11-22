@@ -5,11 +5,11 @@ in both ordinary and strict source-validation modes. RACK remains enabled. Recor
 when comparing throughput: larger queues increase ACK-processing costs, while a small cap can
 limit throughput on paths with high bandwidth and RTT.
 
-Run the Go benchmarks through Fastlane. The default suite requires no emulator, Docker,
+Run the Go benchmarks through the project CLI. The default suite requires no emulator, Docker,
 credentials or external servers and leaves production code unchanged:
 
 ```sh
-bundle exec fastlane android native_benchmarks
+uv run manage.py native benchmarks
 ```
 
 Defaults: ten samples per case, `200ms` per sample, `GOMAXPROCS=1`, no race detector or profiling.
@@ -40,9 +40,9 @@ order to expose thermal drift. A shared CI runner is unsuitable for strict timin
 these benchmarks are intentionally outside required checks.
 
 ```sh
-bundle exec fastlane android native_benchmarks output:test-results/native/before
+uv run manage.py native benchmarks --output test-results/native/before
 # Change revision or implementation, keeping the same benchmark definitions.
-bundle exec fastlane android native_benchmarks output:test-results/native/after
+uv run manage.py native benchmarks --output test-results/native/after
 benchstat test-results/native/before/bench.txt test-results/native/after/bench.txt
 
 # Compare the three modes inside one run (use an installed benchstat).
@@ -56,13 +56,13 @@ claims or average unrelated operations into one performance score. Keep the raw 
 
 ## Locate CPU and allocation hot spots
 
-Profile a narrow workload separately; profiling changes timing. `profile:true` saves CPU and
+Profile a narrow workload separately; profiling changes timing. `--profile` saves CPU and
 sampled allocation profiles plus the matching `mobile.test` binary in the output directory:
 
 ```sh
-bundle exec fastlane android native_benchmarks \
-  'bench:BenchmarkCoreUDPRead/bytes=1400/method=ReadFrom/mode=strict$' \
-  count:1 benchtime:5s profile:true output:test-results/native/profile
+uv run manage.py native benchmarks \
+  --bench 'BenchmarkCoreUDPRead/bytes=1400/method=ReadFrom/mode=strict$' \
+  --count 1 --benchtime 5s --profile --output test-results/native/profile
 
 go tool pprof -top test-results/native/profile/mobile.test test-results/native/profile/cpu.pprof
 go tool pprof -top -alloc_space test-results/native/profile/mobile.test test-results/native/profile/heap.pprof
@@ -71,8 +71,8 @@ go tool pprof -top -alloc_space test-results/native/profile/mobile.test test-res
 Use `go tool pprof -http=127.0.0.1:8080 ...` for interactive analysis. The heap profile includes
 setup/runtime allocations too; `allocs/op` is the timed operation's allocation count.
 For existing controlled local handshake/fallback benchmarks, select
-`'bench:Benchmark(HTTP2ColdStart|DNSFallbackLatency)' count:3 benchtime:1x`; their artificial
-delays test scheduling policies rather than Internet speed. `bench:BenchmarkSourcePacketFilter`
+`--bench 'Benchmark(HTTP2ColdStart|DNSFallbackLatency)' --count 3 --benchtime 1x`; their artificial
+delays test scheduling policies rather than Internet speed. `--bench BenchmarkSourcePacketFilter`
 retains the historical header-only/full-copy comparison.
 
 Actual strict-mode overhead needs a separate device experiment on Android 10+ (API 26 cannot
@@ -89,9 +89,9 @@ Transport benchmarks call dialers directly, without either strict source-validat
 Run these in order to inspect MASQUE, HTTPS and SSH separately:
 
 ```sh
-bundle exec fastlane android native_benchmarks 'bench:BenchmarkTransportMASQUE' output:test-results/native/masque
-bundle exec fastlane android native_benchmarks 'bench:BenchmarkTransportHTTPS' output:test-results/native/https
-bundle exec fastlane android native_benchmarks 'bench:BenchmarkTransportSSH' output:test-results/native/ssh
+uv run manage.py native benchmarks --bench 'BenchmarkTransportMASQUE' --output test-results/native/masque
+uv run manage.py native benchmarks --bench 'BenchmarkTransportHTTPS' --output test-results/native/https
+uv run manage.py native benchmarks --bench 'BenchmarkTransportSSH' --output test-results/native/ssh
 ```
 
 These opt-in benchmarks open only loopback listeners and use the production dialers with
@@ -120,14 +120,14 @@ exceptions. Profiles retain their normal encryption and TLS/SSH fingerprints.
 For example, profile one narrow case separately:
 
 ```sh
-bundle exec fastlane android native_benchmarks \
-  'bench:BenchmarkTransportMASQUE/datagram/bytes=1200/refresh-deadline=false$' \
-  count:1 benchtime:5s profile:true output:test-results/native/masque-profile
+uv run manage.py native benchmarks \
+  --bench 'BenchmarkTransportMASQUE/datagram/bytes=1200/refresh-deadline=false$' \
+  --count 1 --benchtime 5s --profile --output test-results/native/masque-profile
 ```
 
 Compare raw samples with benchstat as above. Unchanged stream scenarios are useful controls for
 host drift: a timing change shared by controls is not evidence of an optimization's effect.
 These are warm single-flow loopback measurements, without packet loss, congestion, radio changes,
 reconnect storms, jump chains, sustained rekey/rotation workloads, TUN or JNI. Real GOST/OpenSSH
-interoperability remains the separate `native_integration` lane; Android integration remains the
-device lanes. These results do not establish which transport is fastest on a phone.
+interoperability remains the separate `native integration` command; Android integration remains the
+device tests. These results do not establish which transport is fastest on a phone.

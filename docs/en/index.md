@@ -44,7 +44,7 @@ in-memory log. [Controls](profiles-and-routing.md#import-export-and-local-contro
 
 ## For developers
 
-- [Fastlane commands and setup](fastlane.md)
+- [CLI commands and setup](commands.md)
 - [Testing policy and release acceptance](release-testing.md)
 - [Native benchmarks and their limits](native-benchmarks.md)
 - [Release automation](release-automation.md)

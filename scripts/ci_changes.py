@@ -26,10 +26,11 @@ def classify(paths):
             or path in ("LICENSE", ".gitignore", ".gitattributes")
         ):
             continue
-        elif path.startswith((".github/", "fastlane/")) or path in (
-            "Gemfile",
-            "Gemfile.lock",
-            ".ruby-version",
+        elif path.startswith(".github/") or path in (
+            "manage.py",
+            "pyproject.toml",
+            "uv.lock",
+            ".python-version",
             "scripts/ci_changes.py",
             "scripts/ci_history.py",
         ):
@@ -40,10 +41,7 @@ def classify(paths):
                 selected.add("android")
         elif path == "scripts/android_device_tests.py":
             selected.update(("python", "emulator26", "emulator35"))
-        elif path.endswith(".py") or path in (
-            "pyproject.toml",
-            "requirements-dev.txt",
-        ):
+        elif path.endswith(".py"):
             selected.add("python")
         elif (
             path.startswith(("app/", "gradle/"))
