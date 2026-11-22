@@ -121,7 +121,7 @@ replacing local profiles or interrupting current tunnels; changed live settings 
 - HTTPS over TCP and SSH do not forward arbitrary UDP; MASQUE/SOCKS5 require a reachable UDP path.
 - MASQUE remains experimental; QUIC datagram-size and GOST interoperability limits are documented
   in the [MASQUE guide](docs/en/masque.md#fingerprints-and-limits).
-- SSH key passphrases can be unlocked for this app process or remembered locally for automatic reconnection. Passphrases are excluded from exports. Fingerprint presets are approximations.
+- For a protected SSH key, enter its passphrase when connecting or fill in the optional profile field to save it locally for automatic reconnection. Passphrases are excluded from exports. Fingerprint presets are approximations.
 - Android/OEM background restrictions still apply; explicit force-stop cannot be bypassed.
 
 ## Building from source

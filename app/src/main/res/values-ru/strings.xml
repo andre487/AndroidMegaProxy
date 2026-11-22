@@ -130,12 +130,12 @@
     <string name="private_key_optional">Приватный ключ (необязательно)</string>
     <string name="private_key_format_hint">OpenSSH или PEM. Зашифрованный PKCS#8 не поддерживается.</string>
     <string name="ssh_key_passphrase">Парольная фраза ключа</string>
-    <string name="ssh_remember_phrase">Запомнить на этом устройстве</string>
-    <string name="ssh_remember_phrase_detail">Разрешает автоматическое переподключение после перезапуска приложения. Фраза остаётся на этом устройстве.</string>
-    <string name="ssh_apply_phrase">Применить фразу</string>
+    <string name="ssh_optional_phrase">Парольная фраза ключа (необязательно)</string>
+    <string name="ssh_optional_phrase_detail">Оставьте поле пустым для ввода при подключении. Введённая здесь фраза сохраняется на устройстве.</string>
+    <string name="ssh_unlock_profile_changed">Не удалось разблокировать текущий профиль. Откройте его заново и повторите попытку.</string>
     <string name="ssh_unlock_failed">Не удалось разблокировать ключ. Проверьте фразу и повторите попытку.</string>
-    <string name="ssh_unlock_destination">Разблокируйте SSH-ключ в редакторе профиля.</string>
-    <string name="ssh_unlock_jump">Разблокируйте SSH-ключ Jump в редакторе профиля.</string>
+    <string name="ssh_unlock_destination">Парольная фраза ключа конечного сервера</string>
+    <string name="ssh_unlock_jump">Парольная фраза ключа Jump-сервера</string>
     <string name="trusted_destination_key">Доверенный ключ назначения: %1$s</string>
     <string name="jump_host">Промежуточный сервер</string>
     <string name="jump_ssh_hostname">Промежуточный сервер</string>

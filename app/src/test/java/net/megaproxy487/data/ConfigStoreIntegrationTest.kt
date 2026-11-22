@@ -59,6 +59,18 @@ class ConfigStoreIntegrationTest {
             .put("profiles", JSONArray().put(profile)).toString()),
     )
 
+    @Test fun repeatedUnlockKeepsPhrasesOffDiskAndRejectsReplacedKeys() {
+        val original = secretProfile().let { it.copy(config = store.globalConnectionSettings().applyTo(it.config)) }
+        val disk = prefs.getString("profiles_v2", null)
+        assertTrue(store.unlockForConnection(original, "first", "jump"))
+        assertTrue(store.unlockForConnection(original, "second", "jump"))
+        assertEquals(disk, prefs.getString("profiles_v2", null))
+        assertEquals(KeyPassphrase("second"), store.activeProfile().config.privateKeyPassphrase)
+        store.saveProfile(original.copy(config = original.config.withSshKey("replacement", false)))
+        assertFalse(store.unlockForConnection(original, "stale", "jump"))
+        assertEquals(KeyPassphrase(), store.activeProfile().config.privateKeyPassphrase)
+    }
+
     @Test fun localKeyPassphrasesFollowTheirOwnKeyAndNeverExport() {
         val original = secretProfile()
         val config = original.config.copy(privateKeyPassphrase = KeyPassphrase("local destination phrase", true),

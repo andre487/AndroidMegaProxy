@@ -72,6 +72,17 @@ class MainScreenUiTest : MainUiTestBase() {
         assertTrue(store.isConnectionDesired())
     }
 
+    @Test fun globalPasswordOnlyModeSkipsPromptForProtectedKeys() {
+        val profile = store.activeProfile()
+        store.saveProfile(profile.copy(config = profile.config.copy(type = net.megaproxy487.model.ProxyType.SSH,
+            privateKey = "Proc-Type: 4,ENCRYPTED")))
+        store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
+            sshAuthMode = net.megaproxy487.model.SshAuthMode.PASSWORD_ONLY))
+        screen()
+        node(R.string.connect).performScrollTo().performClick()
+        command("START_MANUAL")
+    }
+
     @Test fun grantingVpnPermissionStartsRequestedConnection() {
         val consent = Intent("test.VPN_CONSENT")
         ShadowVpnService.setPrepareResult(consent)

@@ -106,27 +106,36 @@ internal fun DiagnosticsScreen(activity: Activity, autoStart: Boolean, onBack: (
             }
         }
     }
+    val store = remember { ConfigStore(activity) }
+    val withUnlockedKeys = sshConnectionPrompt(store) { TestDiagnosticLog.fail(activity.uiText(R.string.ssh_unlock_profile_changed)) }
     val runTest = runTest@{
         if (TestDiagnosticLog.state.value == TestState.RUNNING || speedRunning) return@runTest
         TestDiagnosticLog.begin()
         scope.launch {
             try {
                 // A live VPN is tested with its actual runtime configuration in the service.
-                val error = if (ProxyVpnService.isRunning) null else withContext(net.megaproxy487.data.ConfigIoDispatcher) {
-                    val store = ConfigStore(activity)
-                    store.globalConnectionSettings().applyTo(store.activeProfile().config)
-                        .connectionValidationError()?.let { activity.uiText(it) }
+                val target = if (ProxyVpnService.isRunning) null else withContext(net.megaproxy487.data.ConfigIoDispatcher) {
+                    val profile = store.activeProfile()
+                    profile.copy(config = store.globalConnectionSettings().applyTo(profile.config))
                 }
-                if (error != null) {
-                    TestDiagnosticLog.fail(error)
+                val validation = target?.config?.profileValidationError()
+                if (validation != null) {
+                    TestDiagnosticLog.fail(activity.uiText(validation))
+                    return@launch
+                }
+                val status = withContext(net.megaproxy487.data.ConfigIoDispatcher) { readAlwaysOnVpnStatus(activity) }
+                if (status.hasOtherProvider) {
+                    TestDiagnosticLog.fail(activity.uiText(R.string.other_always_on_vpn))
+                    showAlwaysOnConflict = true
                 } else {
-                    val status = withContext(net.megaproxy487.data.ConfigIoDispatcher) { readAlwaysOnVpnStatus(activity) }
-                    if (status.hasOtherProvider) {
-                        TestDiagnosticLog.fail(activity.uiText(R.string.other_always_on_vpn))
-                        showAlwaysOnConflict = true
-                    } else {
+                    fun startTest() {
+                        TestDiagnosticLog.begin()
                         val intent = VpnService.prepare(activity)
                         if (intent == null) ProxyVpnService.test(activity) else permission.launch(intent)
+                    }
+                    if (target == null) startTest() else {
+                        TestDiagnosticLog.reset()
+                        withUnlockedKeys(target) { startTest() }
                     }
                 }
             } catch (cancelled: kotlinx.coroutines.CancellationException) {

@@ -392,17 +392,18 @@ internal fun MainScreen(
     val notificationPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
         requestVpnAccess()
     }
-    val connect = {
-        error = if (alwaysOn) null else globalSettings.applyTo(
-            (profiles.firstOrNull { it.id == activeProfileId } ?: profiles.first()).config
-        ).validationError()?.let { activity.uiText(it) }
-        if (error == null && !alwaysOn) {
-            if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
-                    activity, Manifest.permission.POST_NOTIFICATIONS,
-                ) != PackageManager.PERMISSION_GRANTED
-            ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
-            else requestVpnAccess()
-        }
+    fun continueConnection() {
+        if (Build.VERSION.SDK_INT >= 33 && ContextCompat.checkSelfPermission(
+                activity, Manifest.permission.POST_NOTIFICATIONS,
+            ) != PackageManager.PERMISSION_GRANTED
+        ) notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
+        else requestVpnAccess()
+    }
+    val promptForKeys = sshConnectionPrompt(store) {
+        error = activity.uiText(R.string.ssh_unlock_profile_changed)
+    }
+    fun withUnlockedKeys(profile: net.megaproxy487.model.ProxyProfile, connect: () -> Unit) {
+        promptForKeys(profile.copy(config = globalSettings.applyTo(profile.config)), connect)
     }
 
     Scaffold(
@@ -539,7 +540,7 @@ internal fun MainScreen(
             val displayedProfileId = if (alwaysOn) runtimeProfileId.ifEmpty { connectionProfileId } else activeProfileId
             val activeProfile = profiles.firstOrNull { it.id == displayedProfileId } ?: profiles.first()
             val actualProfile = profiles.firstOrNull { it.id == runtimeProfileId }
-            val activeProfileError = globalSettings.applyTo(activeProfile.config).connectionValidationError()?.let { activity.uiText(it) }
+            val activeProfileError = globalSettings.applyTo(activeProfile.config).profileValidationError()?.let { activity.uiText(it) }
             val profileColor = Color(ProfileColors.argb[Math.floorMod(activeProfile.colorIndex, ProfileColors.argb.size)])
             val onProfileColor = profileForeground(profileColor)
             Box(Modifier.fillMaxWidth()) {
@@ -598,14 +599,13 @@ internal fun MainScreen(
                                     },
                                     onClick = {
                                         val useAsAlwaysOn = alwaysOn
-                                        if (useAsAlwaysOn) {
-                                            connectionProfileId = profile.id
+                                        if (useAsAlwaysOn || connection != VpnConnectionState.DISCONNECTED) {
+                                            withUnlockedKeys(profile) {
+                                                if (useAsAlwaysOn) connectionProfileId = profile.id else activeProfileId = profile.id
+                                                ProxyVpnService.switchProfile(activity, profile.id, useAsAlwaysOn)
+                                            }
                                         } else {
                                             activeProfileId = profile.id
-                                        }
-                                        if (useAsAlwaysOn || connection != VpnConnectionState.DISCONNECTED) {
-                                            ProxyVpnService.switchProfile(activity, profile.id, useAsAlwaysOn)
-                                        } else {
                                             ConfigWrites.submit("active-profile") { store.setActiveProfile(profile.id) }
                                         }
                                         profileMenuExpanded = false
@@ -637,7 +637,8 @@ internal fun MainScreen(
                     } else if (connection != VpnConnectionState.DISCONNECTED) {
                         ProxyVpnService.stop(activity)
                     } else {
-                        connect()
+                        error = null
+                        withUnlockedKeys(activeProfile) { continueConnection() }
                     }
                 },
                 enabled = connectionActionEnabled(connection, alwaysOn, writeStatus, activeProfileError == null),
@@ -653,7 +654,7 @@ internal fun MainScreen(
             }
             if (connected) {
                 FilledTonalButton(shape = RoundedCornerShape(12.dp),
-                    onClick = { ProxyVpnService.reconnect(activity) },
+                    onClick = { withUnlockedKeys(actualProfile ?: activeProfile) { ProxyVpnService.reconnect(activity) } },
                     enabled = writeStatus.pending == 0 && !writeStatus.failed,
                     modifier = Modifier.fillMaxWidth(),
                 ) {

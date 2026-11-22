@@ -131,12 +131,12 @@
     <string name="private_key_optional">Private key (optional)</string>
     <string name="private_key_format_hint">OpenSSH or PEM. Encrypted PKCS#8 is unsupported.</string>
     <string name="ssh_key_passphrase">Key passphrase</string>
-    <string name="ssh_remember_phrase">Remember on this device</string>
-    <string name="ssh_remember_phrase_detail">Allows automatic reconnection after the app restarts. The passphrase stays on this device.</string>
-    <string name="ssh_apply_phrase">Apply passphrase</string>
+    <string name="ssh_optional_phrase">Key passphrase (optional)</string>
+    <string name="ssh_optional_phrase_detail">Leave empty to enter the passphrase when connecting. A filled passphrase is saved on this device.</string>
+    <string name="ssh_unlock_profile_changed">Could not unlock the current profile. Reopen it and try again.</string>
     <string name="ssh_unlock_failed">Could not unlock this key. Check the passphrase and try again.</string>
-    <string name="ssh_unlock_destination">Unlock the SSH key in the profile editor.</string>
-    <string name="ssh_unlock_jump">Unlock the jump SSH key in the profile editor.</string>
+    <string name="ssh_unlock_destination">Destination key passphrase</string>
+    <string name="ssh_unlock_jump">Jump key passphrase</string>
     <string name="trusted_destination_key">Trusted destination key: %1$s</string>
     <string name="jump_host">Jump host</string>
     <string name="jump_ssh_hostname">Jump server</string>

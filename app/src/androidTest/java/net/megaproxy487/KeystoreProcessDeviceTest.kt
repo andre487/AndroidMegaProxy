@@ -3,6 +3,7 @@ package net.megaproxy487
 import android.os.Process
 import android.util.Base64
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import androidx.test.uiautomator.By
 import net.megaproxy487.model.KeyPassphrase
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.SshAuthMode
@@ -57,6 +58,25 @@ class KeystoreProcessDeviceTest : DeviceTestBase() {
             io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(sshAuthMode = SshAuthMode.KEY_ONLY)) }
             connect()
             roundTrip() // No password fallback: the recovered key must authenticate.
+            click(R.string.disconnect)
+            stopped()
+            io {
+                val profile = store.activeProfile()
+                store.saveProfile(profile.copy(config = profile.config.copy(privateKeyPassphrase = KeyPassphrase())))
+            }
+            scenario.recreate()
+            click(R.string.connect)
+            click(R.string.cancel)
+            stopped()
+            click(R.string.connect)
+            appNode(By.clazz("android.widget.EditText")).text = "incorrect"
+            click(R.string.connect)
+            appNode(By.text(text(R.string.ssh_unlock_failed)))
+            assertFalse(store.isConnectionDesired())
+            appNode(By.clazz("android.widget.EditText")).text = phrase
+            connect()
+            roundTrip()
+            assertTrue(store.activeProfile().config.privateKeyPassphrase == KeyPassphrase(phrase))
             marker.delete()
         }
     }

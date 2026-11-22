@@ -93,14 +93,25 @@ data class ProxyConfig(
         }
 
     @StringRes
-    fun connectionValidationError(): Int? = when {
+    fun connectionValidationError(): Int? = profileValidationError() ?: when {
+        needsSshPassphrase(false) -> R.string.ssh_unlock_destination
+        needsSshPassphrase(true) -> R.string.ssh_unlock_jump
+        else -> null
+    }
+
+    internal fun needsSshPassphrase(jump: Boolean, requireSaved: Boolean = false): Boolean {
+        if (!type.isSsh || sshAuthMode == SshAuthMode.PASSWORD_ONLY ||
+            (jump && (type != ProxyType.SSH_JUMP || sameJumpAuthentication))) return false
+        val phrase = if (jump) jumpPrivateKeyPassphrase else privateKeyPassphrase
+        return (phrase.value.isEmpty() || requireSaved && !phrase.remember) &&
+            protectedSshKey(if (jump) jumpPrivateKey else privateKey)
+    }
+
+    @StringRes
+    fun profileValidationError(): Int? = when {
         storageUnavailable -> R.string.error_config_storage
         mtu !in VPN_MTU_RANGE -> R.string.mtu_invalid
         unavailableAuthentication() -> R.string.error_credentials_unavailable
-        type.isSsh && sshAuthMode != SshAuthMode.PASSWORD_ONLY && privateKeyPassphrase.value.isEmpty() &&
-            protectedSshKey(privateKey) -> R.string.ssh_unlock_destination
-        type == ProxyType.SSH_JUMP && !sameJumpAuthentication && sshAuthMode != SshAuthMode.PASSWORD_ONLY &&
-            jumpPrivateKeyPassphrase.value.isEmpty() && protectedSshKey(jumpPrivateKey) -> R.string.ssh_unlock_jump
         host.isBlank() -> if (!type.isSsh) R.string.validation_proxy_host else R.string.validation_ssh_host
         !validProxyHost(host) -> R.string.validation_host_format
         port !in 1..65535 -> R.string.validation_port

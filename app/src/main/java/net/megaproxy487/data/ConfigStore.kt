@@ -631,6 +631,20 @@ class ConfigStore(context: Context) {
         return counts.indices.minWithOrNull(compareBy<Int> { counts[it] }.thenBy { it }) ?: 0
     }
 
+    internal fun unlockForConnection(profile: ProxyProfile, destination: String, jump: String): Boolean = synchronized(storageLock) {
+        val stored = profile(profile.id)?.config ?: return@synchronized false
+        val latest = globalConnectionSettings().applyTo(stored)
+        // A previous prompt can change the in-memory phrases while this screen stays open.
+        fun ProxyConfig.withoutSessionPhrases() = copy(
+            privateKeyPassphrase = privateKeyPassphrase.takeIf { it.remember } ?: KeyPassphrase(),
+            jumpPrivateKeyPassphrase = jumpPrivateKeyPassphrase.takeIf { it.remember } ?: KeyPassphrase(),
+        )
+        if (latest.withoutSessionPhrases() != profile.config.withoutSessionPhrases()) return@synchronized false
+        if (destination.isNotEmpty()) sessionPhrases[profile.id to "privateKeyPassphrase"] = profile.config.privateKey to KeyPassphrase(destination)
+        if (jump.isNotEmpty()) sessionPhrases[profile.id to "jumpPrivateKeyPassphrase"] = profile.config.jumpPrivateKey to KeyPassphrase(jump)
+        true
+    }
+
     private fun updateSessionPhrases(profiles: List<ProxyProfile>) {
         sessionPhrases.clear()
         for (profile in profiles) {

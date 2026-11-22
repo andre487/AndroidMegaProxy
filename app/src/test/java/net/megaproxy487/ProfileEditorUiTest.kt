@@ -10,6 +10,18 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ProfileEditorUiTest : MainUiTestBase() {
+    @Test fun optionalSshPhraseSavesOnEditAndClearsOnDeletion() {
+        val profile = store.activeProfile()
+        store.saveProfile(profile.copy(config = profile.config.copy(type = ProxyType.SSH, privateKey = "Proc-Type: 4,ENCRYPTED")))
+        content { ProfileEditorScreen(activity, profile.id, {}) }
+        field(R.string.ssh_optional_phrase).performTextReplacement("local phrase")
+        saved()
+        assertEquals(net.megaproxy487.model.KeyPassphrase("local phrase", true), store.activeProfile().config.privateKeyPassphrase)
+        field(R.string.ssh_optional_phrase).performTextClearance()
+        saved()
+        assertEquals(net.megaproxy487.model.KeyPassphrase(), store.activeProfile().config.privateKeyPassphrase)
+    }
+
     @Test fun ipv6InputsPersistAndRejectMalformedAddressesForEveryProtocol() {
         val id = store.activeProfileId()
         content { ProfileEditorScreen(activity, id, {}) }
