@@ -83,13 +83,13 @@ class InstrumentationResultTest(unittest.TestCase):
                     next(connections, None),
                     "The stale pre-reconnect network must not satisfy readiness",
                 )
-                shell.assert_any_call("svc", "data", "disable")
                 shell.assert_any_call(
                     "settings", "put", "global", "captive_portal_mode", "0"
                 )
                 shell.assert_any_call("am", "force-stop", package)
                 shell.assert_any_call("pm", "disable-user", "--user", "0", package)
                 if api == 26:
+                    shell.assert_any_call("svc", "data", "disable")
                     self.assertNotIn(
                         call("svc", "wifi", "disable"), shell.call_args_list
                     )
@@ -97,6 +97,7 @@ class InstrumentationResultTest(unittest.TestCase):
                         call("svc", "wifi", "enable"), shell.call_args_list
                     )
                 else:
+                    shell.assert_any_call("cmd", "-w", "phone", "data", "disable")
                     shell.assert_any_call("svc", "wifi", "disable")
                     shell.assert_any_call("svc", "wifi", "enable")
                 self.assertNotIn(m.PACKAGE, str(shell.call_args_list))

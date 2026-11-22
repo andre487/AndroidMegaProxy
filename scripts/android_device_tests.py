@@ -489,7 +489,11 @@ def prepare_emulator(shell, api):
             time.sleep(0.1)
         shell("svc", "wifi", "enable")
     # These scenarios test proxy failover, not Android network handover.
-    shell("svc", "data", "disable")
+    if api >= 35:
+        # Cold boot can finish before the phone Binder service registers.
+        shell("cmd", "-w", "phone", "data", "disable")
+    else:
+        shell("svc", "data", "disable")
     # Unused image apps can obscure tests with crash/ANR dialogs. MegaProxy's
     # crashes remain visible; these changes apply only to disposable emulators.
     package = {
