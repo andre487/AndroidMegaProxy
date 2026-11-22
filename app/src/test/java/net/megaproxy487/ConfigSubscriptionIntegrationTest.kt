@@ -55,6 +55,45 @@ class ConfigSubscriptionIntegrationTest {
     private fun apply(value: PortableConfiguration, running: Boolean = false) = store.applySubscriptionSnapshot(
         store.subscriptionState()!!.generation, value, 0, 1000, running)
 
+    @Test fun androidRoutingAndSshOverrideOnlySuppliedFields() {
+        val json = document(profile("one"))
+        val legacy = JSONObject().put("routeAllApps", true).put("selectedPackages", JSONArray().put("legacy.app"))
+        json.put("routing", legacy)
+        val androidRouting = JSONObject().put("selectedPackages", JSONArray())
+        val android = JSONObject().put("routing", androidRouting)
+            .put("alwaysOnProfileId", "one").put("ssh", JSONObject().put("rotationMb", 0))
+        json.put("android", android).put("alwaysOnProfileId", "obsolete")
+        json.put("ssh", JSONObject().put("rotationMb", 500).put("maxChannels", 8))
+        val item = json.getJSONArray("profiles").getJSONObject(0)
+        val profileAndroid = item.getJSONObject("android")
+        item.put("routing", legacy)
+        profileAndroid.put("routing", JSONObject().put("routeAllApps", false))
+
+        fun snapshot() = parseSubscriptionSnapshot(json.toString(), emptyList())
+        val parsed = snapshot()
+        assertEquals("one", parsed.alwaysOnProfileId)
+        val global = parsed.globalConnectionSettings!!
+        assertTrue(global.routeAllApps)
+        assertTrue(global.selectedPackages.isEmpty())
+        assertEquals(0, global.sshRotationMb)
+        assertEquals(8, global.sshMaxChannels)
+        val config = parsed.profiles.single().config
+        assertFalse(config.routeAllApps)
+        assertEquals(setOf("legacy.app"), config.selectedPackages)
+        assertEquals(ConfigImportNotice(), parsed.notice)
+
+        profileAndroid.getJSONObject("routing").put("routeAllApps", "false")
+        assertTrue(runCatching { snapshot() }.isFailure)
+        profileAndroid.put("version", 2)
+        assertTrue(snapshot().profiles.single().config.routeAllApps)
+        assertTrue(snapshot().notice.unknownFields)
+        android.getJSONObject("ssh").put("rotationMb", -1)
+        assertTrue(runCatching { snapshot() }.isFailure)
+        android.getJSONObject("ssh").remove("rotationMb")
+        android.put("alwaysOnProfileId", "missing")
+        assertTrue(runCatching { snapshot() }.isFailure)
+    }
+
     @Test fun subscriptionCannotSupplyAKeyPassphraseOrRetainItAfterRotation() {
         val endpoint = profile("ssh").let { it.copy(config = it.config.copy(type = ProxyType.SSH, username = "proxy", port = 22)) }
         bootstrap(endpoint)
@@ -111,6 +150,7 @@ class ConfigSubscriptionIntegrationTest {
     }
 
     @Test fun omittedAndPartialGlobalsPreserveLocalSettingsOnImportAndRefresh() {
+        store.saveProfile(profile(store.activeProfileId()))
         bootstrap(profile("one"))
         store.setConnectionProfile("one")
         val local = GlobalConnectionSettings(
@@ -153,7 +193,15 @@ class ConfigSubscriptionIntegrationTest {
         assertEquals(TlsProfile.DEFAULT, store.globalConnectionSettings().tlsProfile)
         val exported = JSONObject(ConfigTransfer.exportJson(store, false))
         assertEquals("default", exported.getJSONObject("android").getJSONObject("tls").getString("fingerprint"))
-        assertFalse(exported.getJSONObject("tls").has("fingerprint"))
+        assertFalse(exported.has("tls"))
+        assertFalse(exported.has("alwaysOnProfileId"))
+        assertEquals(store.alwaysOnProfileId(), exported.getJSONObject("android").getString("alwaysOnProfileId"))
+        assertEquals(setOf("authMode"), exported.getJSONObject("ssh").keySet())
+        assertEquals(setOf("bypassLocalNetworks"), exported.getJSONObject("routing").keySet())
+        assertEquals(20, exported.getInt("diagnosticLogLimitMb"))
+        val roundTrip = parseSubscriptionSnapshot(exported.toString(), store.profiles())
+        assertEquals(store.globalConnectionSettings(), roundTrip.mergeGlobalSettings(GlobalConnectionSettings()))
+        assertEquals(ConfigImportNotice(), roundTrip.notice)
         json.getJSONObject("android").put("version", 2)
         store.importConfiguration(ConfigTransfer.importJson(json.toString()))
         assertEquals(TlsProfile.CHROME_ANDROID, store.globalConnectionSettings().tlsProfile)

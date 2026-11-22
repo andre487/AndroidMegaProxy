@@ -104,29 +104,30 @@ object ConfigTransfer {
         put("passwordsIncluded", includePasswords)
         put("privateKeysIncluded", includePrivateKeys)
         put("activeProfileId", store.activeProfileId())
-        put("alwaysOnProfileId", store.alwaysOnProfileId())
         put("diagnosticLogLimitMb", store.diagnosticLogLimitMb())
         val global = store.globalConnectionSettings()
-        put("android", JSONObject().put("version", 1).put("tls", JSONObject().put("fingerprint",
-            if (global.tlsProfile == TlsProfile.DEFAULT) "default" else global.tlsProfile.name)))
-        put("tls", JSONObject().apply {
-            put("customJa3", global.customJa3.trim())
+        put("android", JSONObject().apply {
+            put("version", 1)
+            put("alwaysOnProfileId", store.alwaysOnProfileId())
+            put("tls", JSONObject().apply {
+                put("fingerprint", if (global.tlsProfile == TlsProfile.DEFAULT) "default" else global.tlsProfile.name)
+                put("customJa3", global.customJa3.trim())
+            })
+            put("ssh", JSONObject().apply {
+                put("fingerprint", global.sshProfile.name)
+                put("keepaliveSeconds", global.sshKeepaliveSeconds)
+                put("maxChannels", global.sshMaxChannels)
+                put("rotationMinutes", global.sshRotationMinutes)
+                put("rotationMb", global.sshRotationMb)
+            })
+            put("routing", androidRouting(global.routeAllApps, global.selectedPackages))
         })
-        put("ssh", JSONObject().apply {
-            put("fingerprint", global.sshProfile.name)
-            put("authMode", global.sshAuthMode.name)
-            put("keepaliveSeconds", global.sshKeepaliveSeconds)
-            put("maxChannels", global.sshMaxChannels)
-            put("rotationMinutes", global.sshRotationMinutes)
-            put("rotationMb", global.sshRotationMb)
-        })
+        put("ssh", JSONObject().put("authMode", global.sshAuthMode.name))
         put("failover", JSONObject().apply {
             put("mode", global.failoverMode.name)
             put("profileIds", JSONArray(global.failoverProfileIds))
         })
         put("routing", JSONObject().apply {
-            put("routeAllApps", global.routeAllApps)
-            put("selectedPackages", JSONArray(global.selectedPackages.sorted()))
             put("bypassLocalNetworks", global.bypassLocalNetworks)
         })
         store.subscriptionState()?.settings?.let { put("subscription", it.toJson(includePasswords)) }
@@ -163,11 +164,13 @@ object ConfigTransfer {
         val profiles = if (version in 2..5) decodedProfiles.map {
             it.copy(config = it.config.copy(allowIpv6 = legacyIpv6))
         } else decodedProfiles
-        val androidTls = root.androidSection()?.optJSONObject("tls")
-        val fingerprint = if (androidTls?.has("fingerprint") == true) androidTls else root.optJSONObject("tls")
-        val globalFields = listOf("tls", "ssh", "failover", "routing").flatMap { group ->
-            root.optJSONObject(group)?.keys()?.asSequence()?.map { "$group.$it" }?.toList().orEmpty()
-        }.toSet() + if (fingerprint?.has("fingerprint") == true) setOf("tls.fingerprint") else emptySet()
+        val android = root.androidSection()
+        val tls = effectiveGroup(root, android, "tls", androidTlsFields)
+        val ssh = effectiveGroup(root, android, "ssh", androidSshFields)
+        val routing = effectiveGroup(root, android, "routing", androidRoutingFields)
+        val failover = root.optJSONObject("failover") ?: JSONObject()
+        val globalFields = listOf("tls" to tls, "ssh" to ssh, "routing" to routing, "failover" to failover)
+            .flatMap { (group, values) -> values.keys().asSequence().map { "$group.$it" }.toList() }.toSet()
         return PortableConfiguration(
             globalSettingFields = globalFields + if (version in 2..3) setOf("ssh.fingerprint") else emptySet(),
             diagnosticLogLimitPresent = root.has("diagnosticLogLimitMb"),
@@ -178,10 +181,10 @@ object ConfigTransfer {
                     .getOrElse { throw UiException(R.string.subscription_invalid) },
             profiles = profiles,
             activeProfileId = root.optString("activeProfileId").ifBlank { null },
-            alwaysOnProfileId = root.optString("alwaysOnProfileId").ifBlank { null },
+            alwaysOnProfileId = (android?.takeIf { it.has("alwaysOnProfileId") } ?: root).optString("alwaysOnProfileId").ifBlank { null },
             diagnosticLogLimitMb = root.optInt("diagnosticLogLimitMb", 3).coerceIn(1, 100),
             globalConnectionSettings = if (version >= 2 && (globalFields.isNotEmpty() || version < 4)) {
-                decodeGlobalSettings(root, fingerprint?.optString("fingerprint").orEmpty()).let { global ->
+                decodeGlobalSettings(tls, ssh, routing, failover).let { global ->
                     if (version < 4) global.copy(sshProfile = profiles.first().config.sshProfile) else global
                 }
             } else null,
@@ -206,11 +209,20 @@ object ConfigTransfer {
         )
     }
 
-    private fun decodeGlobalSettings(root: JSONObject, fingerprint: String): GlobalConnectionSettings {
-        val tls = root.optJSONObject("tls") ?: JSONObject()
-        val routing = root.optJSONObject("routing") ?: JSONObject()
-        val ssh = root.optJSONObject("ssh") ?: JSONObject()
-        val failover = root.optJSONObject("failover") ?: JSONObject()
+    private fun androidRouting(routeAllApps: Boolean, selectedPackages: Set<String>) = JSONObject()
+        .put("routeAllApps", routeAllApps).put("selectedPackages", JSONArray(selectedPackages.sorted()))
+
+    private fun effectiveGroup(legacy: JSONObject, android: JSONObject?, group: String, fields: Set<String>): JSONObject {
+        val shared = legacy.optJSONObject(group) ?: JSONObject()
+        val overrides = android?.optJSONObject(group) ?: return shared
+        val result = JSONObject()
+        shared.keys().forEach { result.put(it, shared.get(it)) }
+        fields.filter(overrides::has).forEach { result.put(it, overrides.get(it)) }
+        return result
+    }
+
+    private fun decodeGlobalSettings(tls: JSONObject, ssh: JSONObject, routing: JSONObject, failover: JSONObject): GlobalConnectionSettings {
+        val fingerprint = tls.optString("fingerprint")
         val parsedTls = if (fingerprint == "default") TlsProfile.DEFAULT else enumValue(fingerprint, TlsProfile.DEFAULT)
         val packages = routing.optJSONArray("selectedPackages")?.let { array ->
             requireUi(array.length() <= MAX_IMPORTED_PACKAGES) { UiException(R.string.error_config_packages) }
@@ -282,9 +294,9 @@ object ConfigTransfer {
             put("provider", profile.config.dnsProvider.name)
             put("customDohUrl", profile.config.customDohUrl.trim())
         })
+        put("android", JSONObject().put("version", 1)
+            .put("routing", androidRouting(profile.config.routeAllApps, profile.config.selectedPackages)))
         put("routing", JSONObject().apply {
-            put("routeAllApps", profile.config.routeAllApps)
-            put("selectedPackages", JSONArray(profile.config.selectedPackages.sorted()))
             put("allowIpv6", profile.config.allowIpv6)
             put("bypassLocalNetworks", profile.config.bypassLocalNetworks)
         })
@@ -294,7 +306,7 @@ object ConfigTransfer {
         val proxy = item.optJSONObject("proxy") ?: JSONObject()
         val tls = item.optJSONObject("tls") ?: JSONObject()
         val dns = item.optJSONObject("dns") ?: JSONObject()
-        val routing = item.optJSONObject("routing") ?: JSONObject()
+        val routing = effectiveGroup(item, item.androidSection(), "routing", androidRoutingFields)
         val host = proxy.limitedString("host", 253).trim()
         requireUi(net.megaproxy487.model.validProxyHost(host))
         val type = enumValue(proxy.optString("type"), ProxyType.HTTPS)

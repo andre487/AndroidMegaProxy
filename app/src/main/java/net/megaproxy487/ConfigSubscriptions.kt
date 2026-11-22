@@ -77,7 +77,8 @@ internal fun parseSubscriptionSnapshot(text: String, previous: List<ProxyProfile
         if (root.optInt("version") == ConfigTransfer.SCHEMA_VERSION) validateSubscriptionConfiguration(root)
         val ids = value.profiles.map(ProxyProfile::id).toSet()
         for (key in listOf("activeProfileId", "alwaysOnProfileId")) {
-            if (root.has(key) && !root.isNull(key)) require(root.get(key) is String && root.getString(key) in ids)
+            val owner = if (key == "alwaysOnProfileId") root.androidSection()?.takeIf { it.has(key) } ?: root else root
+            if (owner.has(key) && !owner.isNull(key)) require(owner.get(key) is String && owner.getString(key) in ids)
         }
         root.optJSONObject("failover")?.optJSONArray("profileIds")?.let { array ->
             require((0 until array.length()).all { array.get(it) is String && array.getString(it) in ids })

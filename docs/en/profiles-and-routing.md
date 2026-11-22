@@ -27,7 +27,18 @@ to follow the application's default:
 
 Android also accepts `DEFAULT`. It reads the deprecated `tls.fingerprint` when the Android
 preset is absent. Omitting both preserves the current selection on import and refresh.
-Global `tls.customJa3` and per-profile QUIC JA3 keep their existing locations.
+Android exports the global JA3 as `android.tls.customJa3`. The per-profile QUIC JA3
+remains in `profiles[].tls.customJa3`. The other Android version 1 fields are:
+
+| Section | Fields |
+| --- | --- |
+| `android` | `alwaysOnProfileId` |
+| `android.ssh` | `fingerprint`, `keepaliveSeconds`, `maxChannels`, `rotationMinutes`, `rotationMb` |
+| `android.routing` and `profiles[].android.routing` | `routeAllApps`, `selectedPackages` |
+
+For each field, Android reads its old location when the corresponding Android
+section omits it. An unsupported Android section version is ignored. SSH
+authentication mode, LAN bypass and the diagnostic log size remain shared fields.
 
 ## Server types
 

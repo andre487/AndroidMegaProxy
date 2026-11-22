@@ -1,6 +1,7 @@
 package net.megaproxy487.data
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.node.ObjectNode
 import com.networknt.schema.JsonSchemaFactory
 import com.networknt.schema.SpecVersion
 import net.megaproxy487.R
@@ -13,6 +14,11 @@ private object SubscriptionSchema {
     val schema by lazy {
         val input = checkNotNull(javaClass.getResourceAsStream("/megaproxy-v8.schema.json"))
         val definition = input.use { mapper.readTree(it) }
+        val extensions = checkNotNull(javaClass.getResourceAsStream("/android-extension.schema.json"))
+        val defs = definition.path("\$defs") as ObjectNode
+        defs.setAll<ObjectNode>(extensions.use { mapper.readTree(it) } as ObjectNode)
+        (definition.path("properties") as ObjectNode).putObject("android").put("\$ref", "#/\$defs/androidDocument")
+        (defs.path("profile").path("properties") as ObjectNode).putObject("android").put("\$ref", "#/\$defs/androidProfile")
         JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(definition)
     }
 }

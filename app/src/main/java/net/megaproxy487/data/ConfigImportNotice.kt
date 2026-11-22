@@ -12,6 +12,10 @@ internal fun JSONObject.androidSection(): JSONObject? = optJSONObject("android")
     !it.has("version") || it.opt("version") == 1
 }
 
+internal val androidRoutingFields = setOf("routeAllApps", "selectedPackages")
+internal val androidTlsFields = setOf("fingerprint", "customJa3")
+internal val androidSshFields = setOf("fingerprint", "keepaliveSeconds", "maxChannels", "rotationMinutes", "rotationMb")
+
 /** Field recognition only: canonical schema validation belongs to export tests, not legacy imports. */
 internal object ConfigImportNotices {
     private val schema by lazy {
@@ -23,11 +27,15 @@ internal object ConfigImportNotices {
     // by Android and browser fields for which the import UI has a dedicated notice.
     private val extensionFields = mapOf(
         "" to setOf("android", "browser", "alwaysOnProfileId"),
-        "android" to setOf("version", "tls"),
-        "android.tls" to setOf("fingerprint"),
-        "routing" to setOf("routeAllApps", "selectedPackages"),
-        "profiles.routing" to setOf("routeAllApps", "selectedPackages"),
-        "profiles" to setOf("browser"),
+        "android" to setOf("version", "tls", "ssh", "routing", "alwaysOnProfileId"),
+        "android.ssh" to androidSshFields,
+        "android.routing" to androidRoutingFields,
+        "android.tls" to androidTlsFields,
+        "routing" to androidRoutingFields,
+        "profiles.routing" to androidRoutingFields,
+        "profiles" to setOf("browser", "android"),
+        "profiles.android" to setOf("version", "routing"),
+        "profiles.android.routing" to androidRoutingFields,
         "profiles.browser" to setOf("knockHost", "bypass", "authMode", "masqueTemplate"),
         "browser" to setOf("theme", "language", "routing", "webRTC"),
         "browser.routing" to setOf("enabled", "mode", "domains", "sites", "subscriptions", "assignments", "strategy"),
@@ -36,7 +44,7 @@ internal object ConfigImportNotices {
     )
 
     fun inspect(root: JSONObject): ConfigImportNotice {
-        var unknown = root.has("android") && root.androidSection() == null
+        var unknown = false
         fun walk(value: Any?, definition: JSONObject?, path: String) {
             val objectDefinition = if (value is JSONObject) definition?.optJSONArray("anyOf")?.let { variants ->
                 (0 until variants.length()).mapNotNull(variants::optJSONObject)
@@ -47,6 +55,7 @@ internal object ConfigImportNotices {
                 else schema.getJSONObject("\$defs").getJSONObject(reference.substringAfterLast('/'))
             when (value) {
                 is JSONObject -> {
+                    if ((path.isEmpty() || path == "profiles") && value.has("android") && value.androidSection() == null) unknown = true
                     val properties = resolved?.optJSONObject("properties")
                     value.keys().forEach { key ->
                         val child = properties?.optJSONObject(key)

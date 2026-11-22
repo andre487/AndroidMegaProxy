@@ -1,0 +1,42 @@
+{
+  "androidRouting": {
+    "type": "object",
+    "properties": {
+      "routeAllApps": { "type": "boolean" },
+      "selectedPackages": {
+        "type": "array", "maxItems": 10000,
+        "items": { "type": "string", "maxLength": 256, "pattern": "^[A-Za-z0-9_.]+$" }
+      }
+    }
+  },
+  "androidV1": { "type": "object", "properties": { "version": { "const": 1 } } },
+  "androidProfile": {
+    "if": { "$ref": "#/$defs/androidV1" },
+    "then": { "properties": { "routing": { "$ref": "#/$defs/androidRouting" } } }
+  },
+  "androidDocument": {
+    "$ref": "#/$defs/androidProfile",
+    "if": { "$ref": "#/$defs/androidV1" },
+    "then": {
+      "properties": {
+        "alwaysOnProfileId": { "$ref": "#/properties/activeProfileId" },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "customJa3": { "$ref": "#/$defs/tls/properties/customJa3" }
+          }
+        },
+        "ssh": {
+          "type": "object",
+          "properties": {
+            "fingerprint": { "$ref": "#/$defs/ssh/properties/fingerprint" },
+            "keepaliveSeconds": { "$ref": "#/$defs/ssh/properties/keepaliveSeconds" },
+            "maxChannels": { "$ref": "#/$defs/ssh/properties/maxChannels" },
+            "rotationMinutes": { "$ref": "#/$defs/ssh/properties/rotationMinutes" },
+            "rotationMb": { "$ref": "#/$defs/ssh/properties/rotationMb" }
+          }
+        }
+      }
+    }
+  }
+}
