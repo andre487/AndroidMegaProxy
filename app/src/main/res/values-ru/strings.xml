@@ -598,7 +598,7 @@
     <string name="mtu_invalid">Введите целое число от 1280 до 65535.</string>
     <string name="mtu_reconnect">Для всех профилей на этом устройстве, после переподключения.</string>
     <string name="subscription_backups_hint">До 7 HTTPS URL, по одному на строку.</string>
-    <string name="strict_source_title">Строгая проверка источника</string>
+    <string name="strict_source_title">Проверка источника</string>
     <string name="strict_source_description">Проверяет приложение-источник TCP и UDP, блокирует неизвестных владельцев и ping. Может замедлить установление TCP-соединений и передачу UDP, нарушить работу приложений. Применяется при переподключении.</string>
     <string name="strict_source_unsupported">Требуется Android 10 или новее.</string>
     <string name="strict_source_section">Защита источника трафика</string>

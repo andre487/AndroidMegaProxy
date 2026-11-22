@@ -173,7 +173,7 @@ branch names, credentials, signing material, or other secrets.
   downloads. Keep local profiles/selections and current tunnels; effective live changes mark
   pending reconnect rather than starting/stopping VPN automatically.
 
-- Strict source validation is device-local and Android 10+. With no saved choice, split routing enables Standard and global routing disables checks. Apply on reconnection.
+- Source validation is device-local and Android 10+. With no saved choice, split routing enables Standard and global routing disables checks. Apply on reconnection.
   Disabled sessions retain the original native data path. Enabled sessions fail closed on
   unknown owners on lookup, validate TCP admission, and block TUN Echo while preserving ordinary
   ICMP error handling. Standard renews UDP admission for one second after each outgoing datagram of the same live flow;

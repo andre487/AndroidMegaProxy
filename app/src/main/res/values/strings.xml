@@ -599,7 +599,7 @@
     <string name="mtu_invalid">Enter a whole number from 1280 to 65535.</string>
     <string name="mtu_reconnect">Applies to all profiles on this device after reconnection.</string>
     <string name="subscription_backups_hint">Up to 7 HTTPS URLs, one per line.</string>
-    <string name="strict_source_title">Strict source validation</string>
+    <string name="strict_source_title">Source validation</string>
     <string name="strict_source_description">Checks TCP and UDP app ownership; blocks unknown owners and ping. May delay TCP connection setup, slow UDP or disrupt apps. Applies on reconnection.</string>
     <string name="strict_source_unsupported">Requires Android 10 or later.</string>
     <string name="strict_source_section">Traffic source protection</string>

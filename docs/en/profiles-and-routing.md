@@ -12,7 +12,7 @@ or use the move actions. Selecting a different profile while connected reconnect
 | --- | --- |
 | Per profile | Transport, server/Jump addresses, credentials and trust, DNS, IPv6, HTTP/3 preference, optional authentication check host |
 | Shared across profiles | App routing, LAN bypass, fingerprints, SSH authentication/keepalive/channel/rotation settings, failover |
-| Device-local, not transferred | MTU, strict source validation and level, language, traffic units, update preferences; DNS security approvals stay local to each profile |
+| Device-local, not transferred | MTU, source validation and level, language, traffic units, update preferences; DNS security approvals stay local to each profile |
 
 Edits affecting a running connection need reconnection. Subscription changes leave the current
 tunnel running and offer **Reconnect**; [subscription ownership and refresh rules](subscriptions.md).
@@ -107,7 +107,7 @@ by default; excluding it later is preserved and makes its diagnostics, subscript
 requests follow the ordinary network. LAN bypass sends supported local traffic directly;
 it is not a fallback after proxy failure. IPv6 is enabled per profile.
 
-**Strict source validation** optionally checks which app owns TCP/UDP traffic on Android 10+.
+**Source validation** optionally checks which app owns TCP/UDP traffic on Android 10+.
 Split tunneling defaults to Standard and all-app routing defaults to off. Changes apply on reconnection. Standard rechecks a live UDP flow after
 one second without outgoing traffic; Strict checks every outgoing datagram. Both check new TCP connections
 and block unknown owners and TUN ping. It can delay TCP setup, slow UDP or disrupt apps;
