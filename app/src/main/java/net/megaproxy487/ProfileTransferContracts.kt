@@ -2,6 +2,16 @@ package net.megaproxy487
 
 import net.megaproxy487.data.*
 
+internal fun <I> androidx.activity.result.ActivityResultLauncher<I>.openDocument(input: I, unavailable: () -> Unit) {
+    try {
+        launch(input)
+    } catch (_: android.content.ActivityNotFoundException) {
+        unavailable()
+    } catch (_: SecurityException) {
+        unavailable()
+    }
+}
+
 internal fun requireExportContent(content: String?): String {
     if (content == null) throw UiException(R.string.export_expired)
     if (content.isEmpty()) throw UiException(R.string.export_empty)

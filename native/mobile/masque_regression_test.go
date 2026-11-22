@@ -183,25 +183,37 @@ func TestMASQUEBlockedUDPWriteDeadlineAndClose(t *testing.T) {
 	// First fill the shared send queue with no deadline. Then update the
 	// deadline of the already-blocked WriteTo, as net.PacketConn requires.
 	_ = pc.SetWriteDeadline(time.Time{})
-	done := make(chan error, 1)
-	var writes atomic.Int64
-	go func() {
-		for i := 0; i < 100000; i++ {
-			if _, e := pc.WriteTo(make([]byte, 1100), target); e != nil {
-				done <- e
-				return
+	// QUIC may free a queue slot between the deadline and close checks.
+	// Drive the queue back to a blocked write independently for each check.
+	fillQueue := func() <-chan error {
+		done := make(chan error, 1)
+		var attempts atomic.Int64
+		go func() {
+			payload := make([]byte, 1100)
+			for i := 0; i < 100000; i++ {
+				attempts.Add(1)
+				if _, err := pc.WriteTo(payload, target); err != nil {
+					done <- err
+					return
+				}
 			}
-			writes.Add(1)
+			done <- nil
+		}()
+		for end := time.Now().Add(time.Second); time.Now().Before(end); {
+			previous := attempts.Load()
+			select {
+			case err := <-done:
+				t.Fatalf("write did not block: %v", err)
+			case <-time.After(20 * time.Millisecond):
+				if previous > 0 && attempts.Load() == previous {
+					return done
+				}
+			}
 		}
-		done <- nil
-	}()
-	for end := time.Now().Add(time.Second); time.Now().Before(end); {
-		previous := writes.Load()
-		time.Sleep(15 * time.Millisecond)
-		if previous > 32 && writes.Load() == previous {
-			break
-		}
+		t.Fatal("writes did not stall")
+		return nil
 	}
+	done := fillQueue()
 	_ = pc.SetWriteDeadline(time.Now().Add(20 * time.Millisecond))
 	select {
 	case e := <-done:
@@ -223,13 +235,7 @@ func TestMASQUEBlockedUDPWriteDeadlineAndClose(t *testing.T) {
 	// A second blocked write must also wake on stream Close, without closing
 	// the shared QUIC connection (other tunnels may still use it).
 	_ = pc.SetWriteDeadline(time.Time{})
-	closed := make(chan error, 1)
-	go func() { _, err := pc.WriteTo(make([]byte, 1100), target); closed <- err }()
-	select {
-	case err := <-closed:
-		t.Fatalf("queue was not full: %v", err)
-	case <-time.After(20 * time.Millisecond):
-	}
+	closed := fillQueue()
 	_ = pc.Close()
 	select {
 	case err := <-closed:

@@ -54,6 +54,19 @@ class ProfileTransferUiTest : MainUiTestBase() {
         waitForText(remaining.name)
     }
 
+    @Test fun missingSystemPickerShowsErrorAndKeepsTheProfile() {
+        screen()
+        val application = shadowOf(activity.application)
+        application.checkActivities(true)
+        try {
+            icon(R.string.import_action).performClick()
+            waitForText(text(R.string.document_picker_unavailable))
+            assertEquals(1, store.profiles().size)
+        } finally {
+            application.checkActivities(false)
+        }
+    }
+
     @Test fun importReadsPickedFileAndAddsProfile() {
         val uri = Uri.parse("content://ui-test/proxies.txt")
         shadowOf(activity.contentResolver).registerInputStream(uri, ByteArrayInputStream("https://test:secret@import.example:443?title=Imported".toByteArray()))

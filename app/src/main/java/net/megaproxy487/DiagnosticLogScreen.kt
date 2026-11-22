@@ -150,7 +150,7 @@ internal fun DiagnosticLogScreen(activity: Activity, onBack: () -> Unit) {
                     }, modifier = Modifier.fillMaxWidth())
                 Text(stringResource(R.string.rotated_log_limit_description), style = MaterialTheme.typography.bodySmall)
                 WrappingActions(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(shape = RoundedCornerShape(12.dp), onClick = { exportDocument.launch("MegaProxy-diagnostic.log") }) {
+                    Button(shape = RoundedCornerShape(12.dp), onClick = { exportDocument.openDocument("MegaProxy-diagnostic.log") { message = activity.uiText(R.string.document_picker_unavailable) } }) {
                         Text(stringResource(R.string.export_action))
                     }
                     OutlinedButton(shape = RoundedCornerShape(12.dp), onClick = { showClearConfirmation = true }) {

@@ -1,5 +1,7 @@
 package net.megaproxy487
 
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import net.megaproxy487.data.*
 import net.megaproxy487.model.*
 import org.json.JSONObject
@@ -42,7 +44,7 @@ class ConfigSubscriptionTest {
         assertEquals("secret", passwordOnly.copy(username = null, password = null).retainPassword(passwordOnly).password)
     }
 
-    private class Connection(private val body: ByteArray, private val status: Int = 200, private val encoding: String? = null) :
+    private open class Connection(private val body: ByteArray, private val status: Int = 200, private val encoding: String? = null) :
         HttpURLConnection(URL("https://feed.example.com/")) {
         var disconnected = false
         override fun connect() {}
@@ -53,7 +55,7 @@ class ConfigSubscriptionTest {
         override fun getContentEncoding() = encoding
     }
 
-    @Test fun requestsUseUtf8AuthAndStableHeadersWithoutRedirectsOrCaching() {
+    @Test fun requestsUseUtf8AuthAndStableHeadersWithoutRedirectsOrCaching() = kotlinx.coroutines.runBlocking {
         val settings = ConfigSubscription("https://feed.example.com/", username = "читатель", password = "пароль")
         val connection = Connection("body".toByteArray())
         assertEquals("body", downloadConfiguration(settings, settings.url, { connection }))
@@ -70,7 +72,7 @@ class ConfigSubscriptionTest {
         assertNull(public.getRequestProperty("Authorization"))
     }
 
-    @Test fun redirectsHttpErrorsInvalidUtf8AndDecodedOversizeBodiesFail() {
+    @Test fun redirectsHttpErrorsInvalidUtf8AndDecodedOversizeBodiesFail() = kotlinx.coroutines.runBlocking {
         val settings = ConfigSubscription("https://feed.example.com/")
         for (code in listOf(301, 302, 307, 304, 401, 403, 404, 429, 500)) {
             val connection = Connection(byteArrayOf(), code)
@@ -85,6 +87,39 @@ class ConfigSubscriptionTest {
             assertTrue(connection.disconnected)
         }
         assertTrue(runCatching { downloadConfiguration(settings, "https://unlisted.example/", { error("must not open") }) }.isFailure)
+    }
+
+    @Test fun deadlineDisconnectsBlockedResponseHeaders() = kotlinx.coroutines.runBlocking {
+        val released = java.util.concurrent.CountDownLatch(1)
+        val connection = object : Connection(byteArrayOf()) {
+            override fun getResponseCode(): Int {
+                check(released.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                throw java.io.IOException("Disconnected")
+            }
+            override fun disconnect() { super.disconnect(); released.countDown() }
+        }
+        val settings = ConfigSubscription("https://feed.example.com/")
+        val result = runCatching { downloadConfiguration(settings, settings.url, { connection }, timeoutMillis = 250) }
+        assertTrue(result.exceptionOrNull() is java.net.SocketTimeoutException)
+        assertTrue(connection.disconnected)
+    }
+
+    @Test fun cancellingDownloadDisconnectsAnActiveRequest() = kotlinx.coroutines.runBlocking {
+        val entered = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val released = java.util.concurrent.CountDownLatch(1)
+        val connection = object : Connection(byteArrayOf()) {
+            override fun getResponseCode(): Int {
+                entered.complete(Unit)
+                check(released.await(5, java.util.concurrent.TimeUnit.SECONDS))
+                throw java.io.IOException("Disconnected")
+            }
+            override fun disconnect() { super.disconnect(); released.countDown() }
+        }
+        val settings = ConfigSubscription("https://feed.example.com/")
+        val request = launch { downloadConfiguration(settings, settings.url, { connection }) }
+        kotlinx.coroutines.withTimeout(5_000) { entered.await(); request.cancelAndJoin() }
+        assertTrue(connection.disconnected)
+        assertTrue(request.isCancelled)
     }
 
     @Test fun legacySnapshotsReuseOnlyUniqueOwnedMatchesAndDoNotImportPreferences() {

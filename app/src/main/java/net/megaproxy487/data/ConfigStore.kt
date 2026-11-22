@@ -577,7 +577,11 @@ class ConfigStore(context: Context) {
         if (connectionCommandToken() != expectedToken) null else setConnectionDesired(true)
     }
 
-    fun diagnosticLogLimitMb(): Int = prefs.getInt(DIAGNOSTIC_LOG_LIMIT_MB, 3).coerceIn(1, 100)
+    fun diagnosticLogLimitMb(): Int = try {
+        prefs.getInt(DIAGNOSTIC_LOG_LIMIT_MB, 3).coerceIn(1, 100)
+    } catch (_: ClassCastException) {
+        3
+    }
 
     fun setDiagnosticLogLimitMb(value: Int) = synchronized(storageLock) {
         prefs.edit().putInt(DIAGNOSTIC_LOG_LIMIT_MB, value.coerceIn(1, 100)).commitOrThrow()

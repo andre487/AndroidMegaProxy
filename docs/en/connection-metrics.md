@@ -121,7 +121,7 @@ bytes and transfer timing; no response payloads or exit IP are added to the log.
 Leaving Diagnostics or recreating its UI cancels speed requests and discards speed results. The shared in-memory log remains until the next connection test or process restart. Home/background alone does not cancel requests. Events are also copied to the rotating local
 diagnostic log; clear or export it separately in **Settings → Diagnostic log**.
 
-ProxyCheck success is cached per public IP for 24 hours. Daily quota exhaustion, network failure
+A successful ProxyCheck result is reused for 24 hours per public IP. Clearing app data removes stored entries. Daily quota exhaustion, network failure
 and unknown response format are distinct states; unavailable routes are shown separately.
 Tests parse fixtures rather than contacting ProxyCheck. Full endpoint inventory: [README](../../README.md#privacy-and-security).
 

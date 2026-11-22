@@ -414,8 +414,12 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
     LaunchedEffect(exportReady) {
         if (exportReady) {
             exportReady = false
-            if (exportFormat == ConfigExportFormat.PROXY_LIST) exportTxtDocument.launch("ProxyList.txt")
-            else exportJsonDocument.launch("MegaProxy-config.json")
+            val plain = exportFormat == ConfigExportFormat.PROXY_LIST
+            val picker = if (plain) exportTxtDocument else exportJsonDocument
+            picker.openDocument(if (plain) "ProxyList.txt" else "MegaProxy-config.json") {
+                pendingExportContent = null
+                importError = activity.uiText(R.string.document_picker_unavailable)
+            }
         }
     }
     val importDocument = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
@@ -457,7 +461,7 @@ internal fun ProfilesScreen(activity: Activity, onBack: () -> Unit, onEditProfil
                 }
             },
             actions = {
-                IconButton(enabled = !busy, onClick = { importDocument.launch(arrayOf("text/plain", "application/json", "application/octet-stream")) }) {
+                IconButton(enabled = !busy, onClick = { importDocument.openDocument(arrayOf("text/plain", "application/json", "application/octet-stream")) { importError = activity.uiText(R.string.document_picker_unavailable) } }) {
                     Icon(Icons.Default.FileDownload, contentDescription = stringResource(R.string.import_action))
                 }
                 IconButton(enabled = !busy, onClick = { showExportDialog = true }) { Icon(Icons.Default.FileUpload, contentDescription = stringResource(R.string.export_action)) }

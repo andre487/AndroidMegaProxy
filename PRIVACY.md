@@ -1,6 +1,6 @@
 # Privacy Policy
 
-**Last updated: October 27, 2026**
+**Last updated: November 22, 2026**
 
 MegaProxy is an Android VPN client for proxy servers you choose. It does not provide a proxy
 service, require an account, or automatically send usage data or crash reports to the developer.
@@ -14,8 +14,7 @@ connect to your servers. Passwords, imported private keys, configuration-subscri
 For per-app routing, MegaProxy reads the applications visible to it on your device and stores
 which applications you select. This information is used locally to configure routing, not
 uploaded as an application inventory. Profile exports can include these routing selections.
-Optional strict source validation also uses Android's local socket-owner lookup to check which app owns TCP/UDP traffic. These ownership
-checks and their settings stay on the device; they do not send an app inventory to a server.
+On Android 10 and later, source validation uses a local socket-owner lookup to check which app owns TCP/UDP traffic. Unless you choose otherwise, split tunneling uses Standard validation and routing all apps disables the checks. The lookup results and validation settings stay on the device.
 
 Connection statistics and diagnostic/crash logs are processed locally to display connection
 status and help troubleshoot failures. Logs contain operational events and error details;
@@ -40,17 +39,16 @@ DNS queries to interception. These exceptions require local confirmation and are
 Applications can also use their own encrypted DNS connections; these follow normal routing.
 
 When you run a connection test, MegaProxy contacts a test website and external IP/country lookup
-services through the proxy; an optional profile-provided authentication check host is also contacted through the HTTPS proxy. MASQUE and SOCKS5 tests also contact external HTTP/3 diagnostic services.
+services through the proxy; an optional profile-provided authentication check host is also contacted through the HTTPS proxy. Tests using MASQUE (including negotiated HTTP/3 for HTTPS profiles) or SOCKS5 also contact external HTTP/3 diagnostic services.
 They receive the exit IP and test requests, including TLS/QUIC connection parameters, to check connectivity and
 identify the proxy's apparent country, not your GPS location. The current services are listed in
 [Network privacy details](README.md#privacy-and-security). These providers handle requests under
 their own policies; MegaProxy does not control their retention practices.
 
 The visibility screen obtains each public IP through the same fallback providers listed above,
-then sends it to `https://proxycheck.io/v3/`. The responding IP provider and ProxyCheck receive the
+then queries `https://proxycheck.io/v3/` when a fresh result for that IP is unavailable. The responding IP provider and ProxyCheck receive the
 route's public source IP and connection metadata; ProxyCheck also receives that IP as the lookup
-value and returns reputation data. MegaProxy displays the verdict, caches successful results on the
-device by public IP for 24 hours, and does not add them to diagnostic logs.
+value and returns reputation data. MegaProxy displays the verdict, stores the IP, verdict and check time locally, and reuses the verdict for 24 hours. Expired entries can remain until app data is cleared or the app is uninstalled. These results are excluded from diagnostic logs.
 
 When you explicitly start the speed test, MegaProxy contacts `https://h3.speed.cloudflare.com/`
 through each available route. Cloudflare receives the route's public IP and connection metadata.

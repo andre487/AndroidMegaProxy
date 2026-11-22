@@ -92,6 +92,13 @@ comes from CI. Use extra phones/APIs only for platform-specific changes or a rep
 | UI/accessibility | Changed screens in EN/RU at 320 dp and 1280 dp, including 200% fonts; readable banner actions, correct switches versus multi-select checkboxes, TalkBack status labels, copy/select and working links. Full theme/orientation/device permutations only for a relevant defect. |
 | Updates/releases | Affected source selection/consent/signature/ABI/version checks, download cancellation and installer result; use fixtures for malformed metadata/APKs. Verify tag/merge tree, signed APK hashes and completed VirusTotal reports when publishing. F-Droid recipe/reproducibility checks apply when that recipe/release changes. |
 
+For changes to startup or transfer cancellation, exercise these failure cases on a disposable device:
+
+- Stop during initial proxy DNS resolution and reconnect with a working profile. The new connection should start without waiting for the previous DNS timeout.
+- Try importing and exporting on an image without a file picker. The screen should show an error and remain usable.
+- Use a subscription fixture that stalls before the response headers. The next configured source should be tried after the request deadline.
+- Export a diagnostic log to a slow document provider. New diagnostic entries should remain visible while the export is pending.
+
 Use synthetic profiles and disposable fixtures. Back up and restore a phone's original app/network,
 permissions and Always-on settings; destructive cases belong on disposable emulators. Network
 success requires returned data and controlled origin evidence, not only “Connected”. Negative tests

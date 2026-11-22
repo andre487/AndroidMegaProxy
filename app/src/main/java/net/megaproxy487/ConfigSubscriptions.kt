@@ -31,41 +31,57 @@ internal fun subscriptionDelay(state: ConfigSubscriptionState, now: Long): Long 
         (state.lastAttempt.coerceAtMost(now) + state.settings.intervalMinutes * 60_000L - now).coerceAtLeast(0)
 
 /** Full downloads, no conditional cache, redirects, retries, cookies or interactive authentication. */
-internal fun downloadConfiguration(
+internal suspend fun downloadConfiguration(
     settings: ConfigSubscription, url: String,
     open: (URI) -> HttpURLConnection = { it.toURL().openConnection(java.net.Proxy.NO_PROXY) as HttpURLConnection },
-    checkActive: () -> Unit = {},
+    timeoutMillis: Long = 45_000,
 ): String {
     settings.validate()
     require(url in listOf(settings.url) + settings.fallbackUrls)
-    val connection = open(URI(url))
-    val deadline = System.nanoTime() + 45_000_000_000L
-    try {
-        connection.requestMethod = "GET"
-        connection.connectTimeout = 15_000
-        connection.readTimeout = 15_000
-        connection.instanceFollowRedirects = false
-        connection.useCaches = false
-        connection.setRequestProperty("X-MegaProxy-Client", SUBSCRIPTION_CLIENT_ID)
-        connection.setRequestProperty("X-MegaProxy-Version", BuildConfig.VERSION_NAME)
-        connection.setRequestProperty("Accept-Encoding", "gzip")
-        connection.setRequestProperty("Cookie", "")
-        if (settings.username != null || settings.password != null) connection.setRequestProperty("Authorization",
-            "Basic " + Base64.getEncoder().encodeToString("${settings.username.orEmpty()}:${settings.password.orEmpty()}".toByteArray(Charsets.UTF_8)))
-        checkActive()
-        require(connection.responseCode == 200)
-        return connection.inputStream.use { raw ->
-            val stream = when (connection.contentEncoding?.lowercase()) {
-                null, "", "identity" -> raw
-                "gzip" -> GZIPInputStream(raw)
-                else -> throw java.io.IOException("Unsupported content encoding")
+    return withTimeoutOrNull(timeoutMillis) {
+        val connection = open(URI(url))
+        coroutineScope {
+            val request = async(Dispatchers.IO) {
+                val job = coroutineContext
+                try {
+                    readSubscription(connection, settings) { job.ensureActive() }
+                } catch (error: Exception) {
+                    job.ensureActive()
+                    throw error
+                }
             }
-            stream.readConfigText {
-                checkActive()
-                if (System.nanoTime() > deadline) throw java.net.SocketTimeoutException()
+            try {
+                request.await()
+            } finally {
+                // A coroutine deadline alone cannot interrupt responseCode or a gzip header read.
+                withContext(NonCancellable + Dispatchers.IO) { connection.disconnect() }
             }
         }
-    } finally { connection.disconnect() }
+    } ?: throw java.net.SocketTimeoutException("Subscription request timed out")
+}
+
+private fun readSubscription(connection: HttpURLConnection, settings: ConfigSubscription, checkActive: () -> Unit): String {
+    connection.requestMethod = "GET"
+    connection.connectTimeout = 15_000
+    connection.readTimeout = 15_000
+    connection.instanceFollowRedirects = false
+    connection.useCaches = false
+    connection.setRequestProperty("X-MegaProxy-Client", SUBSCRIPTION_CLIENT_ID)
+    connection.setRequestProperty("X-MegaProxy-Version", BuildConfig.VERSION_NAME)
+    connection.setRequestProperty("Accept-Encoding", "gzip")
+    connection.setRequestProperty("Cookie", "")
+    if (settings.username != null || settings.password != null) connection.setRequestProperty("Authorization",
+        "Basic " + Base64.getEncoder().encodeToString("${settings.username.orEmpty()}:${settings.password.orEmpty()}".toByteArray(Charsets.UTF_8)))
+    checkActive()
+    require(connection.responseCode == 200)
+    return connection.inputStream.use { raw ->
+        val stream = when (connection.contentEncoding?.lowercase()) {
+            null, "", "identity" -> raw
+            "gzip" -> GZIPInputStream(raw)
+            else -> throw java.io.IOException("Unsupported content encoding")
+        }
+        stream.readConfigText(checkActive)
+    }
 }
 
 internal fun parseSubscriptionSnapshot(text: String, previous: List<ProxyProfile>): PortableConfiguration {
@@ -145,7 +161,7 @@ internal object ConfigSubscriptions {
 
     fun schedule(context: Context) {
         val application = context.applicationContext
-        scope.launch(ConfigIoDispatcher) { scheduleNow(application) }
+        scope.launch(ConfigIoDispatcher) { runBackgroundSetup("subscription_job") { scheduleNow(application) } }
     }
 
     private fun scheduleNow(context: Context) {
@@ -167,10 +183,7 @@ internal object ConfigSubscriptions {
     internal suspend fun refreshNow(
         context: Context, manual: Boolean,
         download: suspend (ConfigSubscription, String) -> String = { settings, url ->
-            withContext(Dispatchers.IO) {
-                val job = coroutineContext
-                downloadConfiguration(settings, url, checkActive = { job.ensureActive() })
-            }
+            withContext(Dispatchers.IO) { downloadConfiguration(settings, url) }
         },
         connectionRunning: () -> Boolean = { ProxyVpnService.isRunning },
     ): Boolean = mutex.withLock {

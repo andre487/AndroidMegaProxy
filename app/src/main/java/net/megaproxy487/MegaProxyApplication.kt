@@ -18,10 +18,17 @@ class MegaProxyApplication : Application() {
         super.onCreate()
         CrashHandler.install(this)
         CoroutineScope(SupervisorJob() + ConfigIoDispatcher).launch {
-            val store = ConfigStore(this@MegaProxyApplication)
-            PersistentDiagnosticLog.initialize(this@MegaProxyApplication, store.diagnosticLogLimitMb())
+            runBackgroundSetup("diagnostic_log") {
+                PersistentDiagnosticLog.initialize(this@MegaProxyApplication, ConfigStore(this@MegaProxyApplication).diagnosticLogLimitMb())
+            }
             UpdateNotifications.schedule(this@MegaProxyApplication)
             ConfigSubscriptions.schedule(this@MegaProxyApplication)
         }
+    }
+}
+
+internal fun runBackgroundSetup(task: String, action: () -> Unit) {
+    net.megaproxy487.data.operationResult(action).onFailure {
+        android.util.Log.w("MegaProxy", "$task setup failed: ${it.javaClass.simpleName}")
     }
 }

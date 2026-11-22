@@ -239,7 +239,7 @@ internal fun DiagnosticsScreen(activity: Activity, autoStart: Boolean, onBack: (
                             clipboard.setPrimaryClip(ClipData.newPlainText(activity.uiText(R.string.connection_test_clipboard_label), TestDiagnosticLog.entries.joinToString("\n")))
                         }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.copy_log)) }
                         Button(shape = RoundedCornerShape(12.dp), onClick = {
-                            exportDocument.launch("MegaProxy-diagnostics.log")
+                            exportDocument.openDocument("MegaProxy-diagnostics.log") { exportMessage = activity.uiText(R.string.document_picker_unavailable) }
                         }, enabled = TestDiagnosticLog.entries.isNotEmpty()) { Text(stringResource(R.string.export_action)) }
                     }
                     exportMessage?.let { Text(it, style = MaterialTheme.typography.bodySmall) }

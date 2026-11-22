@@ -13,7 +13,7 @@
 MegaProxy is an open-source Android VPN client for HTTPS, SOCKS5, MASQUE α (HTTP/3)
 and SSH servers you control or trust, including **HTTPS and SSH jump hosts** for multi-hop connections.
 Route all apps or selected apps through your server. Optional **app ownership checks** on Android 10+
-validate TCP/UDP sources. Split tunneling defaults to [Standard](docs/en/source-validation.md), and all-app routing defaults to off.
+validate TCP/UDP sources. Unless you choose otherwise, checks use [Standard](docs/en/source-validation.md) for split tunneling and are off when all apps use the VPN.
 No account, ads, analytics or remote telemetry. **Servers and credentials are not included.**
 
 ## Installation
@@ -92,7 +92,7 @@ configured subscriptions and enabled app-update checks can also run in the backg
 | Connection test | `example.com`; exit IP/country from `speed.cloudflare.com/cdn-cgi/trace`, then IP fallbacks `ifconfig.me`, `api.ipify.org`, `icanhazip.com` and country fallbacks `ifconfig.co`, `ipapi.co`, `api.country.is` |
 | Optional proxy authentication check | Profile-provided `proxy.knockHost`, CONNECT to port 443 through the HTTPS proxy during diagnostics; [masked authentication](docs/en/profiles-and-routing.md#masked-authentication-errors) |
 | UDP/HTTP3 test | `www.cloudflare.com/cdn-cgi/trace` and `quic.browserleaks.com/`, independently through MASQUE/SOCKS5 UDP with verified certificates and no TCP fallback |
-| VPN visibility | Route IP lookup as above, then `https://proxycheck.io/v3/`; successful reputation results cached per IP for 24 hours, quota exhaustion shown separately |
+| VPN visibility | Route IP lookup as above, then `https://proxycheck.io/v3/`; successful reputation results reused per IP for 24 hours, quota exhaustion shown separately |
 | Speed | `https://h3.speed.cloudflare.com/cdn-cgi/trace`, `/__down`, `/__up`; underlying/VPN networks separately, 10/25/50 decimal MB per direction (up to four times the selected amount plus overhead) |
 | Subscriptions | Configured HTTPS sources receive their URL/query, optional Basic Auth, app version and `android` client ID; normal MegaProxy routing applies |
 | App updates | Selected F-Droid or GitHub source; [metadata/download endpoints and consent](docs/en/updates.md#network-and-implementation-details) |
@@ -107,7 +107,7 @@ not complete browser behaviour. ProxyCheck verdicts and local VPN heuristics are
 
 ## Configuration
 
-Import MegaProxy JSON, ProxyList, FoxyProxy JSON or supported SuperProxy text. JSON transfers
+Import MegaProxy JSON, ProxyList, FoxyProxy JSON or supported SuperProxy text. Android exports JSON v9 and imports versions 1–9. JSON transfers
 profiles and portable settings; ProxyList exports standalone HTTPS/MASQUE/SOCKS5 endpoints.
 Omitted secrets are kept only for unchanged servers/accounts; exported credentials and URL
 tokens are sensitive. Device-local settings, including app ownership checks, stay local.

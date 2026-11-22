@@ -75,6 +75,7 @@ class NativeProxyCore(
     private val diagnostics: (String) -> Unit = DiagnosticLog::add,
     private val isCurrent: () -> Boolean = { true },
 ) : ProxyCore {
+    private val bootstrap by lazy { Mobile.newBootstrapLookup() }
     private val callbacksEnabled = AtomicBoolean(true)
     private fun callbackFailure(error: Throwable) {
         android.util.Log.w("MegaProxy", "Native callback failed: ${error.javaClass.simpleName}")
@@ -128,7 +129,7 @@ class NativeProxyCore(
         .toString()
 
     override fun resolveProxy(host: String, status: (String) -> Unit): String? = operationResult {
-        Mobile.resolveProxy(host, protector(), reporter(diagnostics))
+        bootstrap.resolveProxy(host, protector(), reporter(diagnostics))
     }.onFailure {
         val message = it.cause?.message ?: it.message ?: "Unknown native error"
         diagnostics("event=bootstrap_dns result=failed reason=${nativeFailureReason(message)}")
@@ -194,6 +195,7 @@ class NativeProxyCore(
 
     override fun stop() {
         callbacksEnabled.set(false)
+        bootstrap.cancel()
         operationResult { Mobile.stop() }.onFailure(::callbackFailure)
     }
 }

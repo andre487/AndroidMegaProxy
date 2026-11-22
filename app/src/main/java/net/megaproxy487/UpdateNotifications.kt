@@ -93,7 +93,7 @@ internal class UpdatePreferences(private val context: Context) {
 }
 
 internal object UpdateNotifications {
-    fun schedule(context: Context) {
+    fun schedule(context: Context) = runBackgroundSetup("update_job") {
         val scheduler = context.getSystemService(JobScheduler::class.java)
         if (!UpdatePreferences(context).automatic || AppUpdates(context).source() == null) {
             scheduler.cancel(UPDATE_JOB_ID)

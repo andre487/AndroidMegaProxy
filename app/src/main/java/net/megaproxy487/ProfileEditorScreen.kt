@@ -401,7 +401,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                   }
                   item {
                     OutlinedButton(shape = RoundedCornerShape(12.dp),
-                        enabled = !importingKey, onClick = { destinationKeyPicker.launch(arrayOf("*/*")) },
+                        enabled = !importingKey, onClick = { destinationKeyPicker.openDocument(arrayOf("*/*")) { error = activity.uiText(R.string.document_picker_unavailable) } },
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.import_destination_key)) }
                   }
@@ -494,7 +494,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                       }
                       item {
                         OutlinedButton(shape = RoundedCornerShape(12.dp),
-                            enabled = !importingKey, onClick = { jumpKeyPicker.launch(arrayOf("*/*")) },
+                            enabled = !importingKey, onClick = { jumpKeyPicker.openDocument(arrayOf("*/*")) { error = activity.uiText(R.string.document_picker_unavailable) } },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.import_jump_key)) }
                       }

@@ -619,4 +619,5 @@
     <string name="auth_probe_host">Authentication check host (optional)</string>
     <string name="auth_probe_host_help">For HTTPS over TCP diagnostics. Use the server\'s configured knock host to reveal masked authentication errors. Leave empty if unknown.</string>
     <string name="validation_auth_probe_host">Enter a hostname without a URL, path or port.</string>
+    <string name="document_picker_unavailable">The system file picker is unavailable.</string>
 </resources>

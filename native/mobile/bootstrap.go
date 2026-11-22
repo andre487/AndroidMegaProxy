@@ -34,8 +34,30 @@ var bootstrapResolvers = []bootstrapResolver{
 	{name: "quad9", address: "9.9.9.9:443", url: "https://dns.quad9.net/dns-query"},
 }
 
-// ResolveProxy bootstraps the proxy address through protected encrypted DNS.
+type BootstrapLookup struct {
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func NewBootstrapLookup() *BootstrapLookup {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &BootstrapLookup{ctx: ctx, cancel: cancel}
+}
+
+func (b *BootstrapLookup) Cancel() { b.cancel() }
+
+// ResolveProxy preserves the standalone lookup API. VPN startup uses a cancellable lookup.
 func ResolveProxy(host string, protector Protector, reporter Reporter) (string, error) {
+	lookup := NewBootstrapLookup()
+	defer lookup.Cancel()
+	return lookup.ResolveProxy(host, protector, reporter)
+}
+
+// ResolveProxy bootstraps the proxy address through protected encrypted DNS.
+func (b *BootstrapLookup) ResolveProxy(host string, protector Protector, reporter Reporter) (string, error) {
+	if err := b.ctx.Err(); err != nil {
+		return "", err
+	}
 	host = normalizeProxyHost(host)
 	if ip := net.ParseIP(host); ip != nil {
 		return ip.String(), nil
@@ -51,7 +73,7 @@ func ResolveProxy(host string, protector Protector, reporter Reporter) (string, 
 	for _, recordType := range []uint16{1, 28} {
 		requestQuery := append([]byte(nil), query...)
 		binary.BigEndian.PutUint16(requestQuery[len(requestQuery)-4:], recordType)
-		result, resolveErr := raceFirst(context.Background(), len(bootstrapResolvers), func(ctx context.Context, index int) (answer, error) {
+		result, resolveErr := raceFirst(b.ctx, len(bootstrapResolvers), func(ctx context.Context, index int) (answer, error) {
 			resolver := bootstrapResolvers[index]
 			ip, err := resolveProxyWithResolver(ctx, requestQuery, id, resolver, protector)
 			if err != nil {

@@ -1,7 +1,9 @@
 package mobile
 
 import (
+	"context"
 	"encoding/binary"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -187,5 +189,36 @@ func TestBootstrapFastResolverWinsAndCancelsSlowRequest(t *testing.T) {
 	case <-cancelled:
 	case <-time.After(time.Second):
 		t.Fatal("slow bootstrap was not cancelled")
+	}
+}
+
+func TestCancelBootstrapDuringLookup(t *testing.T) {
+	entered := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		close(entered)
+		<-r.Context().Done()
+	}))
+	defer server.Close()
+	saved := bootstrapResolvers
+	bootstrapResolvers = []bootstrapResolver{{name: "fixture", address: server.Listener.Addr().String(), url: server.URL}}
+	defer func() { bootstrapResolvers = saved }()
+	lookup := NewBootstrapLookup()
+	defer lookup.Cancel()
+	result := make(chan error, 1)
+	go func() { _, err := lookup.ResolveProxy("proxy.test", &jumpTestProtector{}, nil); result <- err }()
+	select {
+	case <-entered:
+	case <-time.After(3 * time.Second):
+		t.Fatal("request did not start")
+	}
+	lookup.Cancel()
+	select {
+	case err := <-result:
+		if !errors.Is(err, context.Canceled) {
+			t.Fatalf("got %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("cancel did not release startup")
 	}
 }

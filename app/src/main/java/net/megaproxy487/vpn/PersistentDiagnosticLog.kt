@@ -111,14 +111,31 @@ object PersistentDiagnosticLog {
     }
 
     fun copyTo(output: OutputStream) {
-        // A bounded logger queue may discard diagnostics, but an export must never lose
-        // its task and then wait forever on a discarded Future.
-        synchronized(lock) {
-            val logDirectory = directory ?: return
-            listOf(PREVIOUS_FILE, CURRENT_FILE).forEach { name ->
-                val file = File(logDirectory, name)
-                if (file.isFile) file.inputStream().buffered().use { it.copyTo(output) }
+        val logDirectory = directory ?: return
+        // Open files survive rotation on Android. Cap each read at its size at snapshot time.
+        val segments = mutableListOf<Pair<RandomAccessFile, Long>>()
+        try {
+            synchronized(lock) {
+                for (name in listOf(PREVIOUS_FILE, CURRENT_FILE)) {
+                    val file = File(logDirectory, name)
+                    if (file.isFile) {
+                        val size = file.length()
+                        segments += RandomAccessFile(file, "r") to size
+                    }
+                }
             }
+            val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+            for ((file, size) in segments) {
+                var remaining = size
+                while (remaining > 0) {
+                    val count = minOf(remaining, buffer.size.toLong()).toInt()
+                    file.readFully(buffer, 0, count)
+                    output.write(buffer, 0, count)
+                    remaining -= count
+                }
+            }
+        } finally {
+            segments.forEach { it.first.close() }
         }
     }
 

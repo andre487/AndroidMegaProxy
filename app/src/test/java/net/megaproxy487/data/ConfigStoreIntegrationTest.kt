@@ -41,6 +41,13 @@ class ConfigStoreIntegrationTest {
         UiTestKeyStore.keys.clear()
     }
 
+    @Test fun invalidStoredLogLimitFallsBackAndCanBeReplaced() {
+        prefs.edit().putString("diagnostic_log_limit_mb", "invalid").commit()
+        assertEquals(3, store.diagnosticLogLimitMb())
+        store.setDiagnosticLogLimitMb(8)
+        assertEquals(8, store.diagnosticLogLimitMb())
+    }
+
     private fun secretProfile(): ProxyProfile = store.activeProfile().let {
         it.copy(config = it.config.copy(
             type = ProxyType.SSH_JUMP, port = 22, jumpPort = 22,

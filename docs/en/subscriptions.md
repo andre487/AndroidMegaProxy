@@ -18,7 +18,7 @@ You can also bootstrap by importing a complete configuration with this fragment:
 ```json
 {
   "schema": "net.megaproxy487.config",
-  "version": 8,
+  "version": 9,
   "subscription": {
     "url": "https://configs.example.com/team.json",
     "fallbackUrls": ["https://backup.example.com/team.json"],
@@ -53,7 +53,7 @@ snapshot keeps the last working configuration. See the
 Downloads follow Android routing for MegaProxy. Excluding MegaProxy from per-app
 VPN routing makes them use its ordinary network; a disconnected VPN is not enabled
 automatically. Requests use verified TLS, no redirects, a 4 MiB decoded-body limit,
-15-second connect/read timeouts and a 45-second read budget. They identify the app
+15-second connect/read timeouts and a 45-second limit per source, including response headers and decompression. They identify the app
 with `X-MegaProxy-Client: android` and `X-MegaProxy-Version`.
 
 Existing tunnels keep their previous settings. A change affecting the active
