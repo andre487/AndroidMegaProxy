@@ -140,7 +140,7 @@ force-stop still apply. Use **Settings → Battery settings** if Android restric
 ## Import, export and local controls
 
 Import MegaProxy JSON, ProxyList, FoxyProxy JSON or supported SuperProxy text. Import reports
-ignored browser-only or unknown fields. JSON version 8 preserves stable profile IDs and portable
+ignored browser-only or unknown fields. Android exports JSON version 9 and can import versions 1–9. JSON preserves stable profile IDs and portable
 settings; explicit unsupported transports are rejected. ProxyList exports only standalone
 HTTPS/MASQUE/SOCKS5 endpoints; use JSON for SSH, Jump and other settings.
 

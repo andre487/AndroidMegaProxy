@@ -22,7 +22,9 @@ class RenewConfigSchemaTest(unittest.TestCase):
                 return json.dumps(
                     {
                         "$schema": "https://json-schema.org/draft/2020-12/schema",
-                        "properties": {"version": {"const": 8}},
+                        "properties": {
+                            "version": {"const": 9 if "-v9." in path else 8}
+                        },
                     }
                 ).encode()
             return b"{}" if ".json" in path else b"license\n"

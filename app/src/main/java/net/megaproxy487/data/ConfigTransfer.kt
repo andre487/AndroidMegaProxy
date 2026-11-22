@@ -70,7 +70,7 @@ data class ProfileSecretPresence(
 object ConfigTransfer {
     const val SCHEMA_ID = "net.megaproxy487.config"
     const val LEGACY_SCHEMA_ID = "dev.megaproxy.config"
-    const val SCHEMA_VERSION = 8
+    const val SCHEMA_VERSION = 9
 
     fun isSupportedSchema(value: String): Boolean = value == SCHEMA_ID || value == LEGACY_SCHEMA_ID
 

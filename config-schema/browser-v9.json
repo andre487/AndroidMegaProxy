@@ -1,0 +1,65 @@
+{
+  "schema": "net.megaproxy487.config",
+  "version": 9,
+  "passwordsIncluded": false,
+  "privateKeysIncluded": false,
+  "activeProfileId": null,
+  "routing": {
+    "bypassLocalNetworks": true
+  },
+  "profiles": [
+    {
+      "id": "example-proxy",
+      "name": "Example",
+      "color": 5,
+      "countryCode": "",
+      "proxy": {
+        "type": "HTTPS",
+        "host": "proxy.example.com",
+        "port": 443,
+        "username": "demo",
+        "knockHost": "knock.example.com"
+      },
+      "browser": {
+        "knockHost": "knock.example.com",
+        "bypass": [
+          "intranet.example.com"
+        ],
+        "authMode": "auto"
+      }
+    }
+  ],
+  "browser": {
+    "theme": "system",
+    "language": "auto",
+    "routing": {
+      "enabled": true,
+      "mode": "domains",
+      "domains": [
+        "example.com",
+        "*.example.org"
+      ],
+      "sites": [
+        "site.example.com"
+      ],
+      "subscriptions": {
+        "domainSources": [
+          "youtube"
+        ],
+        "siteSources": [
+          "discord"
+        ],
+        "autoUpdate": true,
+        "throughProxy": false
+      }
+    }
+  },
+  "subscription": {
+    "url": "https://configs.example.com/MegaProxy.json",
+    "intervalMinutes": 60,
+    "enabled": false,
+    "fallbackUrls": [
+      "https://backup.example.com/MegaProxy.json"
+    ]
+  }
+}

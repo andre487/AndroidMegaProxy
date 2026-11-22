@@ -55,6 +55,20 @@ class ConfigSubscriptionIntegrationTest {
     private fun apply(value: PortableConfiguration, running: Boolean = false) = store.applySubscriptionSnapshot(
         store.subscriptionState()!!.generation, value, 0, 1000, running)
 
+    @Test fun snapshotsValidateBothPortableVersionsAndRejectFutureVersions() {
+        val json = document(profile("one"))
+        for (version in listOf(8, 9)) {
+            json.put("version", version)
+            json.remove("diagnosticLogLimitMb")
+            assertEquals("one", parseSubscriptionSnapshot(json.toString(), emptyList()).profiles.single().id)
+            json.put("diagnosticLogLimitMb", 101)
+            assertTrue(runCatching { parseSubscriptionSnapshot(json.toString(), emptyList()) }.isFailure)
+        }
+        json.remove("diagnosticLogLimitMb")
+        json.put("version", 10)
+        assertTrue(runCatching { parseSubscriptionSnapshot(json.toString(), emptyList()) }.isFailure)
+    }
+
     @Test fun androidRoutingAndSshOverrideOnlySuppliedFields() {
         val json = document(profile("one"))
         val legacy = JSONObject().put("routeAllApps", true).put("selectedPackages", JSONArray().put("legacy.app"))
@@ -193,6 +207,7 @@ class ConfigSubscriptionIntegrationTest {
         assertEquals(TlsProfile.DEFAULT, store.globalConnectionSettings().tlsProfile)
         val exported = JSONObject(ConfigTransfer.exportJson(store, false))
         assertEquals("default", exported.getJSONObject("android").getJSONObject("tls").getString("fingerprint"))
+        assertEquals(9, exported.getInt("version"))
         assertFalse(exported.has("tls"))
         assertFalse(exported.has("alwaysOnProfileId"))
         assertEquals(store.alwaysOnProfileId(), exported.getJSONObject("android").getString("alwaysOnProfileId"))

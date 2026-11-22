@@ -27,7 +27,7 @@ apply to every mode. App UDP/TCP port 53 is intercepted; app-specific encrypted 
 Portable profiles retain the endpoint in the legacy `dns.customDohUrl` string with an explicit
 `https://`, `tcp://` or `udp://` scheme and `dns.provider: "CUSTOM"`. Examples:
 `https://dns.example/dns-query`, `tcp://192.0.2.53:53`, `udp://[2001:db8::53]:53`.
-The legacy field name and version 8 schema are unchanged. Clients without plain DNS support
+Versions 8 and 9 use the same DNS fields. Clients without plain DNS support
 cannot use TCP/UDP endpoints; they must not reinterpret them as DoH.
 Security consent stays on this device: exports/imports and subscriptions cannot grant
 permission for insecure DNS or invalid DoH certificates. On a new device, confirm locally before connecting. Refreshing/importing an unchanged resolver preserves its local

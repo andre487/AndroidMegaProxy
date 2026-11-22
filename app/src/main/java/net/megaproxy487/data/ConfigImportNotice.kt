@@ -19,7 +19,7 @@ internal val androidSshFields = setOf("fingerprint", "keepaliveSeconds", "maxCha
 /** Field recognition only: canonical schema validation belongs to export tests, not legacy imports. */
 internal object ConfigImportNotices {
     private val schema by lazy {
-        JSONObject(checkNotNull(javaClass.getResourceAsStream("/megaproxy-v8.schema.json"))
+        JSONObject(checkNotNull(javaClass.getResourceAsStream("/megaproxy-v${ConfigTransfer.SCHEMA_VERSION}.schema.json"))
             .bufferedReader().use { it.readText() })
     }
 

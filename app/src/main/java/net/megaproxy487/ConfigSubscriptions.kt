@@ -74,7 +74,7 @@ internal fun parseSubscriptionSnapshot(text: String, previous: List<ProxyProfile
     if (parsed is ParsedProfileImport.Configuration) {
         val value = parsed.value
         val root = boundedJsonObject(text)
-        if (root.optInt("version") == ConfigTransfer.SCHEMA_VERSION) validateSubscriptionConfiguration(root)
+        if (root.optInt("version") >= 8) validateSubscriptionConfiguration(root)
         val ids = value.profiles.map(ProxyProfile::id).toSet()
         for (key in listOf("activeProfileId", "alwaysOnProfileId")) {
             val owner = if (key == "alwaysOnProfileId") root.androidSection()?.takeIf { it.has(key) } ?: root else root

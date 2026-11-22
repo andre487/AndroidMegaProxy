@@ -14,6 +14,9 @@ FILES = (
     "schemas/megaproxy-v8.schema.json",
     "examples/android-v8.json",
     "examples/browser-v8.json",
+    "schemas/megaproxy-v9.schema.json",
+    "examples/android-v9.json",
+    "examples/browser-v9.json",
     "LICENSE",
 )
 DIRECTORY = Path(__file__).resolve().parents[1] / "config-schema"
@@ -43,11 +46,16 @@ def renew(ref="main", directory=DIRECTORY):
         if name.endswith(".json"):
             document = json.loads(content)
             if name.endswith(".schema.json"):
-                if (
-                    document.get("$schema")
-                    != "https://json-schema.org/draft/2020-12/schema"
-                    or document.get("properties", {}).get("version", {}).get("const")
-                    != 8
+                if document.get(
+                    "$schema"
+                ) != "https://json-schema.org/draft/2020-12/schema" or document.get(
+                    "properties", {}
+                ).get(
+                    "version", {}
+                ).get(
+                    "const"
+                ) != (
+                    9 if "-v9." in name else 8
                 ):
                     raise ValueError(
                         "Unexpected schema version; update consumers explicitly"

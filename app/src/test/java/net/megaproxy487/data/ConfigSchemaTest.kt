@@ -12,16 +12,18 @@ import java.security.MessageDigest
 internal object ConfigSchemas {
     fun bytes(name: String) = checkNotNull(javaClass.getResourceAsStream("/$name")).use { it.readBytes() }
     private val mapper = ObjectMapper()
-    private val schemas = listOf("android-v8.schema.json", "megaproxy-v8.schema.json").map {
+    private val schemas = listOf("android-v8.schema.json", "megaproxy-v8.schema.json", "megaproxy-v9.schema.json").groupBy {
+        if ("-v9." in it) 9 else 8
+    }.mapValues { (_, names) -> names.map {
         JsonSchemaFactory.getInstance(SpecVersion.VersionFlag.V202012).getSchema(mapper.readTree(bytes(it)))
-    }
+    } }
     fun assertValid(text: String) {
-        schemas.forEach { schema ->
+        schemas.getValue(JSONObject(text).getInt("version")).forEach { schema ->
             val errors = schema.validate(mapper.readTree(text))
             assertTrue(errors.joinToString("\n"), errors.isEmpty())
         }
     }
-    fun rejects(text: String) = schemas.all { it.validate(mapper.readTree(text)).isNotEmpty() }
+    fun rejects(text: String) = schemas.values.flatten().all { it.validate(mapper.readTree(text)).isNotEmpty() }
 }
 
 class ConfigSchemaTest {
@@ -40,7 +42,7 @@ class ConfigSchemaTest {
         assertEquals("https://github.com/andre487/MegaProxyConfig", lock.getString("repository"))
         assertTrue(lock.getString("commit").matches(Regex("[a-f0-9]{40}")))
         val files = lock.getJSONObject("files")
-        assertEquals(setOf("android-v8.schema.json", "megaproxy-v8.schema.json", "android-v8.json", "browser-v8.json", "LICENSE"), files.keySet())
+        assertEquals(setOf("android-v8.schema.json", "megaproxy-v8.schema.json", "android-v8.json", "browser-v8.json", "megaproxy-v9.schema.json", "android-v9.json", "browser-v9.json", "LICENSE"), files.keySet())
         files.keys().forEach { name ->
             val hash = MessageDigest.getInstance("SHA-256").digest(ConfigSchemas.bytes(name))
                 .joinToString("") { "%02x".format(it) }
@@ -49,13 +51,13 @@ class ConfigSchemaTest {
     }
 
     @Test fun upstreamExamplesValidateAndImportWithExpectedPlatformNotice() {
-        for (name in listOf("android-v8.json", "browser-v8.json")) {
+        for (name in listOf("android-v8.json", "browser-v8.json", "android-v9.json", "browser-v9.json")) {
             val text = String(ConfigSchemas.bytes(name))
             ConfigSchemas.assertValid(text)
             val imported = ConfigTransfer.importJson(text)
-            assertEquals(ConfigImportNotice(browserFields = name == "browser-v8.json"), imported.notice)
+            assertEquals(ConfigImportNotice(browserFields = name.startsWith("browser-")), imported.notice)
             assertFalse(imported.profiles.isEmpty())
-            if (name == "android-v8.json") {
+            if (name.startsWith("android-")) {
                 val global = imported.globalConnectionSettings!!
                 val masque = imported.profiles.single { it.config.type == ProxyType.MASQUE }.config
                 assertEquals(TlsProfile.CUSTOM, global.tlsProfile)
@@ -69,14 +71,14 @@ class ConfigSchemaTest {
     }
 
     @Test fun schemaTracksEveryExportedEnumAndVersion() {
-        for (name in listOf("android-v8.schema.json", "megaproxy-v8.schema.json")) {
+        for (name in listOf("android-v8.schema.json", "megaproxy-v8.schema.json", "megaproxy-v9.schema.json")) {
             val schema = JSONObject(String(ConfigSchemas.bytes(name)))
-            assertEquals(ConfigTransfer.SCHEMA_VERSION, schema.getJSONObject("properties").getJSONObject("version").getInt("const"))
+            assertEquals(if ("-v8." in name) 8 else ConfigTransfer.SCHEMA_VERSION, schema.getJSONObject("properties").getJSONObject("version").getInt("const"))
             val defs = schema.getJSONObject("\$defs")
             fun check(definition: String, field: String, values: Set<String>) {
                 val array = defs.getJSONObject(definition).getJSONObject("properties").getJSONObject(field).getJSONArray("enum")
                 val supported = (0 until array.length()).map { array.getString(it) }.toSet()
-                if (name == "megaproxy-v8.schema.json" && definition == "proxy" && field == "type") {
+                if (name.startsWith("megaproxy-") && definition == "proxy" && field == "type") {
                     assertTrue("Shared schema must include every Android transport", supported.containsAll(values))
                 } else assertEquals("$name: $definition.$field", values, supported)
             }
@@ -93,7 +95,7 @@ class ConfigSchemaTest {
     @Test fun schemasRejectMalformedCanonicalConfiguration() {
         val valid = String(ConfigSchemas.bytes("android-v8.json"))
         for (change in listOf<(JSONObject) -> Unit>(
-            { it.put("version", 9) },
+            { it.put("version", ConfigTransfer.SCHEMA_VERSION + 1) },
             { it.getJSONArray("profiles").getJSONObject(0).remove("id") },
             { it.getJSONArray("profiles").getJSONObject(0).getJSONObject("proxy").put("port", 65536) },
             { it.getJSONArray("profiles").getJSONObject(0).getJSONObject("proxy").put("type", "HTTP") },

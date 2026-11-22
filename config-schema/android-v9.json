@@ -1,0 +1,63 @@
+{
+  "schema": "net.megaproxy487.config",
+  "version": 9,
+  "passwordsIncluded": false,
+  "privateKeysIncluded": false,
+  "activeProfileId": null,
+  "routing": {
+    "bypassLocalNetworks": true
+  },
+  "profiles": [
+    {
+      "id": "example-proxy",
+      "name": "Example",
+      "color": 5,
+      "countryCode": "",
+      "proxy": {
+        "type": "HTTPS",
+        "host": "proxy.example.com",
+        "port": 443,
+        "username": "demo",
+        "preferHttp3": true,
+        "knockHost": "knock.example.com"
+      }
+    },
+    {
+      "id": "example-masque",
+      "name": "MASQUE alpha example",
+      "color": 5,
+      "countryCode": "",
+      "proxy": {
+        "type": "MASQUE",
+        "host": "masque.example.com",
+        "port": 443,
+        "username": "demo"
+      },
+      "tls": {
+        "fingerprint": "CUSTOM",
+        "customJa3": "771,4865-4866-4867,0-10-13-16-43-51-57,29-23,0"
+      }
+    }
+  ],
+  "android": {
+    "version": 1,
+    "tls": {
+      "fingerprint": "CUSTOM",
+      "customJa3": "771,4865-4866-4867,0-10-13-16-43-51,29-23,0"
+    },
+    "alwaysOnProfileId": "example-proxy",
+    "routing": {
+      "routeAllApps": false,
+      "selectedPackages": [
+        "org.example.app"
+      ]
+    },
+    "ssh": {
+      "fingerprint": "DEFAULT",
+      "keepaliveSeconds": 30,
+      "maxChannels": 32,
+      "rotationMinutes": 0,
+      "rotationMb": 0
+    }
+  }
+}
