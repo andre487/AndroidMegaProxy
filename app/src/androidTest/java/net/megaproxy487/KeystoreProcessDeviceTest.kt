@@ -3,6 +3,8 @@ package net.megaproxy487
 import android.os.Process
 import android.util.Base64
 import androidx.compose.ui.semantics.SemanticsActions
+import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasAnyAncestor
 import androidx.compose.ui.test.hasSetTextAction
 import androidx.compose.ui.test.hasText
@@ -25,8 +27,12 @@ import java.security.KeyStore
 class KeystoreProcessDeviceTest : DeviceTestBase() {
     @get:Rule(order = Int.MIN_VALUE) val compose = createEmptyComposeRule()
 
-    private fun confirmPassphrase() {
-        compose.onNode(hasAnyAncestor(isDialog()) and hasText(text(R.string.connect)))
+    private fun clickAppButton(id: Int, inDialog: Boolean = false) {
+        val dialog = hasAnyAncestor(isDialog())
+        val target = hasText(text(id)) and hasClickAction() and (if (inDialog) dialog else !dialog) and
+            SemanticsMatcher.keyNotDefined(androidx.compose.ui.semantics.SemanticsProperties.Disabled)
+        compose.waitUntil(10_000) { compose.onAllNodes(target).fetchSemanticsNodes().size == 1 }
+        compose.onNode(target)
             .performSemanticsAction(SemanticsActions.OnClick) { it() }
     }
 
@@ -66,34 +72,34 @@ class KeystoreProcessDeviceTest : DeviceTestBase() {
             assertEquals(argument("sshFingerprint"), config.trustedHostKey)
             directOriginUnavailable()
             io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(sshAuthMode = SshAuthMode.PASSWORD_ONLY)) }
-            connect()
+            connect { clickAppButton(R.string.connect) }
             roundTrip() // No key fallback: the recovered password must authenticate.
-            click(R.string.disconnect)
+            clickAppButton(R.string.disconnect)
             stopped()
             io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(sshAuthMode = SshAuthMode.KEY_ONLY)) }
-            connect()
+            connect { clickAppButton(R.string.connect) }
             roundTrip() // No password fallback: the recovered key must authenticate.
-            click(R.string.disconnect)
+            clickAppButton(R.string.disconnect)
             stopped()
             io {
                 val profile = store.activeProfile()
                 store.saveProfile(profile.copy(config = profile.config.copy(privateKeyPassphrase = KeyPassphrase())))
             }
             scenario.recreate()
-            click(R.string.connect)
-            click(R.string.cancel)
+            clickAppButton(R.string.connect)
+            clickAppButton(R.string.cancel, inDialog = true)
             stopped()
-            click(R.string.connect)
+            clickAppButton(R.string.connect)
             val input = compose.onNode(hasAnyAncestor(isDialog()) and hasSetTextAction())
             input.performTextReplacement("incorrect")
-            confirmPassphrase()
+            clickAppButton(R.string.connect, inDialog = true)
             compose.waitUntil(10_000) {
                 compose.onAllNodes(hasAnyAncestor(isDialog()) and hasText(text(R.string.ssh_unlock_failed)))
                     .fetchSemanticsNodes().isNotEmpty()
             }
             assertFalse(store.isConnectionDesired())
             input.performTextReplacement(phrase)
-            connect(::confirmPassphrase)
+            connect { clickAppButton(R.string.connect, inDialog = true) }
             roundTrip()
             assertTrue(store.activeProfile().config.privateKeyPassphrase == KeyPassphrase(phrase))
             marker.delete()
