@@ -6,6 +6,7 @@ import net.megaproxy487.UiTestKeyStore
 import net.megaproxy487.UiTestKeyStoreProvider
 import net.megaproxy487.model.FailoverMode
 import net.megaproxy487.model.GlobalConnectionSettings
+import net.megaproxy487.model.KeyPassphrase
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.TlsProfile
@@ -57,6 +58,33 @@ class ConfigStoreIntegrationTest {
             .put("version", ConfigTransfer.SCHEMA_VERSION)
             .put("profiles", JSONArray().put(profile)).toString()),
     )
+
+    @Test fun localKeyPassphrasesFollowTheirOwnKeyAndNeverExport() {
+        val original = secretProfile()
+        val config = original.config.copy(privateKeyPassphrase = KeyPassphrase("local destination phrase", true),
+            jumpPrivateKeyPassphrase = KeyPassphrase("local jump phrase"))
+        store.saveProfile(original.copy(config = config))
+        val disk = prefs.getString("profiles_v2", null)!!
+        assertFalse(disk.contains(config.privateKeyPassphrase.value))
+        assertFalse(disk.contains(config.jumpPrivateKeyPassphrase.value))
+        assertTrue(disk.contains("privateKeyPassphrase"))
+        assertFalse(disk.contains("jumpPrivateKeyPassphrase"))
+        val portable = ConfigTransfer.exportJson(store, true, true)
+        assertFalse(portable.contains("passphrase", ignoreCase = true))
+        assertFalse(portable.contains(config.privateKeyPassphrase.value))
+        assertFalse(portable.contains(config.jumpPrivateKeyPassphrase.value))
+        val incoming = JSONObject(portable).getJSONArray("profiles").getJSONObject(0)
+        val proxy = incoming.getJSONObject("proxy")
+        proxy.remove("privateKey")
+        proxy.put("privateKeyPassphrase", "foreign")
+        importProfile(incoming)
+        assertEquals(config.privateKeyPassphrase, store.profile(original.id)!!.config.privateKeyPassphrase)
+        assertEquals(config.jumpPrivateKeyPassphrase, store.profile(original.id)!!.config.jumpPrivateKeyPassphrase)
+        proxy.put("privateKey", "replacement")
+        importProfile(incoming)
+        assertEquals(KeyPassphrase(), store.profile(original.id)!!.config.privateKeyPassphrase)
+        assertEquals(config.jumpPrivateKeyPassphrase, store.profile(original.id)!!.config.jumpPrivateKeyPassphrase)
+    }
 
     @Test fun authenticationProbeSurvivesStorageAndDiagnosticOnlyChangeDuringStartupNeedsNoReconnect() {
         val original = secretProfile()

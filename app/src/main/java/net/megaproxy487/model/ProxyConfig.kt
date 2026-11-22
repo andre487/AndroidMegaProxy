@@ -12,6 +12,22 @@ enum class SourceValidationLevel(val udpRecheckMillis: Long, @StringRes val labe
     STRICT(0, R.string.source_level_strict),
 }
 
+/** OpenSSH stores a length-prefixed cipher name immediately after the openssh-key-v1 NUL. */
+internal fun protectedSshKey(pem: String): Boolean {
+    if (pem.lineSequence().any { it.startsWith("Proc-Type:") && it.contains("ENCRYPTED") }) return true
+    val marker = "-----BEGIN OPENSSH PRIVATE KEY-----"
+    if (!pem.contains(marker)) return false
+    val prefix = pem.substringAfter(marker).asSequence().filterNot(Char::isWhitespace).take(32).joinToString("")
+    val header = runCatching { java.util.Base64.getDecoder().decode(prefix) }.getOrNull() ?: return false
+    val magic = "openssh-key-v1\u0000"
+    if (header.size < 23 || String(header, 0, magic.length, Charsets.US_ASCII) != magic) return false
+    return String(header, magic.length, 8, Charsets.US_ASCII) != "\u0000\u0000\u0000\u0004none"
+}
+
+data class KeyPassphrase(val value: String = "", val remember: Boolean = false) {
+    override fun toString() = "KeyPassphrase(redacted)"
+}
+
 data class ProxyConfig(
     val type: ProxyType = ProxyType.HTTPS,
     val host: String = "",
@@ -37,6 +53,7 @@ data class ProxyConfig(
     val sourceValidationLevel: SourceValidationLevel = SourceValidationLevel.STANDARD,
     val resolvedProxyIp: String = "",
     val privateKey: String = "",
+    val privateKeyPassphrase: KeyPassphrase = KeyPassphrase(),
     val sshProfile: SshProfile = SshProfile.DEFAULT,
     val trustedHostKey: String = "",
     val acceptAnyHostKey: Boolean = false,
@@ -45,6 +62,7 @@ data class ProxyConfig(
     val jumpUsername: String = "",
     val jumpPassword: String = "",
     val jumpPrivateKey: String = "",
+    val jumpPrivateKeyPassphrase: KeyPassphrase = KeyPassphrase(),
     val jumpTrustedHostKey: String = "",
     val jumpAllowInvalidProxyCertificate: Boolean = false,
     val jumpAcceptAnyHostKey: Boolean = false,
@@ -59,6 +77,14 @@ data class ProxyConfig(
     internal val unreadableSecrets: Map<String, String> = emptyMap(),
     internal val storageUnavailable: Boolean = false,
 ) {
+    internal fun withSshKey(value: String, jump: Boolean): ProxyConfig {
+        val field = if (jump) "jumpPrivateKey" else "privateKey"
+        if (value == (if (jump) jumpPrivateKey else privateKey) && field !in unreadableSecrets) return this
+        val remaining = unreadableSecrets - field - (field + "Passphrase")
+        return if (jump) copy(jumpPrivateKey = value, jumpPrivateKeyPassphrase = KeyPassphrase(), unreadableSecrets = remaining)
+        else copy(privateKey = value, privateKeyPassphrase = KeyPassphrase(), unreadableSecrets = remaining)
+    }
+
     val dnsTransport: DnsTransport
         get() = if (dnsProvider != DnsProvider.CUSTOM) DnsTransport.DOH else when (customDohUrl.trim().substringBefore(":").lowercase()) {
             "tcp" -> DnsTransport.TCP
@@ -71,6 +97,10 @@ data class ProxyConfig(
         storageUnavailable -> R.string.error_config_storage
         mtu !in VPN_MTU_RANGE -> R.string.mtu_invalid
         unavailableAuthentication() -> R.string.error_credentials_unavailable
+        type.isSsh && sshAuthMode != SshAuthMode.PASSWORD_ONLY && privateKeyPassphrase.value.isEmpty() &&
+            protectedSshKey(privateKey) -> R.string.ssh_unlock_destination
+        type == ProxyType.SSH_JUMP && !sameJumpAuthentication && sshAuthMode != SshAuthMode.PASSWORD_ONLY &&
+            jumpPrivateKeyPassphrase.value.isEmpty() && protectedSshKey(jumpPrivateKey) -> R.string.ssh_unlock_jump
         host.isBlank() -> if (!type.isSsh) R.string.validation_proxy_host else R.string.validation_ssh_host
         !validProxyHost(host) -> R.string.validation_host_format
         port !in 1..65535 -> R.string.validation_port
@@ -106,8 +136,8 @@ data class ProxyConfig(
     private fun unavailableAuthentication(): Boolean {
         val fields = if (!type.isSsh) listOf("password") else when (sshAuthMode) {
             SshAuthMode.PASSWORD_ONLY -> listOf("password")
-            SshAuthMode.KEY_ONLY -> listOf("privateKey")
-            else -> listOf("password", "privateKey")
+            SshAuthMode.KEY_ONLY -> listOf("privateKey", "privateKeyPassphrase")
+            else -> listOf("password", "privateKey", "privateKeyPassphrase")
         }
         return fields.any { it in unreadableSecrets } ||
             (type.hasJump && !sameJumpAuthentication && fields.any {

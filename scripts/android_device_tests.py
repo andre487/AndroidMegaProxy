@@ -183,6 +183,7 @@ class DirectDnsFixture(socketserver.BaseRequestHandler):
 def fixture():
     name = "megaproxy-device-" + uuid.uuid4().hex[:12]
     password = secrets.token_hex(16)
+    key_phrase = secrets.token_hex(16)
     containers = []
     firewall = []
     image = name + ":fixture"
@@ -213,7 +214,12 @@ def fixture():
             elif port:
                 options += ["-p", "127.0.0.1::" + port]
             if alias == "ssh":
-                options += ["-e", "TEST_PASSWORD=" + password]
+                options += [
+                    "-e",
+                    "TEST_PASSWORD=" + password,
+                    "-e",
+                    "TEST_KEY_PASSPHRASE=" + key_phrase,
+                ]
             command(*options, server_image, *args)
             return container
 
@@ -399,6 +405,7 @@ def fixture():
                 ssh,
             ),
             "sshPassword": password,
+            "sshKeyPassphrase": key_phrase,
             "sshKey": base64.b64encode(key.encode()).decode(),
             "sshFingerprint": fingerprint,
         }

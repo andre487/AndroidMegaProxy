@@ -31,11 +31,6 @@ fun InputStream.readPrivateKeyText(): String {
 
     val text = output.toString(Charsets.UTF_8.name()).removePrefix("\uFEFF").trim()
     requireUi(text.isNotEmpty()) { UiException(R.string.error_key_empty) }
-    requireUi(!text.contains("BEGIN ENCRYPTED PRIVATE KEY") &&
-        !text.contains(Regex("Proc-Type:\\s*4,ENCRYPTED", RegexOption.IGNORE_CASE))) {
-        UiException(R.string.error_key_encrypted)
-    }
-
     val begin = Regex("^-----BEGIN ([A-Z0-9 ]+)-----", RegexOption.MULTILINE).find(text)
         ?: throw UiException(R.string.error_key_missing)
     val type = begin.groupValues[1]

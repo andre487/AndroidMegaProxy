@@ -128,7 +128,14 @@
     <string name="password">Пароль</string>
     <string name="ssh_password_optional">Пароль (необязательно)</string>
     <string name="private_key_optional">Приватный ключ (необязательно)</string>
-    <string name="private_key_format_hint">Формат PEM или OpenSSH. Ключи с парольной фразой не поддерживаются.</string>
+    <string name="private_key_format_hint">OpenSSH или PEM. Зашифрованный PKCS#8 не поддерживается.</string>
+    <string name="ssh_key_passphrase">Парольная фраза ключа</string>
+    <string name="ssh_remember_phrase">Запомнить на этом устройстве</string>
+    <string name="ssh_remember_phrase_detail">Разрешает автоматическое переподключение после перезапуска приложения. Фраза остаётся на этом устройстве.</string>
+    <string name="ssh_apply_phrase">Применить фразу</string>
+    <string name="ssh_unlock_failed">Не удалось разблокировать ключ. Проверьте фразу и повторите попытку.</string>
+    <string name="ssh_unlock_destination">Разблокируйте SSH-ключ в редакторе профиля.</string>
+    <string name="ssh_unlock_jump">Разблокируйте SSH-ключ Jump в редакторе профиля.</string>
     <string name="trusted_destination_key">Доверенный ключ назначения: %1$s</string>
     <string name="jump_host">Промежуточный сервер</string>
     <string name="jump_ssh_hostname">Промежуточный сервер</string>
@@ -366,7 +373,6 @@
     <string name="error_field_long">Значение поля %1$s слишком длинное</string>
     <string name="error_key_large">Размер файла закрытого ключа превышает 64 KiB</string>
     <string name="error_key_empty">Файл закрытого ключа пуст</string>
-    <string name="error_key_encrypted">Закрытые ключи с парольной защитой не поддерживаются</string>
     <string name="error_key_missing">В файле нет закрытого ключа PEM или OpenSSH</string>
     <string name="error_key_format">Неподдерживаемый формат закрытого ключа: %1$s</string>
     <string name="error_key_footer">Отсутствует завершающая строка закрытого ключа</string>

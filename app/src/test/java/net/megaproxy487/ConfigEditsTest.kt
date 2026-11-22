@@ -8,6 +8,15 @@ import org.junit.Test
 class ConfigEditsTest {
     private val initial = ProxyProfile("one", "original", 0, config = ProxyConfig(host = "old.example", password = "old"))
 
+    @Test fun staleUnlockCannotAttachPassphraseToReplacementKey() {
+        val before = initial.copy(config = initial.config.copy(privateKey = "first"))
+        val unlocked = before.copy(config = before.config.copy(privateKeyPassphrase = KeyPassphrase("local", true)))
+        var latest = before.copy(config = before.config.withSshKey("replacement", jump = false))
+        ConfigEdits<ProxyProfile>().profile(before, unlocked).write { latest = it(latest) }
+        assertEquals("replacement", latest.config.privateKey)
+        assertEquals(KeyPassphrase(), latest.config.privateKeyPassphrase)
+    }
+
     @Test fun authenticationProbeEditPreservesConcurrentCredentialRefresh() {
         val changed = initial.copy(config = initial.config.copy(authProbeHost = "knock.example"))
         var saved = initial.copy(config = initial.config.copy(password = "rotated"))

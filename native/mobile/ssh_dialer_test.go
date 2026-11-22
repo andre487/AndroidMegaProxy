@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
+	"encoding/pem"
 	"io"
 	"net"
 	"strconv"
@@ -40,14 +41,45 @@ func TestHostKeyTOFU(t *testing.T) {
 }
 
 func TestSSHAuthRejectsMalformedPrivateKeyInsteadOfFallingBack(t *testing.T) {
-	_, err := sshAuthMethods("not a private key", "password", "AUTO")
+	_, err := sshAuthMethods("not a private key", "", "password", "AUTO")
 	if err == nil || !strings.Contains(err.Error(), "invalid SSH private key") {
 		t.Fatalf("unexpected error: %v", err)
 	}
 }
 
+func TestProtectedSSHPrivateKey(t *testing.T) {
+	_, key, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	block, err := ssh.MarshalPrivateKeyWithPassphrase(key, "", []byte("key phrase"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	encrypted := string(pem.EncodeToMemory(block))
+	if err := CheckSSHKeyPassphrase(encrypted, "key phrase"); err != nil {
+		t.Fatal(err)
+	}
+	if err := CheckSSHKeyPassphrase(encrypted, "wrong"); err == nil {
+		t.Fatal("invalid passphrase accepted")
+	}
+	for _, phrase := range []string{"", "server password"} {
+		if _, err := sshAuthMethods(encrypted, phrase, "server password", "AUTO"); err == nil {
+			t.Fatal("locked key fell back to server password")
+		}
+	}
+	methods, err := sshAuthMethods(encrypted, "key phrase", "", "KEY_ONLY")
+	if err != nil || len(methods) != 1 {
+		t.Fatal("encrypted key did not produce key authentication")
+	}
+	methods, err = sshAuthMethods(encrypted, "wrong", "server password", "PASSWORD_ONLY")
+	if err != nil || len(methods) != 2 {
+		t.Fatal("unused key blocked password authentication")
+	}
+}
+
 func TestSSHPasswordIncludesKeyboardInteractiveFallback(t *testing.T) {
-	methods, err := sshAuthMethods("", "password", "AUTO")
+	methods, err := sshAuthMethods("", "", "password", "AUTO")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -57,14 +89,14 @@ func TestSSHPasswordIncludesKeyboardInteractiveFallback(t *testing.T) {
 }
 
 func TestSSHAuthenticationModes(t *testing.T) {
-	methods, err := sshAuthMethods("", "password", "KEY_ONLY")
+	methods, err := sshAuthMethods("", "", "password", "KEY_ONLY")
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(methods) != 0 {
 		t.Fatalf("key-only unexpectedly used password: %d methods", len(methods))
 	}
-	methods, err = sshAuthMethods("", "password", "PASSWORD_ONLY")
+	methods, err = sshAuthMethods("", "", "password", "PASSWORD_ONLY")
 	if err != nil {
 		t.Fatal(err)
 	}

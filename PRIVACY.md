@@ -9,7 +9,7 @@ It contains no advertising, analytics SDKs or tracking services.
 ## Data used on your device
 
 MegaProxy stores your connection profiles, credentials, settings and trusted SSH host keys to
-connect to your servers. Passwords, imported private keys, configuration-subscription URLs and subscription credentials are encrypted with a key held by Android Keystore. Android backup and device transfer are disabled for app data.
+connect to your servers. Passwords, imported private keys, configuration-subscription URLs and subscription credentials are encrypted with a key held by Android Keystore. SSH key passphrases stay in app memory unless you choose to remember them on this device. Remembered passphrases are encrypted with Android Keystore protection and excluded from configuration exports. Android backup and device transfer are disabled for app data.
 
 For per-app routing, MegaProxy reads the applications visible to it on your device and stores
 which applications you select. This information is used locally to configure routing, not

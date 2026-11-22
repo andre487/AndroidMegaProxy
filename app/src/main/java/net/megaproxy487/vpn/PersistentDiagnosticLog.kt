@@ -229,7 +229,7 @@ object PrivacyLogSanitizer {
     private val ipv4 = Regex("(?<![A-Za-z0-9])(?:\\d{1,3}\\.){3}\\d{1,3}(?::\\d{1,5})?")
     private val bracketedIpv6 = Regex("\\[[0-9A-Fa-f:]+](?::\\d{1,5})?")
     private val hostname = Regex("(?i)(?<![A-Za-z0-9_.-])(?:[A-Za-z0-9-]+\\.)+[A-Za-z]{2,}(?::\\d{1,5})?")
-    private val credentials = Regex("(?i)\\b(username|password|authorization|proxy-authorization|privateKey|private_key|token|secret)\\s*[:=]\\s*(?:\"[^\"]*\"|'[^']*'|(?:Basic|Bearer)\\s+\\S+|\\S+)")
+    private val credentials = Regex("(?i)\\b(username|password|(?:jump)?privateKeyPassphrase|passphrase|authorization|proxy-authorization|privateKey|private_key|token|secret)\\s*[:=]\\s*(?:\"[^\"]*\"|'[^']*'|(?:Basic|Bearer)\\s+\\S+|\\S+)")
     private val bareIpv6 = Regex("(?<![A-Za-z0-9_])(?:[0-9A-Fa-f]*:){2,}[0-9A-Fa-f:.]*(?:%[A-Za-z0-9_.-]+)?")
     private val privateKey = Regex("-----BEGIN (?:[A-Z]+ )?PRIVATE KEY-----[\\s\\S]*?(?:-----END (?:[A-Z]+ )?PRIVATE KEY-----|\\z)")
     private val hostKeyDecision = Regex("SSH_HOST_KEY_(?:UNKNOWN|CHANGED)\\|[^\\r\\n]*")

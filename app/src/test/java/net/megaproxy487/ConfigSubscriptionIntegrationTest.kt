@@ -55,6 +55,23 @@ class ConfigSubscriptionIntegrationTest {
     private fun apply(value: PortableConfiguration, running: Boolean = false) = store.applySubscriptionSnapshot(
         store.subscriptionState()!!.generation, value, 0, 1000, running)
 
+    @Test fun subscriptionCannotSupplyAKeyPassphraseOrRetainItAfterRotation() {
+        val endpoint = profile("ssh").let { it.copy(config = it.config.copy(type = ProxyType.SSH, username = "proxy", port = 22)) }
+        bootstrap(endpoint)
+        val local = endpoint.copy(config = endpoint.config.copy(privateKey = "original",
+            privateKeyPassphrase = KeyPassphrase("only on device", true)))
+        store.saveProfile(local)
+        val snapshot = document(endpoint)
+        val proxy = snapshot.getJSONArray("profiles").getJSONObject(0).getJSONObject("proxy")
+        proxy.put("privateKeyPassphrase", "from subscription")
+        assertTrue(apply(parseSubscriptionSnapshot(snapshot.toString(), store.profiles())))
+        assertEquals(local.config.privateKeyPassphrase, store.profile("ssh")!!.config.privateKeyPassphrase)
+        proxy.put("privateKey", "rotated")
+        assertTrue(apply(parseSubscriptionSnapshot(snapshot.toString(), store.profiles())))
+        assertEquals("rotated", store.profile("ssh")!!.config.privateKey)
+        assertEquals(KeyPassphrase(), store.profile("ssh")!!.config.privateKeyPassphrase)
+    }
+
     @Test fun diagnosticHostRefreshDoesNotRequestVpnReconnect() {
         val original = profile("one").let { it.copy(config = it.config.copy(type = ProxyType.HTTPS, port = 443,
             username = "user", password = "test-password")) }

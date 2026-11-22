@@ -30,7 +30,7 @@ class PrivateKeyImportTest {
     }
 
     @Test
-    fun rejectsEncryptedPemKey() {
+    fun acceptsEncryptedPemEnvelope() {
         val input = """
             -----BEGIN EC PRIVATE KEY-----
             Proc-Type: 4,ENCRYPTED
@@ -38,9 +38,7 @@ class PrivateKeyImportTest {
             -----END EC PRIVATE KEY-----
         """.trimIndent()
 
-        assertThrows(IllegalArgumentException::class.java) {
-            ByteArrayInputStream(input.toByteArray()).readPrivateKeyText()
-        }
+        assertEquals("$input\n", ByteArrayInputStream(input.toByteArray()).readPrivateKeyText())
     }
 
     @Test

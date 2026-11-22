@@ -30,6 +30,7 @@ type config struct {
 	AllowIPv6                        bool     `json:"allowIpv6"`
 	BypassLocalNetworks              bool     `json:"bypassLocalNetworks"`
 	PrivateKey                       string   `json:"privateKey"`
+	PrivateKeyPassphrase             string   `json:"privateKeyPassphrase"`
 	SSHProfile                       string   `json:"sshProfile"`
 	TrustedHostKey                   string   `json:"trustedHostKey"`
 	AcceptAnyHostKey                 bool     `json:"acceptAnyHostKey"`
@@ -39,6 +40,7 @@ type config struct {
 	JumpUsername                     string   `json:"jumpUsername"`
 	JumpPassword                     string   `json:"jumpPassword"`
 	JumpPrivateKey                   string   `json:"jumpPrivateKey"`
+	JumpPrivateKeyPassphrase         string   `json:"jumpPrivateKeyPassphrase"`
 	JumpTrustedHostKey               string   `json:"jumpTrustedHostKey"`
 	JumpAllowInvalidProxyCertificate bool     `json:"jumpAllowInvalidProxyCertificate"`
 	JumpAcceptAnyHostKey             bool     `json:"jumpAcceptAnyHostKey"`
@@ -108,6 +110,7 @@ func parseConfig(raw string) (config, error) {
 			return c, errors.New("invalid jump port")
 		}
 		if c.SameJumpAuthentication {
+			c.JumpPrivateKeyPassphrase = c.PrivateKeyPassphrase
 			c.JumpUsername, c.JumpPassword, c.JumpPrivateKey = c.Username, c.Password, c.PrivateKey
 		}
 		if c.Type == "HTTPS_JUMP" && (c.JumpUsername == "" || c.JumpPassword == "") {

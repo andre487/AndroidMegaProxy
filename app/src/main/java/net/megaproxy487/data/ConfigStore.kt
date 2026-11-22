@@ -14,6 +14,7 @@ import android.util.Base64
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProfileColors
 import net.megaproxy487.model.ProfileColorMatcher
+import net.megaproxy487.model.KeyPassphrase
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyProfile
 import net.megaproxy487.model.ProxyType
@@ -315,7 +316,8 @@ class ConfigStore(context: Context) {
         }
         val missing = existing.filter { it.id !in importedById }
         requireUi(merged.isNotEmpty()) { UiException(R.string.error_config_no_usable) }
-        val editor = prefs.edit().putString(PROFILES, encodeProfiles(mergeResolvedProfiles(existing, merged, added)))
+        val allProfiles = mergeResolvedProfiles(existing, merged, added)
+        val editor = prefs.edit().putString(PROFILES, encodeProfiles(allProfiles))
         if (configuration.diagnosticLogLimitPresent) editor.putInt(DIAGNOSTIC_LOG_LIMIT_MB, configuration.diagnosticLogLimitMb)
         if (existing.isEmpty()) {
             val first = merged.first().id
@@ -342,6 +344,7 @@ class ConfigStore(context: Context) {
             putSubscription(editor, settings?.let { ConfigSubscriptionState(it, owned) })
         }
         commitTransaction(editor)
+        updateSessionPhrases(allProfiles)
         net.megaproxy487.ConfigSubscriptions.schedule(context)
         return@synchronized ConfigurationImportResult(added, updated, unchanged, missing)
     }
@@ -426,6 +429,7 @@ class ConfigStore(context: Context) {
             lastAttempt = now, lastSuccess = now, sourceIndex = sourceIndex, failed = false,
             warnings = configuration.skippedProfiles > 0 || configuration.notice.browserFields || configuration.notice.unknownFields))
         commitTransaction(editor)
+        updateSessionPhrases(merged)
         (state.ownedIds - ids).forEach { ConfigWrites.discard("profile:$it") }
         true
     }
@@ -518,6 +522,7 @@ class ConfigStore(context: Context) {
         if (alwaysOnProfileId() == id) editor.putString(ALWAYS_ON_PROFILE_ID, replacement)
         if (connectionWasDeleted) editor.putString(CONNECTION_PROFILE_ID, replacement)
         editor.commitOrThrow()
+        updateSessionPhrases(remaining)
         ConfigWrites.discard("profile:$id")
         val settings = globalConnectionSettings()
         if (id in settings.failoverProfileIds) {
@@ -540,6 +545,7 @@ class ConfigStore(context: Context) {
         if (alwaysOnProfileId() in removedIds) editor.putString(ALWAYS_ON_PROFILE_ID, replacement)
         if (connectionWasDeleted) editor.putString(CONNECTION_PROFILE_ID, replacement)
         editor.commitOrThrow()
+        updateSessionPhrases(remaining)
         removedIds.forEach { ConfigWrites.discard("profile:$it") }
         val settings = globalConnectionSettings()
         saveGlobalConnectionSettings(settings.copy(
@@ -625,8 +631,22 @@ class ConfigStore(context: Context) {
         return counts.indices.minWithOrNull(compareBy<Int> { counts[it] }.thenBy { it }) ?: 0
     }
 
+    private fun updateSessionPhrases(profiles: List<ProxyProfile>) {
+        sessionPhrases.clear()
+        for (profile in profiles) {
+            val id = profile.id
+            val config = profile.config
+            fun keep(field: String, key: String, phrase: KeyPassphrase) {
+                if (!phrase.remember && phrase.value.isNotEmpty()) sessionPhrases[id to field] = key to phrase
+            }
+            keep("privateKeyPassphrase", config.privateKey, config.privateKeyPassphrase)
+            keep("jumpPrivateKeyPassphrase", config.jumpPrivateKey, config.jumpPrivateKeyPassphrase)
+        }
+    }
+
     private fun writeProfiles(profiles: List<ProxyProfile>) {
         prefs.edit().putString(PROFILES, encodeProfiles(profiles)).commitOrThrow()
+        updateSessionPhrases(profiles)
     }
 
     private fun encodeProfiles(profiles: List<ProxyProfile>): String {
@@ -641,7 +661,7 @@ class ConfigStore(context: Context) {
         val characters = profiles.sumOf { profile ->
             val c = profile.config
             (listOf(profile.id, profile.name, profile.countryCode, c.host, c.username, c.password,
-                c.privateKey, c.trustedHostKey, c.jumpHost, c.jumpUsername, c.jumpPassword,
+                c.privateKey, c.privateKeyPassphrase.value, c.jumpPrivateKeyPassphrase.value, c.trustedHostKey, c.jumpHost, c.jumpUsername, c.jumpPassword,
                 c.jumpPrivateKey, c.jumpTrustedHostKey, c.customJa3, c.customDohUrl).sumOf { it.length.toLong() } +
                 c.selectedPackages.sumOf { it.length.toLong() } +
                 c.unreadableSecrets.values.sumOf { it.length.toLong() })
@@ -674,6 +694,7 @@ class ConfigStore(context: Context) {
         put("username", config.username)
         put("password", secret("password", config.password))
         put("privateKey", secret("privateKey", config.privateKey))
+        if (config.privateKeyPassphrase.remember) put("privateKeyPassphrase", secret("privateKeyPassphrase", config.privateKeyPassphrase.value))
         put("sshProfile", config.sshProfile.name)
         put("trustedHostKey", config.trustedHostKey)
         put("acceptAnyHostKey", config.acceptAnyHostKey)
@@ -682,6 +703,7 @@ class ConfigStore(context: Context) {
         put("jumpUsername", config.jumpUsername)
         put("jumpPassword", secret("jumpPassword", config.jumpPassword))
         put("jumpPrivateKey", secret("jumpPrivateKey", config.jumpPrivateKey))
+        if (config.jumpPrivateKeyPassphrase.remember) put("jumpPrivateKeyPassphrase", secret("jumpPrivateKeyPassphrase", config.jumpPrivateKeyPassphrase.value))
         put("jumpTrustedHostKey", config.jumpTrustedHostKey)
         put("jumpAllowInvalidProxyCertificate", config.jumpAllowInvalidProxyCertificate)
         put("jumpAcceptAnyHostKey", config.jumpAcceptAnyHostKey)
@@ -714,19 +736,27 @@ class ConfigStore(context: Context) {
         name = item.optString("name"),
         colorIndex = item.optInt("color", index),
         countryCode = item.optString("countryCode"),
-        config = decodeConfig(item.getJSONObject("config")),
+        config = decodeConfig(item.getJSONObject("config"), item.getString("id")),
     )
 
-    private fun decodeConfig(item: JSONObject): ProxyConfig {
+    private fun decodeConfig(item: JSONObject, id: String): ProxyConfig {
         val unreadable = mutableMapOf<String, String>()
         fun secret(name: String) = decryptStored(item.optString(name).ifEmpty { null }, name, unreadable)
+        fun phrase(field: String, key: String): KeyPassphrase {
+            if (item.has(field)) return KeyPassphrase(secret(field), remember = true)
+            val session = sessionPhrases[id to field]
+            return if (session != null && session.first == key) session.second else KeyPassphrase()
+        }
+        val privateKey = secret("privateKey")
+        val jumpPrivateKey = secret("jumpPrivateKey")
         return ProxyConfig(
             type = enumValue(item.optString("type"), ProxyType.HTTPS),
             host = item.optString("host"),
             port = item.optInt("port", 443),
             username = item.optString("username"),
             password = secret("password"),
-            privateKey = secret("privateKey"),
+            privateKey = privateKey,
+            privateKeyPassphrase = phrase("privateKeyPassphrase", privateKey),
             sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),
             trustedHostKey = item.optString("trustedHostKey"),
             acceptAnyHostKey = item.optBoolean("acceptAnyHostKey", false),
@@ -734,7 +764,8 @@ class ConfigStore(context: Context) {
             jumpPort = item.optInt("jumpPort", enumValue(item.optString("type"), ProxyType.HTTPS).defaultPort),
             jumpUsername = item.optString("jumpUsername"),
             jumpPassword = secret("jumpPassword"),
-            jumpPrivateKey = secret("jumpPrivateKey"),
+            jumpPrivateKey = jumpPrivateKey,
+            jumpPrivateKeyPassphrase = phrase("jumpPrivateKeyPassphrase", jumpPrivateKey),
             jumpTrustedHostKey = item.optString("jumpTrustedHostKey"),
             jumpAllowInvalidProxyCertificate = item.optBoolean("jumpAllowInvalidProxyCertificate", false),
             jumpAcceptAnyHostKey = item.optBoolean("jumpAcceptAnyHostKey", false),
@@ -866,6 +897,8 @@ class ConfigStore(context: Context) {
     private companion object {
         // ponytail: one lock per app process; split by store only if concurrent disk writes become a bottleneck.
         val storageLock = Any()
+        // Updated under storageLock only after the corresponding profile snapshot is committed.
+        val sessionPhrases = mutableMapOf<Pair<String, String>, Pair<String, KeyPassphrase>>()
         const val KEY_ALIAS = "megaproxy.proxy.credentials.v1"
         const val IV_SIZE = 12
         const val PROFILES = "profiles_v2"

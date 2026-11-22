@@ -73,8 +73,13 @@ proxy bootstrap IP; a zero port or hostname relay is rejected without system DNS
 
 ### SSH and Jump
 
-Use password authentication or import an unencrypted private key. Passphrase-protected keys
-are unsupported. Verify the SSH host-key fingerprint with your operator before trusting it;
+Import an OpenSSH or supported PEM private key, or use account password authentication.
+For a protected key, enter its passphrase in the profile editor and tap **Apply passphrase**.
+By default you must unlock again after the app process restarts. **Remember on this device**
+encrypts the passphrase with the Android Keystore-backed profile credentials for unattended reconnects.
+Jump and destination keys have separate passphrases when using separate credentials. Exporting
+private keys preserves their original protection. Passphrases stay local and replacing the key clears its passphrase.
+Encrypted PKCS#8 is unsupported. Verify the SSH host-key fingerprint with your operator before trusting it;
 Jump and destination pins are separate. Disabling host-key or proxy-certificate verification
 permits server impersonation.
 

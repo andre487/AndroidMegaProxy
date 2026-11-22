@@ -3,6 +3,7 @@ package net.megaproxy487
 import android.os.Process
 import android.util.Base64
 import androidx.test.ext.junit.runners.AndroidJUnit4
+import net.megaproxy487.model.KeyPassphrase
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.SshAuthMode
 import org.junit.Assert.*
@@ -15,19 +16,24 @@ import java.security.KeyStore
 class KeystoreProcessDeviceTest : DeviceTestBase() {
     @Test fun credentialsSurviveProcessRestart() {
         val privateKey = Base64.decode(argument("sshKey"), Base64.NO_WRAP).toString(Charsets.UTF_8)
+        val phrase = argument("sshKeyPassphrase")
         val marker = File(context.filesDir, "device-test-process")
         if (argument("phase") == "seed") {
             io {
                 store.saveProfile(store.activeProfile().let { it.copy(config = it.config.copy(
                     type = ProxyType.SSH, port = argument("sshPort").toInt(), username = "proxy",
                     password = argument("sshPassword"), privateKey = privateKey,
+                    privateKeyPassphrase = KeyPassphrase(phrase, remember = true),
+                    jumpPrivateKey = privateKey, jumpPrivateKeyPassphrase = KeyPassphrase(phrase),
                     trustedHostKey = argument("sshFingerprint"), allowInvalidProxyCertificate = false,
                 )) })
                 store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(sshAuthMode = SshAuthMode.KEY_ONLY))
             }
             saved()
+            assertTrue("Session-only phrase unavailable in same process", store.activeProfile().config.jumpPrivateKeyPassphrase.value == phrase)
             val preferences = File(context.applicationInfo.dataDir, "shared_prefs/proxy_config.xml").readText()
             assertFalse("Plaintext password on disk", preferences.contains(argument("sshPassword")))
+            assertFalse("Plaintext key passphrase on disk", preferences.contains(phrase))
             assertFalse("Plaintext key on disk", preferences.contains("BEGIN OPENSSH PRIVATE KEY"))
             assertTrue(KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
                 .containsAlias("megaproxy.proxy.credentials.v1"))
@@ -39,6 +45,8 @@ class KeystoreProcessDeviceTest : DeviceTestBase() {
             // Avoid printing disposable private key material in assertion failures.
             assertTrue("Password did not survive process restart", config.password == argument("sshPassword"))
             assertTrue("SSH key did not survive process restart", config.privateKey == privateKey)
+            assertTrue("Remembered key passphrase unavailable", config.privateKeyPassphrase.value == phrase)
+            assertTrue("Session-only passphrase survived process restart", config.jumpPrivateKeyPassphrase.value.isEmpty())
             assertEquals(argument("sshFingerprint"), config.trustedHostKey)
             directOriginUnavailable()
             io { store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(sshAuthMode = SshAuthMode.PASSWORD_ONLY)) }

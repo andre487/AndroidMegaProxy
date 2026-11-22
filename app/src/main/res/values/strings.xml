@@ -129,7 +129,14 @@
     <string name="password">Password</string>
     <string name="ssh_password_optional">Password (optional)</string>
     <string name="private_key_optional">Private key (optional)</string>
-    <string name="private_key_format_hint">PEM or OpenSSH format. Passphrase-protected keys are not supported.</string>
+    <string name="private_key_format_hint">OpenSSH or PEM. Encrypted PKCS#8 is unsupported.</string>
+    <string name="ssh_key_passphrase">Key passphrase</string>
+    <string name="ssh_remember_phrase">Remember on this device</string>
+    <string name="ssh_remember_phrase_detail">Allows automatic reconnection after the app restarts. The passphrase stays on this device.</string>
+    <string name="ssh_apply_phrase">Apply passphrase</string>
+    <string name="ssh_unlock_failed">Could not unlock this key. Check the passphrase and try again.</string>
+    <string name="ssh_unlock_destination">Unlock the SSH key in the profile editor.</string>
+    <string name="ssh_unlock_jump">Unlock the jump SSH key in the profile editor.</string>
     <string name="trusted_destination_key">Trusted destination key: %1$s</string>
     <string name="jump_host">Jump host</string>
     <string name="jump_ssh_hostname">Jump server</string>
@@ -367,7 +374,6 @@
     <string name="error_field_long">%1$s is too long</string>
     <string name="error_key_large">Private key file is larger than 64 KiB</string>
     <string name="error_key_empty">Private key file is empty</string>
-    <string name="error_key_encrypted">Passphrase-protected private keys are not supported</string>
     <string name="error_key_missing">File does not contain a PEM or OpenSSH private key</string>
     <string name="error_key_format">Unsupported private key format: %1$s</string>
     <string name="error_key_footer">Private key footer is missing</string>

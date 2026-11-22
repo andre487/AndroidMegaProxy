@@ -2,6 +2,7 @@ package net.megaproxy487.data
 
 import java.net.URI
 import java.net.IDN
+import net.megaproxy487.model.KeyPassphrase
 import net.megaproxy487.model.ProxyConfig
 import org.json.JSONArray
 import org.json.JSONObject
@@ -134,18 +135,24 @@ internal fun retainProfileSecrets(
             source.config.customDohUrl.trim() == current.config.customDohUrl.trim())
     val sameAccount = sameProxyAccount(source.config, current.config, jump = false)
     val sameJumpAccount = sameProxyAccount(source.config, current.config, jump = true)
+    val keepPrivateKeyPassphrase = sameAccount && (!presence.privateKey || source.config.privateKey == current.config.privateKey && "privateKey" !in current.config.unreadableSecrets)
+    val keepJumpPrivateKeyPassphrase = sameJumpAccount && (!presence.jumpPrivateKey || source.config.jumpPrivateKey == current.config.jumpPrivateKey && "jumpPrivateKey" !in current.config.unreadableSecrets)
     return source.copy(config = source.config.copy(
         authProbeHost = if (knockHostPresent || !sameAccount) source.config.authProbeHost else current.config.authProbeHost,
         allowInsecureDns = sameDns && current.config.allowInsecureDns,
         allowInvalidDohCertificate = sameDns && current.config.allowInvalidDohCertificate,
         password = if (presence.password) source.config.password else current.config.password.takeIf { sameAccount }.orEmpty(),
+        privateKeyPassphrase = if (keepPrivateKeyPassphrase) current.config.privateKeyPassphrase else KeyPassphrase(),
         privateKey = if (presence.privateKey) source.config.privateKey else current.config.privateKey.takeIf { sameAccount }.orEmpty(),
         jumpPassword = if (presence.jumpPassword) source.config.jumpPassword else current.config.jumpPassword.takeIf { sameJumpAccount }.orEmpty(),
+        jumpPrivateKeyPassphrase = if (keepJumpPrivateKeyPassphrase) current.config.jumpPrivateKeyPassphrase else KeyPassphrase(),
         jumpPrivateKey = if (presence.jumpPrivateKey) source.config.jumpPrivateKey else current.config.jumpPrivateKey.takeIf { sameJumpAccount }.orEmpty(),
         unreadableSecrets = current.config.unreadableSecrets.filterKeys { name -> when (name) {
             "password" -> !presence.password
+            "privateKeyPassphrase" -> keepPrivateKeyPassphrase
             "privateKey" -> !presence.privateKey
             "jumpPassword" -> !presence.jumpPassword
+            "jumpPrivateKeyPassphrase" -> keepJumpPrivateKeyPassphrase
             "jumpPrivateKey" -> !presence.jumpPrivateKey
             else -> false
         } },

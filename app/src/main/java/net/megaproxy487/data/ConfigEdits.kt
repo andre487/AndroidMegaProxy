@@ -61,7 +61,11 @@ internal fun ConfigEdits<ProxyProfile>.profile(before: ProxyProfile, after: Prox
     record("bypassLocalNetworks", before.config.bypassLocalNetworks, after.config.bypassLocalNetworks) { it.copy(config = it.config.copy(bypassLocalNetworks = after.config.bypassLocalNetworks)) }
     record("resolvedProxyIp", before.config.resolvedProxyIp, after.config.resolvedProxyIp) { it.copy(config = it.config.copy(resolvedProxyIp = after.config.resolvedProxyIp)) }
     record("privateKey", before.config.privateKey to before.config.unreadableSecrets["privateKey"], after.config.privateKey to after.config.unreadableSecrets["privateKey"]) {
-        it.copy(config = it.config.copy(privateKey = after.config.privateKey, unreadableSecrets = it.config.unreadableSecrets - "privateKey"))
+        it.copy(config = it.config.withSshKey(after.config.privateKey, jump = false))
+    }
+    record("privateKeyPassphrase", before.config.privateKeyPassphrase to before.config.unreadableSecrets["privateKeyPassphrase"], after.config.privateKeyPassphrase to after.config.unreadableSecrets["privateKeyPassphrase"]) {
+        if (it.config.privateKey != after.config.privateKey) it else it.copy(config = it.config.copy(
+            privateKeyPassphrase = after.config.privateKeyPassphrase, unreadableSecrets = it.config.unreadableSecrets - "privateKeyPassphrase"))
     }
     record("sshProfile", before.config.sshProfile, after.config.sshProfile) { it.copy(config = it.config.copy(sshProfile = after.config.sshProfile)) }
     record("trustedHostKey", before.config.trustedHostKey, after.config.trustedHostKey) { it.copy(config = it.config.copy(trustedHostKey = after.config.trustedHostKey)) }
@@ -73,7 +77,11 @@ internal fun ConfigEdits<ProxyProfile>.profile(before: ProxyProfile, after: Prox
         it.copy(config = it.config.copy(jumpPassword = after.config.jumpPassword, unreadableSecrets = it.config.unreadableSecrets - "jumpPassword"))
     }
     record("jumpPrivateKey", before.config.jumpPrivateKey to before.config.unreadableSecrets["jumpPrivateKey"], after.config.jumpPrivateKey to after.config.unreadableSecrets["jumpPrivateKey"]) {
-        it.copy(config = it.config.copy(jumpPrivateKey = after.config.jumpPrivateKey, unreadableSecrets = it.config.unreadableSecrets - "jumpPrivateKey"))
+        it.copy(config = it.config.withSshKey(after.config.jumpPrivateKey, jump = true))
+    }
+    record("jumpPrivateKeyPassphrase", before.config.jumpPrivateKeyPassphrase to before.config.unreadableSecrets["jumpPrivateKeyPassphrase"], after.config.jumpPrivateKeyPassphrase to after.config.unreadableSecrets["jumpPrivateKeyPassphrase"]) {
+        if (it.config.jumpPrivateKey != after.config.jumpPrivateKey) it else it.copy(config = it.config.copy(
+            jumpPrivateKeyPassphrase = after.config.jumpPrivateKeyPassphrase, unreadableSecrets = it.config.unreadableSecrets - "jumpPrivateKeyPassphrase"))
     }
     record("jumpTrustedHostKey", before.config.jumpTrustedHostKey, after.config.jumpTrustedHostKey) { it.copy(config = it.config.copy(jumpTrustedHostKey = after.config.jumpTrustedHostKey)) }
     record("jumpAllowInvalidProxyCertificate", before.config.jumpAllowInvalidProxyCertificate, after.config.jumpAllowInvalidProxyCertificate) { it.copy(config = it.config.copy(jumpAllowInvalidProxyCertificate = after.config.jumpAllowInvalidProxyCertificate)) }

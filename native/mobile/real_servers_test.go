@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"fmt"
 	"io"
@@ -193,6 +194,24 @@ func TestRealProxyServers(t *testing.T) {
 	sshJumpConfig.JumpDialHost, sshJumpConfig.JumpPort = endpoint(sshJump, "2222")
 	sshJumpConfig.JumpTrustedHostKey = fingerprint(sshJump)
 
+	protectKey := func(raw, phrase string) string {
+		t.Helper()
+		key, err := ssh.ParseRawPrivateKey([]byte(raw))
+		if err != nil {
+			t.Fatal("fixture key parse failed")
+		}
+		block, err := ssh.MarshalPrivateKeyWithPassphrase(key, "", []byte(phrase))
+		if err != nil {
+			t.Fatal("fixture key encryption failed")
+		}
+		return string(pem.EncodeToMemory(block))
+	}
+	protectedJump := sshJumpConfig
+	protectedJump.SSHAuthMode = "KEY_ONLY"
+	protectedJump.PrivateKeyPassphrase, protectedJump.JumpPrivateKeyPassphrase = "exit fixture phrase", "jump fixture phrase"
+	protectedJump.PrivateKey = protectKey(sshKeyConfig.PrivateKey, protectedJump.PrivateKeyPassphrase)
+	protectedJump.JumpPrivateKey = protectKey(dockerTest(t, "exec", sshJump, "cat", "/home/proxy/.ssh/id_ed25519"), protectedJump.JumpPrivateKeyPassphrase)
+
 	containerIP := func(container string, ipv6 bool) string {
 		t.Helper()
 		field := "IPAddress"
@@ -331,6 +350,7 @@ func TestRealProxyServers(t *testing.T) {
 		{"gost_socks5_auth", socksConfig}, {"gost_socks5_anonymous", socksAnonymous},
 		{"gost_jump_h3_both", jumpBoth}, {"gost_jump_h3_first_only", jumpOnlyFirst}, {"gost_jump_h3_exit_only", jumpOnlyExit}, {"gost_jump_h3_neither", jumpNeither},
 		{"gost_prefer_http3", preferredMasque}, {"gost_prefer_https_fallback", preferredHTTPS}, {"gost_prefer_h2_fallback", preferredH2}, {"gost_masque", masqueConfig}, {"gost_masque_firefox", masqueFirefox}, {"gost_masque_custom", masqueCustom}, {"gost_https", base}, {"gost_https_custom", httpsCustom}, {"gost_https_jump_custom", httpsJumpCustom}, {"gost_http2", h2Config}, {"gost_https_jump", httpsJump},
+		{"openssh_protected_jump_keys", protectedJump},
 		{"openssh_password", sshConfig}, {"openssh_key", sshKeyConfig}, {"openssh_jump", sshJumpConfig},
 	} {
 		t.Run(tc.name, func(t *testing.T) {

@@ -141,7 +141,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 			return nil, fmt.Errorf("dial jump host: %w", err)
 		}
 		report(d.reporter, "event=ssh_transport hop=jump stage=tcp_connect result=success elapsed_ms=%d", time.Since(started).Milliseconds())
-		jump, err := newSSHClient(ctx, raw, d.config.JumpHost, d.config.JumpUsername, d.config.JumpPassword, d.config.JumpPrivateKey, d.config.JumpTrustedHostKey, d.config.JumpAcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "jump", d.reporter)
+		jump, err := newSSHClient(ctx, raw, d.config.JumpHost, d.config.JumpUsername, d.config.JumpPassword, d.config.JumpPrivateKey, d.config.JumpPrivateKeyPassphrase, d.config.JumpTrustedHostKey, d.config.JumpAcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "jump", d.reporter)
 		if err != nil {
 			raw.Close()
 			return nil, err
@@ -154,7 +154,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 			return nil, fmt.Errorf("jump host could not reach destination SSH host: %w", err)
 		}
 		report(d.reporter, "event=ssh_transport hop=destination stage=direct_tcpip result=success elapsed_ms=%d", time.Since(started).Milliseconds())
-		client, err := newSSHClient(ctx, &sshJumpConn{Conn: nested, transport: raw}, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
+		client, err := newSSHClient(ctx, &sshJumpConn{Conn: nested, transport: raw}, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.PrivateKeyPassphrase, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
 		if err != nil {
 			jump.Close()
 			return nil, err
@@ -168,7 +168,7 @@ func (d *sshDialer) session(ctx context.Context) (*ssh.Client, error) {
 			return nil, fmt.Errorf("dial SSH host: %w", err)
 		}
 		report(d.reporter, "event=ssh_transport hop=destination stage=tcp_connect result=success elapsed_ms=%d", time.Since(started).Milliseconds())
-		client, err := newSSHClient(ctx, raw, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
+		client, err := newSSHClient(ctx, raw, d.config.Host, d.config.Username, d.config.Password, d.config.PrivateKey, d.config.PrivateKeyPassphrase, d.config.TrustedHostKey, d.config.AcceptAnyHostKey, d.config.SSHProfile, d.config.SSHAuthMode, "destination", d.reporter)
 		if err != nil {
 			raw.Close()
 			return nil, err
@@ -191,8 +191,8 @@ type sshJumpConn struct {
 
 func (c *sshJumpConn) Close() error { return c.transport.Close() }
 
-func newSSHClient(ctx context.Context, conn net.Conn, hostname, username, password, privateKey, trusted string, acceptAny bool, profile, authMode, hop string, reporter Reporter) (*ssh.Client, error) {
-	auth, err := sshAuthMethods(privateKey, password, authMode)
+func newSSHClient(ctx context.Context, conn net.Conn, hostname, username, password, privateKey, passphrase, trusted string, acceptAny bool, profile, authMode, hop string, reporter Reporter) (*ssh.Client, error) {
+	auth, err := sshAuthMethods(privateKey, passphrase, password, authMode)
 	if err != nil {
 		return nil, err
 	}
@@ -294,16 +294,40 @@ func (c *sshResponseObserver) Write(p []byte) (int, error) {
 	return n, err
 }
 
-func sshAuthMethods(privateKey, password, authMode string) ([]ssh.AuthMethod, error) {
+// CheckSSHKeyPassphrase validates a protected key locally before remembering its phrase.
+func CheckSSHKeyPassphrase(privateKey, passphrase string) error {
+	if passphrase == "" {
+		return errors.New("missing SSH key passphrase")
+	}
+	_, err := parseSSHKey(privateKey, passphrase)
+	return err
+}
+
+func parseSSHKey(privateKey, passphrase string) (ssh.Signer, error) {
+	if passphrase != "" {
+		signer, err := ssh.ParsePrivateKeyWithPassphrase([]byte(privateKey), []byte(passphrase))
+		if err != nil {
+			return nil, errors.New("cannot unlock SSH private key")
+		}
+		return signer, nil
+	}
+	signer, err := ssh.ParsePrivateKey([]byte(privateKey))
+	var missing *ssh.PassphraseMissingError
+	if errors.As(err, &missing) {
+		return nil, errors.New("unlock the SSH private key in the profile editor")
+	}
+	if err != nil {
+		return nil, fmt.Errorf("invalid SSH private key: %w", err)
+	}
+	return signer, nil
+}
+
+func sshAuthMethods(privateKey, passphrase, password, authMode string) ([]ssh.AuthMethod, error) {
 	methods := make([]ssh.AuthMethod, 0, 2)
 	if authMode != "PASSWORD_ONLY" && strings.TrimSpace(privateKey) != "" {
-		signer, err := ssh.ParsePrivateKey([]byte(privateKey))
+		signer, err := parseSSHKey(privateKey, passphrase)
 		if err != nil {
-			var passphraseErr *ssh.PassphraseMissingError
-			if errors.As(err, &passphraseErr) {
-				return nil, errors.New("passphrase-protected SSH private keys are not supported")
-			}
-			return nil, fmt.Errorf("invalid SSH private key: %w", err)
+			return nil, err
 		}
 		methods = append(methods, ssh.PublicKeys(signer))
 	}

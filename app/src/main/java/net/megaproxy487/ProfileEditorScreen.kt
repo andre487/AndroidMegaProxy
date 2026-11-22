@@ -64,6 +64,8 @@ import net.megaproxy487.data.readPrivateKeyText
 import net.megaproxy487.model.DnsTransport
 import net.megaproxy487.model.DnsProvider
 import net.megaproxy487.model.ProfileColorMatcher
+import net.megaproxy487.model.KeyPassphrase
+import net.megaproxy487.model.protectedSshKey
 import net.megaproxy487.model.ProxyConfig
 import net.megaproxy487.model.ProxyType
 import net.megaproxy487.model.TlsProfile
@@ -200,7 +202,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                 }
             }
             result.onSuccess { imported ->
-                updateConfig(if (jump) config.copy(jumpPrivateKey = imported, unreadableSecrets = config.unreadableSecrets - "jumpPrivateKey") else config.copy(privateKey = imported, unreadableSecrets = config.unreadableSecrets - "privateKey"))
+                updateConfig(config.withSshKey(imported, jump))
                 error = null
             }.onFailure { failure ->
                 error = failure.userMessage(activity, R.string.key_import_failed)
@@ -393,7 +395,7 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
 
                 if (config.type.isSsh) {
                   item {
-                    OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(privateKey = it, unreadableSecrets = config.unreadableSecrets - "privateKey")) } }, label = { FieldLabel(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().revealOnKeyboard())
+                    OutlinedTextField(config.privateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.withSshKey(it, jump = false)) } }, label = { FieldLabel(stringResource(R.string.private_key_optional)) }, supportingText = { Text(stringResource(R.string.private_key_format_hint)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().revealOnKeyboard())
                   }
                   item {
                     OutlinedButton(shape = RoundedCornerShape(12.dp),
@@ -401,6 +403,13 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                         modifier = Modifier.fillMaxWidth(),
                     ) { Text(stringResource(R.string.import_destination_key)) }
                   }
+                    if (protectedSshKey(config.privateKey) || "privateKeyPassphrase" in config.unreadableSecrets) item {
+                        androidx.compose.runtime.key(config.privateKey) {
+                            KeyPassphraseField(config.privateKey, config.privateKeyPassphrase) { phrase ->
+                                updateConfig(config.copy(privateKeyPassphrase = phrase, unreadableSecrets = config.unreadableSecrets - "privateKeyPassphrase"))
+                            }
+                        }
+                    }
                     if (config.password.isBlank() && config.privateKey.isBlank()) {
                       item {
                         Text(
@@ -479,13 +488,20 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
                         error = fieldError(R.string.validation_jump_basic_password), modifier = Modifier.fillMaxWidth())
                       }
                       item {
-                        OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.copy(jumpPrivateKey = it, unreadableSecrets = config.unreadableSecrets - "jumpPrivateKey")) } }, label = { FieldLabel(stringResource(R.string.jump_private_key_optional)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().revealOnKeyboard())
+                        OutlinedTextField(config.jumpPrivateKey, { value -> acceptText(value, 64 * 1024) { updateConfig(config.withSshKey(it, jump = true)) } }, label = { FieldLabel(stringResource(R.string.jump_private_key_optional)) }, minLines = 3, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth().revealOnKeyboard())
                       }
                       item {
                         OutlinedButton(shape = RoundedCornerShape(12.dp),
                             enabled = !importingKey, onClick = { jumpKeyPicker.launch(arrayOf("*/*")) },
                             modifier = Modifier.fillMaxWidth(),
                         ) { Text(stringResource(R.string.import_jump_key)) }
+                      }
+                      if (protectedSshKey(config.jumpPrivateKey) || "jumpPrivateKeyPassphrase" in config.unreadableSecrets) item {
+                          androidx.compose.runtime.key(config.jumpPrivateKey) {
+                              KeyPassphraseField(config.jumpPrivateKey, config.jumpPrivateKeyPassphrase) { phrase ->
+                                  updateConfig(config.copy(jumpPrivateKeyPassphrase = phrase, unreadableSecrets = config.unreadableSecrets - "jumpPrivateKeyPassphrase"))
+                              }
+                          }
                       }
                         if (config.jumpPassword.isBlank() && config.jumpPrivateKey.isBlank()) {
                           item {
@@ -630,6 +646,40 @@ internal fun ProfileEditorScreen(activity: Activity, profileId: String?, onBack:
             confirmButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { updateConfig(if (hop == "jump") config.copy(jumpAcceptAnyHostKey = true) else config.copy(acceptAnyHostKey = true)); unsafeHostKeyHop = null }) { Text(stringResource(R.string.accept_any_key)) } },
             dismissButton = { TextButton(shape = RoundedCornerShape(12.dp), onClick = { unsafeHostKeyHop = null }) { Text(stringResource(R.string.cancel)) } },
         )
+    }
+}
+
+@Composable
+private fun KeyPassphraseField(key: String, current: KeyPassphrase, apply: (KeyPassphrase) -> Unit) {
+    var input by remember(current) { mutableStateOf(current.value) }
+    var rememberOnDevice by remember(current) { mutableStateOf(current.remember) }
+    var checking by remember { mutableStateOf(false) }
+    var failed by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val applyCurrent by androidx.compose.runtime.rememberUpdatedState(apply)
+    Column {
+        PasswordField(input, { if (!checking && it.length <= 16_384) { input = it; failed = false } },
+            stringResource(R.string.ssh_key_passphrase), error = if (failed) stringResource(R.string.ssh_unlock_failed) else null,
+            modifier = Modifier.fillMaxWidth())
+        SettingSwitchRow(rememberOnDevice, stringResource(R.string.ssh_remember_phrase), stringResource(R.string.ssh_remember_phrase_detail)) {
+            if (!checking) rememberOnDevice = it
+        }
+        OutlinedButton(enabled = !checking && (input != current.value || rememberOnDevice != current.remember), onClick = {
+            if (input.isEmpty()) {
+                applyCurrent(KeyPassphrase())
+                rememberOnDevice = false
+            } else {
+                checking = true
+                scope.launch {
+                    try {
+                        val valid = withContext(Dispatchers.Default) {
+                            try { mobile.Mobile.checkSSHKeyPassphrase(key, input); true } catch (_: Exception) { false }
+                        }
+                        if (valid) applyCurrent(KeyPassphrase(input, rememberOnDevice)) else failed = true
+                    } finally { checking = false }
+                }
+            }
+        }) { Text(stringResource(R.string.ssh_apply_phrase)) }
     }
 }
 
