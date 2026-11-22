@@ -109,6 +109,7 @@ internal fun MegaProxyNavHost(
             ScreenDestination(AppRoute.MAIN) { MainScreen(
                 activity = activity,
                 readConnectionStats = readConnectionStats,
+                onOpenSplitTunnel = { navController.navigate(AppRoute.SPLIT_TUNNEL) },
                 onOpenSettings = { navController.navigate(AppRoute.SETTINGS) },
                 onOpenVisibility = { navController.navigate(AppRoute.VISIBILITY) },
                 onOpenDiagnostics = { navController.navigate(AppRoute.DIAGNOSTICS) },

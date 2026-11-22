@@ -16,7 +16,7 @@ import org.robolectric.Shadows.shadowOf
 import org.robolectric.shadows.ShadowVpnService
 
 class MainScreenUiTest : MainUiTestBase() {
-    private fun screen() = content { MainScreen(activity, {}, {}, {}, readConnectionStats = { null }) }
+    private fun screen() = content { MainScreen(activity, {}, {}, {}, onOpenSplitTunnel = {}, readConnectionStats = { null }) }
     private fun command(action: String) {
         drainConfigIo()
         val application = shadowOf(activity.application as Application)
@@ -29,6 +29,22 @@ class MainScreenUiTest : MainUiTestBase() {
     private fun noCommand() {
         drainConfigIo()
         assertNull(shadowOf(activity.application as Application).nextStartedService)
+    }
+
+    @Test fun allAppsShortcutOpensRoutingWithoutStartingVpn() {
+        var opened = false
+        content { MainScreen(activity, {}, {}, {}, onOpenSplitTunnel = { opened = true }, readConnectionStats = { null }) }
+        waitForText(text(R.string.vpn_apps_all))
+        node(R.string.vpn_apps_all).performClick()
+        assertTrue(opened)
+        noCommand()
+    }
+
+    @Test fun shortcutShowsSavedSplitSelectionWhileDisconnected() {
+        store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
+            routeAllApps = false, selectedPackages = setOf("one.app", "two.app")))
+        screen()
+        waitForText(activity.uiText(R.string.vpn_apps_selected, 2))
     }
 
     @Test fun corruptGlobalSettingsShowStorageErrorWithoutStartingVpn() {
@@ -138,7 +154,7 @@ class MainScreenUiTest : MainUiTestBase() {
     @Test fun invalidProfileRequiresConfigurationBeforeConnect() {
         store.saveProfile(store.activeProfile().let { it.copy(config = it.config.copy(host = "")) })
         var edited: String? = null
-        content { MainScreen(activity, {}, {}, { edited = it }, readConnectionStats = { null }) }
+        content { MainScreen(activity, {}, {}, { edited = it }, onOpenSplitTunnel = {}, readConnectionStats = { null }) }
         node(R.string.connect).performScrollTo().assertIsNotEnabled()
         node(R.string.configure).performScrollTo().performClick()
         compose.runOnIdle { assertEquals(store.activeProfileId(), edited) }

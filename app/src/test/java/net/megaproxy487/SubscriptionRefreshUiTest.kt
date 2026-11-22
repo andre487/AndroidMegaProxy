@@ -23,7 +23,7 @@ class SubscriptionRefreshUiTest : MainUiTestBase() {
         store.importConfiguration(PortableConfiguration(listOf(profile), profile.id, profile.id,
             subscriptionPresent=true, subscription=ConfigSubscription("https://feed.example/config", enabled=false)))
         VpnRuntimeState.update(VpnConnectionState.CONNECTED)
-        content { MainScreen(activity, {}, {}, {}, readConnectionStats = { null }) }
+        content { MainScreen(activity, {}, {}, {}, onOpenSplitTunnel = {}, readConnectionStats = { null }) }
         drainConfigIo()
         val document = JSONObject().put("schema", ConfigTransfer.SCHEMA_ID).put("version", 8)
             .put("profiles", JSONArray(listOf(ConfigTransfer.encodeProfile(profile.copy(config=profile.config.copy(port=444)), true, false))))

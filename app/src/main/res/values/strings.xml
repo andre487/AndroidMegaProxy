@@ -10,6 +10,9 @@
     <string name="always_on_description">Startup profile and Android VPN controls</string>
     <string name="fingerprints">Fingerprints</string>
     <string name="fingerprints_description">HTTPS JA3 and SSH client behavior</string>
+    <string name="vpn_apps">VPN apps</string>
+    <string name="vpn_apps_all">All apps</string>
+    <string name="vpn_apps_selected">Selected: %1$d</string>
     <string name="split_tunneling">Split tunneling</string>
     <string name="split_tunneling_description">Choose global or per-app routing</string>
     <string name="failover">Failover</string>

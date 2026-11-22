@@ -38,6 +38,8 @@ import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.automirrored.outlined.AltRoute
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.IconButton
@@ -255,6 +257,7 @@ internal fun MainScreen(
     onOpenSettings: () -> Unit,
     onOpenDiagnostics: () -> Unit,
     onEditProfile: (String) -> Unit,
+    onOpenSplitTunnel: () -> Unit,
     readConnectionStats: () -> NativeConnectionStats? = ConnectionStatsReader::snapshot,
     onOpenVisibility: () -> Unit = {},
 ) {
@@ -615,6 +618,28 @@ internal fun MainScreen(
                         }
                     }
                 }
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable(
+                    role = androidx.compose.ui.semantics.Role.Button, onClick = onOpenSplitTunnel,
+                ).heightIn(min = 48.dp).padding(horizontal = 12.dp, vertical = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val secondary = MaterialTheme.colorScheme.onSurfaceVariant
+                Icon(Icons.AutoMirrored.Outlined.AltRoute, contentDescription = null, tint = secondary)
+                AdaptiveLabelRow(
+                    modifier = Modifier.weight(1f), minimumInlineWidth = 220.dp,
+                    label = { Text(stringResource(R.string.vpn_apps), it, style = MaterialTheme.typography.titleSmall) },
+                    trailing = {
+                        Text(
+                            if (globalSettings.routeAllApps) stringResource(R.string.vpn_apps_all)
+                            else stringResource(R.string.vpn_apps_selected, globalSettings.selectedPackages.size),
+                            style = MaterialTheme.typography.bodyMedium, color = secondary,
+                        )
+                    },
+                )
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = secondary)
             }
             if (connection == VpnConnectionState.DISCONNECTED && activeProfileError != null) {
                 Card(

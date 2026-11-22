@@ -10,6 +10,9 @@
     <string name="always_on_description">Стартовый профиль и системные настройки VPN</string>
     <string name="fingerprints">Цифровые отпечатки</string>
     <string name="fingerprints_description">Поведение HTTPS JA3 и SSH-клиента</string>
+    <string name="vpn_apps">Приложения VPN</string>
+    <string name="vpn_apps_all">Все приложения</string>
+    <string name="vpn_apps_selected">Выбрано: %1$d</string>
     <string name="split_tunneling">Раздельное туннелирование</string>
     <string name="split_tunneling_description">Глобальная или маршрутизация отдельных приложений</string>
     <string name="failover">Переключение при сбое</string>
