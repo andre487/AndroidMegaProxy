@@ -20,13 +20,13 @@ Go version and architecture. Use separate `output` directories to retain compari
 | Benchmark | Measured boundary |
 | --- | --- |
 | `CorePacketFilter` | Existing direct dispatcher versus strict header filtering, IPv4/TCP and IPv6/UDP, 64/1400/65535-byte buffers. Both strict levels share this filter. Buffers are reused: this measures steady-state inspection, not TUN input or buffer creation. |
-| `CoreUDPRead` | Real `sourceUDP.Read` and `ReadFrom`, disabled/standard/advanced, 64/1400/65507-byte payloads. Includes the same in-memory copy in every mode and the production query semaphore in strict modes. Excludes initial flow admission. |
+| `CoreUDPRead` | Real `sourceUDP.Read` and `ReadFrom`, disabled/standard/strict, 64/1400/65507-byte payloads. Includes the same in-memory copy in every mode and the production query semaphore in strict modes. Excludes initial flow admission. |
 | `CoreUDPRecheck` | Standard mode's cache-hit and expired-cache paths with deterministic timestamps. Excludes `time.Now`; `CoreUDPRead` includes it. |
 | `CoreAdmission` | New TCP/UDP flow dispatch, source-address formatting, goroutine scheduling and ownership query budget. Downstream handling is a stub, with no dial, handshake or packet forwarding. Disabled includes the same completion channel. |
 | `SOCKS5ReadAllocation` | Existing production SOCKS5 UDP packet decoding against an in-memory socket. |
 
 `ns/op`, `B/op`, `allocs/op` describe each boundary. `owner_queries/op` counts validator calls:
-advanced UDP should have one per datagram; disabled has zero; standard only rechecks expired
+strict UDP should have one per datagram; disabled has zero; standard only rechecks expired
 flows. The validator returns immediately: **JNI, Android's socket-owner lookup, UID policy and
 Binder costs are not simulated or included**. `MB/s` is processed-buffer throughput, not VPN
 bandwidth. The suite does not measure encryption, real proxy transport, full gVisor forwarding,
@@ -61,7 +61,7 @@ sampled allocation profiles plus the matching `mobile.test` binary in the output
 
 ```sh
 bundle exec fastlane android native_benchmarks \
-  'bench:BenchmarkCoreUDPRead/bytes=1400/method=ReadFrom/mode=advanced$' \
+  'bench:BenchmarkCoreUDPRead/bytes=1400/method=ReadFrom/mode=strict$' \
   count:1 benchtime:5s profile:true output:test-results/native/profile
 
 go tool pprof -top test-results/native/profile/mobile.test test-results/native/profile/cpu.pprof
@@ -78,7 +78,7 @@ retains the historical header-only/full-copy comparison.
 Actual strict-mode overhead needs a separate device experiment on Android 10+ (API 26 cannot
 provide socket-owner validation), with the same device, private proxy/origin, flow count and
 traffic pattern. Measure throughput, latency, CPU, memory and ownership-query frequency with
-strict disabled, standard and advanced. These host microbenchmarks identify Go hot spots;
+validation disabled and at the Standard and Strict levels. These host microbenchmarks identify Go hot spots;
 they do not predict that device result.
 
 

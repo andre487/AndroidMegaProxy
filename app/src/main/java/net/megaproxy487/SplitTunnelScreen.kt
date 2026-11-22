@@ -243,7 +243,7 @@ internal fun SplitTunnelScreen(activity: Activity, onBack: () -> Unit) {
                                     RadioButton(settings.sourceValidationLevel == level, null)
                                     Column(Modifier.weight(1f)) {
                                         Text(stringResource(level.labelResource))
-                                        Text(stringResource(if (level == net.megaproxy487.model.SourceValidationLevel.STANDARD) R.string.source_level_standard_detail else R.string.source_level_advanced_detail), style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(if (level == net.megaproxy487.model.SourceValidationLevel.STANDARD) R.string.source_level_standard_detail else R.string.source_level_strict_detail), style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
                             }

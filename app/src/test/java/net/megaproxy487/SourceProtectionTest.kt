@@ -37,19 +37,19 @@ class SourceProtectionTest {
     }
 
     @Test fun profileImportsCannotDisableLocalProtection() {
-        val current = net.megaproxy487.model.GlobalConnectionSettings(strictSourceValidation = true, sourceValidationLevel = SourceValidationLevel.ADVANCED)
+        val current = net.megaproxy487.model.GlobalConnectionSettings(strictSourceValidation = true, sourceValidationLevel = SourceValidationLevel.STRICT)
         for (fields in listOf<Set<String>?>(null, emptySet(), setOf("routing.routeAllApps"))) {
             val imported = net.megaproxy487.data.PortableConfiguration(emptyList(), null, null,
                 globalConnectionSettings = net.megaproxy487.model.GlobalConnectionSettings(), globalSettingFields = fields)
             assertTrue(imported.mergeGlobalSettings(current).strictSourceValidation)
-            assertEquals(SourceValidationLevel.ADVANCED, imported.mergeGlobalSettings(current).sourceValidationLevel)
+            assertEquals(SourceValidationLevel.STRICT, imported.mergeGlobalSettings(current).sourceValidationLevel)
         }
     }
 
     @Test fun changingActiveLevelRequiresReconnection() {
-        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, SourceValidationLevel.ADVANCED, true, SourceValidationLevel.STANDARD))
-        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, SourceValidationLevel.STANDARD, true, SourceValidationLevel.ADVANCED))
-        assertEquals(SourceProtectionStatus.ACTIVE, sourceProtectionStatus(35, SourceValidationLevel.ADVANCED, true, SourceValidationLevel.ADVANCED))
+        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, SourceValidationLevel.STRICT, true, SourceValidationLevel.STANDARD))
+        assertEquals(SourceProtectionStatus.RECONNECT, sourceProtectionStatus(35, SourceValidationLevel.STANDARD, true, SourceValidationLevel.STRICT))
+        assertEquals(SourceProtectionStatus.ACTIVE, sourceProtectionStatus(35, SourceValidationLevel.STRICT, true, SourceValidationLevel.STRICT))
     }
 
     @Test fun visibilityDescribesRunningSessionRatherThanJustPreference() {

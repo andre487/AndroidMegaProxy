@@ -18,7 +18,7 @@ are not included; server setup lives in [MegaProxyServer](https://github.com/and
 | Guide | Covers |
 | --- | --- |
 | [Profiles and routing](profiles-and-routing.md) | HTTPS/SSH/Jump/SOCKS5, app selection, LAN bypass, failover, Always-on, import/export and local settings |
-| [App ownership checks](source-validation.md) | Standard/Advanced UDP policies, TCP admission, ping blocking and compatibility limits |
+| [App ownership checks](source-validation.md) | Standard/Strict UDP policies, TCP admission, ping blocking and compatibility limits |
 | [DNS](dns.md) | DoH, plain TCP/UDP, routing and local security approvals |
 | [MASQUE α](masque.md) | Experimental HTTP/3 setup, fingerprints and interoperability limits |
 | [Diagnostics and metrics](connection-metrics.md) | Connection/speed checks, shared log, VPN visibility, passive metrics and MTU |

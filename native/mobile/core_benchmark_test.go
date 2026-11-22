@@ -28,7 +28,7 @@ func (c *benchmarkSourceConn) ReadFrom(p []byte) (int, net.Addr, error) {
 func BenchmarkCoreUDPRead(b *testing.B) {
 	for _, size := range []int{64, 1400, 65507} {
 		for _, method := range []string{"Read", "ReadFrom"} {
-			for _, mode := range []string{"disabled", "standard", "advanced"} {
+			for _, mode := range []string{"disabled", "standard", "strict"} {
 				b.Run(fmt.Sprintf("bytes=%d/method=%s/mode=%s", size, method, mode), func(b *testing.B) {
 					original := &benchmarkSourceConn{payload: make([]byte, size)}
 					var conn adapter.UDPConn = original
@@ -62,7 +62,7 @@ func BenchmarkCoreUDPRead(b *testing.B) {
 						}
 					}
 					b.ReportMetric(float64(validator.calls)/float64(b.N), "owner_queries/op")
-					if mode == "advanced" && validator.calls != b.N || mode == "disabled" && validator.calls != 0 {
+					if mode == "strict" && validator.calls != b.N || mode == "disabled" && validator.calls != 0 {
 						b.Fatal("incorrect ownership query count")
 					}
 				})
@@ -100,7 +100,7 @@ func BenchmarkCoreUDPRecheck(b *testing.B) {
 // No sockets, dialers or proxy handshakes are created here.
 func BenchmarkCoreAdmission(b *testing.B) {
 	for _, protocol := range []string{"TCP", "UDP"} {
-		for _, mode := range []string{"disabled", "standard", "advanced"} {
+		for _, mode := range []string{"disabled", "standard", "strict"} {
 			b.Run(fmt.Sprintf("protocol=%s/mode=%s", protocol, mode), func(b *testing.B) {
 				events := make(chan struct{}, 1)
 				handler := &sourceTestTransport{events: events}

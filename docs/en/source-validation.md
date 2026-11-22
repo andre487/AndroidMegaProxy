@@ -15,12 +15,12 @@ UDP, including DNS, is checked at admission and then according to the selected l
 
 | Level | Outgoing UDP checks | Tradeoff |
 | --- | --- | --- |
-| Standard (initial choice) | First datagram after each fixed 1-second interval | Fewer Android API calls; stale permission may last up to 1 second |
-| Advanced | Every datagram | Earlier detection of owner changes; more CPU work and latency |
+| Standard (initial choice) | First datagram after at least 1 second without outgoing traffic | Continuous traffic can keep stale permission indefinitely |
+| Strict | Every datagram | Earlier detection of owner changes, higher CPU usage and potentially lower UDP throughput |
 
 Standard caches permission only for that live flow, not for other destinations or later flows.
-Cache hits do not extend the deadline. The next datagram after expiry requires a new check;
-a denied flow is closed. **Standard does not offer the same protection as Advanced.** Neither
+Each outgoing datagram renews permission for one second. The first datagram after expiry requires a new check;
+a denied flow is closed. **Standard does not offer the same protection as Strict.** Neither
 makes owner lookup and forwarding an atomic kernel operation.
 
 ## Blocking and compatibility
@@ -40,4 +40,4 @@ ICMP is unaffected. TCP/HTTP diagnostics continue working.
 **Visibility** shows the running level and whether a reconnect is needed, rather than merely
 the saved setting. This is a session status, not an attack test from another app, and does not
 hide VPN interfaces or other system-visible VPN signals. Changing the level also requires
-reconnection. Previously enabled settings without a level retain Advanced; fresh opt-in uses Standard.
+reconnection. Previously enabled settings without a level retain Strict; fresh opt-in uses Standard.

@@ -149,6 +149,6 @@ move into the scrollable form. Orientation and font arguments affect only the te
 
 For strict source validation changes, check opt-in persistence and pending reconnect status,
 API 26 unavailability, and API 35 real TCP/UDP/DNS through JNI at both levels. Check unknown/stale UID denial,
-UDP source-port reuse (immediate denial in Advanced; fixed non-sliding 1-second window in Standard), both Echo families and preserved MTU errors with deterministic native/JVM
+UDP source-port reuse (immediate denial in Strict; sliding 1-second idle window in Standard), both Echo families and preserved MTU errors with deterministic native/JVM
 tests. Verify disabled sessions install no filtering wrappers. A visibility status is not a
 separate-UID bypass test; use a controlled excluded helper app for manual attack reproduction.

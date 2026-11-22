@@ -799,9 +799,12 @@ class ConfigStore(context: Context) {
             mtu = mtu,
             strictSourceValidation = item.optBoolean("strictSourceValidation", false),
             sourceValidationLevel = if (item.has("sourceValidationLevel")) {
-                net.megaproxy487.model.SourceValidationLevel.valueOf(item.getString("sourceValidationLevel"))
+                when (val level = item.getString("sourceValidationLevel")) {
+                    "ADVANCED" -> net.megaproxy487.model.SourceValidationLevel.STRICT
+                    else -> net.megaproxy487.model.SourceValidationLevel.valueOf(level)
+                }
             } else if (item.optBoolean("strictSourceValidation", false)) {
-                net.megaproxy487.model.SourceValidationLevel.ADVANCED
+                net.megaproxy487.model.SourceValidationLevel.STRICT
             } else net.megaproxy487.model.SourceValidationLevel.STANDARD,
             tlsProfile = parsedTls.takeIf { it.available } ?: TlsProfile.DEFAULT,
             sshProfile = enumValue(item.optString("sshProfile"), SshProfile.DEFAULT),

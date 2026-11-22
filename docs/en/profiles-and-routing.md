@@ -93,8 +93,8 @@ requests follow the ordinary network. LAN bypass sends supported local traffic d
 it is not a fallback after proxy failure. IPv6 is enabled per profile.
 
 **Strict source validation** optionally checks which app owns TCP/UDP traffic on Android 10+.
-It defaults to off and applies on reconnection. Standard caches UDP permission for up to one
-second per live flow; Advanced checks every outgoing datagram. Both check new TCP connections
+It defaults to off and applies on reconnection. Standard rechecks a live UDP flow after
+one second without outgoing traffic; Strict checks every outgoing datagram. Both check new TCP connections
 and block unknown owners and TUN ping. It can delay TCP setup, slow UDP or disrupt apps;
 [source-check behavior and limits](source-validation.md). **Visibility** shows the active level.
 

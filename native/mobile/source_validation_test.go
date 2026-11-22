@@ -209,7 +209,7 @@ func TestSourceLookupDoesNotBlockTUNAndAdmissionIsBounded(t *testing.T) {
 	<-events
 }
 
-func TestStandardUDPValidationWindowIsFixedAndFlowLocal(t *testing.T) {
+func TestStandardUDPValidationWindowSlidesAndIsFlowLocal(t *testing.T) {
 	v := &sourceTestValidator{allowed: true}
 	now := time.Unix(100, 0)
 	conn := newSourceUDP(&sourceTestConn{}, v, time.Second)
@@ -220,22 +220,22 @@ func TestStandardUDPValidationWindowIsFixedAndFlowLocal(t *testing.T) {
 	if !conn.allowedAt(now.Add(900*time.Millisecond)) || v.calls != 1 {
 		t.Fatal("standard mode did not cache admission")
 	}
-	if !conn.allowedAt(now.Add(999 * time.Millisecond)) {
+	if !conn.allowedAt(now.Add(1800 * time.Millisecond)) {
 		t.Fatal("cache expired early")
 	}
-	if conn.allowedAt(now.Add(time.Second)) || v.calls != 2 {
-		t.Fatal("cache hit extended the stale-owner window")
+	if conn.allowedAt(now.Add(2800*time.Millisecond)) || v.calls != 2 {
+		t.Fatal("idle flow did not recheck at the exact deadline")
 	}
 	another := newSourceUDP(&sourceTestConn{}, v, time.Second)
 	if another.allowedAt(now) || v.calls != 3 {
 		t.Fatal("new flow reused another flow's decision")
 	}
 	v.allowed = true
-	if conn.allowedAt(now.Add(2*time.Second)) || v.calls != 3 {
+	if conn.allowedAt(now.Add(3*time.Second)) || v.calls != 3 {
 		t.Fatal("denied flow resurrected cached permission")
 	}
 	fresh := newSourceUDP(&sourceTestConn{}, v, time.Second)
-	if !fresh.allowedAt(now.Add(2*time.Second)) || v.calls != 4 {
+	if !fresh.allowedAt(now.Add(3*time.Second)) || v.calls != 4 {
 		t.Fatal("fresh socket not rechecked")
 	}
 }

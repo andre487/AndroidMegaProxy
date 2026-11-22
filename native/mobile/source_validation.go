@@ -127,14 +127,11 @@ func (c *sourceUDP) allowedAt(now time.Time) bool {
 	if c.denied {
 		return false
 	}
-	if now.Before(c.recheckAt) {
-		return true
-	}
-	if !c.query() {
+	if !now.Before(c.recheckAt) && !c.query() {
 		c.denied = true
 		return false
 	}
-	// ponytail: one-second permission window per UDP flow; use per-datagram mode for stricter checks.
+	// Continuous outgoing traffic keeps this flow admitted until it goes idle.
 	c.recheckAt = now.Add(c.recheckInterval)
 	return true
 }

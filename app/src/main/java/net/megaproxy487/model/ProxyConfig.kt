@@ -9,7 +9,7 @@ val VPN_MTU_RANGE = 1280..65535
 
 enum class SourceValidationLevel(val udpRecheckMillis: Long, @StringRes val labelResource: Int) {
     STANDARD(1000, R.string.source_level_standard),
-    ADVANCED(0, R.string.source_level_advanced),
+    STRICT(0, R.string.source_level_strict),
 }
 
 data class ProxyConfig(
