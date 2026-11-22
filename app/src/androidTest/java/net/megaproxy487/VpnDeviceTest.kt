@@ -30,6 +30,8 @@ class VpnDeviceTest : DeviceTestBase() {
 
     private fun ipv6Traffic(ipv6Proxy: Boolean) {
         val target = argument("originIpv6")
+        val destination = InetAddress.getByName(target)
+        val tunnelAddress = InetAddress.getByName("fd77::1")
         for (type in ProxyType.entries) {
             assertFalse("IPv6 origin reachable without VPN", runCatching {
                 java.net.Socket().use { it.connect(java.net.InetSocketAddress(target, 8080), 1_000) }
@@ -76,20 +78,26 @@ class VpnDeviceTest : DeviceTestBase() {
             }
             saved()
             connect()
+            // VPN capabilities can appear before IPv6 source selection uses the new TUN.
+            await("IPv6 route to the origin did not use the VPN for $type") {
+                DatagramSocket().use { probe ->
+                    probe.connect(destination, 8080)
+                    probe.localAddress == tunnelAddress
+                }
+            }
             roundTrip(target)
             if (type == ProxyType.SOCKS5 || type == ProxyType.MASQUE) {
                 DatagramSocket().use { socket ->
                     socket.soTimeout = 10_000
                     val payload = "IPv6 TUN UDP".toByteArray()
-                    val address = InetAddress.getByName(target)
-                    socket.send(DatagramPacket(payload, payload.size, address, 8081))
+                    socket.send(DatagramPacket(payload, payload.size, destination, 8081))
                     val reply = DatagramPacket(ByteArray(128), 128)
                     if (type == ProxyType.MASQUE) {
                         // GOST 3.3.0 rejects IPv6 CONNECT-UDP; a direct fallback must not deliver it.
                         assertThrows(java.net.SocketTimeoutException::class.java) { socket.receive(reply) }
                     } else {
                         socket.receive(reply)
-                        assertEquals(address, reply.address)
+                        assertEquals(destination, reply.address)
                         assertEquals(8081, reply.port)
                         assertArrayEquals(payload, reply.data.copyOf(reply.length))
                     }
