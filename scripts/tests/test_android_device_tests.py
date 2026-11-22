@@ -103,6 +103,24 @@ class InstrumentationResultTest(unittest.TestCase):
                     shell.assert_any_call("svc", "wifi", "enable")
                 self.assertNotIn(m.PACKAGE, str(shell.call_args_list))
 
+    def test_api26_waits_for_wifi_after_an_empty_boot_scan(self):
+        states = iter(
+            [
+                "Active default network: none",
+                "Active default network: 100\nNetworkAgentInfo{ network{100} nc{[ Transports: WIFI Capabilities: INTERNET&VALIDATED]}}",
+            ]
+        )
+
+        def response(*args):
+            return next(states) if args == ("dumpsys", "connectivity") else ""
+
+        with (
+            patch.object(m.time, "monotonic", side_effect=[0, 36]),
+            patch.object(m.time, "sleep"),
+        ):
+            m.prepare_emulator(response, 26)
+        self.assertIsNone(next(states, None))
+
     def test_emulator_rejects_an_unvalidated_default_network(self):
         for state in (
             "Active default network: 100\nNetworkAgentInfo{ network{101} nc{[ Transports: WIFI Capabilities: INTERNET&VALIDATED]}}",
@@ -110,7 +128,7 @@ class InstrumentationResultTest(unittest.TestCase):
         ):
             with (
                 self.subTest(state=state),
-                patch.object(m.time, "monotonic", side_effect=[0, 31]),
+                patch.object(m.time, "monotonic", side_effect=[0, 91]),
             ):
                 with self.assertRaisesRegex(RuntimeError, "no validated default Wi-Fi"):
                     m.prepare_emulator(Mock(return_value=state), 26)

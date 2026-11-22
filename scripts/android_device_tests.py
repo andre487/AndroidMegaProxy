@@ -503,7 +503,8 @@ def prepare_emulator(shell, api):
     shell("am", "force-stop", package)
     shell("pm", "disable-user", "--user", "0", package)
 
-    deadline = time.monotonic() + 30
+    # Oreo can finish its next automatic scan after 30 seconds when the boot scan is empty.
+    deadline = time.monotonic() + (90 if api == 26 else 30)
     while True:
         state = shell("dumpsys", "connectivity")
         default = re.search(r"Active default network: (\d+)", state)
