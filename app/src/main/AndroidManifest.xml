@@ -11,6 +11,9 @@
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- Configurations can select any installed package, including apps with no launcher activity. -->
+    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
     <queries>
         <package android:name="org.fdroid.fdroid" />
         <intent>

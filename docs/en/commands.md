@@ -19,7 +19,7 @@ Use `uv run manage.py --help` and the command group's `--help` for available opt
 | `uv run manage.py native benchmarks` | Measures native CPU/allocation costs with ten samples; [comparison and profiling](native-benchmarks.md). Available options: `--bench`, `--count`, `--benchtime`, `--cpu`, `--output`, `--profile`. |
 | `uv run manage.py native integration` | Tests production dialers against real GOST/OpenSSH servers in Docker with the race detector. |
 | `uv run manage.py android checks` | Builds the native AAR, resolves pinned Robolectric SDKs through Gradle, runs Android unit tests and lint, builds a debug APK, then builds and verifies an unsigned release APK. It rejects any release-signing environment variables. |
-| `uv run manage.py android device-build` | Build the native AAR, debug APK and instrumentation APK. |
+| `uv run manage.py android device-build` | Build the native AAR, debug APK, instrumentation APK and headless routing fixture. |
 | `uv run manage.py android device-tests --api 26` | Run integration scenarios on a running disposable API 26 emulator. |
 | `uv run manage.py android device-tests --api 35` | Run integration scenarios on a running disposable API 35 emulator. |
 | `uv run manage.py test` | Runs `native tests` and `android checks`; excludes Python, Docker integration and emulator tests. |

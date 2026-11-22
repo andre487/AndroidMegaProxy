@@ -11,7 +11,7 @@ It contains no advertising, analytics SDKs or tracking services.
 MegaProxy stores your connection profiles, credentials, settings and trusted SSH host keys to
 connect to your servers. Passwords, imported private keys, configuration-subscription URLs and subscription credentials are encrypted with a key held by Android Keystore. SSH key passphrases entered in the connection dialog stay in app memory. Passphrases entered in the profile editor are saved on the device with Android Keystore protection. All passphrases are excluded from configuration exports. Android backup and device transfer are disabled for app data.
 
-For per-app routing, MegaProxy reads the applications visible to it on your device and stores
+For per-app routing, MegaProxy can look up any installed package on your device, including apps without a launcher icon selected through a configuration. It stores
 which applications you select. This information is used locally to configure routing, not
 uploaded as an application inventory. Profile exports can include these routing selections.
 On Android 10 and later, source validation uses a local socket-owner lookup to check which app owns TCP/UDP traffic. Unless you choose otherwise, split tunneling uses Standard validation and routing all apps disables the checks. The lookup results and validation settings stay on the device.

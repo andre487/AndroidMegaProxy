@@ -15,4 +15,4 @@ dependencyResolutionManagement {
 }
 
 rootProject.name = "MegaProxy"
-include(":app")
+include(":app", ":device-tests:headless")

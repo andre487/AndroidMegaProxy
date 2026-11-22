@@ -30,6 +30,7 @@ class InstrumentationResultTest(unittest.TestCase):
         selected.add("deniedNotificationsStillAllowVpn")
         # Strict source ownership uses Android API 29+ and is selected separately.
         selected.add("strictSourceValidatedTcpUdpStopAndRestart")
+        selected.add("selectedHeadlessPackagePassesSourceValidation")
         self.assertEqual(methods, selected)
         self.assertEqual(len(m.TESTS), len(set(m.TESTS)))
 

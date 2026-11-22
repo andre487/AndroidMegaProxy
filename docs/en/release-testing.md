@@ -160,3 +160,7 @@ API 26 unavailability, and API 35 real TCP/UDP/DNS through JNI at both levels. C
 UDP source-port reuse (immediate denial in Strict; sliding 1-second idle window in Standard), both Echo families and preserved MTU errors with deterministic native/JVM
 tests. Verify disabled sessions install no filtering wrappers. A visibility status is not a
 separate-UID bypass test; use a controlled excluded helper app for manual attack reproduction.
+
+On API 35 the device suite also checks a separate package with no launcher activity.
+Its UID must reach the private echo origin when selected under Standard and Strict,
+and lose access when excluded while the VPN remains connected.

@@ -574,6 +574,11 @@ def main():
         "-r",
         str(ROOT / "app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk"),
     )
+    if args.api >= 30:
+        helper = (
+            ROOT / "device-tests/headless/build/outputs/apk/debug/headless-debug.apk"
+        )
+        command(*adb, "install", "-r", str(helper))
     shell("am", "force-stop", PACKAGE)
     if shell("pm", "clear", PACKAGE) != "Success":
         raise RuntimeError("Failed to reset disposable app data")
@@ -605,6 +610,10 @@ def main():
         if args.api >= 29:
             tests.append(
                 ("VpnDeviceTest#strictSourceValidatedTcpUdpStopAndRestart", None)
+            )
+        if args.api >= 30:
+            tests.append(
+                ("VpnDeviceTest#selectedHeadlessPackagePassesSourceValidation", None)
             )
         if args.api >= 33:
             tests.append(("VpnDeviceTest#deniedNotificationsStillAllowVpn", None))

@@ -81,7 +81,11 @@ def debug():
 @android.command()
 def device_build():
     """Build the debug and instrumentation APKs."""
-    android_build("assembleDebug", "assembleDebugAndroidTest")
+    android_build(
+        ":app:assembleDebug",
+        ":app:assembleDebugAndroidTest",
+        ":device-tests:headless:assembleDebug",
+    )
 
 
 @android.command()

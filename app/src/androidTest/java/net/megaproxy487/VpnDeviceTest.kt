@@ -116,6 +116,35 @@ class VpnDeviceTest : DeviceTestBase() {
         SourceValidationLevel.entries.forEach { socks5Traffic(true, strict = true, level = it) }
     }
 
+    @Test fun selectedHeadlessPackagePassesSourceValidation() {
+        val helper = "net.megaproxy487.test.headless"
+        val fixtureHost = InetAddress.getByName(argument("originHost")).hostAddress
+        fun checkEcho(expected: String) {
+            val result = device.executeShellCommand("am instrument -w -e host $fixtureHost $helper/.EchoProbe")
+            assertTrue(result, result.lineSequence().any { it.trim() == "INSTRUMENTATION_RESULT: echo=$expected" })
+        }
+        fun route(packages: Set<String>, level: SourceValidationLevel) {
+            io {
+                store.saveGlobalConnectionSettings(store.globalConnectionSettings().copy(
+                    routeAllApps = false, selectedPackages = packages, sourceValidationOverride = true,
+                    sourceValidationLevel = level))
+            }
+            saved()
+            connect()
+            assertEquals(level, ProxyVpnService.sourceValidationLevelActive)
+        }
+
+        for (level in SourceValidationLevel.entries) {
+            route(setOf(context.packageName, helper), level)
+            checkEcho("ok")
+            click(R.string.disconnect)
+            stopped()
+        }
+        route(setOf(context.packageName), SourceValidationLevel.STANDARD)
+        roundTrip()
+        checkEcho("unreachable")
+    }
+
     private fun socks5Traffic(authenticated: Boolean, strict: Boolean = false, level: SourceValidationLevel = SourceValidationLevel.STANDARD) {
         io {
             val profile = store.activeProfile()
