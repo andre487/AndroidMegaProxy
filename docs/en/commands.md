@@ -5,6 +5,8 @@ and install uv. From the repository root run `uv sync --locked`. uv selects Pyth
 from `.python-version` and installs the project dependencies into `.venv`.
 Use `uv run manage.py --help` and the command group's `--help` for available options.
 
+Local emulator runs with `scripts/run-without-debugging.sh` or `scripts/debug-android-app.sh` install NDK 29.0.14206865 into the selected Android SDK when needed. Set `ANDROID_NDK_HOME` to use an existing NDK installation.
+
 ## Commands
 
 | Command | Result |
