@@ -53,9 +53,11 @@ origin access; Docker VM origins are already unreachable directly on macOS.
 
 ```sh
 # Build once for the emulator ABI; default builds include every ABI.
-MEGAPROXY_ANDROID_ABI=x86_64 uv run manage.py android device-build
+MEGAPROXY_ANDROID_ABI="$(scripts/emulator-abi.sh)" uv run manage.py android device-build
 uv run manage.py android device-tests --api 35
 ```
+
+The local API 35 setup and CI select `x86_64` on Intel/AMD hosts and `arm64-v8a` on ARM64 hosts. An existing default AVD with a different ABI is preserved; setup creates a separate AVD with an ABI suffix. An explicit `MEGAPROXY_AVD_NAME` must match the host ABI.
 
 Repeat `android device-tests --api 26` on a separate API 26 emulator. Cold boot with acceleration;
 unset `HTTP_PROXY`, `HTTPS_PROXY`, `ALL_PROXY`, `NO_PROXY` and their lowercase variants when

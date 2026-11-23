@@ -1,10 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-avd_name="${MEGAPROXY_AVD_NAME:-MegaProxy_API_35}"
-
 script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-"$script_dir/create-android-emulator.sh"
+avd_name=$("$script_dir/create-android-emulator.sh")
 
 avd_processes() {
     ps ax -o pid=,command= | awk -v avd="@$avd_name" '
@@ -27,6 +25,11 @@ restart_for_window=false
 
 if [[ -n "$emulator_serial" ]]; then
     emulator_state="$(adb -s "$emulator_serial" get-state 2>/dev/null || true)"
+    running_avd=$(adb -s "$emulator_serial" emu avd name 2>/dev/null | tr -d '\r' | sed -n '1p' || true)
+    if [[ -n "$running_avd" && "$running_avd" != "$avd_name" ]]; then
+        echo "$emulator_serial runs $running_avd. Stop it before starting $avd_name." >&2
+        exit 1
+    fi
 fi
 
 if [[ "$emulator_state" == "device" && -n "$(headless_avd_processes)" ]]; then

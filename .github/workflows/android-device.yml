@@ -22,9 +22,12 @@ jobs:
     timeout-minutes: 45
     env:
       ANDROID_SERIAL: emulator-5554
-      MEGAPROXY_ANDROID_ABI: x86_64
     steps:
       - uses: actions/checkout@v6
+      - name: Select emulator ABI for the host
+        run: |
+          abi=$(scripts/emulator-abi.sh)
+          echo "MEGAPROXY_ANDROID_ABI=$abi" >> "$GITHUB_ENV"
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
@@ -51,7 +54,7 @@ jobs:
         env:
           DEVICE_API: ${{ inputs.api }}
         run: |
-          packages=('emulator' 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' "system-images;android-$DEVICE_API;google_apis;x86_64")
+          packages=('emulator' 'platform-tools' 'platforms;android-36' 'build-tools;36.0.0' 'ndk;29.0.14206865' "system-images;android-$DEVICE_API;google_apis;$MEGAPROXY_ANDROID_ABI")
           if ! sdkmanager "${packages[@]}"; then
             echo 'SDK installation failed; retrying once.' >&2
             sdkmanager "${packages[@]}"
@@ -67,7 +70,7 @@ jobs:
         with: &device_test_options
           api-level: ${{ inputs.api }}
           target: google_apis
-          arch: x86_64
+          arch: ${{ env.MEGAPROXY_ANDROID_ABI }}
           avd-name: megaproxy-device
           profile: pixel_5
           force-avd-creation: false

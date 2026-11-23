@@ -16,7 +16,7 @@
     {
       "label": "Android: Start emulator",
       "type": "shell",
-      "command": "source \"$HOME/.zshrc.extra\"; emulator @MegaProxy_API_35 -gpu auto",
+      "command": "source \"$HOME/.zshrc.extra\"; avd_name=$(./scripts/create-android-emulator.sh) && emulator \"@$avd_name\" -gpu auto",
       "isBackground": true,
       "problemMatcher": [],
       "presentation": {

@@ -2,7 +2,9 @@
 set -euo pipefail
 
 avd_name="${MEGAPROXY_AVD_NAME:-MegaProxy_API_35}"
-system_image="system-images;android-35;google_apis;arm64-v8a"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+abi="$("$script_dir/emulator-abi.sh")"
+system_image="system-images;android-35;google_apis;$abi"
 device_profile="pixel_8"
 
 if [[ -z "${ANDROID_HOME:-}" ]]; then
@@ -21,11 +23,32 @@ for tool in "$sdkmanager" "$avdmanager"; do
     fi
 done
 
+avd_config_path() {
+    local avd_home="${ANDROID_AVD_HOME:-${ANDROID_USER_HOME:-$HOME/.android}/avd}"
+    local avd_dir=""
+    if [[ -f "$avd_home/$avd_name.ini" ]]; then
+        avd_dir=$(sed -n 's/^path=//p' "$avd_home/$avd_name.ini")
+    fi
+    echo "${avd_dir:-$avd_home/$avd_name.avd}/config.ini"
+}
+
+avd_abi() {
+    awk -F= '$1 ~ /^abi[.]type[[:space:]]*$/ {gsub(/[[:space:]]/, "", $2); print $2; exit}' "$1"
+}
+
 configure_avd() {
-    local avd_config="$HOME/.android/avd/${avd_name}.avd/config.ini"
+    local avd_config
+    avd_config=$(avd_config_path)
 
     if [[ ! -f "$avd_config" ]]; then
         echo "Android emulator configuration is missing: $avd_config" >&2
+        exit 1
+    fi
+
+    local configured_abi
+    configured_abi=$(avd_abi "$avd_config")
+    if [[ "$configured_abi" != "$abi" ]]; then
+        echo "AVD $avd_name uses ${configured_abi:-unknown}; host requires $abi. Set MEGAPROXY_AVD_NAME to a new name to keep the existing device." >&2
         exit 1
     fi
 
@@ -59,28 +82,30 @@ configure_avd() {
     set_avd_option "hw.keyboard.lid" "yes"
     set_avd_option "hw.screen" "multi-touch"
 
-    echo "Configured host keyboard and mouse input for: $avd_name"
+    echo "Configured host keyboard and mouse input for: $avd_name" >&2
 }
 
-if [[ ! -x "$emulator" || ! -d "$ANDROID_HOME/system-images/android-35/google_apis/arm64-v8a" ]]; then
+if [[ ! -x "$emulator" || ! -f "$ANDROID_HOME/system-images/android-35/google_apis/$abi/system.img" ]]; then
     "$sdkmanager" \
         --sdk_root="$ANDROID_HOME" \
         "emulator" \
-        "$system_image"
+        "$system_image" >&2
+fi
+
+# Keep the data of an existing default AVD when switching host architectures.
+legacy_config=$(avd_config_path)
+if [[ -z "${MEGAPROXY_AVD_NAME:-}" && -f "$legacy_config" && "$(avd_abi "$legacy_config")" != "$abi" ]]; then
+    avd_name="${avd_name}_${abi}"
 fi
 
 if "$emulator" -list-avds | grep -Fxq "$avd_name"; then
-    echo "Android emulator already exists: $avd_name"
-    configure_avd
-    exit 0
+    echo "Android emulator already exists: $avd_name" >&2
+else
+    echo no | "$avdmanager" create avd \
+        --name "$avd_name" \
+        --package "$system_image" \
+        --device "$device_profile" >&2
 fi
 
-echo no | "$avdmanager" create avd \
-    --name "$avd_name" \
-    --package "$system_image" \
-    --device "$device_profile"
-
 configure_avd
-
-echo "Created Android emulator: $avd_name"
-echo "Start it with: emulator @$avd_name -gpu auto"
+echo "$avd_name"
