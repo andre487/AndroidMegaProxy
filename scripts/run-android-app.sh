@@ -24,7 +24,8 @@ fi
 
 (
     cd "$project_dir"
-    uv run manage.py android debug
+    # gomobile builds generated bindings outside the checkout. The APK records the project commit.
+    GOFLAGS="${GOFLAGS:+$GOFLAGS }-buildvcs=false" uv run manage.py android debug
 )
 
 adb -e install -r "$project_dir/app/build/outputs/apk/debug/app-debug.apk"
