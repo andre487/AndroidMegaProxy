@@ -165,9 +165,8 @@ for target in "${targets[@]}"; do
     echo "Building and signing $android_abi APK"
     (
         cd "$project_dir"
-        # Keep unchanged task outputs between variants. Gradle tracks the AAR,
-        # ABI filters, versionCode and BuildConfig fields as task inputs.
-        ./gradlew assembleRelease -PmegaproxyVersionVariant="$android_abi"
+        # Incremental Kotlin compilation across ABIs can change Compose bytecode compared to a clean F-Droid build.
+        ./gradlew assembleRelease -Pkotlin.incremental=false -PmegaproxyVersionVariant="$android_abi"
     )
     built_apk="$project_dir/app/build/outputs/apk/release/app-release.apk"
     if [[ ! -f "$built_apk" ]]; then
