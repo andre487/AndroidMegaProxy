@@ -1,0 +1,1 @@
+- Disabled incremental Kotlin compilation when building release APKs for different CPU architectures; app behavior is unchanged.
