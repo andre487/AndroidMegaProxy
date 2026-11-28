@@ -17,6 +17,13 @@ or use the move actions. Selecting a different profile while connected reconnect
 Edits affecting a running connection need reconnection. Subscription changes leave the current
 tunnel running and offer **Reconnect**; [subscription ownership and refresh rules](subscriptions.md).
 
+To toggle the VPN from the notification shade, edit Android Quick Settings and add the
+**MegaProxy** tile. It connects with the selected profile or disconnects the running VPN.
+Touch and hold the tile to open MegaProxy.
+If the profile needs setup, Android VPN permission, or an SSH key passphrase, complete that
+step on the app's connection screen. When MegaProxy is set as the always-on VPN, Android
+controls the connection.
+
 The default TLS fingerprint is Firefox Android. Selecting a named preset keeps that choice
 across updates. In a config file or subscription, use the following document-level section
 to follow the application's default:

@@ -6,6 +6,7 @@ import android.os.SystemClock
 import android.os.Looper
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.snapshots.Snapshot
 
 enum class VpnConnectionState { DISCONNECTED, CONNECTING, CONNECTED }
 enum class VpnTransportProtocol { UNKNOWN, SOCKS5, HTTP_1_1, HTTP_2, HTTP_3, SSH_MULTIPLEXED }
@@ -64,13 +65,16 @@ object VpnRuntimeState {
         val elapsedTime = SystemClock.elapsedRealtime()
         val update = update@{
             if (!isCurrent() || connectionRevision.get() != revision) return@update
-            mutableSession.value = connectionSessionForState(
-                mutableSession.value, value == VpnConnectionState.CONNECTED, wallTime, elapsedTime,
-            )
-            mutableConnection.value = value
-            if (value != VpnConnectionState.CONNECTED) {
-                mutableTransportProtocol.value = VpnTransportProtocol.UNKNOWN
-                mutableHttp3Fallback.value = false
+            // The Quick Settings tile observes this state even without a Compose window.
+            Snapshot.withMutableSnapshot {
+                mutableSession.value = connectionSessionForState(
+                    mutableSession.value, value == VpnConnectionState.CONNECTED, wallTime, elapsedTime,
+                )
+                mutableConnection.value = value
+                if (value != VpnConnectionState.CONNECTED) {
+                    mutableTransportProtocol.value = VpnTransportProtocol.UNKNOWN
+                    mutableHttp3Fallback.value = false
+                }
             }
         }
         if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
@@ -103,9 +107,11 @@ object VpnRuntimeState {
         val revision = systemRevision.incrementAndGet()
         val update = update@{
             if (!isCurrent() || systemRevision.get() != revision) return@update
-            mutableAlwaysOn.value = alwaysOn
-            mutableLockdown.value = lockdown
-            mutableConnectionProfileId.value = connectionProfileId
+            Snapshot.withMutableSnapshot {
+                mutableAlwaysOn.value = alwaysOn
+                mutableLockdown.value = lockdown
+                mutableConnectionProfileId.value = connectionProfileId
+            }
         }
         if (Looper.myLooper() == Looper.getMainLooper()) update() else mainHandler.post(update)
     }
